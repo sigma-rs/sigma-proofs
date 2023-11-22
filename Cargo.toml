@@ -9,7 +9,7 @@ repository = "https://gitlab.torproject.org/onyinyang/lox-zkp"
 documentation = "https://docs.rs/lox-zkp"
 categories = ["cryptography"]
 keywords = ["cryptography", "ristretto", "zero-knowledge", "NIZK",
-"compiler","lox"]
+"lox"]
 description = "A toolkit for auto-generated implementations of Schnorr proofs"
 exclude = [
     ".gitignore"
