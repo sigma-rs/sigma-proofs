@@ -1,14 +1,15 @@
 [package]
-name = "zkp"
+name = "lox-zkp"
 version = "0.8.0"
 authors = ["Henry de Valence <hdevalence@hdevalence.ca>"]
 edition = "2018"
 license = "CC0-1.0"
 readme = "README.md"
-repository = "https://github.com/hdevalence/zkp"
-documentation = "https://docs.rs/zkp"
+repository = "https://gitlab.torproject.org/onyinyang/lox-zkp"
+documentation = "https://docs.rs/lox-zkp"
 categories = ["cryptography"]
-keywords = ["cryptography", "ristretto", "zero-knowledge", "NIZK", "compiler"]
+keywords = ["cryptography", "ristretto", "zero-knowledge", "NIZK",
+"compiler","lox"]
 description = "A toolkit for auto-generated implementations of Schnorr proofs"
 exclude = [
     ".gitignore"
