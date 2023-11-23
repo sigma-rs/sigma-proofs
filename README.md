@@ -2,13 +2,14 @@
 
 ### Background
 
-This crate was originally created as part of `dalek-cyptography` and then
-was forked to `zkcrypto` and updated to include forks of
-`dalek-cryptography` dependencies that were compatible with `zkcrypto`'s `zkp`
+This crate was originally created as part of [`dalek-cyptography`](https://github.com/dalek-cryptography) and then
+was forked to [`zkcrypto`](https://github.com/zkcrypto) and updated to include forks of
+`dalek-cryptography` dependencies that were compatible with `zkcrypto`'s
+[`zkp`](https://github.com/zkcrypto/zkp)
 crate. These forks have since fallen out of sync with the upstream
 `dalek-cryptography` crates which has led to incompatabilities when relying on
 up-to-date dependencies in projects that rely on both `zkp` and
-`dalek-cryptography` crates, such as Lox. This crate was created for 3 reasons:
+`dalek-cryptography` crates, such as [Lox](https://gitlab.torproject.org/tpo/anti-censorship/lox). This crate was created for 3 reasons:
 1. To bring the `zkp` crate up to date with `dalek-cryptography` dependencies 
 2. To resolve a bug in the zkp crate
 3. To enabling publishing additional lox crates to crates.io with a working zkp
