@@ -18,7 +18,7 @@ extern crate serde;
 extern crate serde_derive;
 extern crate sha2;
 #[macro_use]
-extern crate zkp;
+extern crate lox_zkp;
 
 extern crate test;
 
