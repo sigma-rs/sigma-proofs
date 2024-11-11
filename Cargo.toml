@@ -23,7 +23,7 @@ merlin = "3"
 rand = { version = "0.8", features = ["std"] }
 serde = "1"
 serde_derive = "1"
-thiserror = "1"
+thiserror = "2"
 # Disable default features to deselect a backend, then select one below
 curve25519-dalek = { version = "4", default-features = false, features = ["serde", "rand_core", "alloc", "digest", "precomputed-tables"] }
 
