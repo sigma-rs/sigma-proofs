@@ -2,6 +2,13 @@
 
 Entries are listed in reverse chronological order.
 
+## 0.8.2
+* remove `nightly` feature, fix clippy warnings
+
+## 0.8.1
+* update `thiserror to v2`
+* fix tests
+
 ## 0.8.0
 * update `curve25519-dalek` dependency to 4.0
 * update `merlin` dependency to 3
