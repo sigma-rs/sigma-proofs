@@ -132,7 +132,7 @@ impl<'a> Prover<'a> {
     }
 }
 
-impl<'a> SchnorrCS for Prover<'a> {
+impl SchnorrCS for Prover<'_> {
     type ScalarVar = ScalarVar;
     type PointVar = PointVar;
 

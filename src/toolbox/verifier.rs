@@ -70,8 +70,7 @@ impl<'a> Verifier<'a> {
         assignment: CompressedRistretto,
     ) -> Result<PointVar, ProofError> {
         let encoding = assignment.decompress();
-        self.transcript
-            .append_point_var(label, &encoding.unwrap());
+        self.transcript.append_point_var(label, &encoding.unwrap());
         self.points.push(assignment);
         self.point_labels.push(label);
         Ok(PointVar(self.points.len() - 1))
@@ -150,7 +149,7 @@ impl<'a> Verifier<'a> {
             let (ref lhs_var, ref _rhs_lc) = self.constraints[i];
             self.transcript.validate_and_append_blinding_commitment(
                 self.point_labels[lhs_var.0],
-                &commitment,
+                commitment,
             )?;
         }
 
@@ -188,7 +187,7 @@ impl<'a> Verifier<'a> {
     }
 }
 
-impl<'a> SchnorrCS for Verifier<'a> {
+impl SchnorrCS for Verifier<'_> {
     type ScalarVar = ScalarVar;
     type PointVar = PointVar;
 

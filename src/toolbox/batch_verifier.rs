@@ -72,8 +72,8 @@ impl<'a> BatchVerifier<'a> {
         if transcripts.len() != batch_size {
             return Err(ProofError::BatchSizeMismatch);
         }
-        for i in 0..transcripts.len() {
-            transcripts[i].domain_sep(proof_label);
+        for transcript in &mut transcripts {
+            transcript.domain_sep(proof_label);
         }
         Ok(BatchVerifier {
             batch_size,
@@ -124,7 +124,7 @@ impl<'a> BatchVerifier<'a> {
         {
             let it = Iterator::zip(self.transcripts.iter_mut(), assignments.iter());
             for (transcript, assignment) in it {
-                transcript.validate_and_append_point_var(label, &assignment)?;
+                transcript.validate_and_append_point_var(label, assignment)?;
             }
         }
         self.instance_points.push(assignments);
@@ -149,13 +149,13 @@ impl<'a> BatchVerifier<'a> {
         }
 
         // Feed each prover's commitments into their respective transcript
-        for j in 0..self.batch_size {
-            for (i, com) in proofs[j].commitments.iter().enumerate() {
+        for (j, proof) in proofs.iter().enumerate().take(self.batch_size) {
+            for (i, com) in proof.commitments.iter().enumerate() {
                 let label = match self.constraints[i].0 {
                     PointVar::Static(var_idx) => self.static_point_labels[var_idx],
                     PointVar::Instance(var_idx) => self.instance_point_labels[var_idx],
                 };
-                self.transcripts[j].validate_and_append_blinding_commitment(label, &com)?;
+                self.transcripts[j].validate_and_append_blinding_commitment(label, com)?;
             }
         }
 
@@ -235,7 +235,7 @@ impl<'a> BatchVerifier<'a> {
     }
 }
 
-impl<'a> SchnorrCS for BatchVerifier<'a> {
+impl SchnorrCS for BatchVerifier<'_> {
     type ScalarVar = ScalarVar;
     type PointVar = PointVar;
 

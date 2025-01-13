@@ -15,19 +15,18 @@
 //!
 //! Roughly speaking, the tools fit together in the following way:
 //!
-//! * Statements are defined as generic functions which take a
-//! `SchnorrCS` implementation and some variables,
-//! and add the proof statements to the constraint system;
+//! * Statements are defined as generic functions that take a
+//!   `SchnorrCS` implementation and some variables, and add the
+//!   proof statements to the constraint system;
 //!
-//! * To create a proof, construct a `Prover`,
-//! allocate and assign variables, pass the prover and the variables
-//! to the generic statement function, then consume the prover to
-//! obtain a proof.
+//! * To create a proof, construct a `Prover`, allocate and assign
+//!   variables, pass the prover and the variables to the generic
+//!   statement function, then consume the prover to obtain a proof.
 //!
 //! * To verify a proof, construct a `Verifier`,
-//! allocate and assign variables, pass the verifier and the variables
-//! to the generic statement function, then consume the verifier to
-//! obtain a verification result.
+//!   allocate and assign variables, pass the verifier and the variables
+//!   to the generic statement function, then consume the verifier to
+//!   obtain a verification result.
 //!
 //! Note that the expansion of the [`define_proof`] macro contains a
 //! public `internal` module with the generated proof statement

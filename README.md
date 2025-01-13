@@ -74,11 +74,6 @@ To enable the `define_proof` macro, import the crate like so:
 extern crate zkp;
 ```
 
-#### Nightly features
-
-The `nightly` feature enables nightly-specific features.  It is required
-to build the documentation.
-
 #### Transcript debugging
 
 The `debug-transcript` feature is for development and testing, and

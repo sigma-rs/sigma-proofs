@@ -15,9 +15,6 @@ exclude = [
     ".gitignore"
 ]
 
-[package.metadata.docs.rs]
-features = ["nightly"]
-
 [dependencies]
 merlin = "3"
 rand = { version = "0.8", features = ["std"] }

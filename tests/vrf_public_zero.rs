@@ -28,7 +28,7 @@ pub fn test_issue(w: &Scalar, x: &Scalar, y: &Scalar) {
     let B: RistrettoPoint = dalek_constants::RISTRETTO_BASEPOINT_POINT;
 
     // Public points based on the public attributes
-    let (W, X, Y) = (w*B, x*B, y*B);
+    let (W, X, Y) = (w * B, x * B, y * B);
 
     let mut rng = rand::thread_rng();
     // Private coefficients (the prover's MAC key)
@@ -38,7 +38,7 @@ pub fn test_issue(w: &Scalar, x: &Scalar, y: &Scalar) {
     let s = Scalar::random(&mut rng);
 
     // (Part of the) public MAC
-    let Z = s*B + a*W + b*X + c*Y;
+    let Z = s * B + a * W + b * X + c * Y;
 
     // Construct the proof
     let mut prv_transcript = Transcript::new(b"test transcript");
@@ -63,7 +63,7 @@ pub fn test_issue(w: &Scalar, x: &Scalar, y: &Scalar) {
     // The verifier will recompute W, Y, Z as above and then verify:
 
     let mut vrf_transcript = Transcript::new(b"test transcript");
-    let result =  testproof::verify_compact(
+    let result = testproof::verify_compact(
         &pi,
         &mut vrf_transcript,
         testproof::VerifyAssignments {
@@ -95,4 +95,3 @@ fn test_zero() {
     let y = Scalar::random(&mut rng);
     test_issue(&w, &x, &y);
 }
-
