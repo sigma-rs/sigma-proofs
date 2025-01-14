@@ -2,6 +2,12 @@
 
 Entries are listed in reverse chronological order.
 
+## 0.8.3
+* switch to Criterion for benchmarking
+* remove define_proof benchmarking
+* revert `thiserror` to v1 until tor-browser 15.0
+
+
 ## 0.8.2
 * remove `nightly` feature, fix clippy warnings
 
