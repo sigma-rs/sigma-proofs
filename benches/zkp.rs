@@ -9,18 +9,13 @@
 // Authors:
 // - Henry de Valence <hdevalence@hdevalence.ca>
 
-#![feature(test)]
-
 extern crate bincode;
 extern crate curve25519_dalek;
-extern crate serde;
-#[macro_use]
-extern crate serde_derive;
-extern crate sha2;
 #[macro_use]
 extern crate lox_zkp;
-
-extern crate test;
+extern crate serde;
+extern crate serde_derive;
+extern crate sha2;
 
 mod cmz {
     // Proof statement for "credential presentation with 10 hidden attributes" from CMZ'13.

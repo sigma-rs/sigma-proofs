@@ -23,11 +23,15 @@ serde_derive = "1"
 thiserror = "2"
 # Disable default features to deselect a backend, then select one below
 curve25519-dalek = { version = "4", default-features = false, features = ["serde", "rand_core", "alloc", "digest", "precomputed-tables"] }
+criterion = { version = "0.5", features = ["html_reports"] }
 
 [dev-dependencies]
 bincode = "1"
 sha2 = "0.10"
 
+[[bench]]
+name = "dleq_benches"
+harness = false
+
 [features]
 debug-transcript = ["merlin/debug-transcript"]
-bench = []

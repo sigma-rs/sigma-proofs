@@ -10,7 +10,6 @@
 // - Henry de Valence <hdevalence@hdevalence.ca>
 
 #![allow(non_snake_case)]
-#![cfg_attr(feature = "bench", feature(test))]
 #![doc(html_logo_url = "https://doc.dalek.rs/assets/dalek-logo-clear.png")]
 //! ## Note
 //!
