@@ -1,6 +1,6 @@
 [package]
 name = "lox-zkp"
-version = "0.8.3"
+version = "0.8.4"
 authors = ["Henry de Valence <hdevalence@hdevalence.ca>"]
 edition = "2018"
 license = "CC0-1.0"
@@ -23,11 +23,11 @@ serde_derive = "1"
 thiserror = "1"
 # Disable default features to deselect a backend, then select one below
 curve25519-dalek = { version = "4", default-features = false, features = ["serde", "rand_core", "alloc", "digest", "precomputed-tables"] }
-criterion = { version = "0.5", features = ["html_reports"] }
 
 [dev-dependencies]
 bincode = "1"
 sha2 = "0.10"
+criterion = { version = "0.5", features = ["html_reports"]}
 
 [[bench]]
 name = "dleq_benches"

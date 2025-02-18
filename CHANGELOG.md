@@ -2,6 +2,9 @@
 
 Entries are listed in reverse chronological order.
 
+## 0.8.4
+* move Criterion to dev-dependencies
+
 ## 0.8.3
 * switch to Criterion for benchmarking
 * remove define_proof benchmarking
