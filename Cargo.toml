@@ -23,6 +23,8 @@ serde_derive = "1"
 thiserror = "1"
 # Disable default features to deselect a backend, then select one below
 curve25519-dalek = { version = "4", default-features = false, features = ["serde", "rand_core", "alloc", "digest", "precomputed-tables"] }
+curve25519-dalek-ng = { version = "4", features = ["alloc"] }
+group = "0.13.0"
 
 [dev-dependencies]
 bincode = "1"

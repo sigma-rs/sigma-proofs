@@ -1,7 +1,7 @@
-use curve25519_dalek::{ristretto::{CompressedRistretto, RistrettoBasepointTable}, RistrettoPoint, Scalar};
+use group::Group;
 use rand::{Rng, CryptoRng};
 
-pub trait SigmaProtocol {
+pub trait SigmaProtocol<G: Group> {
     type Commitment;
     type ProverState;
     type Response;
@@ -16,20 +16,20 @@ pub trait SigmaProtocol {
     fn prover_response(
         &self,
         state: &Self::ProverState,
-        challenge: &Scalar,
+        challenge: &G::Scalar,
     ) -> Self::Response;
 
     fn verifier(
         &self,
         commitment: &Self::Commitment,
-        challenge: &Scalar,
+        challenge: &G::Scalar,
         response: &Self::Response,
     ) -> bool;
 
     fn simulate_proof(
         &self, 
-        challenge: &Scalar,
-        rng: &mut (impl Rng + CryptoRng)
+        _challenge: &G::Scalar,
+        _rng: &mut (impl Rng + CryptoRng)
     ) -> (Self::Commitment, Self::Response) {
         panic!("simulatable_proof not implemented for this protocol")
     }
