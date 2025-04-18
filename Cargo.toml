@@ -22,11 +22,11 @@ serde = "1"
 serde_derive = "1"
 thiserror = "1"
 # Disable default features to deselect a backend, then select one below
-curve25519-dalek = { version = "4", default-features = false, features = ["serde", "rand_core", "alloc", "digest", "precomputed-tables"] }
-curve25519-dalek-ng = { version = "4", features = ["alloc"] }
+curve25519-dalek = { version = "4", default-features = false, features = ["serde", "rand_core", "alloc", "digest", "precomputed-tables", "group"] }
 group = "0.13.0"
 bls12_381 = "0.8.0"
-ff = "0.13.1"
+ff = { version = "0.13", features = ["derive"] }
+sha3 = "0.10.8"
 
 [dev-dependencies]
 bincode = "1"

@@ -6,7 +6,6 @@ use group::Group;
 use bls12_381::{G1Projective, Scalar};
 use ff::Field;
 
-#[cfg(test)]
 pub struct LokZkpSchnorr {
     pub generator: G1Projective,
     pub target: G1Projective
