@@ -1,18 +1,21 @@
 use std::ops::Not;
 
 use rand::{rngs::OsRng, CryptoRng, Rng};
-use curve25519_dalek::{ristretto::RistrettoPoint, scalar::Scalar};
 use lox_zkp::toolbox::sigma::{SigmaProtocol, AndProof, OrProof};
+use group::Group;
+use bls12_381::{G1Projective, Scalar};
+use ff::Field;
 
 #[cfg(test)]
 pub struct LokZkpSchnorr {
-    pub generator: RistrettoPoint,
-    pub target: RistrettoPoint
+    pub generator: G1Projective,
+    pub target: G1Projective
 }
 
-impl<'a> SigmaProtocol for LokZkpSchnorr {
+#[allow(non_snake_case)]
+impl SigmaProtocol<G1Projective> for LokZkpSchnorr {
     type Witness = Scalar;
-    type Commitment = RistrettoPoint;
+    type Commitment = G1Projective;
     type ProverState = (Scalar, Scalar);
     type Response = Scalar;
 
@@ -61,8 +64,8 @@ fn andproof_schnorr_correct() {
     let mut rng = OsRng;
 
     // Setup: two different Schnorr instances with known witnesses
-    let G1 = RistrettoPoint::random(&mut rng);
-    let G2 = RistrettoPoint::random(&mut rng);
+    let G1 = G1Projective::random(&mut rng);
+    let G2 = G1Projective::random(&mut rng);
 
     let w1 = Scalar::random(&mut rng);
     let w2 = Scalar::random(&mut rng);
@@ -73,7 +76,7 @@ fn andproof_schnorr_correct() {
     let p1 = LokZkpSchnorr { generator: G1, target: H1 };
     let p2 = LokZkpSchnorr { generator: G2, target: H2 };
 
-    let and_proof = AndProof { protocols: vec![p1, p2] };
+    let and_proof = AndProof::new(vec![p1, p2]);
 
     // Commitment phase
     let witnesses = vec![w1, w2];
@@ -97,8 +100,8 @@ fn andproof_schnorr_incorrect() {
     let mut rng = OsRng;
 
     // Setup: two different Schnorr instances with known witnesses
-    let G1 = RistrettoPoint::random(&mut rng);
-    let G2 = RistrettoPoint::random(&mut rng);
+    let G1 = G1Projective::random(&mut rng);
+    let G2 = G1Projective::random(&mut rng);
 
     let w1 = Scalar::random(&mut rng);
     let w2 = Scalar::random(&mut rng); // This witness is not actually known by the prover
@@ -110,7 +113,7 @@ fn andproof_schnorr_incorrect() {
     let p1 = LokZkpSchnorr { generator: G1, target: H1 };
     let p2 = LokZkpSchnorr { generator: G2, target: H2 };
 
-    let and_proof = AndProof { protocols: vec![p1, p2] };
+    let and_proof = AndProof::new(vec![p1, p2]);
 
     // Commitment phase
     let witnesses = vec![w1, w_fake];
@@ -134,8 +137,8 @@ fn orproof_schnorr_correct() {
     let mut rng = OsRng;
 
     // Setup: two different Schnorr instances with known witnesses
-    let G1 = RistrettoPoint::random(&mut rng);
-    let G2 = RistrettoPoint::random(&mut rng);
+    let G1 = G1Projective::random(&mut rng);
+    let G2 = G1Projective::random(&mut rng);
 
     let w1 = Scalar::random(&mut rng);
     let w2 = Scalar::random(&mut rng); // This witness is actually unknown
@@ -146,7 +149,7 @@ fn orproof_schnorr_correct() {
     let p1 = LokZkpSchnorr { generator: G1, target: H1 };
     let p2 = LokZkpSchnorr { generator: G2, target: H2 };
 
-    let or_proof = OrProof { protocols: [p1, p2] };
+    let or_proof = OrProof::new([p1, p2]);
 
     // Commitment phase
     let witness = w1;
@@ -170,8 +173,8 @@ fn orproof_schnorr_incorrect() {
     let mut rng = OsRng;
 
     // Setup: two different Schnorr instances with known witnesses
-    let G1 = RistrettoPoint::random(&mut rng);
-    let G2 = RistrettoPoint::random(&mut rng);
+    let G1 = G1Projective::random(&mut rng);
+    let G2 = G1Projective::random(&mut rng);
 
     let w1 = Scalar::random(&mut rng); // This witness is actually unknown
     let w2 = Scalar::random(&mut rng); // This witness is actually unknown
@@ -183,7 +186,7 @@ fn orproof_schnorr_incorrect() {
     let p1 = LokZkpSchnorr { generator: G1, target: H1 };
     let p2 = LokZkpSchnorr { generator: G2, target: H2 };
 
-    let or_proof = OrProof { protocols: [p1, p2] };
+    let or_proof = OrProof::new([p1, p2]);
 
     // Commitment phase
     let witness = w_fake;

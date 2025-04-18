@@ -1,12 +1,50 @@
+use std::marker::PhantomData;
+
 use crate::toolbox::sigma::SigmaProtocol;
 use rand::{Rng, CryptoRng};
-use curve25519_dalek::{Scalar};
+use group::{Group, ff::Field};
 
-pub struct AndProof<P: SigmaProtocol> {
+
+pub struct AndProof<P, G> 
+where
+    G: Group,
+    P: SigmaProtocol<G>
+{
     pub protocols: Vec<P>,
+    _group: PhantomData<G>
 }
 
-impl<P> SigmaProtocol for AndProof<P> where P: SigmaProtocol {
+impl<P, G> AndProof<P, G>
+where
+    G: Group,
+    P: SigmaProtocol<G>,
+{
+    pub fn new(protocols: Vec<P>) -> Self {
+        Self {
+            protocols,
+            _group: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<P, G> Default for AndProof<P, G>
+where
+    G: Group,
+    P: SigmaProtocol<G>,
+{
+    fn default() -> Self {
+        Self {
+            protocols: Vec::new(),
+            _group: PhantomData,
+        }
+    }
+}
+
+impl<P, G> SigmaProtocol<G> for AndProof<P,G> 
+where 
+    P: SigmaProtocol<G>,
+    G: Group
+     {
     type Commitment = Vec<P::Commitment>;
     type ProverState = Vec<P::ProverState>;
     type Response = Vec<P::Response>;
@@ -34,7 +72,7 @@ impl<P> SigmaProtocol for AndProof<P> where P: SigmaProtocol {
     fn prover_response(
             &self,
             state: &Self::ProverState,
-            challenge: &Scalar,
+            challenge: &G::Scalar,
         ) -> Self::Response {
 
         self.protocols
@@ -47,7 +85,7 @@ impl<P> SigmaProtocol for AndProof<P> where P: SigmaProtocol {
     fn verifier(
             &self,
             commitment: &Self::Commitment,
-            challenge: &Scalar,
+            challenge: &G::Scalar,
             response: &Self::Response,
         ) -> bool {
         
@@ -61,27 +99,50 @@ impl<P> SigmaProtocol for AndProof<P> where P: SigmaProtocol {
     }
 }
 
-pub struct OrProof<P: SigmaProtocol> {
-    pub protocols: [P;2]
+pub struct OrProof<P, G>
+where
+    P: SigmaProtocol<G>,
+    G: Group 
+{
+    pub protocols: [P;2],
+    _group: PhantomData<G>
 }
+
+impl<P, G> OrProof<P, G>
+where
+    G: Group,
+    P: SigmaProtocol<G>,
+{
+    pub fn new(protocols: [P;2]) -> Self {
+        Self {
+            protocols,
+            _group: std::marker::PhantomData,
+        }
+    }
+}
+
 #[derive(Clone)]
-pub struct OrProofState<P: SigmaProtocol> {
+pub struct OrProofState<P, G>
+where 
+    P: SigmaProtocol<G>,
+    G: Group {
     real_index: usize, // Index of the real proof
     real_state: P::ProverState, // Scalar commitment of the prover
-    fake_commit: P::Commitment, // Simulated commit created by simulate_proof
-    fake_challenge: Scalar, // Simulated challenge created at random
+    _fake_commit: P::Commitment, // Simulated commit created by simulate_proof
+    fake_challenge: G::Scalar, // Simulated challenge created at random
     fake_response: P::Response // Simutaled response created vy simulate_proof
 }
 
-impl<P> SigmaProtocol for OrProof<P> 
+impl<P,G> SigmaProtocol<G> for OrProof<P,G> 
 where 
-    P: SigmaProtocol,
+    P: SigmaProtocol<G>,
     P::Commitment: Clone,
-    P::Response: Clone 
+    P::Response: Clone,
+    G: Group
     {
     type Commitment = [P::Commitment; 2]; // Both commitments in order
-    type ProverState = OrProofState<P>;
-    type Response = ([P::Response; 2], Scalar); // The two responses, and the derived challenge
+    type ProverState = OrProofState<P,G>;
+    type Response = ([P::Response; 2], G::Scalar); // The two responses, and the derived challenge
     type Witness = (usize, P::Witness); // Index of the witness and witness
 
     fn prover_commit(
@@ -93,14 +154,14 @@ where
 
         // Simulate the fake proof
         let fake_index = 1 - real_index;
-        let fake_challenge = Scalar::random(rng);
-        let (fake_commit, fake_response) = self.protocols[fake_index].simulate_proof(&fake_challenge, rng);
+        let fake_challenge = G::Scalar::random(&mut *rng);
+        let (_fake_commit, fake_response) = self.protocols[fake_index].simulate_proof(&fake_challenge, rng);
 
         // Real commitment
         let (real_commit, real_state) = self.protocols[*real_index].prover_commit(real_witness, rng);
 
         // Order commitments
-        let mut commitments = [fake_commit.clone(), real_commit];
+        let mut commitments = [_fake_commit.clone(), real_commit];
         if *real_index == 0 {
             commitments.swap(0,1);
         }
@@ -108,7 +169,7 @@ where
         let prover_state = OrProofState {
             real_index: *real_index, 
             real_state, 
-            fake_commit, 
+            _fake_commit, 
             fake_challenge, 
             fake_response
         };
@@ -118,9 +179,9 @@ where
     fn prover_response(
         &self,
         state: &Self::ProverState,
-        challenge: &Scalar,
+        challenge: &G::Scalar,
     ) -> Self::Response {
-        let real_challenge = challenge - state.fake_challenge;
+        let real_challenge = *challenge - state.fake_challenge;
 
         let real_response = self.protocols[state.real_index].prover_response(&state.real_state, &real_challenge);
 
@@ -135,11 +196,11 @@ where
     fn verifier(
         &self,
         commitments: &Self::Commitment,
-        challenge: &Scalar,
+        challenge: &G::Scalar,
         responses: &Self::Response,
     ) -> bool {
         let ([response_0, response_1], challenge_0) = responses;
-        let challenge_1 = challenge - challenge_0;
+        let challenge_1 = *challenge - challenge_0;
 
         self.protocols[0].verifier(&commitments[0], challenge_0, response_0) && self.protocols[1].verifier(&commitments[1], &challenge_1, response_1)
     }

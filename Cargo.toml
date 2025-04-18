@@ -25,6 +25,8 @@ thiserror = "1"
 curve25519-dalek = { version = "4", default-features = false, features = ["serde", "rand_core", "alloc", "digest", "precomputed-tables"] }
 curve25519-dalek-ng = { version = "4", features = ["alloc"] }
 group = "0.13.0"
+bls12_381 = "0.8.0"
+ff = "0.13.1"
 
 [dev-dependencies]
 bincode = "1"
