@@ -1,11 +1,11 @@
-use group::Group;
 use rand::{Rng, CryptoRng};
 
-pub trait SigmaProtocol<G: Group> {
+pub trait SigmaProtocol {
     type Commitment;
     type ProverState;
     type Response;
     type Witness;
+    type Challenge;
 
     fn prover_commit(
         &self,
@@ -16,19 +16,19 @@ pub trait SigmaProtocol<G: Group> {
     fn prover_response(
         &self,
         state: &Self::ProverState,
-        challenge: &G::Scalar,
+        challenge: &Self::Challenge,
     ) -> Self::Response;
 
     fn verifier(
         &self,
         commitment: &Self::Commitment,
-        challenge: &G::Scalar,
+        challenge: &Self::Challenge,
         response: &Self::Response,
     ) -> bool;
 
     fn simulate_proof(
         &self, 
-        _challenge: &G::Scalar,
+        _challenge: &Self::Challenge,
         _rng: &mut (impl Rng + CryptoRng)
     ) -> (Self::Commitment, Self::Response) {
         panic!("simulatable_proof not implemented for this protocol")
