@@ -33,4 +33,10 @@ pub trait SigmaProtocol {
     ) -> (Self::Commitment, Self::Response) {
         panic!("simulatable_proof not implemented for this protocol")
     }
+
+    fn simulate_transcription(
+        &self, _rng: &mut (impl Rng + CryptoRng)
+    ) -> (Self::Commitment, Self::Challenge, Self::Response) {
+        panic!("simulatable_transcription not implemented for this protocol")
+    }
 }

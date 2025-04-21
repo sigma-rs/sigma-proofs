@@ -1,208 +1,185 @@
-use std::marker::PhantomData;
-
 use crate::toolbox::sigma::SigmaProtocol;
 use rand::{Rng, CryptoRng};
-use group::{Group, ff::Field};
+use ff::PrimeField;
 
 
-pub struct AndProof<P, G> 
+pub struct AndProtocol<P, Q> 
 where
-    G: Group,
-    P: SigmaProtocol<G>
+    P: SigmaProtocol,
+    Q: SigmaProtocol
 {
-    pub protocols: Vec<P>,
-    _group: PhantomData<G>
+    protocol0: P,
+    protocol1: Q
 }
 
-impl<P, G> AndProof<P, G>
-where
-    G: Group,
-    P: SigmaProtocol<G>,
-{
-    pub fn new(protocols: Vec<P>) -> Self {
-        Self {
-            protocols,
-            _group: std::marker::PhantomData,
-        }
-    }
-}
-
-impl<P, G> Default for AndProof<P, G>
-where
-    G: Group,
-    P: SigmaProtocol<G>,
-{
-    fn default() -> Self {
-        Self {
-            protocols: Vec::new(),
-            _group: PhantomData,
-        }
-    }
-}
-
-impl<P, G> SigmaProtocol<G> for AndProof<P,G> 
+impl<P, Q> AndProtocol<P, Q>
 where 
-    P: SigmaProtocol<G>,
-    G: Group
-     {
-    type Commitment = Vec<P::Commitment>;
-    type ProverState = Vec<P::ProverState>;
-    type Response = Vec<P::Response>;
-    type Witness = Vec<P::Witness>;
+    P: SigmaProtocol,
+    Q: SigmaProtocol
+{
+        pub fn new(protocol0: P, protocol1: Q) -> Self {
+            Self {protocol0, protocol1}
+        }
+}
+
+impl<P, Q> SigmaProtocol for AndProtocol<P, Q> 
+where
+    P: SigmaProtocol,
+    Q: SigmaProtocol
+{
+    type Commitment = (P::Commitment, Q::Commitment);
+    type ProverState = (P::ProverState, Q::ProverState);
+    type Response = (P::Response, Q::Response);
+    type Witness = (P::Witness, Q::Witness);
+    type Challenge = (P::Challenge, Q::Challenge);
 
     fn prover_commit(
         &self,
         witnesses: &Self::Witness,
         rng: &mut (impl Rng + CryptoRng),
     ) -> (Self::Commitment, Self::ProverState) {
-        assert_eq!(self.protocols.len(), witnesses.len());
+        let (commitment0, pr_st0) = self.protocol0.prover_commit(&witnesses.0, rng);
+        let (commitment1, pr_st1) = self.protocol1.prover_commit(&witnesses.1, rng);
 
-        let mut commitments = Vec::with_capacity(self.protocols.len());
-        let mut states = Vec::with_capacity(self.protocols.len());
-
-        for (protocol, witness) in self.protocols.iter().zip(witnesses.iter()) {
-            let (commit, state) = protocol.prover_commit(witness, rng);
-            commitments.push(commit);
-            states.push(state);
-        }
-
-        (commitments, states)
+        ((commitment0, commitment1), (pr_st0, pr_st1))
     }
 
     fn prover_response(
             &self,
             state: &Self::ProverState,
-            challenge: &G::Scalar,
+            challenge: &Self::Challenge,
         ) -> Self::Response {
+            // Compute responses
+            let response0 = self.protocol0.prover_response(&state.0, &challenge.0);
+            let response1 = self.protocol1.prover_response(&state.1, &challenge.1);
 
-        self.protocols
-        .iter()
-        .zip(state.iter())
-        .map(|(protocol, state)| protocol.prover_response(state, challenge))
-        .collect()
+            (response0, response1)
     }
 
     fn verifier(
             &self,
             commitment: &Self::Commitment,
-            challenge: &G::Scalar,
+            challenge: &Self::Challenge,
             response: &Self::Response,
         ) -> bool {
-        
-        self.protocols
-        .iter()
-        .zip(commitment.iter())
-        .zip(response.iter())
-        .all(|((protocol, commit), response)| {
-            protocol.verifier(commit, challenge, response)
-        })
+        let verif0 = self.protocol0.verifier(&commitment.0, &challenge.0, &response.0);
+        let verif1 = self.protocol1.verifier(&commitment.1, &challenge.1, &response.1);
+
+        verif0 & verif1
     }
 }
 
-pub struct OrProof<P, G>
+pub struct OrProtocol<P, Q>
 where
-    P: SigmaProtocol<G>,
-    G: Group 
+    P: SigmaProtocol,
+    Q: SigmaProtocol
 {
-    pub protocols: [P;2],
-    _group: PhantomData<G>
+    protocol0: P,
+    protocol1: Q
 }
 
-impl<P, G> OrProof<P, G>
-where
-    G: Group,
-    P: SigmaProtocol<G>,
+impl<P, Q> OrProtocol<P, Q>
+where 
+    P: SigmaProtocol,
+    Q: SigmaProtocol
 {
-    pub fn new(protocols: [P;2]) -> Self {
-        Self {
-            protocols,
-            _group: std::marker::PhantomData,
+        pub fn new(protocol0: P, protocol1: Q) -> Self {
+            Self {protocol0, protocol1}
         }
-    }
 }
 
-#[derive(Clone)]
-pub struct OrProofState<P, G>
-where 
-    P: SigmaProtocol<G>,
-    G: Group {
-    real_index: usize, // Index of the real proof
-    real_state: P::ProverState, // Scalar commitment of the prover
-    _fake_commit: P::Commitment, // Simulated commit created by simulate_proof
-    fake_challenge: G::Scalar, // Simulated challenge created at random
-    fake_response: P::Response // Simutaled response created vy simulate_proof
+pub enum OrEnum<L, R> {
+    Left(L),
+    Right(R),
 }
 
-impl<P,G> SigmaProtocol<G> for OrProof<P,G> 
+pub struct OrState<P: SigmaProtocol> (P::Challenge, P::Response);
+
+pub enum OrTranscription<P, Q>
+where
+    P: SigmaProtocol,
+    Q: SigmaProtocol
+{
+    Left(OrState<P>),
+    Right(OrState<Q>)
+}
+
+impl<P, Q, C> SigmaProtocol for OrProtocol<P, Q> 
 where 
-    P: SigmaProtocol<G>,
-    P::Commitment: Clone,
+    C: PrimeField,
+    P: SigmaProtocol<Challenge = C>,
+    Q: SigmaProtocol<Challenge = C>,
     P::Response: Clone,
-    G: Group
+    Q::Response: Clone,
     {
-    type Commitment = [P::Commitment; 2]; // Both commitments in order
-    type ProverState = OrProofState<P,G>;
-    type Response = ([P::Response; 2], G::Scalar); // The two responses, and the derived challenge
-    type Witness = (usize, P::Witness); // Index of the witness and witness
-
+    type Commitment = (P::Commitment, Q::Commitment); 
+    // Here ProverState = (real index, real prover state = (r, &real witness), fake transcription)
+    type ProverState = (usize, OrEnum<P::ProverState, Q::ProverState>, OrTranscription<P, Q>);
+    type Response = (P::Challenge, P::Response, Q::Response);  // The two responses
+    type Witness = (usize, OrEnum<P::Witness, Q::Witness>); // Index of the witness and witness
+    type Challenge = P::Challenge;
+    
     fn prover_commit(
         &self,
         witness: &Self::Witness,
         rng: &mut (impl Rng + CryptoRng),
     ) -> (Self::Commitment, Self::ProverState) {
-        let (real_index, real_witness) = witness;
-
-        // Simulate the fake proof
-        let fake_index = 1 - real_index;
-        let fake_challenge = G::Scalar::random(&mut *rng);
-        let (_fake_commit, fake_response) = self.protocols[fake_index].simulate_proof(&fake_challenge, rng);
-
-        // Real commitment
-        let (real_commit, real_state) = self.protocols[*real_index].prover_commit(real_witness, rng);
-
-        // Order commitments
-        let mut commitments = [_fake_commit.clone(), real_commit];
-        if *real_index == 0 {
-            commitments.swap(0,1);
+        // real index and real witness (wrapped)
+        let (r_index, r_witness_w) = witness;
+        match r_witness_w {
+            OrEnum::Left(ref r_witness) => {
+                let f_trnsc = self.protocol1.simulate_transcription(rng);
+                let ST = OrState(f_trnsc.1, f_trnsc.2);
+                let (commit, r_pr_st) = self.protocol0.prover_commit(&r_witness, rng);
+                ((commit, f_trnsc.0), (r_index.clone(), OrEnum::Left(r_pr_st), OrTranscription::Right(ST)))
+            }
+            OrEnum::Right(ref r_witness) => {
+                let f_trnsc = self.protocol0.simulate_transcription(rng);
+                let ST = OrState(f_trnsc.1, f_trnsc.2);
+                let (commit, r_pr_st) = self.protocol1.prover_commit(&r_witness, rng);
+                ((f_trnsc.0, commit), (r_index.clone(), OrEnum::Right(r_pr_st), OrTranscription::Left(ST)))
+            }
         }
-
-        let prover_state = OrProofState {
-            real_index: *real_index, 
-            real_state, 
-            _fake_commit, 
-            fake_challenge, 
-            fake_response
-        };
-        (commitments, prover_state)
     }
 
     fn prover_response(
         &self,
         state: &Self::ProverState,
-        challenge: &G::Scalar,
+        challenge: &Self::Challenge,
     ) -> Self::Response {
-        let real_challenge = *challenge - state.fake_challenge;
+        let (_ , r_pr_st, f_trnsc) = state;
 
-        let real_response = self.protocols[state.real_index].prover_response(&state.real_state, &real_challenge);
+        // Compute the real challenge
+        let r_challenge = match *f_trnsc {
+            OrTranscription::Left(OrState(ch, _)) => *challenge - ch,
+            OrTranscription::Right(OrState(ch, _)) => *challenge - ch,
+        };
 
-        let mut responses = [state.fake_response.clone(), real_response];
-        if state.real_index == 0 {
-            responses.swap(0,1);
-            return (responses, real_challenge);
+        match (r_pr_st, f_trnsc) {
+            (OrEnum::Left(ref r_prover_state), OrTranscription::Right(OrState(_, f_response))) => {
+                let r_response = self.protocol0.prover_response(r_prover_state, &r_challenge);
+                (r_challenge, r_response, f_response.clone())
+
+            },
+            (OrEnum::Right(ref r_prover_state), OrTranscription::Left(OrState(f_ch, f_response))) => {
+                let r_response = self.protocol1.prover_response(r_prover_state, &r_challenge);
+                (f_ch.clone(), f_response.clone(), r_response)
+            },
+            _ => panic!("Incoherence between real prover state and fake transcription"),
         }
-        (responses, state.fake_challenge)
     }
 
     fn verifier(
         &self,
         commitments: &Self::Commitment,
-        challenge: &G::Scalar,
-        responses: &Self::Response,
+        challenge: &Self::Challenge,
+        response: &Self::Response,
     ) -> bool {
-        let ([response_0, response_1], challenge_0) = responses;
-        let challenge_1 = *challenge - challenge_0;
+        let cond0 = self.protocol0.verifier(&commitments.0, &response.0, &response.1);
 
-        self.protocols[0].verifier(&commitments[0], challenge_0, response_0) && self.protocols[1].verifier(&commitments[1], &challenge_1, response_1)
+        let challenge1 = *challenge - response.0;
+        let cond1 = self.protocol1.verifier(&commitments.1, &challenge1, &response.2);
+
+        cond0 & cond1
     }
-    
 }
