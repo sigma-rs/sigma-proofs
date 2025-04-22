@@ -25,13 +25,13 @@ where
 impl<P, Q> SigmaProtocol for AndProtocol<P, Q> 
 where
     P: SigmaProtocol,
-    Q: SigmaProtocol
+    Q: SigmaProtocol<Challenge = P::Challenge>
 {
     type Commitment = (P::Commitment, Q::Commitment);
     type ProverState = (P::ProverState, Q::ProverState);
     type Response = (P::Response, Q::Response);
     type Witness = (P::Witness, Q::Witness);
-    type Challenge = (P::Challenge, Q::Challenge);
+    type Challenge = P::Challenge;
 
     fn prover_commit(
         &self,
@@ -50,8 +50,8 @@ where
             challenge: &Self::Challenge,
         ) -> Self::Response {
             // Compute responses
-            let response0 = self.protocol0.prover_response(&state.0, &challenge.0);
-            let response1 = self.protocol1.prover_response(&state.1, &challenge.1);
+            let response0 = self.protocol0.prover_response(&state.0, challenge);
+            let response1 = self.protocol1.prover_response(&state.1, challenge);
 
             (response0, response1)
     }
@@ -62,8 +62,8 @@ where
             challenge: &Self::Challenge,
             response: &Self::Response,
         ) -> bool {
-        let verif0 = self.protocol0.verifier(&commitment.0, &challenge.0, &response.0);
-        let verif1 = self.protocol1.verifier(&commitment.1, &challenge.1, &response.1);
+        let verif0 = self.protocol0.verifier(&commitment.0, challenge, &response.0);
+        let verif1 = self.protocol1.verifier(&commitment.1, challenge, &response.1);
 
         verif0 & verif1
     }
@@ -130,14 +130,14 @@ where
             OrEnum::Left(ref r_witness) => {
                 let f_trnsc = self.protocol1.simulate_transcription(rng);
                 let ST = OrState(f_trnsc.1, f_trnsc.2);
-                let (commit, r_pr_st) = self.protocol0.prover_commit(&r_witness, rng);
-                ((commit, f_trnsc.0), (r_index.clone(), OrEnum::Left(r_pr_st), OrTranscription::Right(ST)))
+                let (commit, r_pr_st) = self.protocol0.prover_commit(r_witness, rng);
+                ((commit, f_trnsc.0), (*r_index, OrEnum::Left(r_pr_st), OrTranscription::Right(ST)))
             }
             OrEnum::Right(ref r_witness) => {
                 let f_trnsc = self.protocol0.simulate_transcription(rng);
                 let ST = OrState(f_trnsc.1, f_trnsc.2);
-                let (commit, r_pr_st) = self.protocol1.prover_commit(&r_witness, rng);
-                ((f_trnsc.0, commit), (r_index.clone(), OrEnum::Right(r_pr_st), OrTranscription::Left(ST)))
+                let (commit, r_pr_st) = self.protocol1.prover_commit(r_witness, rng);
+                ((f_trnsc.0, commit), (*r_index, OrEnum::Right(r_pr_st), OrTranscription::Left(ST)))
             }
         }
     }
@@ -163,7 +163,7 @@ where
             },
             (OrEnum::Right(ref r_prover_state), OrTranscription::Left(OrState(f_ch, f_response))) => {
                 let r_response = self.protocol1.prover_response(r_prover_state, &r_challenge);
-                (f_ch.clone(), f_response.clone(), r_response)
+                (*f_ch, f_response.clone(), r_response)
             },
             _ => panic!("Incoherence between real prover state and fake transcription"),
         }

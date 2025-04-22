@@ -51,7 +51,7 @@ impl<M: GroupMorphism> SigmaProtocol for SchnorrPreimage<M> {
     ) -> bool {
         // Convert challenge to Codomain::Scalar
         let challenge_scalar = <<M as GroupMorphism>::Codomain as Group>::Scalar::from(*challenge);
-        self.morphism.map(&response) == self.target * challenge_scalar + commitment
+        self.morphism.map(response) == self.target * challenge_scalar + commitment
     }
 
     fn simulate_proof(

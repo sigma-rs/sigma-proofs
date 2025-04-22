@@ -89,7 +89,7 @@ fn andproof_schnorr_correct() {
     let (commitments, states) = and_proof.prover_commit(&witnesses, &mut rng);
 
     // Fiat-Shamir challenge (dummy for now)
-    let challenge = (Scalar::random(&mut rng), Scalar::random(&mut rng));
+    let challenge = Scalar::random(&mut rng);
 
     // Prover computes responses
     let responses = and_proof.prover_response(&states, &challenge);
@@ -126,7 +126,7 @@ fn andproof_schnorr_incorrect() {
     let (commitments, states) = and_proof.prover_commit(&witnesses, &mut rng);
 
     // Fiat-Shamir challenge (dummy for now)
-    let challenge = (Scalar::random(&mut rng), Scalar::random(&mut rng));
+    let challenge = Scalar::random(&mut rng);
 
     // Prover computes responses
     let responses = and_proof.prover_response(&states, &challenge);

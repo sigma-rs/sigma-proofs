@@ -9,19 +9,16 @@
 
 use rand::{CryptoRng, Rng};
 use sha3::{Shake128, digest::{Update, ExtendableOutput, XofReader}};
-use group::{Group, ff::FromUniformBytes};
+use group::ff::FromUniformBytes;
 
 use super::SigmaProtocol;
 
 /// Compute a Fiat-Shamir challenge using SHAKE128 over domain-separated input.
 /// Reduces the result modulo the group scalar field.
-pub fn fiat_shamir_challenge<G, const N: usize>(
+pub fn fiat_shamir_challenge<C: FromUniformBytes<N>, const N: usize>(
     input: &[u8],
     domain_sep: &[u8],
-) -> G::Scalar
-where
-    G: Group,
-    G::Scalar: FromUniformBytes<N>,
+) -> C
 {
     let mut hasher = Shake128::default();
     hasher.update(domain_sep);
@@ -31,27 +28,28 @@ where
     let mut buf = [0u8; N];
     reader.read(&mut buf);
 
-    G::Scalar::from_uniform_bytes(&buf)
+    C::from_uniform_bytes(&buf)
 }
 
 /// Run the full Fiat-Shamir prover logic: commit, derive challenge, respond.
-pub fn prove_fiat_shamir<P, G, const N: usize>(
+/// - `serialize_commitment`: Function to convert a commitment to bytes (e.g., using compression or serialization).
+pub fn prove_fiat_shamir<P, const N: usize>(
     protocol: &P,
     witness: &P::Witness,
     domain_sep: &[u8],
-    rng: &mut (impl Rng + CryptoRng)
-) -> (P::Commitment, G::Scalar, P::Response)
+    rng: &mut (impl Rng + CryptoRng),
+    serialize_commitment: impl Fn(&P::Commitment) -> Vec<u8> // TODO(trait): Replace closure with a `ToBytes` trait for better type safety and reuse.
+) -> (P::Commitment, P::Challenge, P::Response)
 where 
-    P: SigmaProtocol<G>,
-    P::Commitment: AsRef<[u8]>,
-    G: Group,
-    G::Scalar: FromUniformBytes<N>
+    P: SigmaProtocol,
+    P::Challenge: FromUniformBytes<N>
 {
     // Generate a commitment for the NIZK
     let (commitment, state) = protocol.prover_commit(witness, rng);
 
     // Generate the challenge using Fiat-Shamir
-    let challenge = fiat_shamir_challenge::<G, N>(commitment.as_ref(), domain_sep);
+    let input_bytes = serialize_commitment(&commitment);
+    let challenge = fiat_shamir_challenge::<P::Challenge, N>(&input_bytes, domain_sep);
 
     let response = protocol.prover_response(&state, &challenge);
 
@@ -59,20 +57,21 @@ where
 }
 
 /// Verify a Fiat-Shamir proof by recomputing the challenge and checking the response.
-pub fn verify_fiat_shamir<P, G, const N: usize>(
+/// - `serialize_commitment`: Function to convert a commitment to bytes (e.g., using compression or serialization).
+pub fn verify_fiat_shamir<P, const N: usize>(
     protocol: &P,
     commitment: &P::Commitment,
     response: &P::Response,
-    domain_sep: &[u8]
+    domain_sep: &[u8],
+    serialize_commitment: impl Fn(&P::Commitment) -> Vec<u8> // TODO(trait): Replace closure with a `ToBytes` trait for better type safety and reuse.
 ) -> bool
 where 
-    P: SigmaProtocol<G>, 
-    G: Group,
-    P::Commitment: AsRef<[u8]>,
-    G::Scalar: FromUniformBytes<N>
+    P: SigmaProtocol,
+    P::Challenge: FromUniformBytes<N>
 {
     // Generate the challenge with the outputs provided by the prover
-    let challenge = fiat_shamir_challenge::<G, N>(commitment.as_ref(), domain_sep);
+    let input_bytes = serialize_commitment(commitment);
+    let challenge = fiat_shamir_challenge::<P::Challenge, N>(&input_bytes, domain_sep);
 
-    protocol.verifier(commitment, &challenge, &response)
+    protocol.verifier(commitment, &challenge, response)
 }
