@@ -20,7 +20,7 @@ where
         Self { hasher, _marker: Default::default() }
     }
 
-    fn prover_message(mut self, elems: &[G]) -> Self {
+    fn prover_message(&mut self, elems: &[G]) -> &mut Self {
         for elem in elems {
             self.hasher.update(elem.to_bytes().as_ref());
         }

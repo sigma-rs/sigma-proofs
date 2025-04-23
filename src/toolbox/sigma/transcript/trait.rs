@@ -6,7 +6,7 @@ pub trait TranscriptCodec<G: Group> {
     fn new(domain_sep: &[u8]) -> Self;
 
     /// Absorb a list of group elements (e.g., commitments).
-    fn prover_message(self, elems: &[G]) -> Self
+    fn prover_message(&mut self, elems: &[G]) -> &mut Self
     where
         Self: Sized;
 

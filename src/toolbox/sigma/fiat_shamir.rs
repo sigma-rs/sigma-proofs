@@ -1,77 +1,62 @@
-//! Fiat-Shamir Transformation Utilities
-//!
-//! This module provides generic, stateless helpers to perform the Fiat-Shamir
-//! transformation, allowing interactive Sigma protocols to be converted into
-//! non-interactive ones. It uses SHAKE128 for challenge derivation, and reduces
-//! output modulo the target field using the `FromUniformBytes` trait. They're compatible with
-//! any `SigmaProtocol` where the commitment can be serialized and the challenge scalar
-//! supports deterministic hashing.
+use std::marker::PhantomData;
+use rand::{RngCore, CryptoRng};
+use crate::toolbox::sigma::SigmaProtocol;
+use crate::toolbox::sigma::transcript::TranscriptCodec;
+use group::Group;
 
-use rand::{CryptoRng, Rng};
-use sha3::{Shake128, digest::{Update, ExtendableOutput, XofReader}};
-use group::ff::FromUniformBytes;
-
-use super::SigmaProtocol;
-
-/// Compute a Fiat-Shamir challenge using SHAKE128 over domain-separated input.
-/// Reduces the result modulo the group scalar field.
-pub fn fiat_shamir_challenge<C: FromUniformBytes<N>, const N: usize>(
-    input: &[u8],
-    domain_sep: &[u8],
-) -> C
+pub struct NISigmaProtocol<P, C, G>
+where
+    G: Group,
+    P: SigmaProtocol<Commitment = G, Challenge = <G as Group>::Scalar>,
+    C: TranscriptCodec<G>,
 {
-    let mut hasher = Shake128::default();
-    hasher.update(domain_sep);
-    hasher.update(input);
-
-    let mut reader = hasher.finalize_xof();
-    let mut buf = [0u8; N];
-    reader.read(&mut buf);
-
-    C::from_uniform_bytes(&buf)
+    hash_state: C,
+    sigmap: P,
+    _marker: PhantomData<<G as Group>::Scalar>,
 }
 
-/// Run the full Fiat-Shamir prover logic: commit, derive challenge, respond.
-/// - `serialize_commitment`: Function to convert a commitment to bytes (e.g., using compression or serialization).
-pub fn prove_fiat_shamir<P, const N: usize>(
-    protocol: &P,
-    witness: &P::Witness,
-    domain_sep: &[u8],
-    rng: &mut (impl Rng + CryptoRng),
-    serialize_commitment: impl Fn(&P::Commitment) -> Vec<u8> // TODO(trait): Replace closure with a `ToBytes` trait for better type safety and reuse.
-) -> (P::Commitment, P::Challenge, P::Response)
-where 
-    P: SigmaProtocol,
-    P::Challenge: FromUniformBytes<N>
+impl<P, C, G> NISigmaProtocol<P, C, G>
+where
+    G: Group,
+    P: SigmaProtocol<Commitment = G, Challenge = <G as Group>::Scalar>,
+    C: TranscriptCodec<G>,
 {
-    // Generate a commitment for the NIZK
-    let (commitment, state) = protocol.prover_commit(witness, rng);
+    // Create new NIZK transformator.
+    pub fn new(iv: &[u8], instance: P) -> Self {
+        let hash_state = C::new(iv);
+        Self { hash_state, sigmap: instance, _marker: PhantomData }
+    }
 
-    // Generate the challenge using Fiat-Shamir
-    let input_bytes = serialize_commitment(&commitment);
-    let challenge = fiat_shamir_challenge::<P::Challenge, N>(&input_bytes, domain_sep);
+    // Generate new non-interactive proof
+    pub fn prove(
+        &mut self,
+        witness: &P::Witness,
+        rng: &mut (impl RngCore + CryptoRng),
+    ) -> (G, <G as Group>::Scalar, <P as SigmaProtocol>::Response) {
+        let (commitment, prover_state) = self.sigmap.prover_commit(witness, rng);
+        // Fiat Shamir challenge
+        let challenge = self
+            .hash_state
+            .prover_message(&[commitment])
+            .verifier_challenge();
+        // Prouver's response
+        let response = self.sigmap.prover_response(&prover_state, &challenge);
+        // Local verification of the proof
+        assert!(self.sigmap.verifier(&commitment, &challenge, &response));
+        (commitment, challenge, response)
+    }
 
-    let response = protocol.prover_response(&state, &challenge);
-
-    (commitment, challenge, response)
-}
-
-/// Verify a Fiat-Shamir proof by recomputing the challenge and checking the response.
-/// - `serialize_commitment`: Function to convert a commitment to bytes (e.g., using compression or serialization).
-pub fn verify_fiat_shamir<P, const N: usize>(
-    protocol: &P,
-    commitment: &P::Commitment,
-    response: &P::Response,
-    domain_sep: &[u8],
-    serialize_commitment: impl Fn(&P::Commitment) -> Vec<u8> // TODO(trait): Replace closure with a `ToBytes` trait for better type safety and reuse.
-) -> bool
-where 
-    P: SigmaProtocol,
-    P::Challenge: FromUniformBytes<N>
-{
-    // Generate the challenge with the outputs provided by the prover
-    let input_bytes = serialize_commitment(commitment);
-    let challenge = fiat_shamir_challenge::<P::Challenge, N>(&input_bytes, domain_sep);
-
-    protocol.verifier(commitment, &challenge, response)
+    /// Verification of non-interactive proof
+    pub fn verify(&mut self, proof: (G, <G as Group>::Scalar, <P as SigmaProtocol>::Response)) -> bool {
+        // Recompute the challenge
+        let challenge = self
+            .hash_state
+            .prover_message(&[proof.0])
+            .verifier_challenge();
+        // Verification of challenge and the proof
+        let cond0 = challenge == proof.1;
+        let cond1 = self.sigmap.verifier(&proof.0, &proof.1, &proof.2);
+        cond0 & cond1
+        
+    }
 }
