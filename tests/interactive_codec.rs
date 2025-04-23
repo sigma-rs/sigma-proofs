@@ -18,7 +18,8 @@ fn keccak_transcript_ristretto() {
     let domain_sep = b"test-keccak-ristretto";
 
     // Initialize transcript
-    let mut transcript = Transcript::new(domain_sep)
+    let mut binding = Transcript::new(domain_sep);
+    let transcript = binding
         .prover_message(&[G, H]);
 
     // Derive challenge
