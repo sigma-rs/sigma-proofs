@@ -33,9 +33,20 @@ where
         reader.read(&mut buf);
     
         let challenge_len = <<G as Group>::Scalar as PrimeField>::Repr::default().as_ref().len();
-        let mut repr = <<G as Group>::Scalar as PrimeField>::Repr::default();
-        repr.as_mut().copy_from_slice(&buf[..challenge_len]);
+        // let mut repr = <<G as Group>::Scalar as PrimeField>::Repr::default();
+        // repr.as_mut().copy_from_slice(&buf[..challenge_len]);
     
-        G::Scalar::from_repr(repr).unwrap()
+        // G::Scalar::from_repr(repr).unwrap()
+
+        loop {
+            reader.read(&mut buf);
+            let mut repr = <<G as Group>::Scalar as PrimeField>::Repr::default();
+            repr.as_mut().copy_from_slice(&buf[..challenge_len]);
+            let candidate = G::Scalar::from_repr(repr);
+            if bool::from(candidate.is_some()) {
+                break candidate.unwrap();
+            }
+        }
+
     }
 }
