@@ -1,5 +1,6 @@
 use rand::{Rng, CryptoRng};
 
+/// A trait for generic sigma protocols behaviour
 pub trait SigmaProtocol {
     type Commitment;
     type ProverState;
