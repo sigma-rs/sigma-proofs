@@ -1,18 +1,17 @@
 use rand::{CryptoRng, Rng};
 use group::{Group, GroupEncoding};
 use ff::{PrimeField,Field};
-use crate::toolbox::sigma::SigmaProtocol;
+use crate::toolbox::sigma::{SigmaProtocol, GroupMorphismPreimage};
 
 /// A generic Schnorr protocol over a group `G` implementing the Group trait.
 pub struct SchnorrProof<G: Group + GroupEncoding> {
-    pub generator: G,
-    pub target: G,
+    pub morphismp: GroupMorphismPreimage<G>,
 }
 
 /// Internal prover state: (random nonce, witness)
 pub struct SchnorrState<S> {
-    pub nonces: S,
-    pub witness: S,
+    pub nonces: Vec<S>,
+    pub witness: Vec<S>,
 }
 
 impl<G> SigmaProtocol for SchnorrProof<G>
@@ -20,20 +19,24 @@ where
     G: Group + GroupEncoding, 
     G::Scalar: Field + Clone,
 {
-    type Commitment = G;
-    type ProverState = SchnorrState<G::Scalar>;
-    type Response = G::Scalar;
-    type Witness = G::Scalar;
-    type Challenge = G::Scalar;
+    type Commitment = Vec<G>;
+    type ProverState = (Vec<<G as Group>::Scalar>, Vec<<G as Group>::Scalar>);
+    type Response = Vec<<G as Group>::Scalar>;
+    type Witness = Vec<<G as Group>::Scalar>;
+    type Challenge = <G as Group>::Scalar;
 
     fn prover_commit(
         &self,
         witness: &Self::Witness,
         rng: &mut (impl Rng + CryptoRng),
     ) -> (Self::Commitment, Self::ProverState) {
-        let r = G::Scalar::random(rng);
-        let R = self.generator * r;
-        (R, SchnorrState { nonces:r, witness: witness.clone() })
+        let mut nonces: Vec<G::Scalar> = Vec::new();
+        for _i in 0..self.morphismp.morphism.num_scalars {
+            nonces.push(<G as Group>::Scalar::random(rng));
+        }
+        let prover_state = (nonces.clone(), witness.clone());
+        let commitment = self.morphismp.morphism.evaluate(&nonces);
+        (commitment, prover_state)
     }
 
     fn prover_response(
@@ -41,7 +44,11 @@ where
         state: &Self::ProverState,
         challenge: &Self::Challenge,
     ) -> Self::Response {
-        state.nonces + *challenge * state.witness
+        let mut responses = Vec::new();
+        for i in 0..self.morphismp.morphism.num_scalars {
+            responses.push(state.0[i] + *challenge * state.1[i]);
+        }
+        responses
     }
 
     fn verifier(
@@ -50,61 +57,75 @@ where
         challenge: &Self::Challenge,
         response: &Self::Response,
     ) -> bool {
-        let lhs = self.generator * *response;
-        let rhs = *commitment + self.target * *challenge;
+        let lhs = self.morphismp.morphism.evaluate(&response);
+        let mut rhs = Vec::new();
+        for i in 0..self.morphismp.morphism.num_scalars {
+            rhs.push(commitment[i] + self.morphismp.image[i] * *challenge);
+        }
         lhs == rhs
     }
 
-    fn simulate_proof(
+    fn serialize_batchable(
         &self,
-        challenge: &Self::Challenge,
-        rng: &mut (impl Rng + CryptoRng),
-    ) -> (Self::Commitment, Self::Response) {
-        let z = G::Scalar::random(rng);
-        let R = self.generator * z - self.target * *challenge;
-        (R, z)
-    }
-
-    fn serialize_batchable(&self, commitment: &G, _challenge: &G::Scalar, response: &G::Scalar) -> Vec<u8> {
+        commitment: &Self::Commitment,
+        _challenge: &Self::Challenge,
+        response: &Self::Response
+    ) -> Vec<u8> {
         let mut bytes = Vec::new();
-        bytes.extend_from_slice(commitment.to_bytes().as_ref());
-        bytes.extend_from_slice(response.to_repr().as_ref());
+        let scalar_nb = self.morphismp.morphism.num_scalars.clone();
+        // Serialize commitmens
+        for i in 0..scalar_nb {
+            bytes.extend_from_slice(commitment[i].to_bytes().as_ref());
+        }
+        // Serialize responses
+        for i in 0..scalar_nb {
+            bytes.extend_from_slice(response[i].to_repr().as_ref());
+        }
         bytes
     }
 
     fn deserialize_batchable(&self,
         data: &[u8],
-    ) -> Option<(G, G::Scalar)>
+    ) -> Option<(Self::Commitment, Self::Response)>
     {
-        {
-            let point_len = G::Repr::default().as_ref().len();
-            let scalar_len = <<G as Group>::Scalar as PrimeField>::Repr::default().as_ref().len();
+        let scalar_nb = self.morphismp.morphism.num_scalars;
+        let point_size = G::generator().to_bytes().as_ref().len();
+        let scalar_size = <<G as Group>::Scalar as PrimeField>::Repr::default().as_ref().len();
         
-            if data.len() != point_len + scalar_len {
+        let expected_len = scalar_nb * (point_size + scalar_size);
+        if data.len() != expected_len {
+            return None;
+        }
+
+        let mut commitments: Self::Commitment = Vec::new();
+        let mut responses: Self::Response = Vec::new();
+
+        for i in 0..scalar_nb {
+            let start = i * point_size;
+            let end = start + point_size;
+            let mut buf = [0u8; point_size];
+            buf.copy_from_slice(&data[start..end]);
+            let elem_ct = G::from_bytes(&buf);
+            if !bool::from(elem_ct.is_some()) {           
                 return None;
             }
-    
-        let (commit_bytes, resp_bytes) = data.split_at(point_len);
+            let elem = elem_ct.unwrap();
+            commitments.push(elem);
+        }
 
-        // 1. Deserialize group element
-        let mut commit_array = G::Repr::default();
-        commit_array.as_mut().copy_from_slice(commit_bytes);
-        let commitment_ct = G::from_bytes(&commit_array);
-        if !bool::from(commitment_ct.is_some()) {           
-            return None;
+        for i in 0..scalar_nb {
+            let start = scalar_nb * point_size + i * scalar_size;
+            let end = start + scalar_size;
+            let mut buf = [0u8; scalar_size];
+            buf.copy_from_slice(&data[start..end]);
+            let scalar_ct = G::Scalar::from_repr(buf);
+            if !bool::from(scalar_ct.is_some()) {           
+                return None;
+            }
+            let scalar = scalar_ct.unwrap();
+            responses.push(scalar);
         }
-        let commitment = commitment_ct.unwrap();
-
-        // 2. Deserialize scalar
-        let mut scalar_array = <<G as Group>::Scalar as PrimeField>::Repr::default();
-        scalar_array.as_mut().copy_from_slice(resp_bytes);
-        let scalar_ct = G::Scalar::from_repr(scalar_array);
-        if !bool::from(scalar_ct.is_some()) {
-            return None;
-        }
-        let response = scalar_ct.unwrap();
     
-        Some((commitment, response))
-        }
+        Some((commitments, responses)) 
     }
 }

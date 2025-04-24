@@ -39,7 +39,7 @@ impl<G: Group> Morphism<G> {
         self.linear_combinaison.len()
     }
 
-    pub fn evaluate(&self, scalars: &[G::Scalar]) -> Vec<G> {
+    pub fn evaluate(&self, scalars: &[<G as Group>::Scalar]) -> Vec<G> {
         self.linear_combinaison.iter().map(|lc| {
             let coefficients: Vec<_> = lc.scalar_indices.iter().map(|&i| scalars[i].clone()).collect();
             let elements: Vec<_> = lc.element_indices.iter().map(|&i| self.group_elements[i].clone()).collect();
@@ -52,8 +52,8 @@ pub struct GroupMorphismPreimage<G>
 where
     G: Group + GroupEncoding,
 {
-    morphism: Morphism<G>,
-    image: Vec<usize>,
+    pub morphism: Morphism<G>,
+    pub image: Vec<G>,
     _marker: PhantomData<G>,
 }
 
@@ -76,7 +76,7 @@ where
         self.morphism.num_statements() * repr_len  // total size of a commit
     }
 
-    pub fn append_equation(&mut self, lhs: usize, rhs: &[(usize, usize)]) {
+    pub fn append_equation(&mut self, lhs: G, rhs: &[(usize, usize)]) {
         let lc = LinearCombinaison {
             scalar_indices: rhs.iter().map(|&(s, _)| s).collect(),
             element_indices: rhs.iter().map(|&(_, e)| e).collect(),
@@ -112,8 +112,8 @@ where
 
     pub fn image(&self) -> Vec<G> {
         let mut result = Vec::new();
-        for i in &(self.image) {
-            result.push(self.morphism.group_elements[*i].clone());
+        for g in &(self.image) {
+            result.push(g.clone());
         }
         result
     }
