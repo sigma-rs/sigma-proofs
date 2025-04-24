@@ -7,3 +7,5 @@ pub mod transcript;
 
 pub use r#trait::SigmaProtocol;
 pub use proof_composition::{AndProtocol, OrProtocol};
+pub use fiat_shamir::NISigmaProtocol;
+pub use schnorr_proof::SchnorrProof;

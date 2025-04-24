@@ -18,7 +18,7 @@ pub struct SchnorrState<S> {
 impl<G> SigmaProtocol for SchnorrProof<G>
 where
     G: Group + GroupEncoding, 
-    G::Scalar: Field + rand::distributions::uniform::SampleUniform + Clone,
+    G::Scalar: Field + Clone,
 {
     type Commitment = G;
     type ProverState = SchnorrState<G::Scalar>;
