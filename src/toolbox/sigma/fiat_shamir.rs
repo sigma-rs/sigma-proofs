@@ -10,6 +10,7 @@ where
     P: SigmaProtocol<Commitment = G, Challenge = <G as Group>::Scalar>,
     C: TranscriptCodec<G>,
 {
+    domain_sep: Vec<u8>,
     hash_state: C,
     sigmap: P,
     _marker: PhantomData<<G as Group>::Scalar>,
@@ -23,8 +24,9 @@ where
 {
     // Create new NIZK transformator.
     pub fn new(iv: &[u8], instance: P) -> Self {
+        let domain_sep = iv.to_vec();
         let hash_state = C::new(iv);
-        Self { hash_state, sigmap: instance, _marker: PhantomData }
+        Self { domain_sep, hash_state, sigmap: instance, _marker: PhantomData }
     }
 
     // Generate new non-interactive proof
@@ -33,6 +35,8 @@ where
         witness: &P::Witness,
         rng: &mut (impl RngCore + CryptoRng),
     ) -> Vec<u8> {
+        self.hash_state = C::new(&self.domain_sep);
+
         let (commitment, prover_state) = self.sigmap.prover_commit(witness, rng);
         // Fiat Shamir challenge
         let challenge = self
@@ -48,6 +52,8 @@ where
 
     /// Verification of non-interactive proof
     pub fn verify(&mut self, proof: &Vec<u8>) -> bool {
+        self.hash_state = C::new(&self.domain_sep);
+
         let (commitment, response) = self.sigmap.deserialize_batchable(proof).unwrap();
         // Recompute the challenge
         let challenge = self
