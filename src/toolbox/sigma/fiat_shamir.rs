@@ -32,7 +32,7 @@ where
         &mut self,
         witness: &P::Witness,
         rng: &mut (impl RngCore + CryptoRng),
-    ) -> (G, <G as Group>::Scalar, <P as SigmaProtocol>::Response) {
+    ) -> Vec<u8> {
         let (commitment, prover_state) = self.sigmap.prover_commit(witness, rng);
         // Fiat Shamir challenge
         let challenge = self
@@ -43,20 +43,19 @@ where
         let response = self.sigmap.prover_response(&prover_state, &challenge);
         // Local verification of the proof
         assert!(self.sigmap.verifier(&commitment, &challenge, &response));
-        (commitment, challenge, response)
+        self.sigmap.serialize_batchable(&commitment, &challenge, &response)
     }
 
     /// Verification of non-interactive proof
-    pub fn verify(&mut self, proof: (G, <G as Group>::Scalar, <P as SigmaProtocol>::Response)) -> bool {
+    pub fn verify(&mut self, proof: &Vec<u8>) -> bool {
+        let (commitment, response) = self.sigmap.deserialize_batchable(proof).unwrap();
         // Recompute the challenge
         let challenge = self
             .hash_state
-            .prover_message(&[proof.0])
+            .prover_message(&[commitment])
             .verifier_challenge();
-        // Verification of challenge and the proof
-        let cond0 = challenge == proof.1;
-        let cond1 = self.sigmap.verifier(&proof.0, &proof.1, &proof.2);
-        cond0 & cond1
+        // Verification of the proof
+        self.sigmap.verifier(&commitment, &challenge, &response)
         
     }
 }
