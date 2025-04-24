@@ -40,4 +40,21 @@ pub trait SigmaProtocol {
     ) -> (Self::Commitment, Self::Challenge, Self::Response) {
         panic!("simulatable_transcription not implemented for this protocol")
     }
+
+    fn serialize_batchable(
+        &self,
+        _commitment: &Self::Commitment,
+        _challenge: &Self::Challenge,
+        _response: &Self::Response
+    ) -> Vec<u8> {
+        panic!("serialize_batchable not implemented for this protocol")
+    }
+
+    fn deserialize_batchable(
+        &self, _data: &[u8]
+    ) -> Option<(Self::Commitment, Self::Response)> {
+        panic!("deserialize_batchable not implemented for this protocol")
+    }
+
+
 }
