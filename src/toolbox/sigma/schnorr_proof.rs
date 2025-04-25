@@ -105,9 +105,11 @@ where
             let end = start + point_size;
 
             let mut buf = vec![0u8; point_size];
+            buf.copy_from_slice(&data[start..end]);
+
             let mut repr_array = G::Repr::default();
             repr_array.as_mut().copy_from_slice(&buf);
-            buf.copy_from_slice(&data[start..end]);
+    
             let elem_ct = G::from_bytes(&repr_array);
             if !bool::from(elem_ct.is_some()) {           
                 return None;
@@ -121,9 +123,11 @@ where
             let end = start + scalar_size;
 
             let mut buf = vec![0u8; scalar_size];
+            buf.copy_from_slice(&data[start..end]);
+            
             let mut repr_array = <<G as Group>::Scalar as PrimeField>::Repr::default();
             repr_array.as_mut().copy_from_slice(&buf);
-            buf.copy_from_slice(&data[start..end]);
+            
             let scalar_ct = G::Scalar::from_repr(repr_array);
             if !bool::from(scalar_ct.is_some()) {           
                 return None;
