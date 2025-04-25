@@ -73,7 +73,7 @@ where
     ) -> Vec<u8> {
         let mut bytes = Vec::new();
         let scalar_nb = self.morphismp.morphism.num_scalars.clone();
-        // Serialize commitmens
+        // Serialize commitments
         for i in 0..scalar_nb {
             bytes.extend_from_slice(commitment[i].to_bytes().as_ref());
         }

@@ -21,12 +21,16 @@ fn fiat_shamir_schnorr_proof_ristretto() {
     let w = Scalar::random(&mut rng);
     let H = G * w;
 
-    let morphismp: GroupMorphismPreimage<RistrettoPoint> = GroupMorphismPreimage::new();
+    let mut morphismp: GroupMorphismPreimage<RistrettoPoint> = GroupMorphismPreimage::new();
 
     // Scalars and Points bases settings
     morphismp.allocate_scalars(1);
     morphismp.allocate_elements(1);
     morphismp.set_elements(&[(0, G)]);
+
+    // Set the witness Vec
+    let mut witness = Vec::new();
+    witness.push(w.clone());
 
     // The H = z * G equeation where z is the unique scalar variable
     morphismp.append_equation(H, &[(0, 0)]);
@@ -38,7 +42,7 @@ fn fiat_shamir_schnorr_proof_ristretto() {
     let mut nizk = NISigmaProtocol::<SchnorrProof<G>, KeccakTranscript<G>, G>::new(domain_sep, protocol);
 
     // Prove
-    let proof_bytes = nizk.prove(&w, &mut rng);
+    let proof_bytes = nizk.prove(&witness, &mut rng);
 
     // Verify
     let verified = nizk.verify(&proof_bytes);

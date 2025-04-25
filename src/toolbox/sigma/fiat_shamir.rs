@@ -7,7 +7,7 @@ use group::Group;
 pub struct NISigmaProtocol<P, C, G>
 where
     G: Group,
-    P: SigmaProtocol<Commitment = G, Challenge = <G as Group>::Scalar>,
+    P: SigmaProtocol<Commitment = Vec<G>, Challenge = <G as Group>::Scalar>,
     C: TranscriptCodec<G>,
 {
     domain_sep: Vec<u8>,
@@ -19,7 +19,7 @@ where
 impl<P, C, G> NISigmaProtocol<P, C, G>
 where
     G: Group,
-    P: SigmaProtocol<Commitment = G, Challenge = <G as Group>::Scalar>,
+    P: SigmaProtocol<Commitment = Vec<G>, Challenge = <G as Group>::Scalar>,
     C: TranscriptCodec<G>,
 {
     // Create new NIZK transformator.
@@ -41,8 +41,9 @@ where
         // Fiat Shamir challenge
         let challenge = self
             .hash_state
-            .prover_message(&[commitment])
+            .prover_message(&commitment)
             .verifier_challenge();
+        println!("Prover's challenge : {:?}", challenge);
         // Prouver's response
         let response = self.sigmap.prover_response(&prover_state, &challenge);
         // Local verification of the proof
@@ -58,8 +59,9 @@ where
         // Recompute the challenge
         let challenge = self
             .hash_state
-            .prover_message(&[commitment])
+            .prover_message(&commitment)
             .verifier_challenge();
+        println!("Verifier's challenge : {:?}", challenge);
         // Verification of the proof
         self.sigmap.verifier(&commitment, &challenge, &response)
         
