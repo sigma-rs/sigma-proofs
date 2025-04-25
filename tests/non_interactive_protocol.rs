@@ -1,9 +1,8 @@
-use group::Group;
 use rand::rngs::OsRng;
 use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::scalar::Scalar;
 
-use lox_zkp::toolbox::sigma::group_mophism::GroupMorphismPreimage;
+use lox_zkp::toolbox::sigma::group_morphism::GroupMorphismPreimage;
 use lox_zkp::toolbox::sigma::schnorr_proof::SchnorrProof;
 use lox_zkp::toolbox::sigma::transcript::transcriptcodec::KeccakTranscript;
 use lox_zkp::toolbox::sigma::fiat_shamir::NISigmaProtocol;
@@ -36,7 +35,7 @@ fn fiat_shamir_schnorr_proof_ristretto() {
     let protocol = SchnorrProof { morphismp };
 
     // Fiat-Shamir wrapper
-    let mut nizk = NISigmaProtocol::<_, KeccakTranscript<G>, G>::new(domain_sep, protocol);
+    let mut nizk = NISigmaProtocol::<SchnorrProof<G>, KeccakTranscript<G>, G>::new(domain_sep, protocol);
 
     // Prove
     let proof_bytes = nizk.prove(&w, &mut rng);

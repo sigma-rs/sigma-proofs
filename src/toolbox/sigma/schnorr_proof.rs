@@ -103,9 +103,12 @@ where
         for i in 0..scalar_nb {
             let start = i * point_size;
             let end = start + point_size;
+
             let mut buf = vec![0u8; point_size];
+            let mut repr_array = G::Repr::default();
+            repr_array.as_mut().copy_from_slice(&buf);
             buf.copy_from_slice(&data[start..end]);
-            let elem_ct = G::from_bytes(&buf);
+            let elem_ct = G::from_bytes(&repr_array);
             if !bool::from(elem_ct.is_some()) {           
                 return None;
             }
@@ -116,9 +119,12 @@ where
         for i in 0..scalar_nb {
             let start = scalar_nb * point_size + i * scalar_size;
             let end = start + scalar_size;
-            let mut buf = [0u8; scalar_size];
+
+            let mut buf = vec![0u8; scalar_size];
+            let mut repr_array = <<G as Group>::Scalar as PrimeField>::Repr::default();
+            repr_array.as_mut().copy_from_slice(&buf);
             buf.copy_from_slice(&data[start..end]);
-            let scalar_ct = G::Scalar::from_repr(buf);
+            let scalar_ct = G::Scalar::from_repr(repr_array);
             if !bool::from(scalar_ct.is_some()) {           
                 return None;
             }
