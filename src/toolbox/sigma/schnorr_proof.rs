@@ -32,7 +32,7 @@ where
     ) -> (Self::Commitment, Self::ProverState) {
         let mut nonces: Vec<G::Scalar> = Vec::new();
         for _i in 0..self.morphismp.morphism.num_scalars {
-            nonces.push(<G as Group>::Scalar::random(rng));
+            nonces.push(<G as Group>::Scalar::random(&mut *rng));
         }
         let prover_state = (nonces.clone(), witness.clone());
         let commitment = self.morphismp.morphism.evaluate(&nonces);
@@ -103,7 +103,7 @@ where
         for i in 0..scalar_nb {
             let start = i * point_size;
             let end = start + point_size;
-            let mut buf = [0u8; point_size];
+            let mut buf = vec![0u8; point_size];
             buf.copy_from_slice(&data[start..end]);
             let elem_ct = G::from_bytes(&buf);
             if !bool::from(elem_ct.is_some()) {           
