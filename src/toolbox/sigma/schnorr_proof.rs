@@ -60,7 +60,7 @@ where
         let lhs = self.morphismp.morphism.evaluate(&response);
         let mut rhs = Vec::new();
         for i in 0..self.morphismp.morphism.num_scalars {
-            rhs.push(commitment[i] + self.morphismp.image[i] * *challenge);
+            rhs.push(commitment[i] + self.morphismp.morphism.group_elements[self.morphismp.image[i]] * *challenge);
         }
         lhs == rhs
     }

@@ -25,15 +25,15 @@ fn fiat_shamir_schnorr_proof_ristretto() {
 
     // Scalars and Points bases settings
     morphismp.allocate_scalars(1);
-    morphismp.allocate_elements(1);
-    morphismp.set_elements(&[(0, G)]);
+    morphismp.allocate_elements(2);
+    morphismp.set_elements(&[(0, G), (1, H)]);
 
     // Set the witness Vec
     let mut witness = Vec::new();
     witness.push(w.clone());
 
     // The H = z * G equeation where z is the unique scalar variable
-    morphismp.append_equation(H, &[(0, 0)]);
+    morphismp.append_equation(1, &[(0, 0)]);
 
     // The SigmaProtocol induced by morphismp
     let protocol = SchnorrProof { morphismp };
