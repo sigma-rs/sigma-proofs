@@ -1,7 +1,7 @@
 //! Contains lower-level tools that allow programmable specification
 //! of proof statements.
 //!
-//! The higher-level [`define_proof`] macro allows declarative
+//! The higher-level `define_proof` macro allows declarative
 //! specification of static proof statements, and expands into code
 //! that uses this lower-level API.  This lower-level API can also be
 //! used directly to perform imperative specification of proof
@@ -28,7 +28,7 @@
 //!   to the generic statement function, then consume the verifier to
 //!   obtain a verification result.
 //!
-//! Note that the expansion of the [`define_proof`] macro contains a
+//! Note that the expansion of the `define_proof` macro contains a
 //! public `internal` module with the generated proof statement
 //! function, making it possible to combine generated and hand-crafted
 //! proof statements into the same constraint system.
