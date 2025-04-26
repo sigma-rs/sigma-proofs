@@ -1,5 +1,14 @@
 # sigma-rs: a(n updated) toolkit for Σ-protocols
 
+
+# WARNING
+
+**THIS IMPLEMENTATION IS NOT YET READY FOR PRODUCTION USE**
+
+While I expect the 1.0 version to be largely unchanged from the current
+code, for now there are no stability guarantees on the proofs, so they
+should not yet be deployed.
+
 ### Background
 
 This crate was originally created as part of [`dalek-cryptography`](https://github.com/dalek-cryptography).
@@ -50,12 +59,12 @@ the macro expansion happens), they need an extra step to be enabled.
   `lib.rs` or `main.rs`, to enable Rust's nightly-only benchmark
   feature.
 
-# WARNING
 
-**THIS IMPLEMENTATION IS NOT YET READY FOR PRODUCTION USE**
+## Funding
 
-While I expect the 1.0 version to be largely unchanged from the current
-code, for now there are no stability guarantees on the proofs, so they
-should not yet be deployed.
+This project is funded through [NGI0 Entrust](https://nlnet.nl/entrust), a fund established by [NLnet](https://nlnet.nl) with financial support from the European Commission's [Next Generation Internet](https://ngi.eu) program. Learn more at the [NLnet project page](https://nlnet.nl/project/sigmaprotocols).
+
+[<img src="https://nlnet.nl/logo/banner.png" alt="NLnet foundation logo" width="20%" />](https://nlnet.nl)
+[<img src="https://nlnet.nl/image/logos/NGI0_tag.svg" alt="NGI Zero Logo" width="20%" />](https://nlnet.nl/entrust)
 
 [bellman]: https://github.com/zkcrypto/bellman
