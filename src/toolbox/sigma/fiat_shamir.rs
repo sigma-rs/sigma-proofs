@@ -1,4 +1,3 @@
-use std::marker::PhantomData;
 use rand::{RngCore, CryptoRng};
 use crate::toolbox::sigma::SigmaProtocol;
 use crate::toolbox::sigma::transcript::TranscriptCodec;
@@ -13,7 +12,6 @@ where
     domain_sep: Vec<u8>,
     hash_state: C,
     sigmap: P,
-    _marker: PhantomData<<G as Group>::Scalar>,
 }
 
 impl<P, C, G> NISigmaProtocol<P, C, G>
@@ -26,7 +24,7 @@ where
     pub fn new(iv: &[u8], instance: P) -> Self {
         let domain_sep = iv.to_vec();
         let hash_state = C::new(iv);
-        Self { domain_sep, hash_state, sigmap: instance, _marker: PhantomData }
+        Self { domain_sep, hash_state, sigmap: instance }
     }
 
     // Generate new non-interactive proof
@@ -64,6 +62,6 @@ where
         println!("Verifier's challenge : {:?}", challenge);
         // Verification of the proof
         self.sigmap.verifier(&commitment, &challenge, &response)
-        
+
     }
 }

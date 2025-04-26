@@ -1,4 +1,3 @@
-use std::marker::PhantomData;
 use group::{Group, GroupEncoding};
 
 pub struct LinearCombination {
@@ -54,7 +53,6 @@ where
 {
     pub morphism: Morphism<G>,
     pub image: Vec<usize>,
-    _marker: PhantomData<G>,
 }
 
 impl<G> GroupMorphismPreimage<G>
@@ -65,7 +63,6 @@ where
         Self {
             morphism: Morphism::new(),
             image: Vec::new(),
-            _marker: PhantomData,
         }
     }
 
