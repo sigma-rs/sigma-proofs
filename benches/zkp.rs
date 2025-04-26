@@ -12,7 +12,7 @@
 extern crate bincode;
 extern crate curve25519_dalek;
 #[macro_use]
-extern crate lox_zkp;
+extern crate sigma_rs;
 extern crate serde;
 extern crate serde_derive;
 extern crate sha2;

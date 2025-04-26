@@ -18,8 +18,8 @@ use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
 use curve25519_dalek::scalar::Scalar;
 
 #[macro_use]
-extern crate lox_zkp;
-pub use lox_zkp::Transcript;
+extern crate sigma_rs;
+pub use sigma_rs::Transcript;
 
 define_proof! {sig_proof, "Sig", (x), (A), (B) : A = (x * B) }
 define_proof! {vrf_proof, "VRF", (x), (A, G, H), (B) : A = (x * B), G = (x * H) }

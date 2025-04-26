@@ -12,7 +12,7 @@
 
 extern crate bincode;
 extern crate curve25519_dalek;
-extern crate lox_zkp;
+extern crate sigma_rs;
 extern crate serde;
 extern crate sha2;
 
@@ -22,10 +22,10 @@ use curve25519_dalek::constants as dalek_constants;
 use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::scalar::Scalar;
 
-use lox_zkp::toolbox::{
+use sigma_rs::toolbox::{
     batch_verifier::BatchVerifier, prover::Prover, verifier::Verifier, SchnorrCS,
 };
-use lox_zkp::Transcript;
+use sigma_rs::Transcript;
 
 fn dleq_statement<CS: SchnorrCS>(
     cs: &mut CS,

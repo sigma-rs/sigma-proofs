@@ -2,10 +2,10 @@ use rand::rngs::OsRng;
 use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::scalar::Scalar;
 
-use lox_zkp::toolbox::sigma::group_morphism::GroupMorphismPreimage;
-use lox_zkp::toolbox::sigma::schnorr_proof::SchnorrProof;
-use lox_zkp::toolbox::sigma::transcript::transcriptcodec::KeccakTranscript;
-use lox_zkp::toolbox::sigma::fiat_shamir::NISigmaProtocol;
+use sigma_rs::toolbox::sigma::group_morphism::GroupMorphismPreimage;
+use sigma_rs::toolbox::sigma::schnorr_proof::SchnorrProof;
+use sigma_rs::toolbox::sigma::transcript::transcriptcodec::KeccakTranscript;
+use sigma_rs::toolbox::sigma::fiat_shamir::NISigmaProtocol;
 
 type G = RistrettoPoint;
 

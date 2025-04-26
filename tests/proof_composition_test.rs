@@ -1,7 +1,7 @@
 use std::ops::Not;
 
 use rand::{rngs::OsRng, CryptoRng, Rng};
-use lox_zkp::toolbox::sigma::{proof_composition::OrEnum, AndProtocol, OrProtocol, SigmaProtocol};
+use sigma_rs::toolbox::sigma::{proof_composition::OrEnum, AndProtocol, OrProtocol, SigmaProtocol};
 use curve25519_dalek::{ristretto::RistrettoPoint, scalar::Scalar};
 
 pub struct LokZkpSchnorr {
@@ -46,7 +46,7 @@ impl SigmaProtocol for LokZkpSchnorr {
     }
 
     fn simulate_proof(
-            &self, 
+            &self,
             challenge: &Self::Challenge,
             rng: &mut (impl Rng + CryptoRng)
         ) -> (Self::Commitment, Self::Response) {

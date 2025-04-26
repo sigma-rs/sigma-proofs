@@ -3,13 +3,13 @@
 #![allow(non_snake_case)]
 
 #[macro_use]
-extern crate lox_zkp;
+extern crate sigma_rs;
 
 use curve25519_dalek::constants as dalek_constants;
 use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::scalar::Scalar;
 
-use lox_zkp::Transcript;
+use sigma_rs::Transcript;
 
 define_proof! {
     testproof,

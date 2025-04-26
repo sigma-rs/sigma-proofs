@@ -1,11 +1,16 @@
 [package]
-name = "lox-zkp"
+name = "sigma-rs"
 version = "0.8.4"
-authors = ["Henry de Valence <hdevalence@hdevalence.ca>"]
+authors = [
+    "Henry de Valence <hdevalence@hdevalence.ca>",
+    "nougzarm <nougzarm@icloud.com>",
+    "Michele Orrù <m@orru.net>",
+    "Lénaïck Gouriou <lg@leanear.io>"
+]
 edition = "2018"
 license = "CC0-1.0"
 readme = "README.md"
-repository = "https://gitlab.torproject.org/onyinyang/lox-zkp"
+repository = "https://github.com/mmaker/sigma-rs"
 documentation = "https://docs.rs/lox-zkp"
 categories = ["cryptography"]
 keywords = ["cryptography", "ristretto", "zero-knowledge", "NIZK",

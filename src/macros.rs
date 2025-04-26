@@ -371,7 +371,7 @@ macro_rules! define_proof {
 
             /*use criterion::{criterion_group, criterion_main, Criterion};
 
-            mod lox_zkp_benches {
+            mod sigma_rs_benches {
                 use super::*;
                 use rand::thread_rng;
 
@@ -467,7 +467,7 @@ macro_rules! define_proof {
                 }
 
                 criterion_group!{
-                    name = lox_zkp_benches;
+                    name = sigma_rs_benches;
                     config = Criterion::default();
                     targets =
                     prove,
@@ -475,7 +475,7 @@ macro_rules! define_proof {
                     verify_compact_proof,
                 }
             }
-        criterion_main!(lox_zkp_benches::lox_zkp_benches);*/
+        criterion_main!(sigma_rs_benches::sigma_rs_benches);*/
         }
     }
 }

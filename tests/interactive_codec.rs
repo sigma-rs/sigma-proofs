@@ -1,7 +1,7 @@
 use rand::rngs::OsRng;
 use curve25519_dalek::ristretto::RistrettoPoint;
 
-use lox_zkp::toolbox::sigma::transcript::{r#trait::TranscriptCodec, transcriptcodec::KeccakTranscript};
+use sigma_rs::toolbox::sigma::transcript::{r#trait::TranscriptCodec, transcriptcodec::KeccakTranscript};
 
 pub type KeccakTranscriptRistretto = KeccakTranscript<curve25519_dalek::ristretto::RistrettoPoint>;
 
