@@ -2,7 +2,7 @@
 
 ### Background
 
-This crate was originally created as part of [`dalek-cyptography`](https://github.com/dalek-cryptography).
+This crate was originally created as part of [`dalek-cryptography`](https://github.com/dalek-cryptography).
 It has been forked:
 1. To bring the `zkp` crate up to date with `dalek-cryptography` dependencies.
 2. To resolve bugs and incorporate changes to the fiat-shamir transform.

@@ -32,7 +32,7 @@ fn fiat_shamir_schnorr_proof_ristretto() {
     let mut witness = Vec::new();
     witness.push(w.clone());
 
-    // The H = z * G equeation where z is the unique scalar variable
+    // The H = z * G equation where z is the unique scalar variable
     morphismp.append_equation(1, &[(0, 0)]);
 
     // The SigmaProtocol induced by morphismp

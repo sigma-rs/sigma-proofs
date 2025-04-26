@@ -6,7 +6,7 @@ pub struct LinearCombination {
 }
 
 pub struct Morphism<G: Group> {
-    pub linear_combinaison: Vec<LinearCombination>,
+    pub linear_combination: Vec<LinearCombination>,
     pub group_elements: Vec<G>,
     pub num_scalars: usize,
     pub num_elements: usize,
@@ -23,7 +23,7 @@ fn msm_pr<G: Group>(scalars: &[G::Scalar], bases: &[G]) -> G {
 impl<G: Group> Morphism<G> {
     pub fn new() -> Self {
         Self {
-            linear_combinaison: Vec::new(),
+            linear_combination: Vec::new(),
             group_elements: Vec::new(),
             num_scalars: 0,
             num_elements: 0,
@@ -31,15 +31,15 @@ impl<G: Group> Morphism<G> {
     }
 
     pub fn append(&mut self, lc: LinearCombination) {
-        self.linear_combinaison.push(lc);
+        self.linear_combination.push(lc);
     }
 
     pub fn num_statements(&self) -> usize {
-        self.linear_combinaison.len()
+        self.linear_combination.len()
     }
 
     pub fn evaluate(&self, scalars: &[<G as Group>::Scalar]) -> Vec<G> {
-        self.linear_combinaison.iter().map(|lc| {
+        self.linear_combination.iter().map(|lc| {
             let coefficients: Vec<_> = lc.scalar_indices.iter().map(|&i| scalars[i].clone()).collect();
             let elements: Vec<_> = lc.element_indices.iter().map(|&i| self.group_elements[i].clone()).collect();
             msm_pr(&coefficients, &elements)

@@ -4,13 +4,13 @@ use rand::{rngs::OsRng, CryptoRng, Rng};
 use sigma_rs::toolbox::sigma::{proof_composition::OrEnum, AndProtocol, OrProtocol, SigmaProtocol};
 use curve25519_dalek::{ristretto::RistrettoPoint, scalar::Scalar};
 
-pub struct LokZkpSchnorr {
+pub struct SchnorrZkp {
     pub generator: RistrettoPoint,
     pub target: RistrettoPoint
 }
 
 #[allow(non_snake_case)]
-impl SigmaProtocol for LokZkpSchnorr {
+impl SigmaProtocol for SchnorrZkp {
     type Witness = Scalar;
     type Commitment = RistrettoPoint;
     type ProverState = (Scalar, Scalar);
@@ -79,8 +79,8 @@ fn andproof_schnorr_correct() {
     let H1 = w1 * G1;
     let H2 = w2 * G2;
 
-    let p1 = LokZkpSchnorr { generator: G1, target: H1 };
-    let p2 = LokZkpSchnorr { generator: G2, target: H2 };
+    let p1 = SchnorrZkp { generator: G1, target: H1 };
+    let p2 = SchnorrZkp { generator: G2, target: H2 };
 
     let and_proof = AndProtocol::new(p1, p2);
 
@@ -116,8 +116,8 @@ fn andproof_schnorr_incorrect() {
     let H1 = w1 * G1;
     let H2 = w2 * G2;
 
-    let p1 = LokZkpSchnorr { generator: G1, target: H1 };
-    let p2 = LokZkpSchnorr { generator: G2, target: H2 };
+    let p1 = SchnorrZkp { generator: G1, target: H1 };
+    let p2 = SchnorrZkp { generator: G2, target: H2 };
 
     let and_proof = AndProtocol::new(p1, p2);
 
@@ -151,8 +151,8 @@ fn orproof_schnorr_correct() {
     let H1 = w1 * G1;
     let H2 = RistrettoPoint::random(&mut rng); // The witness for this point is unknown
 
-    let p1 = LokZkpSchnorr { generator: G1, target: H1 };
-    let p2 = LokZkpSchnorr { generator: G2, target: H2 };
+    let p1 = SchnorrZkp { generator: G1, target: H1 };
+    let p2 = SchnorrZkp { generator: G2, target: H2 };
 
     let or_proof = OrProtocol::new(p1, p2);
 
@@ -186,8 +186,8 @@ fn orproof_schnorr_incorrect() {
     let H1 = RistrettoPoint::random(&mut rng); // The witness for this point is unknown
     let H2 = RistrettoPoint::random(&mut rng); // The witness for this point is unknown
 
-    let p1 = LokZkpSchnorr { generator: G1, target: H1 };
-    let p2 = LokZkpSchnorr { generator: G2, target: H2 };
+    let p1 = SchnorrZkp { generator: G1, target: H1 };
+    let p2 = SchnorrZkp { generator: G2, target: H2 };
 
     let or_proof = OrProtocol::new(p1, p2);
 
