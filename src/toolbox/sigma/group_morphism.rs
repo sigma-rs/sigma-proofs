@@ -1,13 +1,13 @@
 use std::marker::PhantomData;
 use group::{Group, GroupEncoding};
 
-pub struct LinearCombinaison {
+pub struct LinearCombination {
     pub scalar_indices: Vec<usize>,
     pub element_indices: Vec<usize>,
 }
 
 pub struct Morphism<G: Group> {
-    pub linear_combinaison: Vec<LinearCombinaison>,
+    pub linear_combinaison: Vec<LinearCombination>,
     pub group_elements: Vec<G>,
     pub num_scalars: usize,
     pub num_elements: usize,
@@ -31,7 +31,7 @@ impl<G: Group> Morphism<G> {
         }
     }
 
-    pub fn append(&mut self, lc: LinearCombinaison) {
+    pub fn append(&mut self, lc: LinearCombination) {
         self.linear_combinaison.push(lc);
     }
 
@@ -58,7 +58,7 @@ where
 }
 
 impl<G> GroupMorphismPreimage<G>
-where 
+where
     G: Group + GroupEncoding,
 {
     pub fn new() -> Self {
@@ -77,7 +77,7 @@ where
     }
 
     pub fn append_equation(&mut self, lhs: usize, rhs: &[(usize, usize)]) {
-        let lc = LinearCombinaison {
+        let lc = LinearCombination {
             scalar_indices: rhs.iter().map(|&(s, _)| s).collect(),
             element_indices: rhs.iter().map(|&(_, e)| e).collect(),
         };
