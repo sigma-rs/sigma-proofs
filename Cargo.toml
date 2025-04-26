@@ -1,6 +1,6 @@
 [package]
 name = "sigma-rs"
-version = "0.8.4"
+version = "0.1.0"
 authors = [
     "Henry de Valence <hdevalence@hdevalence.ca>",
     "nougzarm <nougzarm@icloud.com>",
