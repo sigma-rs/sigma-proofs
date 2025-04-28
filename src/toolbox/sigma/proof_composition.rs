@@ -1,4 +1,4 @@
-use crate::toolbox::sigma::SigmaProtocol;
+use crate::toolbox::sigma::{SigmaProtocol, SigmaProtocolSimulator};
 use rand::{Rng, CryptoRng};
 use ff::PrimeField;
 
@@ -110,8 +110,8 @@ where
 impl<P, Q, C> SigmaProtocol for OrProtocol<P, Q> 
 where 
     C: PrimeField,
-    P: SigmaProtocol<Challenge = C>,
-    Q: SigmaProtocol<Challenge = C>,
+    P: SigmaProtocol<Challenge = C> + SigmaProtocolSimulator,
+    Q: SigmaProtocol<Challenge = C> + SigmaProtocolSimulator,
     P::Response: Clone,
     Q::Response: Clone,
     {

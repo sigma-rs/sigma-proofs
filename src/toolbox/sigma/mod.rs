@@ -5,7 +5,7 @@ pub mod group_morphism;
 pub mod schnorr_proof;
 pub mod transcript;
 
-pub use r#trait::SigmaProtocol;
+pub use r#trait::{SigmaProtocol, SigmaProtocolSimulator};
 pub use proof_composition::{AndProtocol, OrProtocol};
 pub use fiat_shamir::NISigmaProtocol;
 pub use schnorr_proof::SchnorrProof;

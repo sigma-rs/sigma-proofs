@@ -1,5 +1,5 @@
 use rand::{rngs::OsRng, CryptoRng, Rng};
-use sigma_rs::toolbox::sigma::{proof_composition::OrEnum, AndProtocol, OrProtocol, SigmaProtocol};
+use sigma_rs::toolbox::sigma::{proof_composition::OrEnum, SigmaProtocolSimulator, AndProtocol, OrProtocol, SigmaProtocol};
 use curve25519_dalek::{ristretto::RistrettoPoint, scalar::Scalar};
 
 pub struct SchnorrZkp {
@@ -45,26 +45,32 @@ impl SigmaProtocol for SchnorrZkp {
             false => Err(()),
         }
     }
-
-    fn simulate_proof(
-            &self,
-            challenge: &Self::Challenge,
-            rng: &mut (impl Rng + CryptoRng)
-        ) -> (Self::Commitment, Self::Response) {
-        let z = Scalar::random(rng);
-        let R = z * self.generator - challenge * self.target;
-        (R,z)
-    }
-
-    fn simulate_transcription(
-        &self, rng: &mut (impl Rng + CryptoRng)
-    ) -> (Self::Commitment, Self::Challenge, Self::Response) {
-        let challenge = Scalar::random(rng);
-        let (commitment, response) = self.simulate_proof(&challenge, rng);
-        (commitment, challenge, response)
-    }
 }
 
+#[allow(non_snake_case)]
+impl SigmaProtocolSimulator for SchnorrZkp {
+    fn simulate_proof(
+        &self,
+        challenge: &Self::Challenge,
+        rng: &mut (impl Rng + CryptoRng)
+    ) -> (Self::Commitment, Self::Response) {
+    let z = Scalar::random(rng);
+    let R = z * self.generator - challenge * self.target;
+    (R,z)
+}
+
+fn simulate_transcription(
+    &self, rng: &mut (impl Rng + CryptoRng)
+) -> (Self::Commitment, Self::Challenge, Self::Response) {
+    let challenge = Scalar::random(rng);
+    let (commitment, response) = self.simulate_proof(&challenge, rng);
+    (commitment, challenge, response)
+}
+}
+
+
+//  Proof calculation and verification in an AND-protocol in the case where:
+//  both protocols are SchnorrZkp and the proof is correct
 #[allow(non_snake_case)]
 #[test]
 fn andproof_schnorr_correct() {
@@ -101,6 +107,9 @@ fn andproof_schnorr_correct() {
     assert!(result == Ok(()));
 }
 
+
+//  Proof calculation and verification in an AND-protocol in the case where:
+//  both protocols are SchnorrZkp and the proof is incorrect
 #[allow(non_snake_case)]
 #[test]
 fn andproof_schnorr_incorrect() {
@@ -138,6 +147,9 @@ fn andproof_schnorr_incorrect() {
     assert!(result == Err(()));
 }
 
+
+//  Proof calculation and verification in an OR-protocol in the case where:
+//  both protocols are SchnorrZkp and the proof is correct
 #[allow(non_snake_case)]
 #[test]
 fn orproof_schnorr_correct() {
@@ -173,6 +185,9 @@ fn orproof_schnorr_correct() {
     assert!(result == Ok(()));
 }
 
+
+//  Proof calculation and verification in an OR-protocol in the case where:
+//  both protocols are SchnorrZkp and the proof is incorrect
 #[allow(non_snake_case)]
 #[test]
 fn orproof_schnorr_incorrect() {

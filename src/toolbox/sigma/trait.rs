@@ -27,20 +27,6 @@ pub trait SigmaProtocol {
         response: &Self::Response,
     ) -> Result<(), ()>;
 
-    fn simulate_proof(
-        &self, 
-        _challenge: &Self::Challenge,
-        _rng: &mut (impl Rng + CryptoRng)
-    ) -> (Self::Commitment, Self::Response) {
-        panic!("simulatable_proof not implemented for this protocol")
-    }
-
-    fn simulate_transcription(
-        &self, _rng: &mut (impl Rng + CryptoRng)
-    ) -> (Self::Commitment, Self::Challenge, Self::Response) {
-        panic!("simulatable_transcription not implemented for this protocol")
-    }
-
     fn serialize_batchable(
         &self,
         _commitment: &Self::Commitment,
@@ -55,6 +41,23 @@ pub trait SigmaProtocol {
     ) -> Option<(Self::Commitment, Self::Response)> {
         panic!("deserialize_batchable not implemented for this protocol")
     }
+}
 
 
+pub trait SigmaProtocolSimulator
+where Self: SigmaProtocol {
+
+    fn simulate_proof(
+        &self, 
+        _challenge: &Self::Challenge,
+        _rng: &mut (impl Rng + CryptoRng)
+    ) -> (Self::Commitment, Self::Response) {
+        panic!("simulatable_proof not implemented for this protocol")
+    }
+    
+    fn simulate_transcription(
+        &self, _rng: &mut (impl Rng + CryptoRng)
+    ) -> (Self::Commitment, Self::Challenge, Self::Response) {
+        panic!("simulatable_transcription not implemented for this protocol")
+    }
 }
