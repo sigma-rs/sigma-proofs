@@ -1,8 +1,24 @@
+//! Sigma protocol composition: AND and OR constructions.
+//!
+//! This module provides combinators to compose two Sigma protocols
+//! into a new protocol proving statements with logical AND or OR relations.
+//!
+//! # Overview
+//! - `AndProtocol<P, Q>`: Proves both substatements (`P` and `Q`) simultaneously.
+//! - `OrProtocol<P, Q>`: Proves knowledge of a witness for *one* substatement, without revealing which one (using simulation for the other).
+//!
+//! These constructions preserve zero-knowledge properties and follow standard Sigma protocol composition techniques.
+
 use crate::toolbox::sigma::{SigmaProtocol, SigmaProtocolSimulator};
 use rand::{Rng, CryptoRng};
 use ff::PrimeField;
 
-
+/// Logical AND composition of two Sigma protocols.
+///
+/// The prover must know witnesses for both subprotocols `P` and `Q`.
+///
+/// # Example
+/// Proves that two independent statements hold simultaneously.
 pub struct AndProtocol<P, Q> 
 where
     P: SigmaProtocol,
@@ -17,9 +33,10 @@ where
     P: SigmaProtocol,
     Q: SigmaProtocol
 {
-        pub fn new(protocol0: P, protocol1: Q) -> Self {
-            Self {protocol0, protocol1}
-        }
+    /// Create a new `AndProtocol` from two Sigma protocols.
+    pub fn new(protocol0: P, protocol1: Q) -> Self {
+        Self {protocol0, protocol1}
+    }
 }
 
 impl<P, Q> SigmaProtocol for AndProtocol<P, Q> 
@@ -72,6 +89,10 @@ where
     }
 }
 
+/// Logical OR composition of two Sigma protocols.
+///
+/// The prover knows a witness for **one** subprotocol `P` *or* `Q`,
+/// but does not reveal which. This uses simulation to hide the other statement.
 pub struct OrProtocol<P, Q>
 where
     P: SigmaProtocol,
@@ -86,18 +107,23 @@ where
     P: SigmaProtocol,
     Q: SigmaProtocol
 {
-        pub fn new(protocol0: P, protocol1: Q) -> Self {
-            Self {protocol0, protocol1}
-        }
+    /// Create a new `OrProtocol` from two Sigma protocols.
+    pub fn new(protocol0: P, protocol1: Q) -> Self {
+        Self {protocol0, protocol1}
+    }
 }
 
+/// Enum to wrap either the left or right variant in an OR proof.
 pub enum OrEnum<L, R> {
     Left(L),
     Right(R),
 }
 
+/// Internal state for a simulated transcript in an OR proof.
 pub struct OrState<P: SigmaProtocol> (P::Challenge, P::Response);
 
+
+/// Enum to describe which side (left or right) is simulated in an OR proof.
 pub enum OrTranscription<P, Q>
 where
     P: SigmaProtocol,
@@ -106,6 +132,7 @@ where
     Left(OrState<P>),
     Right(OrState<Q>)
 }
+
 
 impl<P, Q, C> SigmaProtocol for OrProtocol<P, Q> 
 where 
@@ -116,10 +143,9 @@ where
     Q::Response: Clone,
     {
     type Commitment = (P::Commitment, Q::Commitment); 
-    // Here ProverState = (real index, real prover state = (r, &real witness), fake transcription)
-    type ProverState = (usize, OrEnum<P::ProverState, Q::ProverState>, OrTranscription<P, Q>);
-    type Response = (P::Challenge, P::Response, Q::Response);  // The two responses
-    type Witness = (usize, OrEnum<P::Witness, Q::Witness>); // Index of the witness and witness
+    type ProverState = (usize, OrEnum<P::ProverState, Q::ProverState>, OrTranscription<P, Q>); // ProverState = (real index, real prover state = (r, &real witness), fake transcription)
+    type Response = (P::Challenge, P::Response, Q::Response);
+    type Witness = (usize, OrEnum<P::Witness, Q::Witness>); // Index of the real witness, and Enum to wrap the real witness
     type Challenge = P::Challenge;
     
     fn prover_commit(

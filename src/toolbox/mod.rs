@@ -39,6 +39,7 @@ pub mod batch_verifier;
 pub mod prover;
 /// Implements proof verification of compact and batchable proofs.
 pub mod verifier;
+/// Contains lower-level tools that allow programmable specification of proof statements.
 pub mod sigma;
 
 use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};

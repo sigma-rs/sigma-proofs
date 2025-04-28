@@ -3,6 +3,7 @@ pub mod proof_composition;
 pub mod fiat_shamir;
 pub mod group_morphism;
 pub mod schnorr_proof;
+/// Defines the transcript for a Sigma Protocol
 pub mod transcript;
 
 pub use r#trait::{SigmaProtocol, SigmaProtocolSimulator};

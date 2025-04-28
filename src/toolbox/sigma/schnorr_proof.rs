@@ -1,16 +1,27 @@
+//! Implementation of the generic Schnorr Sigma Protocol over a group `G`.
+//!
+//! This module defines the [`SchnorrProof`] structure, which implements
+//! a Sigma protocol proving different types of discrete logarithm relations (eg. Schnorr, Pedersen's commitments)
+//! through a group morphism abstraction (see Maurer09).
+
 use rand::{CryptoRng, Rng};
 use group::{Group, GroupEncoding};
 use ff::{PrimeField,Field};
 use crate::toolbox::sigma::{SigmaProtocol, GroupMorphismPreimage};
 
-/// A generic Schnorr protocol over a group `G` implementing the Group trait.
+/// A Schnorr protocol proving knowledge some discrete logarithm relation.
+///
+/// The specific proof instance is defined by a [`GroupMorphismPreimage`] over a group `G`.
 pub struct SchnorrProof<G: Group + GroupEncoding> {
+    /// The public instance and its associated group morphism.
     pub morphismp: GroupMorphismPreimage<G>,
 }
 
-/// Internal prover state: (random nonce, witness)
+/// Internal prover state during the protocol execution: (random nonce, witness)
 pub struct SchnorrState<S> {
+    /// Random nonces generated during commitment.
     pub nonces: Vec<S>,
+    /// The witness scalars corresponding to the statement.
     pub witness: Vec<S>,
 }
 
@@ -25,6 +36,7 @@ where
     type Witness = Vec<<G as Group>::Scalar>;
     type Challenge = <G as Group>::Scalar;
 
+    /// Prover's first message: generates a random commitment based on random nonces.
     fn prover_commit(
         &self,
         witness: &Self::Witness,
@@ -39,6 +51,7 @@ where
         (commitment, prover_state)
     }
 
+    /// Prover's last message: computes the response to a given challenge.
     fn prover_response(
         &self,
         state: Self::ProverState,
@@ -51,6 +64,7 @@ where
         responses
     }
 
+    /// Verifier checks that the provided response satisfies the verification equations.
     fn verifier(
         &self,
         commitment: &Self::Commitment,
@@ -68,6 +82,7 @@ where
         }
     }
 
+    /// Serializes the proof (`commitment`, `response`) into a batchable format for transmission.
     fn serialize_batchable(
         &self,
         commitment: &Self::Commitment,
@@ -87,6 +102,7 @@ where
         bytes
     }
 
+    /// Deserializes a batchable proof format back into (`commitment`, `response`).
     fn deserialize_batchable(&self,
         data: &[u8],
     ) -> Option<(Self::Commitment, Self::Response)>
