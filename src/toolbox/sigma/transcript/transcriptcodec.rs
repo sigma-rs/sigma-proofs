@@ -9,16 +9,7 @@
 //!
 //! # Usage
 //! - The prover and verifier absorb the same messages into identical `KeccakTranscript` instances.
-//! - The prover and the verifier then squeeze the hash to generate a challenge scalar for the protocol. The verifier can check that the prover used the challenge output by the transcript because he owns an identital transcript.
-//!
-//! # Example
-//! ```
-//! use crate::toolbox::sigma::transcript::transcriptcodec::KeccakTranscript;
-//!
-//! let mut transcript = KeccakTranscript::new(b"domain-separator")
-//!     .prover_message(&[commitment1, commitment2]);
-//! let challenge = transcript.verifier_challenge();
-//! ```
+//! - The prover and the verifier then squeeze the hash to generate a challenge scalar for the protocol. The verifier can check that the prover used the challenge output by the transcript because he owns an identical transcript.
 
 use sha3::{Shake128, digest::{Update, ExtendableOutput, XofReader}};
 use group::{Group, GroupEncoding};

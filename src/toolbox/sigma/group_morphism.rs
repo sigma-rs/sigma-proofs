@@ -23,7 +23,6 @@ pub struct LinearCombination {
 ///
 /// It supports dynamic allocation of scalars and elements,
 /// and evaluates by performing multi-scalar multiplications.
-
 pub struct Morphism<G: Group> {
     pub linear_combination: Vec<LinearCombination>,
     pub group_elements: Vec<G>,

@@ -12,16 +12,6 @@
 //! - `P`: the underlying Sigma protocol (`SigmaProtocol` trait).
 //! - `C`: the transcript codec (`TranscriptCodec` trait).
 //! - `G`: the group used for commitments and operations (`Group` trait).
-//!
-//! # Example
-//! ```
-//! use lox_zkp::toolbox::sigma::fiat_shamir::NISigmaProtocol;
-//!
-//! let protocol = SchnorrProof { morphismp: statement };
-//! let mut nizk = NISigmaProtocol::<_, KeccakTranscript<G>, G>::new(b"context", protocol);
-//! let proof = nizk.prove(&witness, &mut rng);
-//! assert!(nizk.verify(&proof).is_ok());
-//! ```
 
 use rand::{RngCore, CryptoRng};
 use crate::toolbox::sigma::SigmaProtocol;
