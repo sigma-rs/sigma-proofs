@@ -46,12 +46,12 @@ where
 
     fn prover_response(
             &self,
-            state: &Self::ProverState,
+            state: Self::ProverState,
             challenge: &Self::Challenge,
         ) -> Self::Response {
             // Compute responses
-            let response0 = self.protocol0.prover_response(&state.0, challenge);
-            let response1 = self.protocol1.prover_response(&state.1, challenge);
+            let response0 = self.protocol0.prover_response(state.0, challenge);
+            let response1 = self.protocol1.prover_response(state.1, challenge);
 
             (response0, response1)
     }
@@ -147,26 +147,27 @@ where
 
     fn prover_response(
         &self,
-        state: &Self::ProverState,
+        state: Self::ProverState,
         challenge: &Self::Challenge,
     ) -> Self::Response {
+        // let state = (real index, real prover state, fakee transcription)
         let (_ , r_pr_st, f_trnsc) = state;
 
         // Compute the real challenge
-        let r_challenge = match *f_trnsc {
+        let r_challenge = match &f_trnsc {
             OrTranscription::Left(OrState(ch, _)) => *challenge - ch,
             OrTranscription::Right(OrState(ch, _)) => *challenge - ch,
         };
 
         match (r_pr_st, f_trnsc) {
-            (OrEnum::Left(ref r_prover_state), OrTranscription::Right(OrState(_, f_response))) => {
+            (OrEnum::Left(r_prover_state), OrTranscription::Right(OrState(_, f_response))) => {
                 let r_response = self.protocol0.prover_response(r_prover_state, &r_challenge);
                 (r_challenge, r_response, f_response.clone())
 
             },
-            (OrEnum::Right(ref r_prover_state), OrTranscription::Left(OrState(f_ch, f_response))) => {
+            (OrEnum::Right(r_prover_state), OrTranscription::Left(OrState(f_ch, f_response))) => {
                 let r_response = self.protocol1.prover_response(r_prover_state, &r_challenge);
-                (*f_ch, f_response.clone(), r_response)
+                (f_ch, f_response.clone(), r_response)
             },
             _ => panic!("Incoherence between real prover state and fake transcription"),
         }

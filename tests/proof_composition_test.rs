@@ -27,10 +27,10 @@ impl SigmaProtocol for SchnorrZkp {
 
     fn prover_response(
             &self,
-            state: &Self::ProverState,
+            state: Self::ProverState,
             challenge: &Self::Challenge,
         ) -> Self::Response {
-        let (r,x) = *state ;
+        let (r,x) = state ;
         challenge * x + r
     }
 
@@ -93,7 +93,7 @@ fn andproof_schnorr_correct() {
     let challenge = Scalar::random(&mut rng);
 
     // Prover computes responses
-    let responses = and_proof.prover_response(&states, &challenge);
+    let responses = and_proof.prover_response(states, &challenge);
 
     // Verifier checks
     let result = and_proof.verifier(&commitments, &challenge, &responses);
@@ -130,7 +130,7 @@ fn andproof_schnorr_incorrect() {
     let challenge = Scalar::random(&mut rng);
 
     // Prover computes responses
-    let responses = and_proof.prover_response(&states, &challenge);
+    let responses = and_proof.prover_response(states, &challenge);
 
     // Verifier checks
     let result = and_proof.verifier(&commitments, &challenge, &responses);
@@ -165,7 +165,7 @@ fn orproof_schnorr_correct() {
     let challenge = Scalar::random(&mut rng);
 
     // Prover computes responses
-    let responses = or_proof.prover_response(&states, &challenge);
+    let responses = or_proof.prover_response(states, &challenge);
 
     // Verifier checks
     let result = or_proof.verifier(&commitments, &challenge, &responses);
@@ -200,7 +200,7 @@ fn orproof_schnorr_incorrect() {
     let challenge = Scalar::random(&mut rng);
 
     // Prover computes responses
-    let responses = or_proof.prover_response(&states, &challenge);
+    let responses = or_proof.prover_response(states, &challenge);
 
     // Verifier checks
     let result = or_proof.verifier(&commitments, &challenge, &responses);

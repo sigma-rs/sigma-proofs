@@ -16,7 +16,7 @@ pub trait SigmaProtocol {
 
     fn prover_response(
         &self,
-        state: &Self::ProverState,
+        state: Self::ProverState,
         challenge: &Self::Challenge,
     ) -> Self::Response;
 

@@ -41,7 +41,7 @@ where
 
     fn prover_response(
         &self,
-        state: &Self::ProverState,
+        state: Self::ProverState,
         challenge: &Self::Challenge,
     ) -> Self::Response {
         let mut responses = Vec::new();

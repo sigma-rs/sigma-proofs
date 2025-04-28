@@ -43,7 +43,7 @@ where
             .verifier_challenge();
         println!("Prover's challenge : {:?}", challenge);
         // Prouver's response
-        let response = self.sigmap.prover_response(&prover_state, &challenge);
+        let response = self.sigmap.prover_response(prover_state, &challenge);
         // Local verification of the proof
         assert!(self.sigmap.verifier(&commitment, &challenge, &response) == Ok(()));
         self.sigmap.serialize_batchable(&commitment, &challenge, &response)
