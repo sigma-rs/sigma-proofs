@@ -80,7 +80,7 @@ where
     }
 
     /// Verify a non-interactive serialized proof and returns a Result: `Ok(())` if the proof verifies successfully, `Err(())` otherwise.
-    pub fn verify(&mut self, proof: &Vec<u8>) -> Result<(), ()> {
+    pub fn verify(&mut self, proof: &[u8]) -> Result<(), ()> {
         self.hash_state = C::new(&self.domain_sep);
 
         let (commitment, response) = self.sigmap.deserialize_batchable(proof).unwrap();

@@ -94,8 +94,7 @@ pub trait SigmaProtocol {
 /// Types implementing `SigmaProtocolSimulator` must define:
 /// - `simulate_proof`
 /// - `simulate_transcription`
-pub trait SigmaProtocolSimulator
-where Self: SigmaProtocol {
+pub trait SigmaProtocolSimulator: SigmaProtocol {
 
     /// Simulates a protocol transcript given a challenge.
     ///

@@ -71,11 +71,13 @@ where
         challenge: &Self::Challenge,
         response: &Self::Response,
     ) -> Result<(), ()> {
-        let lhs = self.morphismp.morphism.evaluate(&response);
+        let lhs = self.morphismp.morphism.evaluate(response);
+
         let mut rhs = Vec::new();
-        for i in 0..self.morphismp.morphism.num_scalars {
-            rhs.push(commitment[i] + self.morphismp.morphism.group_elements[self.morphismp.image[i]] * *challenge);
+        for (i, g) in commitment.iter().enumerate().take(self.morphismp.morphism.num_scalars) {
+            rhs.push(*g + self.morphismp.morphism.group_elements[self.morphismp.image[i]] * *challenge);
         }
+
         match lhs == rhs {
             true => Ok(()),
             false => Err(()), 
@@ -90,14 +92,16 @@ where
         response: &Self::Response
     ) -> Vec<u8> {
         let mut bytes = Vec::new();
-        let scalar_nb = self.morphismp.morphism.num_scalars.clone();
+        let scalar_nb = self.morphismp.morphism.num_scalars;
+
         // Serialize commitments
-        for i in 0..scalar_nb {
-            bytes.extend_from_slice(commitment[i].to_bytes().as_ref());
+        for commit in commitment.iter().take(scalar_nb) {
+            bytes.extend_from_slice(commit.to_bytes().as_ref());
         }
+
         // Serialize responses
-        for i in 0..scalar_nb {
-            bytes.extend_from_slice(response[i].to_repr().as_ref());
+        for response in response.iter().take(scalar_nb) {
+            bytes.extend_from_slice(response.to_repr().as_ref());
         }
         bytes
     }

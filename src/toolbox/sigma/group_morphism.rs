@@ -34,9 +34,15 @@ pub struct Morphism<G: Group> {
 fn msm_pr<G: Group>(scalars: &[G::Scalar], bases: &[G]) -> G {
     let mut acc = G::identity();
     for (s, p) in scalars.iter().zip(bases.iter()) {
-        acc = acc + (*p * s.clone());
+        acc += *p * s;
     }
     acc
+}
+
+impl<G: Group> Default for Morphism<G> {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<G: Group> Morphism<G> {
@@ -65,8 +71,8 @@ impl<G: Group> Morphism<G> {
     /// Computes all linear combinations using the provided scalars and returns their group outputs.
     pub fn evaluate(&self, scalars: &[<G as Group>::Scalar]) -> Vec<G> {
         self.linear_combination.iter().map(|lc| {
-            let coefficients: Vec<_> = lc.scalar_indices.iter().map(|&i| scalars[i].clone()).collect();
-            let elements: Vec<_> = lc.element_indices.iter().map(|&i| self.group_elements[i].clone()).collect();
+            let coefficients: Vec<_> = lc.scalar_indices.iter().map(|&i| scalars[i]).collect();
+            let elements: Vec<_> = lc.element_indices.iter().map(|&i| self.group_elements[i]).collect();
             msm_pr(&coefficients, &elements)
         }).collect()
     }
@@ -85,6 +91,15 @@ where
     pub morphism: Morphism<G>,
     /// Indices pointing to elements representing the "target" images for each constraint.
     pub image: Vec<usize>,
+}
+
+impl<G> Default for GroupMorphismPreimage<G>
+where
+    G: Group + GroupEncoding,
+{
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<G> GroupMorphismPreimage<G>
@@ -143,7 +158,7 @@ where
     /// Set the value of group elements at a given index, inside the list of allocated group elements.
     pub fn set_elements(&mut self, elements: &[(usize, G)]) {
         for &(i, ref elt) in elements {
-            self.morphism.group_elements[i] = elt.clone();
+            self.morphism.group_elements[i] = *elt;
         }
     }
 
@@ -151,7 +166,7 @@ where
     pub fn image(&self) -> Vec<G> {
         let mut result = Vec::new();
         for i in &self.image {
-            result.push(self.morphism.group_elements[*i].clone());
+            result.push(self.morphism.group_elements[*i]);
         }
         result
     }
