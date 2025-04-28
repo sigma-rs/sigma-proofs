@@ -45,7 +45,7 @@ fn fiat_shamir_schnorr_proof_ristretto() {
     let proof_bytes = nizk.prove(&witness, &mut rng);
 
     // Verify
-    let verified = nizk.verify(&proof_bytes);
+    let verified = nizk.verify(&proof_bytes) == Ok(());
 
     assert!(verified, "Fiat-Shamir Schnorr proof verification failed");
 }

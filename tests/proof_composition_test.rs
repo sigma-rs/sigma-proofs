@@ -1,5 +1,3 @@
-use std::ops::Not;
-
 use rand::{rngs::OsRng, CryptoRng, Rng};
 use sigma_rs::toolbox::sigma::{proof_composition::OrEnum, AndProtocol, OrProtocol, SigmaProtocol};
 use curve25519_dalek::{ristretto::RistrettoPoint, scalar::Scalar};
@@ -41,8 +39,11 @@ impl SigmaProtocol for SchnorrZkp {
             commitment: &Self::Commitment,
             challenge: &Self::Challenge,
             response: &Self::Response,
-        ) -> bool {
-        response * self.generator == challenge * self.target + commitment
+        ) -> Result<(), ()> {
+        match response * self.generator == challenge * self.target + commitment {
+            true => Ok(()),
+            false => Err(()),
+        }
     }
 
     fn simulate_proof(
@@ -97,7 +98,7 @@ fn andproof_schnorr_correct() {
     // Verifier checks
     let result = and_proof.verifier(&commitments, &challenge, &responses);
 
-    assert!(result);
+    assert!(result == Ok(()));
 }
 
 #[allow(non_snake_case)]
@@ -134,7 +135,7 @@ fn andproof_schnorr_incorrect() {
     // Verifier checks
     let result = and_proof.verifier(&commitments, &challenge, &responses);
 
-    assert!(result.not());
+    assert!(result == Err(()));
 }
 
 #[allow(non_snake_case)]
@@ -169,7 +170,7 @@ fn orproof_schnorr_correct() {
     // Verifier checks
     let result = or_proof.verifier(&commitments, &challenge, &responses);
 
-    assert!(result);
+    assert!(result == Ok(()));
 }
 
 #[allow(non_snake_case)]
@@ -204,5 +205,5 @@ fn orproof_schnorr_incorrect() {
     // Verifier checks
     let result = or_proof.verifier(&commitments, &challenge, &responses);
 
-    assert!(result.not());
+    assert!(result == Err(()));
 }

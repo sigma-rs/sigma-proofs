@@ -25,7 +25,7 @@ pub trait SigmaProtocol {
         commitment: &Self::Commitment,
         challenge: &Self::Challenge,
         response: &Self::Response,
-    ) -> bool;
+    ) -> Result<(), ()>;
 
     fn simulate_proof(
         &self, 

@@ -61,11 +61,14 @@ where
             commitment: &Self::Commitment,
             challenge: &Self::Challenge,
             response: &Self::Response,
-        ) -> bool {
+        ) -> Result<(), ()> {
         let verif0 = self.protocol0.verifier(&commitment.0, challenge, &response.0);
         let verif1 = self.protocol1.verifier(&commitment.1, challenge, &response.1);
 
-        verif0 & verif1
+        match (verif0, verif1) {
+            (Ok(()), Ok(())) => Ok(()),
+            _ => Err(()),
+        }
     }
 }
 
@@ -174,12 +177,15 @@ where
         commitments: &Self::Commitment,
         challenge: &Self::Challenge,
         response: &Self::Response,
-    ) -> bool {
+    ) -> Result<(), ()> {
         let cond0 = self.protocol0.verifier(&commitments.0, &response.0, &response.1);
 
         let challenge1 = *challenge - response.0;
         let cond1 = self.protocol1.verifier(&commitments.1, &challenge1, &response.2);
 
-        cond0 & cond1
+        match (cond0, cond1) {
+            (Ok(()), Ok(())) => Ok(()),
+            _ => Err(()),
+        }
     }
 }

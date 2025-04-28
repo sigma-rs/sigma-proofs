@@ -45,12 +45,12 @@ where
         // Prouver's response
         let response = self.sigmap.prover_response(&prover_state, &challenge);
         // Local verification of the proof
-        assert!(self.sigmap.verifier(&commitment, &challenge, &response));
+        assert!(self.sigmap.verifier(&commitment, &challenge, &response) == Ok(()));
         self.sigmap.serialize_batchable(&commitment, &challenge, &response)
     }
 
     /// Verification of non-interactive proof
-    pub fn verify(&mut self, proof: &Vec<u8>) -> bool {
+    pub fn verify(&mut self, proof: &Vec<u8>) -> Result<(), ()> {
         self.hash_state = C::new(&self.domain_sep);
 
         let (commitment, response) = self.sigmap.deserialize_batchable(proof).unwrap();
