@@ -74,7 +74,7 @@ where
         let lhs = self.morphismp.morphism.evaluate(response);
 
         let mut rhs = Vec::new();
-        for (i, g) in commitment.iter().enumerate().take(self.morphismp.morphism.num_scalars) {
+        for (i, g) in commitment.iter().enumerate().take(self.morphismp.morphism.num_statements()) {
             rhs.push(*g + self.morphismp.morphism.group_elements[self.morphismp.image[i]] * *challenge);
         }
 
@@ -93,9 +93,10 @@ where
     ) -> Vec<u8> {
         let mut bytes = Vec::new();
         let scalar_nb = self.morphismp.morphism.num_scalars;
+        let point_nb = self.morphismp.morphism.num_statements();
 
         // Serialize commitments
-        for commit in commitment.iter().take(scalar_nb) {
+        for commit in commitment.iter().take(point_nb) {
             bytes.extend_from_slice(commit.to_bytes().as_ref());
         }
 
@@ -112,10 +113,11 @@ where
     ) -> Option<(Self::Commitment, Self::Response)>
     {
         let scalar_nb = self.morphismp.morphism.num_scalars;
+        let point_nb = self.morphismp.morphism.num_statements();
         let point_size = G::generator().to_bytes().as_ref().len();
         let scalar_size = <<G as Group>::Scalar as PrimeField>::Repr::default().as_ref().len();
         
-        let expected_len = scalar_nb * (point_size + scalar_size);
+        let expected_len = scalar_nb * scalar_size + point_nb * point_size;
         if data.len() != expected_len {
             return None;
         }
@@ -123,7 +125,7 @@ where
         let mut commitments: Self::Commitment = Vec::new();
         let mut responses: Self::Response = Vec::new();
 
-        for i in 0..scalar_nb {
+        for i in 0..point_nb {
             let start = i * point_size;
             let end = start + point_size;
 
@@ -142,7 +144,7 @@ where
         }
 
         for i in 0..scalar_nb {
-            let start = scalar_nb * point_size + i * scalar_size;
+            let start = point_nb * point_size + i * scalar_size;
             let end = start + scalar_size;
 
             let mut buf = vec![0u8; scalar_size];

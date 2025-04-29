@@ -6,7 +6,7 @@ use sigma_rs::toolbox::sigma::{
     GroupMorphismPreimage,
     SchnorrProof,
     transcript::KeccakTranscript,
-    NISigmaProtocol
+    NISigmaProtocol,
 };
 
 type G = RistrettoPoint;
@@ -138,7 +138,7 @@ fn bbs_blind_commitment_computation<G: Group + GroupEncoding>(
 ) -> (GroupMorphismPreimage<G>, Vec<G::Scalar>) {
     let mut morphismp: GroupMorphismPreimage<G> = GroupMorphismPreimage::new();
 
-    // lenght (committed_messages)
+    // length (committed_messages)
     let M = 3;
     // BBS.create_generators(M + 1, "BLIND_" || api_id)
     let (Q_2, J_1, J_2, J_3) = (G::random(&mut *rng), G::random(&mut *rng), G::random(&mut *rng), G::random(&mut *rng));
@@ -207,7 +207,7 @@ fn test_bbs_blind_commitment_computation() {
 #[test]
 fn NI_discrete_logarithm() {
     let mut rng = OsRng;
-    let (morphismp, witness) = bbs_blind_commitment_computation::<G>(&mut rng);
+    let (morphismp, witness) = discrete_logarithm::<G>(&mut rng);
 
     // The SigmaProtocol induced by morphismp
     let protocol = SchnorrProof { morphismp };
@@ -220,4 +220,80 @@ fn NI_discrete_logarithm() {
     // Verify
     let verified = nizk.verify(&proof_bytes).is_ok();
     assert!(verified, "Fiat-Shamir Schnorr proof verification failed");
+}
+
+#[allow(non_snake_case)]
+#[test]
+fn NI_dleq() {
+    let mut rng = OsRng;
+    let (morphismp, witness) = dleq::<G>(&mut rng);
+
+    // The SigmaProtocol induced by morphismp
+    let protocol = SchnorrProof { morphismp };
+    // Fiat-Shamir wrapper
+    let domain_sep = b"test-fiat-shamir-DLEQ";
+    let mut nizk = NISigmaProtocol::<SchnorrProof<G>, KeccakTranscript<G>, G>::new(domain_sep, protocol);
+    
+    // Prove
+    let proof_bytes = nizk.prove(&witness, &mut rng);
+    // Verify
+    let verified = nizk.verify(&proof_bytes).is_ok();
+    assert!(verified, "DLEQ proof verification failed");
+}
+
+#[allow(non_snake_case)]
+#[test]
+fn NI_pedersen_commitment() {
+    let mut rng = OsRng;
+    let (morphismp, witness) = pedersen_commitment::<G>(&mut rng);
+
+    // The SigmaProtocol induced by morphismp
+    let protocol = SchnorrProof { morphismp };
+    // Fiat-Shamir wrapper
+    let domain_sep = b"test-fiat-shamir-pedersen-commitment";
+    let mut nizk = NISigmaProtocol::<SchnorrProof<G>, KeccakTranscript<G>, G>::new(domain_sep, protocol);
+    
+    // Prove
+    let proof_bytes = nizk.prove(&witness, &mut rng);
+    // Verify
+    let verified = nizk.verify(&proof_bytes).is_ok();
+    assert!(verified, "DLEQ proof verification failed");
+}
+
+#[allow(non_snake_case)]
+#[test]
+fn NI_pedersen_commitment_dleq() {
+    let mut rng = OsRng;
+    let (morphismp, witness) = pedersen_commitment_dleq::<G>(&mut rng);
+
+    // The SigmaProtocol induced by morphismp
+    let protocol = SchnorrProof { morphismp };
+    // Fiat-Shamir wrapper
+    let domain_sep = b"test-fiat-shamir-pedersen-commitment-DLEQ";
+    let mut nizk = NISigmaProtocol::<SchnorrProof<G>, KeccakTranscript<G>, G>::new(domain_sep, protocol);
+    
+    // Prove
+    let proof_bytes = nizk.prove(&witness, &mut rng);
+    // Verify
+    let verified = nizk.verify(&proof_bytes).is_ok();
+    assert!(verified, "DLEQ proof verification failed");
+}
+
+#[allow(non_snake_case)]
+#[test]
+fn NI_bbs_blind_commitment_computation() {
+    let mut rng = OsRng;
+    let (morphismp, witness) = bbs_blind_commitment_computation::<G>(&mut rng);
+
+    // The SigmaProtocol induced by morphismp
+    let protocol = SchnorrProof { morphismp };
+    // Fiat-Shamir wrapper
+    let domain_sep = b"test-fiat-shamir-bbs-blind-commitment-computation";
+    let mut nizk = NISigmaProtocol::<SchnorrProof<G>, KeccakTranscript<G>, G>::new(domain_sep, protocol);
+    
+    // Prove
+    let proof_bytes = nizk.prove(&witness, &mut rng);
+    // Verify
+    let verified = nizk.verify(&proof_bytes).is_ok();
+    assert!(verified, "DLEQ proof verification failed");
 }
