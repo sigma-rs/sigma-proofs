@@ -16,6 +16,7 @@
 use rand::{RngCore, CryptoRng};
 use crate::toolbox::sigma::SigmaProtocol;
 use crate::toolbox::sigma::transcript::TranscriptCodec;
+use crate::ProofError;
 use group::Group;
 
 /// A Fiat-Shamir transformation of a Sigma protocol into a non-interactive proof.
@@ -75,12 +76,12 @@ where
         // Prouver's response
         let response = self.sigmap.prover_response(prover_state, &challenge);
         // Local verification of the proof
-        assert!(self.sigmap.verifier(&commitment, &challenge, &response) == Ok(()));
+        assert!(self.sigmap.verifier(&commitment, &challenge, &response).is_ok());
         self.sigmap.serialize_batchable(&commitment, &challenge, &response)
     }
 
     /// Verify a non-interactive serialized proof and returns a Result: `Ok(())` if the proof verifies successfully, `Err(())` otherwise.
-    pub fn verify(&mut self, proof: &[u8]) -> Result<(), ()> {
+    pub fn verify(&mut self, proof: &[u8]) -> Result<(), ProofError> {
         self.hash_state = C::new(&self.domain_sep);
 
         let (commitment, response) = self.sigmap.deserialize_batchable(proof).unwrap();

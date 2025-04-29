@@ -3,6 +3,7 @@
 //! This module defines the `SigmaProtocol` trait, a generic interface for 3-message Sigma protocols.
 
 use rand::{Rng, CryptoRng};
+use crate::ProofError;
 
 /// A trait defining the behavior of a generic Sigma protocol.
 ///
@@ -57,7 +58,7 @@ pub trait SigmaProtocol {
         commitment: &Self::Commitment,
         challenge: &Self::Challenge,
         response: &Self::Response,
-    ) -> Result<(), ()>;
+    ) -> Result<(), ProofError>;
 
     /// Serializes a proof transcript (commitment, challenge, response) to bytes for batching.
     ///

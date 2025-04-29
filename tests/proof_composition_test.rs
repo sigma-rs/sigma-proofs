@@ -1,5 +1,5 @@
 use rand::{rngs::OsRng, CryptoRng, Rng};
-use sigma_rs::toolbox::sigma::{proof_composition::OrEnum, SigmaProtocolSimulator, AndProtocol, OrProtocol, SigmaProtocol};
+use sigma_rs::{toolbox::sigma::{proof_composition::OrEnum, AndProtocol, OrProtocol, SigmaProtocol, SigmaProtocolSimulator}, ProofError};
 use curve25519_dalek::{ristretto::RistrettoPoint, scalar::Scalar};
 
 pub struct SchnorrZkp {
@@ -39,10 +39,10 @@ impl SigmaProtocol for SchnorrZkp {
             commitment: &Self::Commitment,
             challenge: &Self::Challenge,
             response: &Self::Response,
-        ) -> Result<(), ()> {
+        ) -> Result<(), ProofError> {
         match response * self.generator == challenge * self.target + commitment {
             true => Ok(()),
-            false => Err(()),
+            false => Err(ProofError::VerificationFailure),
         }
     }
 }
@@ -104,7 +104,7 @@ fn andproof_schnorr_correct() {
     // Verifier checks
     let result = and_proof.verifier(&commitments, &challenge, &responses);
 
-    assert!(result == Ok(()));
+    assert!(result.is_ok());
 }
 
 
@@ -144,7 +144,7 @@ fn andproof_schnorr_incorrect() {
     // Verifier checks
     let result = and_proof.verifier(&commitments, &challenge, &responses);
 
-    assert!(result == Err(()));
+    assert!(!result.is_ok());
 }
 
 
@@ -182,7 +182,7 @@ fn orproof_schnorr_correct() {
     // Verifier checks
     let result = or_proof.verifier(&commitments, &challenge, &responses);
 
-    assert!(result == Ok(()));
+    assert!(result.is_ok());
 }
 
 
@@ -220,5 +220,5 @@ fn orproof_schnorr_incorrect() {
     // Verifier checks
     let result = or_proof.verifier(&commitments, &challenge, &responses);
 
-    assert!(result == Err(()));
+    assert!(!result.is_ok());
 }

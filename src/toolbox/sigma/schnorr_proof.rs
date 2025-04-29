@@ -7,7 +7,7 @@
 use rand::{CryptoRng, Rng};
 use group::{Group, GroupEncoding};
 use ff::{PrimeField,Field};
-use crate::toolbox::sigma::{SigmaProtocol, GroupMorphismPreimage};
+use crate::{toolbox::sigma::{GroupMorphismPreimage, SigmaProtocol}, ProofError};
 
 /// A Schnorr protocol proving knowledge some discrete logarithm relation.
 ///
@@ -70,7 +70,7 @@ where
         commitment: &Self::Commitment,
         challenge: &Self::Challenge,
         response: &Self::Response,
-    ) -> Result<(), ()> {
+    ) -> Result<(), ProofError> {
         let lhs = self.morphismp.morphism.evaluate(response);
 
         let mut rhs = Vec::new();
@@ -80,7 +80,7 @@ where
 
         match lhs == rhs {
             true => Ok(()),
-            false => Err(()), 
+            false => Err(ProofError::VerificationFailure), 
         }
     }
 
