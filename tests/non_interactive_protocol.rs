@@ -30,7 +30,7 @@ fn fiat_shamir_schnorr_proof_ristretto() {
 
     // Set the witness Vec
     let mut witness = Vec::new();
-    witness.push(w.clone());
+    witness.push(w);
 
     // The H = z * G equation where z is the unique scalar variable
     morphismp.append_equation(1, &[(0, 0)]);
