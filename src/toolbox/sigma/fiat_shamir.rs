@@ -72,8 +72,7 @@ where
             .hash_state
             .prover_message(&commitment)
             .verifier_challenge();
-        println!("Prover's challenge : {:?}", challenge);
-        // Prouver's response
+        // Prover's response
         let response = self.sigmap.prover_response(prover_state, &challenge);
         // Local verification of the proof
         assert!(self.sigmap.verifier(&commitment, &challenge, &response).is_ok());
@@ -90,7 +89,6 @@ where
             .hash_state
             .prover_message(&commitment)
             .verifier_challenge();
-        println!("Verifier's challenge : {:?}", challenge);
         // Verification of the proof
         self.sigmap.verifier(&commitment, &challenge, &response)
 
