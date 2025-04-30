@@ -14,14 +14,12 @@ use super::r#trait::GroupSerialisation;
 /// A Schnorr protocol proving knowledge some discrete logarithm relation.
 ///
 /// The specific proof instance is defined by a [`GroupMorphismPreimage`] over a group `G`.
-pub struct SchnorrProof<G, S>
+pub struct SchnorrProof<G>
 where 
-    G: Group + GroupEncoding,
-    S: GroupSerialisation<G, Scalar = G::Scalar>
+    G: Group + GroupEncoding + GroupSerialisation
 {
     /// The public instance and its associated group morphism.
-    pub morphismp: GroupMorphismPreimage<G>,
-    _marker: std::marker::PhantomData<S>
+    pub morphismp: GroupMorphismPreimage<G>
 }
 
 /// Internal prover state during the protocol execution: (random nonce, witness)
@@ -32,11 +30,10 @@ pub struct SchnorrState<S> {
     pub witness: Vec<S>,
 }
 
-impl<G, S> SigmaProtocol for SchnorrProof<G,S>
+impl<G> SigmaProtocol for SchnorrProof<G>
 where
-    G: Group + GroupEncoding, 
+    G: Group + GroupEncoding + GroupSerialisation, 
     G::Scalar: Field + Clone,
-    S: GroupSerialisation<G, Scalar = G::Scalar>
 {
     type Commitment = Vec<G>;
     type ProverState = (Vec<<G as Group>::Scalar>, Vec<<G as Group>::Scalar>);
@@ -105,12 +102,12 @@ where
 
         // Serialize commitments
         for commit in commitment.iter().take(point_nb) {
-            bytes.extend_from_slice(&S::serialize_element(commit));
+            bytes.extend_from_slice(&G::serialize_element(commit));
         }
 
         // Serialize responses
         for response in response.iter().take(scalar_nb) {
-            bytes.extend_from_slice(&S::serialize_scalar(response));
+            bytes.extend_from_slice(&G::serialize_scalar(response));
         }
         bytes
     }
@@ -139,7 +136,7 @@ where
             let end = start + point_size;
 
             let slice = &data[start..end];
-            let elem = S::deserialize_element(slice)?;
+            let elem = G::deserialize_element(slice)?;
             commitments.push(elem);
         }
 
@@ -148,7 +145,7 @@ where
             let end = start + scalar_size;
 
             let slice = &data[start..end];
-            let scalar = S::deserialize_scalar(slice)?;
+            let scalar = G::deserialize_scalar(slice)?;
             responses.push(scalar);
         }
     

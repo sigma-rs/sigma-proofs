@@ -1,6 +1,6 @@
+use bls12_381::G1Projective;
 use rand::{{Rng, CryptoRng}, rngs::OsRng};
 use group::{Group, GroupEncoding, ff::Field};
-use curve25519_dalek::ristretto::RistrettoPoint;
 
 use sigma_rs::toolbox::sigma::{
     GroupMorphismPreimage,
@@ -9,7 +9,7 @@ use sigma_rs::toolbox::sigma::{
     NISigmaProtocol,
 };
 
-type G = RistrettoPoint;
+type G = G1Projective;
 
 fn msm_pr<G: Group>(scalars: &[G::Scalar], bases: &[G]) -> G {
     let mut acc = G::identity();
