@@ -5,6 +5,7 @@ pub mod group_morphism;
 pub mod schnorr_proof;
 /// Defines the transcript for a Sigma Protocol
 pub mod transcript;
+pub mod group_serialisation;
 
 pub use r#trait::{SigmaProtocol, SigmaProtocolSimulator};
 pub use proof_composition::{AndProtocol, OrProtocol};

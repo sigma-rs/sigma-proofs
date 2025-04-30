@@ -9,12 +9,19 @@ use group::{Group, GroupEncoding};
 use ff::{PrimeField,Field};
 use crate::{toolbox::sigma::{GroupMorphismPreimage, SigmaProtocol}, ProofError};
 
+use super::r#trait::GroupSerialisation;
+
 /// A Schnorr protocol proving knowledge some discrete logarithm relation.
 ///
 /// The specific proof instance is defined by a [`GroupMorphismPreimage`] over a group `G`.
-pub struct SchnorrProof<G: Group + GroupEncoding> {
+pub struct SchnorrProof<G, S>
+where 
+    G: Group + GroupEncoding,
+    S: GroupSerialisation<G, Scalar = G::Scalar>
+{
     /// The public instance and its associated group morphism.
     pub morphismp: GroupMorphismPreimage<G>,
+    _marker: std::marker::PhantomData<S>
 }
 
 /// Internal prover state during the protocol execution: (random nonce, witness)
@@ -25,10 +32,11 @@ pub struct SchnorrState<S> {
     pub witness: Vec<S>,
 }
 
-impl<G> SigmaProtocol for SchnorrProof<G>
+impl<G, S> SigmaProtocol for SchnorrProof<G,S>
 where
     G: Group + GroupEncoding, 
     G::Scalar: Field + Clone,
+    S: GroupSerialisation<G, Scalar = G::Scalar>
 {
     type Commitment = Vec<G>;
     type ProverState = (Vec<<G as Group>::Scalar>, Vec<<G as Group>::Scalar>);
@@ -97,12 +105,12 @@ where
 
         // Serialize commitments
         for commit in commitment.iter().take(point_nb) {
-            bytes.extend_from_slice(commit.to_bytes().as_ref());
+            bytes.extend_from_slice(&S::serialize_element(commit));
         }
 
         // Serialize responses
         for response in response.iter().take(scalar_nb) {
-            bytes.extend_from_slice(response.to_repr().as_ref());
+            bytes.extend_from_slice(&S::serialize_scalar(response));
         }
         bytes
     }
@@ -114,6 +122,7 @@ where
     {
         let scalar_nb = self.morphismp.morphism.num_scalars;
         let point_nb = self.morphismp.morphism.num_statements();
+
         let point_size = G::generator().to_bytes().as_ref().len();
         let scalar_size = <<G as Group>::Scalar as PrimeField>::Repr::default().as_ref().len();
         
@@ -129,17 +138,8 @@ where
             let start = i * point_size;
             let end = start + point_size;
 
-            let mut buf = vec![0u8; point_size];
-            buf.copy_from_slice(&data[start..end]);
-
-            let mut repr_array = G::Repr::default();
-            repr_array.as_mut().copy_from_slice(&buf);
-    
-            let elem_ct = G::from_bytes(&repr_array);
-            if !bool::from(elem_ct.is_some()) {           
-                return None;
-            }
-            let elem = elem_ct.unwrap();
+            let slice = &data[start..end];
+            let elem = S::deserialize_element(slice)?;
             commitments.push(elem);
         }
 
@@ -147,17 +147,8 @@ where
             let start = point_nb * point_size + i * scalar_size;
             let end = start + scalar_size;
 
-            let mut buf = vec![0u8; scalar_size];
-            buf.copy_from_slice(&data[start..end]);
-            
-            let mut repr_array = <<G as Group>::Scalar as PrimeField>::Repr::default();
-            repr_array.as_mut().copy_from_slice(&buf);
-            
-            let scalar_ct = G::Scalar::from_repr(repr_array);
-            if !bool::from(scalar_ct.is_some()) {           
-                return None;
-            }
-            let scalar = scalar_ct.unwrap();
+            let slice = &data[start..end];
+            let scalar = S::deserialize_scalar(slice)?;
             responses.push(scalar);
         }
     

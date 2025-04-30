@@ -2,6 +2,7 @@
 //!
 //! This module defines the `SigmaProtocol` trait, a generic interface for 3-message Sigma protocols.
 
+use group::Group;
 use rand::{Rng, CryptoRng};
 use crate::ProofError;
 
@@ -120,4 +121,18 @@ pub trait SigmaProtocolSimulator: SigmaProtocol {
     ) -> (Self::Commitment, Self::Challenge, Self::Response) {
         panic!("simulatable_transcription not implemented for this protocol")
     }
+}
+
+pub trait GroupSerialisation<G>
+where 
+    G: Group,
+{
+    type Scalar: ff::PrimeField;
+
+    fn serialize_element(point: &G) -> Vec<u8>;
+    fn deserialize_element(bytes: &[u8]) -> Option<G>;
+
+    fn serialize_scalar(scalar: &Self::Scalar) -> Vec<u8>;
+    fn deserialize_scalar(bytes: &[u8]) -> Option<Self::Scalar>;
+
 }
