@@ -5,8 +5,6 @@ use bls12_381::G1Projective;
 use subtle::CtOption;
 use num_bigint::BigUint;
 use hex::FromHex;
-use num_traits::One;
-use crate::rand::RngCore;
 
 impl SInput for G1Projective {
     fn scalar_from_hex_be(
@@ -32,22 +30,6 @@ impl SInput for G1Projective {
 }
 
 impl SRandom<TestDRNG> for G1Projective {
-    fn randint_big(rng: &mut TestDRNG, l: &BigUint, h: &BigUint) -> BigUint {
-        assert!(l <= h);
-        let range = h - l + BigUint::one();
-        let bits = range.bits();
-        let bytes_needed = ((bits + 7) / 8) as usize;
-
-        loop {
-            let mut buf = vec![0u8; bytes_needed];
-            rng.fill_bytes(&mut buf);
-            let val = BigUint::from_bytes_be(&buf);
-            if val.bits() <= bits {
-                return l + (val % &range);
-            }
-        }
-    }
-
     fn srandom(
         rng: &mut TestDRNG
     ) -> Self::Scalar {
