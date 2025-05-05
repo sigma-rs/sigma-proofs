@@ -6,8 +6,9 @@ pub mod schnorr_proof;
 /// Defines the transcript for a Sigma Protocol
 pub mod transcript;
 pub mod group_serialisation;
+pub mod sage_test;
 
-pub use r#trait::{SigmaProtocol, SigmaProtocolSimulator};
+pub use r#trait::{SigmaProtocol, SigmaProtocolSimulator, GroupSerialisation};
 pub use proof_composition::{AndProtocol, OrProtocol};
 pub use fiat_shamir::NISigmaProtocol;
 pub use schnorr_proof::SchnorrProof;

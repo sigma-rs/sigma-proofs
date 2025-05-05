@@ -6,10 +6,8 @@
 
 use rand::{CryptoRng, Rng};
 use group::{Group, GroupEncoding};
-use ff::{PrimeField,Field};
-use crate::{toolbox::sigma::{GroupMorphismPreimage, SigmaProtocol}, ProofError};
-
-use super::r#trait::GroupSerialisation;
+use ff::{PrimeField, Field};
+use crate::{toolbox::sigma::{GroupMorphismPreimage, SigmaProtocol, GroupSerialisation}, ProofError};
 
 /// A Schnorr protocol proving knowledge some discrete logarithm relation.
 ///
@@ -32,8 +30,7 @@ pub struct SchnorrState<S> {
 
 impl<G> SigmaProtocol for SchnorrProof<G>
 where
-    G: Group + GroupEncoding + GroupSerialisation, 
-    G::Scalar: Field + Clone,
+    G: Group + GroupEncoding + GroupSerialisation
 {
     type Commitment = Vec<G>;
     type ProverState = (Vec<<G as Group>::Scalar>, Vec<<G as Group>::Scalar>);
