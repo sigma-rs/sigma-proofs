@@ -1,18 +1,13 @@
-use bls12_381::{G1Projective, G1Affine, Scalar};
+use bls12_381::G1Projective;
 use rand::{Rng, CryptoRng};
-use rand::SeedableRng;
-use hex::FromHex;
-use rand_chacha::ChaCha20Rng;
 use group::{Group, GroupEncoding, ff::Field};
-use subtle::CtOption;
-use ff::PrimeField;
+use sigma_rs::toolbox::sigma::sage_test::TestDRNG;
+use sigma_rs::toolbox::sigma::sage_test::custom_schnorr_proof::SchnorrProofCustom;
 
 use sigma_rs::toolbox::sigma::{
     GroupMorphismPreimage,
-    SchnorrProof,
     transcript::KeccakTranscript,
     NISigmaProtocol,
-    sage_test::SInput
 };
 
 type Gp = G1Projective;
@@ -27,7 +22,9 @@ fn msm_pr<G: Group>(scalars: &[G::Scalar], bases: &[G]) -> G {
 
 
 #[allow(non_snake_case)]
-fn discrete_logarithm<G: SInput>() -> (GroupMorphismPreimage<G>, Vec<G::Scalar>) {
+fn discrete_logarithm<G: Group + GroupEncoding>(
+    rng: &mut (impl Rng + CryptoRng)
+) -> (GroupMorphismPreimage<G>, Vec<G::Scalar>) {
     let mut morphismp: GroupMorphismPreimage<G> = GroupMorphismPreimage::new();
 
     let var_x: usize = 0;
@@ -39,12 +36,9 @@ fn discrete_logarithm<G: SInput>() -> (GroupMorphismPreimage<G>, Vec<G::Scalar>)
     let G = G::generator();
     morphismp.set_elements(&[(var_G, G)]);
 
-    let x_hex = "3338fa65ec36e0290022b48eb562889d89dbfa691d1cde91517fa222ed7ad364";
-    let x = G::scalar_from_hex_be(x_hex).unwrap();
-    // let x = G::Scalar::random(&mut *rng);
+    let x = G::Scalar::random(&mut *rng);
     let X = G * x;
     assert!(vec![X] == morphismp.morphism.evaluate(&[x]));
-
     morphismp.set_elements(&[(var_X, X)]);
     (morphismp, vec![x])
 }
@@ -179,29 +173,89 @@ fn bbs_blind_commitment_computation<G: Group + GroupEncoding>(
 #[allow(non_snake_case)]
 #[test]
 fn NI_discrete_logarithm() {
-    // Seed initialisation
-    let mut seed_array = [0u8; 32];  
-    let seed_bytes = b"test vector seed";
+    let mut rng = TestDRNG::new(b"79656c6c6f77207375626d6172696e6579656c6c6f77207375626d6172696e65");
+    let (morphismp, witness) = discrete_logarithm::<Gp>(&mut rng);
 
-    // Copy the seed (repeat if needed, pad if smaller)
-    seed_array[..seed_bytes.len()].copy_from_slice(seed_bytes);
+    println!("witness: {:?}", witness);
 
-    // Now create the RNG
-    let mut rng = ChaCha20Rng::from_seed(seed_array);
-    
-    let (morphismp, witness) = discrete_logarithm::<Gp>();
-
-    // The SigmaProtocol induced by morphismp
-    let protocol = SchnorrProof { morphismp };
-    // Fiat-Shamir wrapper
+    let protocol = SchnorrProofCustom { morphismp };
     let domain_sep: Vec<u8> = b"yellow submarineyellow submarine".to_vec();
-    let mut nizk = NISigmaProtocol::<SchnorrProof<Gp>, KeccakTranscript<Gp>, Gp>::new(&domain_sep, protocol);
+    let mut nizk = NISigmaProtocol::<SchnorrProofCustom<Gp>, KeccakTranscript<Gp>, Gp>::new(&domain_sep, protocol);
     
-    // Prove
     let proof_bytes = nizk.prove(&witness, &mut rng);
-    // Verify
     let verified = nizk.verify(&proof_bytes).is_ok();
     assert!(verified, "Fiat-Shamir Schnorr proof verification failed");
     println!("{:?}", hex::encode(proof_bytes));
 }
 
+#[allow(non_snake_case)]
+#[test]
+fn NI_dleq() {
+    let mut rng = TestDRNG::new(b"79656c6c6f77207375626d6172696e6579656c6c6f77207375626d6172696e65");
+    let (morphismp, witness) = dleq::<Gp>(&mut rng);
+
+    println!("witness: {:?}", witness);
+
+    let protocol = SchnorrProofCustom { morphismp };
+    let domain_sep: Vec<u8> = b"yellow submarineyellow submarine".to_vec();
+    let mut nizk = NISigmaProtocol::<SchnorrProofCustom<Gp>, KeccakTranscript<Gp>, Gp>::new(&domain_sep, protocol);
+    
+    let proof_bytes = nizk.prove(&witness, &mut rng);
+    let verified = nizk.verify(&proof_bytes).is_ok();
+    assert!(verified, "Fiat-Shamir Schnorr proof verification failed");
+    println!("{:?}", hex::encode(proof_bytes));
+}
+
+#[allow(non_snake_case)]
+#[test]
+fn NI_pedersen_commitment() {
+    let mut rng = TestDRNG::new(b"79656c6c6f77207375626d6172696e6579656c6c6f77207375626d6172696e65");
+    let (morphismp, witness) = pedersen_commitment::<Gp>(&mut rng);
+
+    println!("witness: {:?}", witness);
+
+    let protocol = SchnorrProofCustom { morphismp };
+    let domain_sep: Vec<u8> = b"yellow submarineyellow submarine".to_vec();
+    let mut nizk = NISigmaProtocol::<SchnorrProofCustom<Gp>, KeccakTranscript<Gp>, Gp>::new(&domain_sep, protocol);
+    
+    let proof_bytes = nizk.prove(&witness, &mut rng);
+    let verified = nizk.verify(&proof_bytes).is_ok();
+    assert!(verified, "Fiat-Shamir Schnorr proof verification failed");
+    println!("{:?}", hex::encode(proof_bytes));
+}
+
+#[allow(non_snake_case)]
+#[test]
+fn NI_pedersen_commitment_dleq() {
+    let mut rng = TestDRNG::new(b"79656c6c6f77207375626d6172696e6579656c6c6f77207375626d6172696e65");
+    let (morphismp, witness) = pedersen_commitment_dleq::<Gp>(&mut rng);
+
+    println!("witness: {:?}", witness);
+
+    let protocol = SchnorrProofCustom { morphismp };
+    let domain_sep: Vec<u8> = b"yellow submarineyellow submarine".to_vec();
+    let mut nizk = NISigmaProtocol::<SchnorrProofCustom<Gp>, KeccakTranscript<Gp>, Gp>::new(&domain_sep, protocol);
+    
+    let proof_bytes = nizk.prove(&witness, &mut rng);
+    let verified = nizk.verify(&proof_bytes).is_ok();
+    assert!(verified, "Fiat-Shamir Schnorr proof verification failed");
+    println!("{:?}", hex::encode(proof_bytes));
+}
+
+#[allow(non_snake_case)]
+#[test]
+fn NI_bbs_blind_commitment_computation() {
+    let mut rng = TestDRNG::new(b"79656c6c6f77207375626d6172696e6579656c6c6f77207375626d6172696e65");
+    let (morphismp, witness) = bbs_blind_commitment_computation::<Gp>(&mut rng);
+
+    println!("witness: {:?}", witness);
+
+    let protocol = SchnorrProofCustom { morphismp };
+    let domain_sep: Vec<u8> = b"yellow submarineyellow submarine".to_vec();
+    let mut nizk = NISigmaProtocol::<SchnorrProofCustom<Gp>, KeccakTranscript<Gp>, Gp>::new(&domain_sep, protocol);
+    
+    let proof_bytes = nizk.prove(&witness, &mut rng);
+    let verified = nizk.verify(&proof_bytes).is_ok();
+    assert!(verified, "Fiat-Shamir Schnorr proof verification failed");
+    println!("{:?}", hex::encode(proof_bytes));
+}

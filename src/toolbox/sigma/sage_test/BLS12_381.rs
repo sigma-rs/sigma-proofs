@@ -1,10 +1,12 @@
-use crate::toolbox::sigma::sage_test::{TestDRNG, SInput, SRandom};
+use crate::toolbox::sigma::sage_test::{SInput, SRandom};
 use group::Group;
 use ff::PrimeField;
 use bls12_381::G1Projective;
+use rand::{Rng, CryptoRng};
 use subtle::CtOption;
 use num_bigint::BigUint;
 use hex::FromHex;
+use num_traits::One;
 
 impl SInput for G1Projective {
     fn scalar_from_hex_be(
@@ -29,13 +31,33 @@ impl SInput for G1Projective {
     }
 }
 
-impl SRandom<TestDRNG> for G1Projective {
+impl SRandom for G1Projective {
+    fn randint_big(
+        l: &BigUint, 
+        h: &BigUint, 
+        rng: &mut (impl Rng + CryptoRng)
+    ) -> BigUint {
+        assert!(l <= h);
+        let range = h - l + BigUint::one();
+        let bits = range.bits();
+        let bytes_needed = ((bits + 7) / 8) as usize;
+
+        loop {
+            let mut buf = vec![0u8; bytes_needed];
+            rng.fill_bytes(&mut buf);
+            let val = BigUint::from_bytes_be(&buf);
+            if val.bits() <= bits {
+                return l + (val % &range);
+            }
+        }
+    }
+
     fn srandom(
-        rng: &mut TestDRNG
+        rng: &mut (impl Rng + CryptoRng)
     ) -> Self::Scalar {
         let low = BigUint::parse_bytes(b"1", 10).unwrap();
         let high = BigUint::parse_bytes(b"73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000000", 16).unwrap();
-        let rand = rng.randint_big(&low, &high);
+        let rand = Self::randint_big(&low, &high, rng);
         let mut hex_string = rand.to_str_radix(16);
         if hex_string.len() < 64 {
             hex_string = format!("{:0>64}", hex_string); // pad à gauche avec des zéros
