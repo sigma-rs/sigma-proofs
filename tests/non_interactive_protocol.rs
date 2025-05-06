@@ -4,7 +4,7 @@ use curve25519_dalek::scalar::Scalar;
 
 use sigma_rs::toolbox::sigma::group_morphism::GroupMorphismPreimage;
 use sigma_rs::toolbox::sigma::schnorr_proof::SchnorrProof;
-use sigma_rs::toolbox::sigma::transcript::transcriptcodec::KeccakTranscript;
+use sigma_rs::toolbox::sigma::transcript::shake_transcript::ShakeTranscript;
 use sigma_rs::toolbox::sigma::fiat_shamir::NISigmaProtocol;
 
 type G = RistrettoPoint;
@@ -39,7 +39,7 @@ fn fiat_shamir_schnorr_proof_ristretto() {
     let protocol = SchnorrProof { morphismp };
 
     // Fiat-Shamir wrapper
-    let mut nizk = NISigmaProtocol::<SchnorrProof<G>, KeccakTranscript<G>, G>::new(domain_sep, protocol);
+    let mut nizk = NISigmaProtocol::<SchnorrProof<G>, ShakeTranscript<G>, G>::new(domain_sep, protocol);
 
     // Prove
     let proof_bytes = nizk.prove(&witness, &mut rng);

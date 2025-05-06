@@ -5,7 +5,7 @@ use group::{Group, GroupEncoding, ff::Field};
 use sigma_rs::toolbox::sigma::{
     GroupMorphismPreimage,
     SchnorrProof,
-    transcript::KeccakTranscript,
+    transcript::ShakeTranscript,
     NISigmaProtocol,
 };
 
@@ -213,7 +213,7 @@ fn NI_discrete_logarithm() {
     let protocol = SchnorrProof { morphismp };
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-schnorr";
-    let mut nizk = NISigmaProtocol::<SchnorrProof<G>, KeccakTranscript<G>, G>::new(domain_sep, protocol);
+    let mut nizk = NISigmaProtocol::<SchnorrProof<G>, ShakeTranscript<G>, G>::new(domain_sep, protocol);
     
     // Prove
     let proof_bytes = nizk.prove(&witness, &mut rng);
@@ -232,7 +232,7 @@ fn NI_dleq() {
     let protocol = SchnorrProof { morphismp };
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-DLEQ";
-    let mut nizk = NISigmaProtocol::<SchnorrProof<G>, KeccakTranscript<G>, G>::new(domain_sep, protocol);
+    let mut nizk = NISigmaProtocol::<SchnorrProof<G>, ShakeTranscript<G>, G>::new(domain_sep, protocol);
     
     // Prove
     let proof_bytes = nizk.prove(&witness, &mut rng);
@@ -251,7 +251,7 @@ fn NI_pedersen_commitment() {
     let protocol = SchnorrProof { morphismp };
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-pedersen-commitment";
-    let mut nizk = NISigmaProtocol::<SchnorrProof<G>, KeccakTranscript<G>, G>::new(domain_sep, protocol);
+    let mut nizk = NISigmaProtocol::<SchnorrProof<G>, ShakeTranscript<G>, G>::new(domain_sep, protocol);
     
     // Prove
     let proof_bytes = nizk.prove(&witness, &mut rng);
@@ -270,7 +270,7 @@ fn NI_pedersen_commitment_dleq() {
     let protocol = SchnorrProof { morphismp };
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-pedersen-commitment-DLEQ";
-    let mut nizk = NISigmaProtocol::<SchnorrProof<G>, KeccakTranscript<G>, G>::new(domain_sep, protocol);
+    let mut nizk = NISigmaProtocol::<SchnorrProof<G>, ShakeTranscript<G>, G>::new(domain_sep, protocol);
     
     // Prove
     let proof_bytes = nizk.prove(&witness, &mut rng);
@@ -289,7 +289,7 @@ fn NI_bbs_blind_commitment_computation() {
     let protocol = SchnorrProof { morphismp };
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-bbs-blind-commitment-computation";
-    let mut nizk = NISigmaProtocol::<SchnorrProof<G>, KeccakTranscript<G>, G>::new(domain_sep, protocol);
+    let mut nizk = NISigmaProtocol::<SchnorrProof<G>, ShakeTranscript<G>, G>::new(domain_sep, protocol);
     
     // Prove
     let proof_bytes = nizk.prove(&witness, &mut rng);

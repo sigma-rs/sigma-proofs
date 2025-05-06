@@ -54,7 +54,7 @@ fn Scalar_test() {
 #[allow(non_snake_case)]
 #[test]
 fn DRNG_test_on_Scalar() {
-    let mut rng = TestDRNG::new(b"hello worlddd");
+    let mut rng = TestDRNG::new(b"hello world");
     let x = G1Projective::srandom(&mut rng);
     let y = G1Projective::srandom(&mut rng);
     println!("x = {}", x);

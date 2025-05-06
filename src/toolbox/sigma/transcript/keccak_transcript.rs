@@ -1,0 +1,198 @@
+use tiny_keccak::keccakf;
+use std::convert::TryInto;
+use group::{Group, GroupEncoding};
+use ff::PrimeField;
+use crate::toolbox::sigma::transcript::r#trait::{TranscriptCodec, DuplexSpongeInterface};
+use crate::toolbox::sigma::GroupSerialisation;
+use num_bigint::BigUint;
+
+const R: usize = 136;
+const N: usize = 136 + 64;
+
+pub struct KeccakPermutationState {
+    pub state: [u8; 200],
+    pub rate: usize,
+    pub capacity: usize,
+}
+
+impl KeccakPermutationState {
+    pub fn new() -> Self {
+        KeccakPermutationState {
+            state: [0u8; 200],
+            rate: 136,
+            capacity: 64,
+        }
+    }
+
+    fn _bytes_to_keccak_state(&self) -> [[u64; 5]; 5] {
+        let mut flat: [u64; 25] = [0u64; 25];
+        for i in 0..25 {
+            let start = i * 8;
+            flat[i] = u64::from_le_bytes(self.state[start..start + 8].try_into().unwrap());
+        }
+        let mut matrix = [[0u64; 5]; 5];
+        for y in 0..5 {
+            for x in 0..5 {
+                matrix[x][y] = flat[5 * y + x];
+            }
+        }
+        matrix
+    }
+
+    fn _keccak_state_to_bytes(&mut self, state: [[u64; 5]; 5]) {
+        let mut flat: [u64; 25] = [0; 25];
+        for y in 0..5 {
+            for x in 0..5 {
+                flat[5 * y + x] = state[x][y];
+            }
+        }
+        for i in 0..25 {
+            let bytes = flat[i].to_le_bytes();
+            let start = i * 8;
+            self.state[start..start + 8].copy_from_slice(&bytes);
+        }
+    }
+
+    fn bytes_to_flat_state(&self) -> [u64; 25] {
+        let mut flat = [0u64; 25];
+        for i in 0..25 {
+            let start = i * 8;
+            flat[i] = u64::from_le_bytes(self.state[start..start + 8].try_into().unwrap());
+        }
+        flat
+    }
+
+    fn flat_state_to_bytes(&mut self, flat: [u64; 25]) {
+        for i in 0..25 {
+            let bytes = flat[i].to_le_bytes();
+            let start = i * 8;
+            self.state[start..start + 8].copy_from_slice(&bytes);
+        }
+    }
+
+    pub fn permute(&mut self) {
+        let mut flat = self.bytes_to_flat_state();
+        keccakf(&mut flat);
+        self.flat_state_to_bytes(flat);
+    }
+}
+
+pub struct KeccakDuplexSponge {
+    pub state: KeccakPermutationState,
+    pub rate: usize,
+    pub capacity: usize,
+    absorb_index: usize,
+    squeeze_index: usize,
+}
+
+impl KeccakDuplexSponge {
+    pub fn new(iv: &[u8]) -> Self {
+        assert_eq!(iv.len(), 32);
+        let state = KeccakPermutationState::new();
+        let rate = R;
+        let capacity = N - R;
+        KeccakDuplexSponge {
+            state,
+            rate,
+            capacity,
+            absorb_index: 0,
+            squeeze_index: 0,
+        }
+    }
+}
+
+impl DuplexSpongeInterface for KeccakDuplexSponge {
+    fn new(iv: &[u8]) -> Self {
+        KeccakDuplexSponge::new(iv)
+    }
+
+    fn absorb(&mut self, mut input: &[u8]) {
+        self.squeeze_index = self.rate;
+
+        while !input.is_empty() {
+            if self.absorb_index == self.rate {
+                self.state.permute();
+                self.absorb_index = 0;
+            }
+
+            let chunk_size = usize::min(self.rate - self.absorb_index, input.len());
+            let dest = &mut self.state.state[self.absorb_index..self.absorb_index + chunk_size];
+            dest.copy_from_slice(&input[..chunk_size]);
+            self.absorb_index += chunk_size;
+            input = &input[chunk_size..];
+        }
+    }
+
+    fn squeeze(&mut self, mut length: usize) -> Vec<u8> {
+        self.absorb_index = self.rate;
+
+        let mut output = Vec::new();
+        while length != 0 {
+            if self.squeeze_index == self.rate {
+                self.state.permute();
+                self.squeeze_index = 0;
+            }
+
+            let chunk_size = usize::min(self.rate - self.squeeze_index, length);
+            output.extend_from_slice(&self.state.state[self.squeeze_index..self.squeeze_index + chunk_size]);
+            self.squeeze_index += chunk_size;
+            length -= chunk_size;
+        }
+
+        output
+    }
+}
+
+pub trait Modulable: PrimeField {
+    fn cardinal() -> BigUint;
+}
+
+pub struct ByteSchnorrCodec<G, H>
+where
+    G: Group + GroupEncoding + GroupSerialisation,
+    G::Scalar: Modulable,
+    H: DuplexSpongeInterface
+{
+    order: BigUint,
+    hasher: H,
+    _marker: core::marker::PhantomData<G>,
+}
+
+impl<G, H> TranscriptCodec<G> for ByteSchnorrCodec<G, H>
+where
+    G: Group + GroupEncoding + GroupSerialisation,
+    G::Scalar: Modulable,
+    H: DuplexSpongeInterface
+{
+    fn new(domain_sep: &[u8]) -> Self {
+        let mut hasher = H::new(domain_sep);
+        let order = G::Scalar::cardinal();
+        Self { order, hasher, _marker: Default::default() }
+    }
+
+    fn prover_message(&mut self, elems: &[G]) -> &mut Self {
+        for elem in elems {
+            self.hasher.absorb(&G::serialize_element(elem));
+        }
+        self
+    }
+
+    fn verifier_challenge(&mut self) -> G::Scalar {
+        let scalar_byte_length = <<G as Group>::Scalar as PrimeField>::Repr::default().as_ref().len();
+
+        let uniform_bytes = self.hasher.squeeze(scalar_byte_length + 16);
+        println!("big : {:?}", &self.order);
+        let scalar = BigUint::from_bytes_be(&uniform_bytes);
+        let reduced = scalar % self.order.clone();
+
+        let mut bytes = vec![0u8; scalar_byte_length];
+        let reduced_bytes = reduced.to_bytes_be();
+        let start = bytes.len() - reduced_bytes.len();
+        bytes[start..].copy_from_slice(&reduced_bytes);
+
+        let mut repr = <<G as Group>::Scalar as PrimeField>::Repr::default();
+        repr.as_mut().copy_from_slice(&bytes);
+
+        <<G as Group>::Scalar as PrimeField>::from_repr(repr).expect("Error")
+    }
+}

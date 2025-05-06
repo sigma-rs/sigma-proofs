@@ -38,6 +38,7 @@ sha2 = "0.10"
 subtle = "2.6.1"
 num-bigint = "0.4.6"
 num-traits = "0.2.19"
+tiny-keccak = { version = "2.0.2", features = ["keccak"] }
 
 [dev-dependencies]
 bincode = "1"

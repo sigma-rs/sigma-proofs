@@ -4,6 +4,13 @@
 
 use group::Group;
 
+pub trait DuplexSpongeInterface {
+    fn new(iv: &[u8]) -> Self;
+
+    fn absorb(&mut self, input: &[u8]);
+
+    fn squeeze(&mut self, length: usize) -> Vec<u8>;
+}
 /// A trait defining the behavior of a domain-separated transcript hashing, which is typically used for Sigma Protocols.
 /// 
 /// A domain-separated hashing transcript is a transcript, identified by a domain, which is incremented with successive messages ("absorb"). The transcript can then output a bit stream of any length, which is typically used to generate a challenge unique to the given transcript ("squeeze"). (See Sponge Construction).

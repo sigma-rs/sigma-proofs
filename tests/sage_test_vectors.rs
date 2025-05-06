@@ -1,12 +1,13 @@
 use bls12_381::G1Projective;
 use rand::{Rng, CryptoRng};
 use group::{Group, GroupEncoding, ff::Field};
-use sigma_rs::toolbox::sigma::sage_test::TestDRNG;
+use sigma_rs::toolbox::sigma::sage_test::{SRandom, TestDRNG};
 use sigma_rs::toolbox::sigma::sage_test::custom_schnorr_proof::SchnorrProofCustom;
 
+use sigma_rs::toolbox::sigma::transcript::KeccakDuplexSponge;
 use sigma_rs::toolbox::sigma::{
     GroupMorphismPreimage,
-    transcript::KeccakTranscript,
+    transcript::{ShakeTranscript, ByteSchnorrCodec},
     NISigmaProtocol,
 };
 
@@ -22,7 +23,7 @@ fn msm_pr<G: Group>(scalars: &[G::Scalar], bases: &[G]) -> G {
 
 
 #[allow(non_snake_case)]
-fn discrete_logarithm<G: Group + GroupEncoding>(
+fn discrete_logarithm<G: SRandom + Group + GroupEncoding>(
     rng: &mut (impl Rng + CryptoRng)
 ) -> (GroupMorphismPreimage<G>, Vec<G::Scalar>) {
     let mut morphismp: GroupMorphismPreimage<G> = GroupMorphismPreimage::new();
@@ -36,7 +37,7 @@ fn discrete_logarithm<G: Group + GroupEncoding>(
     let G = G::generator();
     morphismp.set_elements(&[(var_G, G)]);
 
-    let x = G::Scalar::random(&mut *rng);
+    let x = G::srandom(&mut *rng);
     let X = G * x;
     assert!(vec![X] == morphismp.morphism.evaluate(&[x]));
     morphismp.set_elements(&[(var_X, X)]);
@@ -173,14 +174,14 @@ fn bbs_blind_commitment_computation<G: Group + GroupEncoding>(
 #[allow(non_snake_case)]
 #[test]
 fn NI_discrete_logarithm() {
-    let mut rng = TestDRNG::new(b"79656c6c6f77207375626d6172696e6579656c6c6f77207375626d6172696e65");
+    let mut rng = TestDRNG::new(b"hello world");
     let (morphismp, witness) = discrete_logarithm::<Gp>(&mut rng);
 
     println!("witness: {:?}", witness);
 
     let protocol = SchnorrProofCustom { morphismp };
     let domain_sep: Vec<u8> = b"yellow submarineyellow submarine".to_vec();
-    let mut nizk = NISigmaProtocol::<SchnorrProofCustom<Gp>, KeccakTranscript<Gp>, Gp>::new(&domain_sep, protocol);
+    let mut nizk = NISigmaProtocol::<SchnorrProofCustom<Gp>, ByteSchnorrCodec::<Gp, KeccakDuplexSponge>, Gp>::new(&domain_sep, protocol);
     
     let proof_bytes = nizk.prove(&witness, &mut rng);
     let verified = nizk.verify(&proof_bytes).is_ok();
@@ -198,7 +199,7 @@ fn NI_dleq() {
 
     let protocol = SchnorrProofCustom { morphismp };
     let domain_sep: Vec<u8> = b"yellow submarineyellow submarine".to_vec();
-    let mut nizk = NISigmaProtocol::<SchnorrProofCustom<Gp>, KeccakTranscript<Gp>, Gp>::new(&domain_sep, protocol);
+    let mut nizk = NISigmaProtocol::<SchnorrProofCustom<Gp>, ShakeTranscript<Gp>, Gp>::new(&domain_sep, protocol);
     
     let proof_bytes = nizk.prove(&witness, &mut rng);
     let verified = nizk.verify(&proof_bytes).is_ok();
@@ -216,7 +217,7 @@ fn NI_pedersen_commitment() {
 
     let protocol = SchnorrProofCustom { morphismp };
     let domain_sep: Vec<u8> = b"yellow submarineyellow submarine".to_vec();
-    let mut nizk = NISigmaProtocol::<SchnorrProofCustom<Gp>, KeccakTranscript<Gp>, Gp>::new(&domain_sep, protocol);
+    let mut nizk = NISigmaProtocol::<SchnorrProofCustom<Gp>, ShakeTranscript<Gp>, Gp>::new(&domain_sep, protocol);
     
     let proof_bytes = nizk.prove(&witness, &mut rng);
     let verified = nizk.verify(&proof_bytes).is_ok();
@@ -234,7 +235,7 @@ fn NI_pedersen_commitment_dleq() {
 
     let protocol = SchnorrProofCustom { morphismp };
     let domain_sep: Vec<u8> = b"yellow submarineyellow submarine".to_vec();
-    let mut nizk = NISigmaProtocol::<SchnorrProofCustom<Gp>, KeccakTranscript<Gp>, Gp>::new(&domain_sep, protocol);
+    let mut nizk = NISigmaProtocol::<SchnorrProofCustom<Gp>, ShakeTranscript<Gp>, Gp>::new(&domain_sep, protocol);
     
     let proof_bytes = nizk.prove(&witness, &mut rng);
     let verified = nizk.verify(&proof_bytes).is_ok();
@@ -252,7 +253,7 @@ fn NI_bbs_blind_commitment_computation() {
 
     let protocol = SchnorrProofCustom { morphismp };
     let domain_sep: Vec<u8> = b"yellow submarineyellow submarine".to_vec();
-    let mut nizk = NISigmaProtocol::<SchnorrProofCustom<Gp>, KeccakTranscript<Gp>, Gp>::new(&domain_sep, protocol);
+    let mut nizk = NISigmaProtocol::<SchnorrProofCustom<Gp>, ShakeTranscript<Gp>, Gp>::new(&domain_sep, protocol);
     
     let proof_bytes = nizk.prove(&witness, &mut rng);
     let verified = nizk.verify(&proof_bytes).is_ok();

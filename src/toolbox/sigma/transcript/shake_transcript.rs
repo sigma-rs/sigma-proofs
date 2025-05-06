@@ -24,14 +24,14 @@ use crate::toolbox::sigma::transcript::r#trait::TranscriptCodec;
 ///
 /// The transcript is initialized with a domain separator and absorbs serialized
 /// group elements. It outputs challenges compatible with the group’s scalar field.
-pub struct KeccakTranscript<G: Group> {
+pub struct ShakeTranscript<G: Group> {
     /// Internal SHAKE128 hasher state.
     hasher: Shake128,
     /// Marker to bind this transcript to a specific group `G`.
     _marker: core::marker::PhantomData<G>,
 }
 
-impl<G> TranscriptCodec<G> for KeccakTranscript<G>
+impl<G> TranscriptCodec<G> for ShakeTranscript<G>
 where
     G: Group + GroupEncoding,
     G::Scalar: PrimeField,
