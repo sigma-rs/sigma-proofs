@@ -181,7 +181,6 @@ where
         let scalar_byte_length = <<G as Group>::Scalar as PrimeField>::Repr::default().as_ref().len();
 
         let uniform_bytes = self.hasher.squeeze(scalar_byte_length + 16);
-        println!("big : {:?}", &self.order);
         let scalar = BigUint::from_bytes_be(&uniform_bytes);
         let reduced = scalar % self.order.clone();
 
@@ -189,6 +188,7 @@ where
         let reduced_bytes = reduced.to_bytes_be();
         let start = bytes.len() - reduced_bytes.len();
         bytes[start..].copy_from_slice(&reduced_bytes);
+        bytes.reverse();
 
         let mut repr = <<G as Group>::Scalar as PrimeField>::Repr::default();
         repr.as_mut().copy_from_slice(&bytes);

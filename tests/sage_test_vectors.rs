@@ -7,11 +7,13 @@ use sigma_rs::toolbox::sigma::sage_test::custom_schnorr_proof::SchnorrProofCusto
 use sigma_rs::toolbox::sigma::transcript::KeccakDuplexSponge;
 use sigma_rs::toolbox::sigma::{
     GroupMorphismPreimage,
-    transcript::{ShakeTranscript, ByteSchnorrCodec},
+    transcript::ByteSchnorrCodec,
     NISigmaProtocol,
 };
 
 type Gp = G1Projective;
+type Codec = ByteSchnorrCodec::<Gp, KeccakDuplexSponge>;
+type SigmaP = SchnorrProofCustom<Gp>;
 
 fn msm_pr<G: Group>(scalars: &[G::Scalar], bases: &[G]) -> G {
     let mut acc = G::identity();
@@ -46,14 +48,14 @@ fn discrete_logarithm<G: SRandom + Group + GroupEncoding>(
 
 
 #[allow(non_snake_case)]
-fn dleq<G: Group + GroupEncoding>(
+fn dleq<G: Group + GroupEncoding + SRandom>(
     rng: &mut (impl Rng + CryptoRng)
 ) -> (GroupMorphismPreimage<G>, Vec<G::Scalar>) {
     let mut morphismp: GroupMorphismPreimage<G> = GroupMorphismPreimage::new();
 
     let G = G::generator();
+    let x = G::srandom(&mut *rng);
     let H = G::random(&mut *rng);
-    let x = G::Scalar::random(&mut *rng);
     let X = G * x;
     let Y = H * x;
 
@@ -71,15 +73,15 @@ fn dleq<G: Group + GroupEncoding>(
 
 
 #[allow(non_snake_case)]
-fn pedersen_commitment<G: Group + GroupEncoding>(
+fn pedersen_commitment<G: Group + GroupEncoding + SRandom>(
     rng: &mut (impl Rng + CryptoRng)
 ) -> (GroupMorphismPreimage<G>, Vec<G::Scalar>) {
     let mut morphismp: GroupMorphismPreimage<G> = GroupMorphismPreimage::new();
 
     let G = G::generator();
     let H = G::random(&mut *rng);
-    let x = G::Scalar::random(&mut *rng);
-    let r = G::Scalar::random(&mut *rng);
+    let x = G::srandom(&mut *rng);
+    let r = G::srandom(&mut *rng);
     let witness = vec![x, r];
 
     let C = G*x + H*r;
@@ -97,7 +99,7 @@ fn pedersen_commitment<G: Group + GroupEncoding>(
 
 
 #[allow(non_snake_case)]
-fn pedersen_commitment_dleq<G: Group + GroupEncoding>(
+fn pedersen_commitment_dleq<G: Group + GroupEncoding + SRandom>(
     rng: &mut (impl Rng + CryptoRng)
 ) -> (GroupMorphismPreimage<G>, Vec<G::Scalar>) {
     let mut morphismp: GroupMorphismPreimage<G> = GroupMorphismPreimage::new();
@@ -109,8 +111,8 @@ fn pedersen_commitment_dleq<G: Group + GroupEncoding>(
     generators.push(G::random(&mut *rng));
 
     let mut witness = Vec::<G::Scalar>::new();
-    witness.push(G::Scalar::random(&mut *rng));
-    witness.push(G::Scalar::random(&mut *rng));
+    witness.push(G::srandom(&mut *rng));
+    witness.push(G::srandom(&mut *rng));
 
     let X = msm_pr::<G>(&witness, &[generators[0], generators[1]]);
     let Y = msm_pr::<G>(&witness, &[generators[2], generators[3]]);
@@ -134,7 +136,7 @@ fn pedersen_commitment_dleq<G: Group + GroupEncoding>(
 
 
 #[allow(non_snake_case)]
-fn bbs_blind_commitment_computation<G: Group + GroupEncoding>(
+fn bbs_blind_commitment_computation<G: Group + GroupEncoding + SRandom>(
     rng: &mut (impl Rng + CryptoRng)
 ) -> (GroupMorphismPreimage<G>, Vec<G::Scalar>) {
     let mut morphismp: GroupMorphismPreimage<G> = GroupMorphismPreimage::new();
@@ -144,10 +146,10 @@ fn bbs_blind_commitment_computation<G: Group + GroupEncoding>(
     // BBS.create_generators(M + 1, "BLIND_" || api_id)
     let (Q_2, J_1, J_2, J_3) = (G::random(&mut *rng), G::random(&mut *rng), G::random(&mut *rng), G::random(&mut *rng));
     // BBS.messages_to_scalars(committed_messages,  api_id)
-    let (msg_1, msg_2, msg_3) = (G::Scalar::random(&mut *rng), G::Scalar::random(&mut *rng), G::Scalar::random(&mut *rng));
+    let (msg_1, msg_2, msg_3) = (G::srandom(&mut *rng), G::srandom(&mut *rng), G::srandom(&mut *rng));
     
     // these are computed before the proof in the specification
-    let secret_prover_blind = G::Scalar::random(&mut *rng);
+    let secret_prover_blind = G::srandom(&mut *rng);
     let C = Q_2*secret_prover_blind + J_1*msg_1 + J_2*msg_2 + J_3*msg_3;
 
     // This is the part that needs to be changed in the specification of blind bbs.
@@ -181,7 +183,7 @@ fn NI_discrete_logarithm() {
 
     let protocol = SchnorrProofCustom { morphismp };
     let domain_sep: Vec<u8> = b"yellow submarineyellow submarine".to_vec();
-    let mut nizk = NISigmaProtocol::<SchnorrProofCustom<Gp>, ByteSchnorrCodec::<Gp, KeccakDuplexSponge>, Gp>::new(&domain_sep, protocol);
+    let mut nizk = NISigmaProtocol::<SigmaP, Codec, Gp>::new(&domain_sep, protocol);
     
     let proof_bytes = nizk.prove(&witness, &mut rng);
     let verified = nizk.verify(&proof_bytes).is_ok();
@@ -192,14 +194,14 @@ fn NI_discrete_logarithm() {
 #[allow(non_snake_case)]
 #[test]
 fn NI_dleq() {
-    let mut rng = TestDRNG::new(b"79656c6c6f77207375626d6172696e6579656c6c6f77207375626d6172696e65");
+    let mut rng = TestDRNG::new(b"hello world");
     let (morphismp, witness) = dleq::<Gp>(&mut rng);
 
     println!("witness: {:?}", witness);
 
     let protocol = SchnorrProofCustom { morphismp };
     let domain_sep: Vec<u8> = b"yellow submarineyellow submarine".to_vec();
-    let mut nizk = NISigmaProtocol::<SchnorrProofCustom<Gp>, ShakeTranscript<Gp>, Gp>::new(&domain_sep, protocol);
+    let mut nizk = NISigmaProtocol::<SigmaP, Codec, Gp>::new(&domain_sep, protocol);
     
     let proof_bytes = nizk.prove(&witness, &mut rng);
     let verified = nizk.verify(&proof_bytes).is_ok();
@@ -210,14 +212,14 @@ fn NI_dleq() {
 #[allow(non_snake_case)]
 #[test]
 fn NI_pedersen_commitment() {
-    let mut rng = TestDRNG::new(b"79656c6c6f77207375626d6172696e6579656c6c6f77207375626d6172696e65");
+    let mut rng = TestDRNG::new(b"hello world");
     let (morphismp, witness) = pedersen_commitment::<Gp>(&mut rng);
 
     println!("witness: {:?}", witness);
 
     let protocol = SchnorrProofCustom { morphismp };
     let domain_sep: Vec<u8> = b"yellow submarineyellow submarine".to_vec();
-    let mut nizk = NISigmaProtocol::<SchnorrProofCustom<Gp>, ShakeTranscript<Gp>, Gp>::new(&domain_sep, protocol);
+    let mut nizk = NISigmaProtocol::<SigmaP, Codec, Gp>::new(&domain_sep, protocol);
     
     let proof_bytes = nizk.prove(&witness, &mut rng);
     let verified = nizk.verify(&proof_bytes).is_ok();
@@ -228,14 +230,14 @@ fn NI_pedersen_commitment() {
 #[allow(non_snake_case)]
 #[test]
 fn NI_pedersen_commitment_dleq() {
-    let mut rng = TestDRNG::new(b"79656c6c6f77207375626d6172696e6579656c6c6f77207375626d6172696e65");
+    let mut rng = TestDRNG::new(b"hello world");
     let (morphismp, witness) = pedersen_commitment_dleq::<Gp>(&mut rng);
 
     println!("witness: {:?}", witness);
 
     let protocol = SchnorrProofCustom { morphismp };
     let domain_sep: Vec<u8> = b"yellow submarineyellow submarine".to_vec();
-    let mut nizk = NISigmaProtocol::<SchnorrProofCustom<Gp>, ShakeTranscript<Gp>, Gp>::new(&domain_sep, protocol);
+    let mut nizk = NISigmaProtocol::<SigmaP, Codec, Gp>::new(&domain_sep, protocol);
     
     let proof_bytes = nizk.prove(&witness, &mut rng);
     let verified = nizk.verify(&proof_bytes).is_ok();
@@ -246,14 +248,14 @@ fn NI_pedersen_commitment_dleq() {
 #[allow(non_snake_case)]
 #[test]
 fn NI_bbs_blind_commitment_computation() {
-    let mut rng = TestDRNG::new(b"79656c6c6f77207375626d6172696e6579656c6c6f77207375626d6172696e65");
+    let mut rng = TestDRNG::new(b"hello world");
     let (morphismp, witness) = bbs_blind_commitment_computation::<Gp>(&mut rng);
 
     println!("witness: {:?}", witness);
 
     let protocol = SchnorrProofCustom { morphismp };
     let domain_sep: Vec<u8> = b"yellow submarineyellow submarine".to_vec();
-    let mut nizk = NISigmaProtocol::<SchnorrProofCustom<Gp>, ShakeTranscript<Gp>, Gp>::new(&domain_sep, protocol);
+    let mut nizk = NISigmaProtocol::<SigmaP, Codec, Gp>::new(&domain_sep, protocol);
     
     let proof_bytes = nizk.prove(&witness, &mut rng);
     let verified = nizk.verify(&proof_bytes).is_ok();
