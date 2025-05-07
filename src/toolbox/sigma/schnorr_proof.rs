@@ -45,12 +45,9 @@ where
     fn prover_commit(
         &self,
         witness: &Self::Witness,
-        rng: &mut (impl Rng + CryptoRng),
+        mut rng: &mut (impl Rng + CryptoRng),
     ) -> (Self::Commitment, Self::ProverState) {
-        let mut nonces: Vec<G::Scalar> = Vec::new();
-        for _i in 0..self.morphismp.morphism.num_scalars {
-            nonces.push(<G as Group>::Scalar::random(&mut *rng));
-        }
+        let nonces: Vec<G::Scalar> =  (0..self.morphismp.morphism.num_scalars).map(|_| G::Scalar::random(&mut rng)).collect();
         let prover_state = (nonces.clone(), witness.clone());
         let commitment = self.morphismp.morphism.evaluate(&nonces);
         (commitment, prover_state)
@@ -85,7 +82,7 @@ where
             .take(self.morphismp.morphism.num_statements())
         {
             rhs.push(
-                *g + self.morphismp.morphism.group_elements[self.morphismp.image[i]] * *challenge,
+                self.morphismp.morphism.group_elements[self.morphismp.image[i]] * challenge + g,
             );
         }
 
