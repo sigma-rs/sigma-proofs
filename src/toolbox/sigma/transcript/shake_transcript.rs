@@ -11,9 +11,12 @@
 //! - The prover and verifier absorb the same messages into identical `KeccakTranscript` instances.
 //! - The prover and the verifier then squeeze the hash to generate a challenge scalar for the protocol. The verifier can check that the prover used the challenge output by the transcript because he owns an identical transcript.
 
-use sha3::{Shake128, digest::{Update, ExtendableOutput, XofReader}};
-use group::{Group, GroupEncoding};
 use ff::PrimeField;
+use group::{Group, GroupEncoding};
+use sha3::{
+    digest::{ExtendableOutput, Update, XofReader},
+    Shake128,
+};
 
 use crate::toolbox::sigma::transcript::r#trait::TranscriptCodec;
 
@@ -40,7 +43,10 @@ where
     fn new(domain_sep: &[u8]) -> Self {
         let mut hasher = Shake128::default();
         hasher.update(domain_sep);
-        Self { hasher, _marker: Default::default() }
+        Self {
+            hasher,
+            _marker: Default::default(),
+        }
     }
 
     /// Absorbs a slice of group elements into the transcript. Each element is serialized and fed into the hasher.
@@ -59,10 +65,13 @@ where
         let mut reader = self.hasher.clone().finalize_xof();
         let mut buf = [0u8; 64];
         reader.read(&mut buf);
-    
-        let challenge_len = <<G as Group>::Scalar as PrimeField>::Repr::default().as_ref().len();
 
-        loop { // This loop is used to ensure that the reader outputs an element that can be interpreted as a G::Scalar with ::from_repr. If a candidate can't be turned into a Scalar, a new candidate is picked.
+        let challenge_len = <<G as Group>::Scalar as PrimeField>::Repr::default()
+            .as_ref()
+            .len();
+
+        loop {
+            // This loop is used to ensure that the reader outputs an element that can be interpreted as a G::Scalar with ::from_repr. If a candidate can't be turned into a Scalar, a new candidate is picked.
             reader.read(&mut buf);
             let mut repr = <<G as Group>::Scalar as PrimeField>::Repr::default();
             repr.as_mut().copy_from_slice(&buf[..challenge_len]);
@@ -71,6 +80,5 @@ where
                 break candidate.unwrap();
             }
         }
-
     }
 }

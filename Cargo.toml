@@ -2,7 +2,6 @@
 name = "sigma-rs"
 version = "0.1.0"
 authors = [
-    "Henry de Valence <hdevalence@hdevalence.ca>",
     "nougzarm <nougzarm@icloud.com>",
     "Michele Orrù <m@orru.net>",
     "Lénaïck Gouriou <lg@leanear.io>"
@@ -11,11 +10,11 @@ edition = "2018"
 license = "CC0-1.0"
 readme = "README.md"
 repository = "https://github.com/mmaker/sigma-rs"
-documentation = "https://docs.rs/lox-zkp"
+documentation = "https://mmaker.github.io/sigma-rs/"
 categories = ["cryptography"]
-keywords = ["cryptography", "ristretto", "zero-knowledge", "NIZK",
-"lox"]
-description = "A toolkit for auto-generated implementations of Schnorr proofs"
+keywords = ["cryptography", "zero-knowledge", "NIZK",
+"sigma protocols"]
+description = "A toolkit for auto-generated implementations of Σ-protocols"
 exclude = [
     ".gitignore"
 ]
@@ -29,7 +28,6 @@ thiserror = "1"
 # Disable default features to deselect a backend, then select one below
 curve25519-dalek = { version = "4", default-features = false, features = ["serde", "rand_core", "alloc", "digest", "precomputed-tables", "group"] }
 group = "0.13.0"
-bls12_381 = "0.8.0"
 ff = { version = "0.13", features = ["derive"] }
 sha3 = "0.10.8"
 rand_chacha = "0.3"
@@ -39,11 +37,14 @@ subtle = "2.6.1"
 num-bigint = "0.4.6"
 num-traits = "0.2.19"
 tiny-keccak = { version = "2.0.2", features = ["keccak"] }
+bls12_381 = "0.8.0"
 
 [dev-dependencies]
 bincode = "1"
 sha2 = "0.10"
 criterion = { version = "0.5", features = ["html_reports"]}
+bls12_381 = "0.8.0"
+hex-literal = "1.0.0"
 
 [[bench]]
 name = "dleq_benches"

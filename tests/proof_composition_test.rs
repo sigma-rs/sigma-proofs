@@ -1,10 +1,15 @@
-use rand::{rngs::OsRng, CryptoRng, Rng};
-use sigma_rs::{toolbox::sigma::{proof_composition::OrEnum, AndProtocol, OrProtocol, SigmaProtocol, SigmaProtocolSimulator}, ProofError};
 use curve25519_dalek::{ristretto::RistrettoPoint, scalar::Scalar};
+use rand::{rngs::OsRng, CryptoRng, Rng};
+use sigma_rs::{
+    toolbox::sigma::{
+        proof_composition::OrEnum, AndProtocol, OrProtocol, SigmaProtocol, SigmaProtocolSimulator,
+    },
+    ProofError,
+};
 
 pub struct SchnorrZkp {
     pub generator: RistrettoPoint,
-    pub target: RistrettoPoint
+    pub target: RistrettoPoint,
 }
 
 #[allow(non_snake_case)]
@@ -26,20 +31,20 @@ impl SigmaProtocol for SchnorrZkp {
     }
 
     fn prover_response(
-            &self,
-            state: Self::ProverState,
-            challenge: &Self::Challenge,
-        ) -> Self::Response {
-        let (r,x) = state ;
+        &self,
+        state: Self::ProverState,
+        challenge: &Self::Challenge,
+    ) -> Self::Response {
+        let (r, x) = state;
         challenge * x + r
     }
 
     fn verifier(
-            &self,
-            commitment: &Self::Commitment,
-            challenge: &Self::Challenge,
-            response: &Self::Response,
-        ) -> Result<(), ProofError> {
+        &self,
+        commitment: &Self::Commitment,
+        challenge: &Self::Challenge,
+        response: &Self::Response,
+    ) -> Result<(), ProofError> {
         match response * self.generator == challenge * self.target + commitment {
             true => Ok(()),
             false => Err(ProofError::VerificationFailure),
@@ -52,22 +57,22 @@ impl SigmaProtocolSimulator for SchnorrZkp {
     fn simulate_proof(
         &self,
         challenge: &Self::Challenge,
-        rng: &mut (impl Rng + CryptoRng)
+        rng: &mut (impl Rng + CryptoRng),
     ) -> (Self::Commitment, Self::Response) {
-    let z = Scalar::random(rng);
-    let R = z * self.generator - challenge * self.target;
-    (R,z)
-}
+        let z = Scalar::random(rng);
+        let R = z * self.generator - challenge * self.target;
+        (R, z)
+    }
 
-fn simulate_transcription(
-    &self, rng: &mut (impl Rng + CryptoRng)
-) -> (Self::Commitment, Self::Challenge, Self::Response) {
-    let challenge = Scalar::random(rng);
-    let (commitment, response) = self.simulate_proof(&challenge, rng);
-    (commitment, challenge, response)
+    fn simulate_transcription(
+        &self,
+        rng: &mut (impl Rng + CryptoRng),
+    ) -> (Self::Commitment, Self::Challenge, Self::Response) {
+        let challenge = Scalar::random(rng);
+        let (commitment, response) = self.simulate_proof(&challenge, rng);
+        (commitment, challenge, response)
+    }
 }
-}
-
 
 //  Proof calculation and verification in an AND-protocol in the case where:
 //  both protocols are SchnorrZkp and the proof is correct
@@ -86,8 +91,14 @@ fn andproof_schnorr_correct() {
     let H1 = w1 * G1;
     let H2 = w2 * G2;
 
-    let p1 = SchnorrZkp { generator: G1, target: H1 };
-    let p2 = SchnorrZkp { generator: G2, target: H2 };
+    let p1 = SchnorrZkp {
+        generator: G1,
+        target: H1,
+    };
+    let p2 = SchnorrZkp {
+        generator: G2,
+        target: H2,
+    };
 
     let and_proof = AndProtocol::new(p1, p2);
 
@@ -107,7 +118,6 @@ fn andproof_schnorr_correct() {
     assert!(result.is_ok());
 }
 
-
 //  Proof calculation and verification in an AND-protocol in the case where:
 //  both protocols are SchnorrZkp and the proof is incorrect
 #[allow(non_snake_case)]
@@ -126,8 +136,14 @@ fn andproof_schnorr_incorrect() {
     let H1 = w1 * G1;
     let H2 = w2 * G2;
 
-    let p1 = SchnorrZkp { generator: G1, target: H1 };
-    let p2 = SchnorrZkp { generator: G2, target: H2 };
+    let p1 = SchnorrZkp {
+        generator: G1,
+        target: H1,
+    };
+    let p2 = SchnorrZkp {
+        generator: G2,
+        target: H2,
+    };
 
     let and_proof = AndProtocol::new(p1, p2);
 
@@ -147,7 +163,6 @@ fn andproof_schnorr_incorrect() {
     assert!(!result.is_ok());
 }
 
-
 //  Proof calculation and verification in an OR-protocol in the case where:
 //  both protocols are SchnorrZkp and the proof is correct
 #[allow(non_snake_case)]
@@ -164,8 +179,14 @@ fn orproof_schnorr_correct() {
     let H1 = w1 * G1;
     let H2 = RistrettoPoint::random(&mut rng); // The witness for this point is unknown
 
-    let p1 = SchnorrZkp { generator: G1, target: H1 };
-    let p2 = SchnorrZkp { generator: G2, target: H2 };
+    let p1 = SchnorrZkp {
+        generator: G1,
+        target: H1,
+    };
+    let p2 = SchnorrZkp {
+        generator: G2,
+        target: H2,
+    };
 
     let or_proof = OrProtocol::new(p1, p2);
 
@@ -185,7 +206,6 @@ fn orproof_schnorr_correct() {
     assert!(result.is_ok());
 }
 
-
 //  Proof calculation and verification in an OR-protocol in the case where:
 //  both protocols are SchnorrZkp and the proof is incorrect
 #[allow(non_snake_case)]
@@ -202,8 +222,14 @@ fn orproof_schnorr_incorrect() {
     let H1 = RistrettoPoint::random(&mut rng); // The witness for this point is unknown
     let H2 = RistrettoPoint::random(&mut rng); // The witness for this point is unknown
 
-    let p1 = SchnorrZkp { generator: G1, target: H1 };
-    let p2 = SchnorrZkp { generator: G2, target: H2 };
+    let p1 = SchnorrZkp {
+        generator: G1,
+        target: H1,
+    };
+    let p2 = SchnorrZkp {
+        generator: G2,
+        target: H2,
+    };
 
     let or_proof = OrProtocol::new(p1, p2);
 

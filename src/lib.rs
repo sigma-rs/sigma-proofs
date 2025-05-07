@@ -17,7 +17,6 @@
 #![deny(unused_variables)]
 #![deny(unused_mut)]
 
-
 pub use merlin::Transcript;
 
 mod errors;

@@ -3,7 +3,7 @@ use rand::RngCore;
 
 
 
-use sigma_rs::toolbox::sigma::sage_test::TestDRNG;
+use random::TestDRNG;
 
 #[allow(non_snake_case)]
 #[test]

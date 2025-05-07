@@ -4,20 +4,23 @@
 //! a Sigma protocol proving different types of discrete logarithm relations (eg. Schnorr, Pedersen's commitments)
 //! through a group morphism abstraction (see Maurer09).
 
-use rand::{CryptoRng, Rng};
+use crate::{
+    toolbox::sigma::{GroupMorphismPreimage, GroupSerialisation, SigmaProtocol},
+    ProofError,
+};
+use ff::{Field, PrimeField};
 use group::{Group, GroupEncoding};
-use ff::{PrimeField, Field};
-use crate::{toolbox::sigma::{GroupMorphismPreimage, SigmaProtocol, GroupSerialisation}, ProofError};
+use rand::{CryptoRng, Rng};
 
 /// A Schnorr protocol proving knowledge some discrete logarithm relation.
 ///
 /// The specific proof instance is defined by a [`GroupMorphismPreimage`] over a group `G`.
 pub struct SchnorrProof<G>
-where 
-    G: Group + GroupEncoding + GroupSerialisation
+where
+    G: Group + GroupEncoding + GroupSerialisation,
 {
     /// The public instance and its associated group morphism.
-    pub morphismp: GroupMorphismPreimage<G>
+    pub morphismp: GroupMorphismPreimage<G>,
 }
 
 /// Internal prover state during the protocol execution: (random nonce, witness)
@@ -30,7 +33,7 @@ pub struct SchnorrState<S> {
 
 impl<G> SigmaProtocol for SchnorrProof<G>
 where
-    G: Group + GroupEncoding + GroupSerialisation
+    G: Group + GroupEncoding + GroupSerialisation,
 {
     type Commitment = Vec<G>;
     type ProverState = (Vec<<G as Group>::Scalar>, Vec<<G as Group>::Scalar>);
@@ -76,13 +79,19 @@ where
         let lhs = self.morphismp.morphism.evaluate(response);
 
         let mut rhs = Vec::new();
-        for (i, g) in commitment.iter().enumerate().take(self.morphismp.morphism.num_statements()) {
-            rhs.push(*g + self.morphismp.morphism.group_elements[self.morphismp.image[i]] * *challenge);
+        for (i, g) in commitment
+            .iter()
+            .enumerate()
+            .take(self.morphismp.morphism.num_statements())
+        {
+            rhs.push(
+                *g + self.morphismp.morphism.group_elements[self.morphismp.image[i]] * *challenge,
+            );
         }
 
         match lhs == rhs {
             true => Ok(()),
-            false => Err(ProofError::VerificationFailure), 
+            false => Err(ProofError::VerificationFailure),
         }
     }
 
@@ -91,7 +100,7 @@ where
         &self,
         commitment: &Self::Commitment,
         _challenge: &Self::Challenge,
-        response: &Self::Response
+        response: &Self::Response,
     ) -> Vec<u8> {
         let mut bytes = Vec::new();
         let scalar_nb = self.morphismp.morphism.num_scalars;
@@ -110,16 +119,15 @@ where
     }
 
     /// Deserializes a batchable proof format back into (`commitment`, `response`).
-    fn deserialize_batchable(&self,
-        data: &[u8],
-    ) -> Option<(Self::Commitment, Self::Response)>
-    {
+    fn deserialize_batchable(&self, data: &[u8]) -> Option<(Self::Commitment, Self::Response)> {
         let scalar_nb = self.morphismp.morphism.num_scalars;
         let point_nb = self.morphismp.morphism.num_statements();
 
         let point_size = G::generator().to_bytes().as_ref().len();
-        let scalar_size = <<G as Group>::Scalar as PrimeField>::Repr::default().as_ref().len();
-        
+        let scalar_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
+            .as_ref()
+            .len();
+
         let expected_len = scalar_nb * scalar_size + point_nb * point_size;
         if data.len() != expected_len {
             return None;
@@ -145,7 +153,7 @@ where
             let scalar = G::deserialize_scalar(slice)?;
             responses.push(scalar);
         }
-    
-        Some((commitments, responses)) 
+
+        Some((commitments, responses))
     }
 }

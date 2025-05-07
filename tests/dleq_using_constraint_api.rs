@@ -12,9 +12,9 @@
 
 extern crate bincode;
 extern crate curve25519_dalek;
-extern crate sigma_rs;
 extern crate serde;
 extern crate sha2;
+extern crate sigma_rs;
 
 use self::sha2::Sha512;
 

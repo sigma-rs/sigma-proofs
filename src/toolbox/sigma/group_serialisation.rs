@@ -1,15 +1,18 @@
 use std::convert::TryInto;
 
-use curve25519_dalek::{ristretto::{CompressedRistretto, RistrettoPoint}, scalar::Scalar as RistrettoScalar};
-use bls12_381::{G1Affine, G1Projective, Scalar as BlsScalar};
-use ff::PrimeField;
 use super::r#trait::GroupSerialisation;
+use bls12_381::{G1Affine, G1Projective, Scalar as BlsScalar};
+use curve25519_dalek::{
+    ristretto::{CompressedRistretto, RistrettoPoint},
+    scalar::Scalar as RistrettoScalar,
+};
+use ff::PrimeField;
 
 impl GroupSerialisation for RistrettoPoint {
     fn serialize_element(point: &Self) -> Vec<u8> {
         point.compress().to_bytes().to_vec()
     }
-    
+
     fn deserialize_element(bytes: &[u8]) -> Option<Self> {
         let point_size = 32;
         if bytes.len() != point_size {
@@ -19,11 +22,11 @@ impl GroupSerialisation for RistrettoPoint {
         buf.copy_from_slice(bytes);
         CompressedRistretto(buf).decompress()
     }
-    
+
     fn serialize_scalar(scalar: &Self::Scalar) -> Vec<u8> {
         scalar.to_bytes().to_vec()
     }
-    
+
     fn deserialize_scalar(bytes: &[u8]) -> Option<Self::Scalar> {
         if bytes.len() != 32 {
             return None;
@@ -33,7 +36,6 @@ impl GroupSerialisation for RistrettoPoint {
         RistrettoScalar::from_canonical_bytes(buf).into()
     }
 }
-
 
 impl GroupSerialisation for G1Projective {
     fn serialize_element(point: &G1Projective) -> Vec<u8> {
@@ -51,8 +53,7 @@ impl GroupSerialisation for G1Projective {
         if affine_ctoption.is_some().into() {
             let affine = affine_ctoption.unwrap();
             Some(G1Projective::from(&affine))
-        }
-        else {
+        } else {
             None
         }
     }
@@ -66,9 +67,8 @@ impl GroupSerialisation for G1Projective {
         let result_ctoption = BlsScalar::from_repr(repr);
         if result_ctoption.is_some().into() {
             Some(result_ctoption.unwrap())
-        }
-        else {
+        } else {
             None
         }
-    }    
+    }
 }

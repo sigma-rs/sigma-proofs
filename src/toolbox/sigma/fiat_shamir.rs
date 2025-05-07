@@ -13,17 +13,17 @@
 //! - `C`: the transcript codec (`TranscriptCodec` trait).
 //! - `G`: the group used for commitments and operations (`Group` trait).
 
-use rand::{RngCore, CryptoRng};
-use crate::toolbox::sigma::SigmaProtocol;
 use crate::toolbox::sigma::transcript::TranscriptCodec;
+use crate::toolbox::sigma::SigmaProtocol;
 use crate::ProofError;
 use group::Group;
+use rand::{CryptoRng, RngCore};
 
 /// A Fiat-Shamir transformation of a Sigma protocol into a non-interactive proof.
 ///
 /// `NISigmaProtocol` wraps an interactive Sigma protocol `P`
 /// and a hash-based transcript `C`, to produce non-interactive proofs.
-/// 
+///
 /// It manages the domain separation, transcript reset,
 /// proof generation, and proof verification.
 ///
@@ -55,15 +55,15 @@ where
     pub fn new(iv: &[u8], instance: P) -> Self {
         let domain_sep = iv.to_vec();
         let hash_state = C::new(iv);
-        Self { domain_sep, hash_state, sigmap: instance }
+        Self {
+            domain_sep,
+            hash_state,
+            sigmap: instance,
+        }
     }
 
     /// Produces a non-interactive proof for a witness and serializes it as a vector of bytes.
-    pub fn prove(
-        &mut self,
-        witness: &P::Witness,
-        rng: &mut (impl RngCore + CryptoRng),
-    ) -> Vec<u8> {
+    pub fn prove(&mut self, witness: &P::Witness, rng: &mut (impl RngCore + CryptoRng)) -> Vec<u8> {
         self.hash_state = C::new(&self.domain_sep);
 
         let (commitment, prover_state) = self.sigmap.prover_commit(witness, rng);
@@ -75,8 +75,12 @@ where
         // Prover's response
         let response = self.sigmap.prover_response(prover_state, &challenge);
         // Local verification of the proof
-        assert!(self.sigmap.verifier(&commitment, &challenge, &response).is_ok());
-        self.sigmap.serialize_batchable(&commitment, &challenge, &response)
+        assert!(self
+            .sigmap
+            .verifier(&commitment, &challenge, &response)
+            .is_ok());
+        self.sigmap
+            .serialize_batchable(&commitment, &challenge, &response)
     }
 
     /// Verify a non-interactive serialized proof and returns a Result: `Ok(())` if the proof verifies successfully, `Err(())` otherwise.
@@ -91,6 +95,5 @@ where
             .verifier_challenge();
         // Verification of the proof
         self.sigmap.verifier(&commitment, &challenge, &response)
-
     }
 }

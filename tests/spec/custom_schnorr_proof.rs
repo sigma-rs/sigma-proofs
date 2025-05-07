@@ -1,12 +1,13 @@
 use rand::{CryptoRng, Rng};
 use group::{Group, GroupEncoding};
 use ff::PrimeField;
-use crate::{toolbox::sigma::{GroupMorphismPreimage, SigmaProtocol, GroupSerialisation}, ProofError};
+use crate::toolbox::sigma::{GroupMorphismPreimage, SigmaProtocol, GroupSerialisation};
+use crate::errors::ProofError;
 
-use super::SRandom;
+use crate::tests::spec::random::SRandom;
 
 pub struct SchnorrProofCustom<G>
-where 
+where
     G: SRandom + GroupEncoding + GroupSerialisation
 {
     pub morphismp: GroupMorphismPreimage<G>
@@ -68,7 +69,7 @@ where
 
         match lhs == rhs {
             true => Ok(()),
-            false => Err(ProofError::VerificationFailure), 
+            false => Err(ProofError::VerificationFailure),
         }
     }
 
@@ -101,7 +102,7 @@ where
 
         let point_size = G::generator().to_bytes().as_ref().len();
         let scalar_size = <<G as Group>::Scalar as PrimeField>::Repr::default().as_ref().len();
-        
+
         let expected_len = scalar_nb * scalar_size + point_nb * point_size;
         if data.len() != expected_len {
             return None;
@@ -127,7 +128,7 @@ where
             let scalar = G::deserialize_scalar(slice)?;
             responses.push(scalar);
         }
-    
-        Some((commitments, responses)) 
+
+        Some((commitments, responses))
     }
 }

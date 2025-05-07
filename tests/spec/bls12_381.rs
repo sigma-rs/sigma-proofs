@@ -1,4 +1,5 @@
-use crate::toolbox::sigma::{sage_test::{SInput, SRandom}, transcript::keccak_transcript::Modulable};
+use sigma_rs::tests::spec::random::{SInput, SRandom};
+use sigma_rs::toolbox::sigma::transcript::keccak_transcript::Modulable;
 use group::Group;
 use ff::PrimeField;
 use bls12_381::{G1Projective, Scalar};
@@ -33,8 +34,8 @@ impl SInput for G1Projective {
 
 impl SRandom for G1Projective {
     fn randint_big(
-        l: &BigUint, 
-        h: &BigUint, 
+        l: &BigUint,
+        h: &BigUint,
         rng: &mut (impl Rng + CryptoRng)
     ) -> BigUint {
         assert!(l <= h);

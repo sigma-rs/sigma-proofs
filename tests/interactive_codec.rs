@@ -1,7 +1,9 @@
-use rand::rngs::OsRng;
 use curve25519_dalek::ristretto::RistrettoPoint;
+use rand::rngs::OsRng;
 
-use sigma_rs::toolbox::sigma::transcript::{r#trait::TranscriptCodec, shake_transcript::ShakeTranscript};
+use sigma_rs::toolbox::sigma::transcript::{
+    r#trait::TranscriptCodec, shake_transcript::ShakeTranscript,
+};
 
 pub type KeccakTranscriptRistretto = ShakeTranscript<curve25519_dalek::ristretto::RistrettoPoint>;
 
@@ -19,8 +21,7 @@ fn keccak_transcript_ristretto() {
 
     // Initialize transcript
     let mut binding = Transcript::new(domain_sep);
-    let transcript = binding
-        .prover_message(&[G, H]);
+    let transcript = binding.prover_message(&[G, H]);
 
     // Derive challenge
     let challenge = transcript.verifier_challenge();

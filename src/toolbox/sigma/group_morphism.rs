@@ -70,17 +70,24 @@ impl<G: Group> Morphism<G> {
     ///
     /// Computes all linear combinations using the provided scalars and returns their group outputs.
     pub fn evaluate(&self, scalars: &[<G as Group>::Scalar]) -> Vec<G> {
-        self.linear_combination.iter().map(|lc| {
-            let coefficients: Vec<_> = lc.scalar_indices.iter().map(|&i| scalars[i]).collect();
-            let elements: Vec<_> = lc.element_indices.iter().map(|&i| self.group_elements[i]).collect();
-            msm_pr(&coefficients, &elements)
-        }).collect()
+        self.linear_combination
+            .iter()
+            .map(|lc| {
+                let coefficients: Vec<_> = lc.scalar_indices.iter().map(|&i| scalars[i]).collect();
+                let elements: Vec<_> = lc
+                    .element_indices
+                    .iter()
+                    .map(|&i| self.group_elements[i])
+                    .collect();
+                msm_pr(&coefficients, &elements)
+            })
+            .collect()
     }
 }
 
 /// A wrapper struct coupling a Morphism and the corresponding expected image elements.
 ///
-/// Provides a higher-level API to build proof instances from sparse constraints. The equations are manipulated solely through 2 lists: 
+/// Provides a higher-level API to build proof instances from sparse constraints. The equations are manipulated solely through 2 lists:
 /// - the index of a set of Group elements (maintained in Morphism)
 /// - the index of a set of scalars (provided as input for the execution)
 pub struct GroupMorphismPreimage<G>
@@ -116,10 +123,8 @@ where
 
     /// Computes the number of bytes needed when serializing all the current commitments.
     pub fn commit_bytes_len(&self) -> usize {
-        let repr_len = <G::Repr as Default>::default()
-            .as_ref()
-            .len();  // size of encoded point
-        self.morphism.num_statements() * repr_len  // total size of a commit
+        let repr_len = <G::Repr as Default>::default().as_ref().len(); // size of encoded point
+        self.morphism.num_statements() * repr_len // total size of a commit
     }
 
     /// Append a new equation relating scalars to group elements.

@@ -2,9 +2,9 @@
 //!
 //! This module defines the `SigmaProtocol` trait, a generic interface for 3-message Sigma protocols.
 
-use group::{Group, GroupEncoding};
-use rand::{Rng, CryptoRng};
 use crate::ProofError;
+use group::{Group, GroupEncoding};
+use rand::{CryptoRng, Rng};
 
 /// A trait defining the behavior of a generic Sigma protocol.
 ///
@@ -18,7 +18,7 @@ use crate::ProofError;
 /// - `Response`: The prover's response to a verifier's challenge.
 /// - `Witness`: The prover's secret knowledge.
 /// - `Challenge`: The verifier's challenge value.
-/// 
+///
 /// ## Minimal Implementation
 /// Types implementing `SigmaProtocol` must define:
 /// - `prover_commit`
@@ -69,7 +69,7 @@ pub trait SigmaProtocol {
         &self,
         _commitment: &Self::Commitment,
         _challenge: &Self::Challenge,
-        _response: &Self::Response
+        _response: &Self::Response,
     ) -> Vec<u8> {
         panic!("serialize_batchable not implemented for this protocol")
     }
@@ -80,9 +80,7 @@ pub trait SigmaProtocol {
     ///
     /// # Panics
     /// Panics if deserialization is not supported for this protocol.
-    fn deserialize_batchable(
-        &self, _data: &[u8]
-    ) -> Option<(Self::Commitment, Self::Response)> {
+    fn deserialize_batchable(&self, _data: &[u8]) -> Option<(Self::Commitment, Self::Response)> {
         panic!("deserialize_batchable not implemented for this protocol")
     }
 }
@@ -91,13 +89,12 @@ pub trait SigmaProtocol {
 ///
 /// All Sigma protocols can technically simulate a valid transcript, but this mostly serve to prove the security of the protocol and is not used in the real protocol execution.
 /// However, some protocols (like OR protocols that prove the truth of one-out-of-two statements) require them during for the real execution.
-/// 
+///
 /// ## Minimal Implementation
 /// Types implementing `SigmaProtocolSimulator` must define:
 /// - `simulate_proof`
 /// - `simulate_transcription`
 pub trait SigmaProtocolSimulator: SigmaProtocol {
-
     /// Simulates a protocol transcript given a challenge.
     ///
     /// This serves to create zero-knowledge simulations without access to a witness.
@@ -105,22 +102,19 @@ pub trait SigmaProtocolSimulator: SigmaProtocol {
     /// # Panics
     /// Panics if simulation is not implemented for this protocol.
     fn simulate_proof(
-        &self, 
+        &self,
         _challenge: &Self::Challenge,
-        _rng: &mut (impl Rng + CryptoRng)
-    ) -> (Self::Commitment, Self::Response) {
-        panic!("simulatable_proof not implemented for this protocol")
-    }
-    
+        _rng: &mut (impl Rng + CryptoRng),
+    ) -> (Self::Commitment, Self::Response);
+
     /// Simulates an entire protocol transcript including a random challenge.
     ///
     /// # Panics
     /// Panics if simulation is not implemented for this protocol.
     fn simulate_transcription(
-        &self, _rng: &mut (impl Rng + CryptoRng)
-    ) -> (Self::Commitment, Self::Challenge, Self::Response) {
-        panic!("simulatable_transcription not implemented for this protocol")
-    }
+        &self,
+        _rng: &mut (impl Rng + CryptoRng),
+    ) -> (Self::Commitment, Self::Challenge, Self::Response);
 }
 
 pub trait GroupSerialisation: Group + GroupEncoding {

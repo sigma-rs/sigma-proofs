@@ -1,3 +1,26 @@
+use group::{Group, GroupEncoding};
+use rand::{Rng, CryptoRng};
+use num_bigint::BigUint;
+
+pub trait SInput: Group + GroupEncoding {
+    fn scalar_from_hex_be(
+        hex_str: &str
+    ) -> Option<Self::Scalar>;
+}
+
+pub trait SRandom: Group {
+    fn randint_big(
+        l: &BigUint,
+        h: &BigUint,
+        rng: &mut (impl Rng + CryptoRng)
+    ) -> BigUint;
+
+    fn srandom(
+        rng: &mut (impl Rng + CryptoRng)
+    ) -> Self::Scalar;
+}
+
+
 use num_bigint::BigUint;
 
 use rand::RngCore;
@@ -5,9 +28,7 @@ use group::{Group, ff::Field};
 use bls12_381::{G1Projective, G1Affine};
 
 
-use sigma_rs::toolbox::sigma::{
-    sage_test::{TestDRNG, SInput, SRandom}
-};
+use spec::{TestDRNG, SInput, SRandom};
 
 type Gp = G1Projective;
 type Ga = G1Affine;
@@ -36,8 +57,8 @@ fn Scalar_test() {
     let ONE_inv = ONE.invert().unwrap();
     let TWO = ONE + ONE;
     let TWO_INV = TWO.invert().unwrap();
-    let ch = "26a48d1bb889d46d66689d580335f2ac713f36abaaaa1eaa5555555500000003";
-    let Z = Gp::scalar_from_hex_be(ch).unwrap();
+    let ch = hex::decode("26a48d1bb889d46d66689d580335f2ac713f36abaaaa1eaa5555555500000003").into().unwrap();
+    let Z = <Gp as Group>::Scalar::from_bytes(ch).unwrap();
     let Z_inv = Z.invert().unwrap();
     let _W = <Gp as Group>::Scalar::from_bytes(&Z_inv.to_bytes()).unwrap();
     println!("y = {}", y);
@@ -55,8 +76,8 @@ fn Scalar_test() {
 #[test]
 fn DRNG_test_on_Scalar() {
     let mut rng = TestDRNG::new(b"hello world");
-    let x = G1Projective::srandom(&mut rng);
-    let y = G1Projective::srandom(&mut rng);
+    let x = G1Projective::random(&mut rng);
+    let y = G1Projective::random(&mut rng);
     println!("x = {}", x);
     println!("y = {}", y);
 }

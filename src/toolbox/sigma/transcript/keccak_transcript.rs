@@ -1,10 +1,10 @@
-use tiny_keccak::keccakf;
-use std::convert::TryInto;
-use group::{Group, GroupEncoding};
-use ff::PrimeField;
-use crate::toolbox::sigma::transcript::r#trait::{TranscriptCodec, DuplexSpongeInterface};
+use crate::toolbox::sigma::transcript::r#trait::{DuplexSpongeInterface, TranscriptCodec};
 use crate::toolbox::sigma::GroupSerialisation;
+use ff::PrimeField;
+use group::{Group, GroupEncoding};
 use num_bigint::BigUint;
+use std::convert::TryInto;
+use tiny_keccak::keccakf;
 
 const R: usize = 136;
 const N: usize = 136 + 64;
@@ -134,7 +134,9 @@ impl DuplexSpongeInterface for KeccakDuplexSponge {
             }
 
             let chunk_size = usize::min(self.rate - self.squeeze_index, length);
-            output.extend_from_slice(&self.state.state[self.squeeze_index..self.squeeze_index + chunk_size]);
+            output.extend_from_slice(
+                &self.state.state[self.squeeze_index..self.squeeze_index + chunk_size],
+            );
             self.squeeze_index += chunk_size;
             length -= chunk_size;
         }
@@ -151,7 +153,7 @@ pub struct ByteSchnorrCodec<G, H>
 where
     G: Group + GroupEncoding + GroupSerialisation,
     G::Scalar: Modulable,
-    H: DuplexSpongeInterface
+    H: DuplexSpongeInterface,
 {
     order: BigUint,
     hasher: H,
@@ -162,12 +164,16 @@ impl<G, H> TranscriptCodec<G> for ByteSchnorrCodec<G, H>
 where
     G: Group + GroupEncoding + GroupSerialisation,
     G::Scalar: Modulable,
-    H: DuplexSpongeInterface
+    H: DuplexSpongeInterface,
 {
     fn new(domain_sep: &[u8]) -> Self {
         let hasher = H::new(domain_sep);
         let order = G::Scalar::cardinal();
-        Self { order, hasher, _marker: Default::default() }
+        Self {
+            order,
+            hasher,
+            _marker: Default::default(),
+        }
     }
 
     fn prover_message(&mut self, elems: &[G]) -> &mut Self {
@@ -178,7 +184,9 @@ where
     }
 
     fn verifier_challenge(&mut self) -> G::Scalar {
-        let scalar_byte_length = <<G as Group>::Scalar as PrimeField>::Repr::default().as_ref().len();
+        let scalar_byte_length = <<G as Group>::Scalar as PrimeField>::Repr::default()
+            .as_ref()
+            .len();
 
         let uniform_bytes = self.hasher.squeeze(scalar_byte_length + 16);
         let scalar = BigUint::from_bytes_be(&uniform_bytes);

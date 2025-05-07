@@ -1,8 +1,8 @@
 use bls12_381::G1Projective;
 use rand::{Rng, CryptoRng};
 use group::{Group, GroupEncoding};
-use sigma_rs::toolbox::sigma::sage_test::{SRandom, TestDRNG};
-use sigma_rs::toolbox::sigma::sage_test::custom_schnorr_proof::SchnorrProofCustom;
+use random::{SRandom, TestDRNG};
+use custom_schnorr_proof::SchnorrProofCustom;
 
 use sigma_rs::toolbox::sigma::transcript::KeccakDuplexSponge;
 use sigma_rs::toolbox::sigma::{

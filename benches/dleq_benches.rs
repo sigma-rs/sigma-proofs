@@ -12,10 +12,10 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 extern crate bincode;
 extern crate curve25519_dalek;
-extern crate sigma_rs;
 extern crate serde;
 extern crate serde_derive;
 extern crate sha2;
+extern crate sigma_rs;
 
 mod dleq_benches {
     use self::sha2::Sha512;
