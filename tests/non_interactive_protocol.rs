@@ -36,7 +36,7 @@ fn fiat_shamir_schnorr_proof_ristretto() {
     morphismp.append_equation(1, &[(0, 0)]);
 
     // The SigmaProtocol induced by morphismp
-    let protocol = SchnorrProof { morphismp };
+    let protocol = SchnorrProof(morphismp);
 
     // Fiat-Shamir wrapper
     let mut nizk =

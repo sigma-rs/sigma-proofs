@@ -33,7 +33,7 @@ pub struct Morphism<G: Group> {
 /// Perform a simple multi-scalar multiplication (MSM) over scalars and points.
 fn msm_pr<G: Group>(scalars: &[G::Scalar], bases: &[G]) -> G {
     let mut acc = G::identity();
-    for (s, p) in scalars.iter().zip(bases.iter()) {
+    for (s, p) in scalars.iter().zip(bases.into_iter()) {
         acc += *p * s;
     }
     acc

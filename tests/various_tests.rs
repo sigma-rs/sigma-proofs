@@ -231,7 +231,7 @@ fn NI_discrete_logarithm() {
     let (morphismp, witness) = discrete_logarithm::<G>(&mut rng);
 
     // The SigmaProtocol induced by morphismp
-    let protocol = SchnorrProof { morphismp };
+    let protocol = SchnorrProof(morphismp);
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-schnorr";
     let mut nizk =
@@ -251,7 +251,7 @@ fn NI_dleq() {
     let (morphismp, witness) = dleq::<G>(&mut rng);
 
     // The SigmaProtocol induced by morphismp
-    let protocol = SchnorrProof { morphismp };
+    let protocol = SchnorrProof(morphismp);
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-DLEQ";
     let mut nizk =
@@ -271,7 +271,7 @@ fn NI_pedersen_commitment() {
     let (morphismp, witness) = pedersen_commitment::<G>(&mut rng);
 
     // The SigmaProtocol induced by morphismp
-    let protocol = SchnorrProof { morphismp };
+    let protocol = SchnorrProof(morphismp);
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-pedersen-commitment";
     let mut nizk =
@@ -291,7 +291,7 @@ fn NI_pedersen_commitment_dleq() {
     let (morphismp, witness) = pedersen_commitment_dleq::<G>(&mut rng);
 
     // The SigmaProtocol induced by morphismp
-    let protocol = SchnorrProof { morphismp };
+    let protocol = SchnorrProof(morphismp);
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-pedersen-commitment-DLEQ";
     let mut nizk =
@@ -311,7 +311,7 @@ fn NI_bbs_blind_commitment_computation() {
     let (morphismp, witness) = bbs_blind_commitment_computation::<G>(&mut rng);
 
     // The SigmaProtocol induced by morphismp
-    let protocol = SchnorrProof { morphismp };
+    let protocol = SchnorrProof(morphismp);
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-bbs-blind-commitment-computation";
     let mut nizk =
