@@ -104,14 +104,14 @@ macro_rules! define_proof {
         /// statements from different proofs.
         #[allow(non_snake_case)]
         pub mod $proof_module_name {
-            use $crate::curve25519_dalek::scalar::Scalar;
-            use $crate::curve25519_dalek::ristretto::RistrettoPoint;
-            use $crate::curve25519_dalek::ristretto::CompressedRistretto;
+            use curve25519_dalek::scalar::Scalar;
+            use curve25519_dalek::ristretto::RistrettoPoint;
+            use curve25519_dalek::ristretto::CompressedRistretto;
 
             use $crate::toolbox::prover::Prover;
             use $crate::toolbox::verifier::Verifier;
 
-            pub use $crate::merlin::Transcript;
+            pub use merlin::Transcript;
             pub use $crate::{CompactProof, BatchableProof, ProofError};
 
             /// The generated [`internal`] module contains lower-level

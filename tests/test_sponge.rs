@@ -1,13 +1,9 @@
 use num_bigint::BigUint;
 use rand::RngCore;
-use bls12_381::{G1Projective, G1Affine};
 
 
 
 use sigma_rs::toolbox::sigma::sage_test::TestDRNG;
-
-type Gp = G1Projective;
-type Ga = G1Affine;
 
 #[allow(non_snake_case)]
 #[test]

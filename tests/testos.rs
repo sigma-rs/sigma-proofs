@@ -29,7 +29,7 @@ fn DRNG_testing() {
 #[allow(non_snake_case)]
 #[test]
 fn Scalar_test() {
-    let mut rng = TestDRNG::new(b"hello world");
+    let rng = TestDRNG::new(b"hello world");
     let y = <Gp as Group>::Scalar::random(rng);
     let ZERO = <Gp as Group>::Scalar::ZERO;
     let ONE = y * y.invert().unwrap();

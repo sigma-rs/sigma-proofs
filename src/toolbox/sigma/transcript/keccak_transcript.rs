@@ -165,7 +165,7 @@ where
     H: DuplexSpongeInterface
 {
     fn new(domain_sep: &[u8]) -> Self {
-        let mut hasher = H::new(domain_sep);
+        let hasher = H::new(domain_sep);
         let order = G::Scalar::cardinal();
         Self { order, hasher, _marker: Default::default() }
     }

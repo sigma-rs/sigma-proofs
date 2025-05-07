@@ -1,6 +1,6 @@
 use bls12_381::G1Projective;
 use rand::{Rng, CryptoRng};
-use group::{Group, GroupEncoding, ff::Field};
+use group::{Group, GroupEncoding};
 use sigma_rs::toolbox::sigma::sage_test::{SRandom, TestDRNG};
 use sigma_rs::toolbox::sigma::sage_test::custom_schnorr_proof::SchnorrProofCustom;
 
@@ -67,7 +67,7 @@ fn dleq<G: Group + GroupEncoding + SRandom>(
     morphismp.append_equation(var_X, &[(var_x, var_G)]);
     morphismp.append_equation(var_Y, &[(var_x, var_H)]);
 
-    assert!(vec![X, Y] == morphismp.morphism.evaluate(&[x]));    
+    assert!(vec![X, Y] == morphismp.morphism.evaluate(&[x]));
     (morphismp, vec![x])
 }
 
@@ -91,7 +91,7 @@ fn pedersen_commitment<G: Group + GroupEncoding + SRandom>(
     morphismp.allocate_scalars(2);
     morphismp.allocate_elements(3);
     morphismp.set_elements(&[(var_H, H), (var_G, G), (var_C, C)]);
-    morphismp.append_equation(var_C, &[(var_x, var_G), (var_r, var_H)]); 
+    morphismp.append_equation(var_C, &[(var_x, var_G), (var_r, var_H)]);
 
     assert!(vec![C] == morphismp.morphism.evaluate(&witness));
     (morphismp, witness)
@@ -147,7 +147,7 @@ fn bbs_blind_commitment_computation<G: Group + GroupEncoding + SRandom>(
     let (Q_2, J_1, J_2, J_3) = (G::random(&mut *rng), G::random(&mut *rng), G::random(&mut *rng), G::random(&mut *rng));
     // BBS.messages_to_scalars(committed_messages,  api_id)
     let (msg_1, msg_2, msg_3) = (G::srandom(&mut *rng), G::srandom(&mut *rng), G::srandom(&mut *rng));
-    
+
     // these are computed before the proof in the specification
     let secret_prover_blind = G::srandom(&mut *rng);
     let C = Q_2*secret_prover_blind + J_1*msg_1 + J_2*msg_2 + J_3*msg_3;
@@ -156,14 +156,14 @@ fn bbs_blind_commitment_computation<G: Group + GroupEncoding + SRandom>(
     let (var_secret_prover_blind, var_msg_1, var_msg_2, var_msg_3) = (0, 1, 2, 3);
     let (var_Q_2, var_J_1, var_J_2, var_J_3) = (0, 1, 2, 3);
     let var_C = M+1;
-    
+
     morphismp.allocate_scalars(M+1);
     morphismp.allocate_elements(M+1);
     morphismp.allocate_elements(1);
     morphismp.set_elements(&[(var_Q_2, Q_2), (var_J_1, J_1), (var_J_2, J_2), (var_J_3, J_3), (var_C, C)]);
 
     morphismp.append_equation(var_C, &[(var_secret_prover_blind, var_Q_2), (var_msg_1, var_J_1), (var_msg_2, var_J_2), (var_msg_3, var_J_3)]);
-    
+
     let witness = vec![secret_prover_blind, msg_1, msg_2, msg_3];
 
     assert!(vec![C] == morphismp.morphism.evaluate(&witness));
@@ -171,7 +171,7 @@ fn bbs_blind_commitment_computation<G: Group + GroupEncoding + SRandom>(
 }
 
 
-/// This part tests the implementation of the SigmaProtocol trait for the 
+/// This part tests the implementation of the SigmaProtocol trait for the
 /// SchnorrProof structure as well as the Fiat-Shamir NISigmaProtocol transform
 #[allow(non_snake_case)]
 #[test]
@@ -184,7 +184,7 @@ fn NI_discrete_logarithm() {
     let protocol = SchnorrProofCustom { morphismp };
     let domain_sep: Vec<u8> = b"yellow submarineyellow submarine".to_vec();
     let mut nizk = NISigmaProtocol::<SigmaP, Codec, Gp>::new(&domain_sep, protocol);
-    
+
     let proof_bytes = nizk.prove(&witness, &mut rng);
     let verified = nizk.verify(&proof_bytes).is_ok();
     assert!(verified, "Fiat-Shamir Schnorr proof verification failed");
@@ -202,7 +202,7 @@ fn NI_dleq() {
     let protocol = SchnorrProofCustom { morphismp };
     let domain_sep: Vec<u8> = b"yellow submarineyellow submarine".to_vec();
     let mut nizk = NISigmaProtocol::<SigmaP, Codec, Gp>::new(&domain_sep, protocol);
-    
+
     let proof_bytes = nizk.prove(&witness, &mut rng);
     let verified = nizk.verify(&proof_bytes).is_ok();
     assert!(verified, "Fiat-Shamir Schnorr proof verification failed");
@@ -220,7 +220,7 @@ fn NI_pedersen_commitment() {
     let protocol = SchnorrProofCustom { morphismp };
     let domain_sep: Vec<u8> = b"yellow submarineyellow submarine".to_vec();
     let mut nizk = NISigmaProtocol::<SigmaP, Codec, Gp>::new(&domain_sep, protocol);
-    
+
     let proof_bytes = nizk.prove(&witness, &mut rng);
     let verified = nizk.verify(&proof_bytes).is_ok();
     assert!(verified, "Fiat-Shamir Schnorr proof verification failed");
@@ -238,7 +238,7 @@ fn NI_pedersen_commitment_dleq() {
     let protocol = SchnorrProofCustom { morphismp };
     let domain_sep: Vec<u8> = b"yellow submarineyellow submarine".to_vec();
     let mut nizk = NISigmaProtocol::<SigmaP, Codec, Gp>::new(&domain_sep, protocol);
-    
+
     let proof_bytes = nizk.prove(&witness, &mut rng);
     let verified = nizk.verify(&proof_bytes).is_ok();
     assert!(verified, "Fiat-Shamir Schnorr proof verification failed");
@@ -256,7 +256,7 @@ fn NI_bbs_blind_commitment_computation() {
     let protocol = SchnorrProofCustom { morphismp };
     let domain_sep: Vec<u8> = b"yellow submarineyellow submarine".to_vec();
     let mut nizk = NISigmaProtocol::<SigmaP, Codec, Gp>::new(&domain_sep, protocol);
-    
+
     let proof_bytes = nizk.prove(&witness, &mut rng);
     let verified = nizk.verify(&proof_bytes).is_ok();
     assert!(verified, "Fiat-Shamir Schnorr proof verification failed");

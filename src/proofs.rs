@@ -1,5 +1,6 @@
 use curve25519_dalek::ristretto::CompressedRistretto;
 use curve25519_dalek::scalar::Scalar;
+use serde::{Deserialize, Serialize};
 
 /// A Schnorr proof in compact format.
 ///
