@@ -1,19 +1,23 @@
 use bls12_381::G1Projective;
 use rand::{Rng, CryptoRng};
 use group::{Group, GroupEncoding};
-use random::{SRandom, TestDRNG};
-use custom_schnorr_proof::SchnorrProofCustom;
 
-use sigma_rs::toolbox::sigma::transcript::KeccakDuplexSponge;
 use sigma_rs::toolbox::sigma::{
+    transcript::{ByteSchnorrCodec, KeccakDuplexSponge},
     GroupMorphismPreimage,
-    transcript::ByteSchnorrCodec,
     NISigmaProtocol,
+};
+
+use crate::{
+    random::SRandom,
+    test_drng::TestDRNG,
+    custom_schnorr_proof::SchnorrProofCustom,
 };
 
 type Gp = G1Projective;
 type Codec = ByteSchnorrCodec::<Gp, KeccakDuplexSponge>;
 type SigmaP = SchnorrProofCustom<Gp>;
+
 
 fn msm_pr<G: Group>(scalars: &[G::Scalar], bases: &[G]) -> G {
     let mut acc = G::identity();

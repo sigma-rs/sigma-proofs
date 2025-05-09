@@ -1,13 +1,13 @@
-use sigma_rs::tests::spec::random::{SInput, SRandom};
-use sigma_rs::toolbox::sigma::transcript::keccak_transcript::Modulable;
 use group::Group;
 use ff::PrimeField;
-use bls12_381::{G1Projective, Scalar};
+use bls12_381::G1Projective;
 use rand::{Rng, CryptoRng};
 use subtle::CtOption;
 use num_bigint::BigUint;
 use hex::FromHex;
 use num_traits::One;
+
+use crate::random::{SInput, SRandom};
 
 impl SInput for G1Projective {
     fn scalar_from_hex_be(
@@ -64,11 +64,5 @@ impl SRandom for G1Projective {
             hex_string = format!("{:0>64}", hex_string); // pad à gauche avec des zéros
         }
         G1Projective::scalar_from_hex_be(&hex_string).unwrap()
-    }
-}
-
-impl Modulable for Scalar {
-    fn cardinal() -> BigUint {
-        BigUint::parse_bytes(b"111001111101101101001110101001100101001100111010111110101001000001100110011100111011000000010000000100110100001110110000000010101010011101111011010010000000010111111111111111001011011111111101111111111111111111111111111111100000000000000000000000000000001", 2).unwrap()
     }
 }

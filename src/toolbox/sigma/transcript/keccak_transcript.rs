@@ -5,6 +5,7 @@ use group::{Group, GroupEncoding};
 use num_bigint::BigUint;
 use std::convert::TryInto;
 use tiny_keccak::keccakf;
+use num_traits::identities::One;
 
 const R: usize = 136;
 const N: usize = 136 + 64;
@@ -145,17 +146,16 @@ impl DuplexSpongeInterface for KeccakDuplexSponge {
     }
 }
 
-pub trait Modulable: PrimeField {
-    fn cardinal() -> BigUint;
+fn cardinal<F: PrimeField>() -> BigUint {
+    let bytes = (F::ZERO - F::ONE).to_repr();
+    BigUint::from_bytes_le(bytes.as_ref()) + BigUint::one()
 }
 
 pub struct ByteSchnorrCodec<G, H>
 where
     G: Group + GroupEncoding + GroupSerialisation,
-    G::Scalar: Modulable,
     H: DuplexSpongeInterface,
 {
-    order: BigUint,
     hasher: H,
     _marker: core::marker::PhantomData<G>,
 }
@@ -163,14 +163,11 @@ where
 impl<G, H> TranscriptCodec<G> for ByteSchnorrCodec<G, H>
 where
     G: Group + GroupEncoding + GroupSerialisation,
-    G::Scalar: Modulable,
     H: DuplexSpongeInterface,
 {
     fn new(domain_sep: &[u8]) -> Self {
         let hasher = H::new(domain_sep);
-        let order = G::Scalar::cardinal();
         Self {
-            order,
             hasher,
             _marker: Default::default(),
         }
@@ -190,7 +187,7 @@ where
 
         let uniform_bytes = self.hasher.squeeze(scalar_byte_length + 16);
         let scalar = BigUint::from_bytes_be(&uniform_bytes);
-        let reduced = scalar % self.order.clone();
+        let reduced = scalar % cardinal::<G::Scalar>();
 
         let mut bytes = vec![0u8; scalar_byte_length];
         let reduced_bytes = reduced.to_bytes_be();

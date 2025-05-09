@@ -1,21 +1,16 @@
 use rand::{CryptoRng, Rng};
 use group::{Group, GroupEncoding};
 use ff::PrimeField;
-use crate::toolbox::sigma::{GroupMorphismPreimage, SigmaProtocol, GroupSerialisation};
-use crate::errors::ProofError;
+use sigma_rs::toolbox::sigma::{GroupMorphismPreimage, SigmaProtocol, GroupSerialisation};
+use sigma_rs::ProofError;
 
-use crate::tests::spec::random::SRandom;
+use crate::random::SRandom;
 
 pub struct SchnorrProofCustom<G>
 where
     G: SRandom + GroupEncoding + GroupSerialisation
 {
     pub morphismp: GroupMorphismPreimage<G>
-}
-
-pub struct SchnorrState<S> {
-    pub nonces: Vec<S>,
-    pub witness: Vec<S>,
 }
 
 impl<G> SigmaProtocol for SchnorrProofCustom<G>
