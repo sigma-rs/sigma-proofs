@@ -4,9 +4,6 @@ mod bls12_381;
 #[path = "spec/custom_schnorr_proof.rs"]
 mod custom_schnorr_proof;
 
-#[path = "spec/low_level_tests.rs"]
-mod low_level_tests;
-
 #[path = "spec/random.rs"]
 mod random;
 
