@@ -36,7 +36,7 @@ sha2 = "0.10"
 subtle = "2.6.1"
 num-bigint = "0.4.6"
 num-traits = "0.2.19"
-tiny-keccak = { version = "2.0.2", features = ["keccak"] }
+tiny-keccak = { version = "2.0.2", features = ["fips202"] }
 bls12_381 = "0.8.0"
 
 [dev-dependencies]

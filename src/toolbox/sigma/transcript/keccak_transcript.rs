@@ -135,11 +135,11 @@ impl DuplexSpongeInterface for KeccakDuplexSponge {
             }
 
             let chunk_size = usize::min(self.rate - self.squeeze_index, length);
-            output.extend_from_slice(
-                &self.state.state[self.squeeze_index..self.squeeze_index + chunk_size],
-            );
             self.squeeze_index += chunk_size;
             length -= chunk_size;
+            output.extend_from_slice(
+                &self.state.state[self.squeeze_index..self.squeeze_index + chunk_size]
+            );
         }
 
         output

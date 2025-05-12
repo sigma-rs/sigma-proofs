@@ -18,5 +18,9 @@ pub trait SRandom: Group {
     fn srandom(
         rng: &mut (impl Rng + CryptoRng)
     ) -> Self::Scalar;
+
+    fn prandom(
+        rng: &mut (impl Rng + CryptoRng)
+    ) -> Self;
 }
 

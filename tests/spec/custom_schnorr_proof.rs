@@ -83,7 +83,9 @@ where
         }
 
         for response in response.iter().take(scalar_nb) {
-            bytes.extend_from_slice(&G::serialize_scalar(response));
+            let mut scalar_bytes = G::serialize_scalar(response);
+            scalar_bytes.reverse();
+            bytes.extend_from_slice(&scalar_bytes);
         }
         bytes
     }
@@ -119,8 +121,9 @@ where
             let start = point_nb * point_size + i * scalar_size;
             let end = start + scalar_size;
 
-            let slice = &data[start..end];
-            let scalar = G::deserialize_scalar(slice)?;
+            let mut slice = data[start..end].to_vec();
+            slice.reverse();
+            let scalar = G::deserialize_scalar(&slice)?;
             responses.push(scalar);
         }
 
