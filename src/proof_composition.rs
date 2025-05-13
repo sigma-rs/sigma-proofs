@@ -10,9 +10,11 @@
 //! These constructions preserve zero-knowledge properties and follow standard Sigma protocol composition techniques.
 
 use crate::{
-    toolbox::sigma::{SigmaProtocol, SigmaProtocolSimulator},
+    SigmaProtocol,
+    SigmaProtocolSimulator,
     ProofError,
 };
+
 use ff::PrimeField;
 use rand::{CryptoRng, Rng};
 

@@ -1,7 +1,7 @@
 use curve25519_dalek::ristretto::RistrettoPoint;
 use rand::rngs::OsRng;
 
-use sigma_rs::toolbox::sigma::transcript::{
+use sigma_rs::transcript::{
     r#trait::TranscriptCodec, shake_transcript::ShakeTranscript,
 };
 

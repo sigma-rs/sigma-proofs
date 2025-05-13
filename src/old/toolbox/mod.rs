@@ -38,7 +38,7 @@ pub mod batch_verifier;
 /// Implements proof creation.
 pub mod prover;
 /// Contains lower-level tools that allow programmable specification of proof statements.
-pub mod sigma;
+pub mod constraints;
 /// Implements proof verification of compact and batchable proofs.
 pub mod verifier;
 
@@ -46,7 +46,9 @@ use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
 use curve25519_dalek::scalar::Scalar;
 use curve25519_dalek::traits::IsIdentity;
 
-use crate::{ProofError, Transcript};
+use crate::old::Transcript;
+use crate::{ProofError};
+
 
 /// An interface for specifying proof statements, common between
 /// provers and verifiers.

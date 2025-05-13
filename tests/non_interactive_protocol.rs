@@ -2,10 +2,12 @@ use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::scalar::Scalar;
 use rand::rngs::OsRng;
 
-use sigma_rs::toolbox::sigma::fiat_shamir::NISigmaProtocol;
-use sigma_rs::toolbox::sigma::group_morphism::GroupMorphismPreimage;
-use sigma_rs::toolbox::sigma::schnorr_proof::SchnorrProof;
-use sigma_rs::toolbox::sigma::transcript::shake_transcript::ShakeTranscript;
+use sigma_rs::{
+    NISigmaProtocol,
+    GroupMorphismPreimage,
+    SchnorrProof,
+    transcript::ShakeTranscript
+};
 
 type G = RistrettoPoint;
 

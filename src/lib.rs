@@ -1,32 +1,32 @@
 // -*- coding: utf-8; mode: rust; -*-
 //
-// To the extent possible under law, the authors have waived all
-// copyright and related or neighboring rights to zkp,
-// using the Creative Commons "CC0" public domain dedication.  See
-// <http://creativecommons.org/publicdomain/zero/1.0/> for full
-// details.
-//
 // Authors:
-// - Henry de Valence <hdevalence@hdevalence.ca>
+// - Nugzari Uzoevi <nougzarm@icloud.com>
+// - Michele Orrù <m@orru.net>
+// - Lénaïck Gouriou <lg@leanear.io>
 
 #![allow(non_snake_case)]
-#![doc(html_logo_url = "https://doc.dalek.rs/assets/dalek-logo-clear.png")]
+#![doc(html_logo_url = "https://mmaker.github.io/sigma-rs/")]
 //! ## Note
 //!
 
 #![deny(unused_variables)]
 #![deny(unused_mut)]
 
-pub use merlin::Transcript;
+pub mod errors;
+pub mod fiat_shamir;
+pub mod group_morphism;
+pub mod group_serialisation;
+pub mod proof_composition;
+pub mod schnorr_proof;
+pub mod r#trait;
 
-mod errors;
-mod proofs;
-mod util;
+pub use errors::*;
+pub use fiat_shamir::*;
+pub use group_morphism::*;
+pub use proof_composition::*;
+pub use schnorr_proof::*;
+pub use r#trait::*;
 
-pub use crate::errors::*;
-pub use crate::proofs::*;
-
-pub mod toolbox;
-
-#[macro_use]
-mod macros;
+pub mod transcript;
+pub mod old;

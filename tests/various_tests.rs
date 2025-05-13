@@ -5,8 +5,11 @@ use rand::{
     {CryptoRng, Rng},
 };
 
-use sigma_rs::toolbox::sigma::{
-    transcript::ShakeTranscript, GroupMorphismPreimage, NISigmaProtocol, SchnorrProof,
+use sigma_rs::{
+    transcript::ShakeTranscript, 
+    GroupMorphismPreimage, 
+    NISigmaProtocol, 
+    SchnorrProof,
 };
 
 type G = G1Projective;

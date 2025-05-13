@@ -2,9 +2,9 @@ use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
 use curve25519_dalek::scalar::Scalar;
 use curve25519_dalek::traits::IsIdentity;
 
-use merlin::Transcript;
+use crate::old::Transcript;
 
-use errors::ProofError;
+use crate::ProofError;
 
 pub trait SchnorrCS {
     type ScalarVar: Copy;
@@ -82,12 +82,12 @@ pub trait TranscriptProtocol {
 
 impl TranscriptProtocol for Transcript {
     fn domain_sep(&mut self, label: &'static [u8]) {
-        self.commit_bytes(b"dom-sep", b"schnorrzkp/1.0/ristretto255");
-        self.commit_bytes(b"dom-sep", label);
+        self.append_message(b"dom-sep", b"schnorrzkp/1.0/ristretto255");
+        self.append_message(b"dom-sep", label);
     }
 
     fn append_scalar_var(&mut self, label: &'static [u8]) {
-        self.commit_bytes(b"scvar", label);
+        self.append_message(b"scvar", label);
     }
 
     fn append_point_var(
@@ -96,8 +96,8 @@ impl TranscriptProtocol for Transcript {
         point: &RistrettoPoint,
     ) -> CompressedRistretto {
         let encoding = point.compress();
-        self.commit_bytes(b"ptvar", label);
-        self.commit_bytes(b"val", encoding.as_bytes());
+        self.append_message(b"ptvar", label);
+        self.append_message(b"val", encoding.as_bytes());
         encoding
     }
 
@@ -109,8 +109,8 @@ impl TranscriptProtocol for Transcript {
         if point.is_identity() {
             return Err(ProofError::VerificationFailure);
         }
-        self.commit_bytes(b"ptvar", label);
-        self.commit_bytes(b"val", point.as_bytes());
+        self.append_message(b"ptvar", label);
+        self.append_message(b"val", point.as_bytes());
         Ok(())
     }
 
@@ -120,8 +120,8 @@ impl TranscriptProtocol for Transcript {
         point: &RistrettoPoint,
     ) -> CompressedRistretto {
         let encoding = point.compress();
-        self.commit_bytes(b"blindcom", label);
-        self.commit_bytes(b"val", encoding.as_bytes());
+        self.append_message(b"blindcom", label);
+        self.append_message(b"val", encoding.as_bytes());
         encoding
     }
 
@@ -133,8 +133,8 @@ impl TranscriptProtocol for Transcript {
         if point.is_identity() {
             return Err(ProofError::VerificationFailure);
         }
-        self.commit_bytes(b"blindcom", label);
-        self.commit_bytes(b"val", point.as_bytes());
+        self.append_message(b"blindcom", label);
+        self.append_message(b"val", point.as_bytes());
         Ok(())
     }
 

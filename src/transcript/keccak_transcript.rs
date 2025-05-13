@@ -1,5 +1,5 @@
-use crate::toolbox::sigma::transcript::r#trait::{DuplexSpongeInterface, TranscriptCodec};
-use crate::toolbox::sigma::GroupSerialisation;
+use crate::transcript::r#trait::{DuplexSpongeInterface, TranscriptCodec};
+use crate::GroupSerialisation;
 use ff::PrimeField;
 use group::{Group, GroupEncoding};
 use num_bigint::BigUint;

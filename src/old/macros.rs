@@ -108,17 +108,18 @@ macro_rules! define_proof {
             use curve25519_dalek::ristretto::RistrettoPoint;
             use curve25519_dalek::ristretto::CompressedRistretto;
 
-            use $crate::toolbox::prover::Prover;
-            use $crate::toolbox::verifier::Verifier;
+            use $crate::old::toolbox::prover::Prover;
+            use $crate::old::toolbox::verifier::Verifier;
 
             pub use merlin::Transcript;
-            pub use $crate::{CompactProof, BatchableProof, ProofError};
+            pub use $crate::{ProofError, old::{CompactProof, BatchableProof}};
 
             /// The generated [`internal`] module contains lower-level
             /// functions at the level of the Schnorr constraint
             /// system API.
             pub mod internal {
-                use $crate::toolbox::SchnorrCS;
+                use $crate::old::toolbox::SchnorrCS;
+                use $crate::__compute_formula_constraint;
 
                 /// The proof label committed to the transcript as a domain separator.
                 pub const PROOF_LABEL: &'static str = $proof_label_string;
@@ -208,7 +209,7 @@ macro_rules! define_proof {
                 assignments: ProveAssignments,
             ) -> (Prover<'a>, CompressedPoints) {
                 use self::internal::*;
-                use $crate::toolbox::prover::*;
+                use $crate::old::toolbox::prover::*;
 
                 let mut prover = Prover::new(PROOF_LABEL.as_bytes(), transcript);
 
@@ -282,7 +283,7 @@ macro_rules! define_proof {
                 assignments: VerifyAssignments,
             ) -> Result<Verifier<'a>, ProofError> {
                 use self::internal::*;
-                use $crate::toolbox::verifier::*;
+                use $crate::old::toolbox::verifier::*;
 
                 let mut verifier = Verifier::new(PROOF_LABEL.as_bytes(), transcript);
 
@@ -339,7 +340,7 @@ macro_rules! define_proof {
                 assignments: BatchVerifyAssignments,
             ) -> Result<(), ProofError> {
                 use self::internal::*;
-                use $crate::toolbox::batch_verifier::*;
+                use $crate::old::toolbox::batch_verifier::*;
 
                 let batch_size = proofs.len();
 

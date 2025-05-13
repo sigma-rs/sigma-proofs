@@ -1,8 +1,13 @@
 use rand::{CryptoRng, Rng};
 use group::{Group, GroupEncoding};
 use ff::PrimeField;
-use sigma_rs::toolbox::sigma::{GroupMorphismPreimage, SigmaProtocol, GroupSerialisation};
-use sigma_rs::ProofError;
+
+use sigma_rs::{
+    GroupMorphismPreimage, 
+    SigmaProtocol, 
+    GroupSerialisation, 
+    ProofError
+};
 
 use crate::random::SRandom;
 

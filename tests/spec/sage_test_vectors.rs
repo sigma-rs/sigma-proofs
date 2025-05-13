@@ -3,8 +3,10 @@ use rand::{Rng, CryptoRng};
 use hex::encode;
 use group::{Group, GroupEncoding};
 
-use sigma_rs::toolbox::sigma::{
-    transcript::{ByteSchnorrCodec, KeccakDuplexSponge}, GroupMorphismPreimage, NISigmaProtocol
+use sigma_rs::{
+    transcript::{ByteSchnorrCodec, KeccakDuplexSponge}, 
+    GroupMorphismPreimage, 
+    NISigmaProtocol
 };
 
 use crate::{

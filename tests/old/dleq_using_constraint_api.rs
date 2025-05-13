@@ -22,10 +22,10 @@ use curve25519_dalek::constants as dalek_constants;
 use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::scalar::Scalar;
 
-use sigma_rs::toolbox::{
+use sigma_rs::old::toolbox::{
     batch_verifier::BatchVerifier, prover::Prover, verifier::Verifier, SchnorrCS,
 };
-use sigma_rs::Transcript;
+use sigma_rs::old::Transcript;
 
 fn dleq_statement<CS: SchnorrCS>(
     cs: &mut CS,

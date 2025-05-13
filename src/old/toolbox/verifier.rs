@@ -5,8 +5,10 @@ use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
 use curve25519_dalek::scalar::Scalar;
 use curve25519_dalek::traits::{IsIdentity, VartimeMultiscalarMul};
 
-use crate::toolbox::{SchnorrCS, TranscriptProtocol};
-use crate::{BatchableProof, CompactProof, ProofError, Transcript};
+use crate::old::SchnorrCS;
+use crate::old::toolbox::constraints::TranscriptProtocol;
+use crate::old::{BatchableProof, CompactProof, Transcript};
+use crate::ProofError;
 
 /// Used to produce verification results.
 ///

@@ -18,7 +18,7 @@ use sha3::{
     Shake128,
 };
 
-use crate::toolbox::sigma::transcript::r#trait::TranscriptCodec;
+use crate::transcript::r#trait::TranscriptCodec;
 
 /// A Fiat-Shamir transcript over a group `G`, using SHAKE128 (Keccak).
 ///

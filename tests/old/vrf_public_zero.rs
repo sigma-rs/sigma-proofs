@@ -2,14 +2,12 @@
 // lowercase letters
 #![allow(non_snake_case)]
 
-#[macro_use]
-extern crate sigma_rs;
-
 use curve25519_dalek::constants as dalek_constants;
 use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::scalar::Scalar;
 
-use sigma_rs::Transcript;
+use sigma_rs::define_proof;
+use sigma_rs::old::Transcript;
 
 define_proof! {
     testproof,

@@ -17,7 +17,7 @@ impl TestDRNG {
         Self { seed: seed_bytes }
     }
 
-    pub fn randint(&mut self, l: u64, h: u64) -> u64 {
+    pub fn _randint(&mut self, l: u64, h: u64) -> u64 {
         assert!(l <= h);
         let range = h - l + 1;
         let bits = 64 - range.leading_zeros();
@@ -36,7 +36,7 @@ impl TestDRNG {
         }
     }
 
-    pub fn randint_big(&mut self, l: &BigUint, h: &BigUint) -> BigUint {
+    pub fn _randint_big(&mut self, l: &BigUint, h: &BigUint) -> BigUint {
         assert!(l <= h);
         let range = h - l + BigUint::one();
         let bits = range.bits();

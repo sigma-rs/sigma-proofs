@@ -4,8 +4,9 @@ use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
 use curve25519_dalek::scalar::Scalar;
 use curve25519_dalek::traits::MultiscalarMul;
 
-use crate::toolbox::{SchnorrCS, TranscriptProtocol};
-use crate::{BatchableProof, CompactProof, Transcript};
+use crate::old::toolbox::SchnorrCS;
+use crate::old::toolbox::constraints::TranscriptProtocol;
+use crate::old::{BatchableProof, CompactProof, Transcript};
 
 /// Used to create proofs.
 ///

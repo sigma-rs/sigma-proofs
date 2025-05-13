@@ -13,9 +13,12 @@
 //! - `C`: the transcript codec (`TranscriptCodec` trait).
 //! - `G`: the group used for commitments and operations (`Group` trait).
 
-use crate::toolbox::sigma::transcript::TranscriptCodec;
-use crate::toolbox::sigma::SigmaProtocol;
-use crate::ProofError;
+use crate::{
+    transcript::TranscriptCodec,
+    SigmaProtocol,
+    ProofError
+};
+
 use group::Group;
 use rand::{CryptoRng, RngCore};
 

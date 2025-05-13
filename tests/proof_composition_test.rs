@@ -1,9 +1,12 @@
 use curve25519_dalek::{ristretto::RistrettoPoint, scalar::Scalar};
 use rand::{rngs::OsRng, CryptoRng, Rng};
+
 use sigma_rs::{
-    toolbox::sigma::{
-        proof_composition::OrEnum, AndProtocol, OrProtocol, SigmaProtocol, SigmaProtocolSimulator,
-    },
+    OrEnum, 
+    AndProtocol, 
+    OrProtocol, 
+    SigmaProtocol, 
+    SigmaProtocolSimulator,
     ProofError,
 };
 

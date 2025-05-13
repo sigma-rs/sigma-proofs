@@ -5,9 +5,12 @@
 //! through a group morphism abstraction (see Maurer09).
 
 use crate::{
-    toolbox::sigma::{GroupMorphismPreimage, GroupSerialisation, SigmaProtocol},
+    GroupMorphismPreimage, 
+    GroupSerialisation, 
+    SigmaProtocol,
     ProofError,
 };
+
 use ff::{Field, PrimeField};
 use group::{Group, GroupEncoding};
 use rand::{CryptoRng, Rng};
