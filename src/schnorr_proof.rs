@@ -5,7 +5,7 @@
 //! through a group morphism abstraction (see Maurer09).
 
 use crate::{
-    GroupMorphismPreimage, 
+    GroupMorphismPreimage,
     GroupSerialisation, 
     SigmaProtocol,
     ProofError,
@@ -79,7 +79,7 @@ where
             .take(self.0.morphism.num_statements())
         {
             rhs.push(
-                self.0.morphism.group_elements[self.0.image[i]] * challenge + g,
+                self.0.morphism.group_elements[self.0.image[i].0] * challenge + g,
             );
         }
 

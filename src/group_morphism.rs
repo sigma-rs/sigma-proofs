@@ -10,13 +10,19 @@
 
 use group::{Group, GroupEncoding};
 
+#[derive(Copy, Clone)]
+pub struct ScalarVar(pub usize);
+
+#[derive(Copy, Clone)]
+pub struct PointVar(pub usize);
+
 /// A sparse linear combination of scalars and group elements.
 ///
 /// Stores indices into external lists of scalars and group elements.
 /// Used to define individual constraints inside a Morphism.
 pub struct LinearCombination {
-    pub scalar_indices: Vec<usize>,
-    pub element_indices: Vec<usize>,
+    pub scalar_indices: Vec<ScalarVar>,
+    pub element_indices: Vec<PointVar>,
 }
 
 /// A Morphism represents a list of linear combinations over group elements.
@@ -73,11 +79,11 @@ impl<G: Group> Morphism<G> {
         self.linear_combination
             .iter()
             .map(|lc| {
-                let coefficients: Vec<_> = lc.scalar_indices.iter().map(|&i| scalars[i]).collect();
+                let coefficients: Vec<_> = lc.scalar_indices.iter().map(|&i| scalars[i.0]).collect();
                 let elements: Vec<_> = lc
                     .element_indices
                     .iter()
-                    .map(|&i| self.group_elements[i])
+                    .map(|&i| self.group_elements[i.0])
                     .collect();
                 msm_pr(&coefficients, &elements)
             })
@@ -97,7 +103,7 @@ where
     /// The underlying morphism describing the structure of the statement.
     pub morphism: Morphism<G>,
     /// Indices pointing to elements representing the "target" images for each constraint.
-    pub image: Vec<usize>,
+    pub image: Vec<PointVar>,
 }
 
 impl<G> Default for GroupMorphismPreimage<G>
@@ -129,8 +135,8 @@ where
 
     /// Append a new equation relating scalars to group elements.
     ///
-    /// `lhs` is the index of the image, and `rhs` is a list of (scalar_idx, element_idx) pairs.
-    pub fn append_equation(&mut self, lhs: usize, rhs: &[(usize, usize)]) {
+    /// `lhs` is the image, and `rhs` is a list of (scalar, element) pairs.
+    pub fn append_equation(&mut self, lhs: PointVar, rhs: &[(ScalarVar, PointVar)]) {
         let lc = LinearCombination {
             scalar_indices: rhs.iter().map(|&(s, _)| s).collect(),
             element_indices: rhs.iter().map(|&(_, e)| e).collect(),
@@ -139,31 +145,39 @@ where
         self.image.push(lhs);
     }
 
-    /// Allocate space for `n` new scalars and return their indices.
-    pub fn allocate_scalars(&mut self, n: usize) -> Vec<usize> {
+    /// Allocate space for `n` new scalars and return their ScalarVar.
+    pub fn allocate_scalars(&mut self, n: usize) -> Vec<ScalarVar> {
         let start = self.morphism.num_scalars;
         let indices: Vec<usize> = (start..start + n).collect();
+        let mut scalars = Vec::new();
+        for i in indices.iter() {
+            scalars.push(ScalarVar(*i));
+        }
         self.morphism.num_scalars += n;
-        indices
+        scalars
     }
 
-    /// Allocate space for `n` new group elements and return their indices.
+    /// Allocate space for `n` new group elements and return their PointVar.
     ///
     /// The allocated elements are initially set to the identity.
-    pub fn allocate_elements(&mut self, n: usize) -> Vec<usize> {
+    pub fn allocate_elements(&mut self, n: usize) -> Vec<PointVar> {
         let start = self.morphism.num_elements;
         let indices: Vec<usize> = (start..start + n).collect();
         for _ in 0..n {
             self.morphism.group_elements.push(G::identity());
         }
+        let mut points = Vec::new();
+        for i in indices.iter() {
+            points.push(PointVar(*i));
+        }
         self.morphism.num_elements += n;
-        indices
+        points
     }
 
     /// Set the value of group elements at a given index, inside the list of allocated group elements.
-    pub fn set_elements(&mut self, elements: &[(usize, G)]) {
+    pub fn set_elements(&mut self, elements: &[(PointVar, G)]) {
         for &(i, ref elt) in elements {
-            self.morphism.group_elements[i] = *elt;
+            self.morphism.group_elements[i.0] = *elt;
         }
     }
 
@@ -171,7 +185,7 @@ where
     pub fn image(&self) -> Vec<G> {
         let mut result = Vec::new();
         for i in &self.image {
-            result.push(self.morphism.group_elements[*i]);
+            result.push(self.morphism.group_elements[i.0]);
         }
         result
     }

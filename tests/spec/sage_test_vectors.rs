@@ -6,6 +6,8 @@ use group::{Group, GroupEncoding};
 use sigma_rs::{
     codec::{ByteSchnorrCodec, KeccakDuplexSponge}, 
     GroupMorphismPreimage, 
+    ScalarVar,
+    PointVar,
     NISigmaProtocol
 };
 
@@ -38,8 +40,8 @@ fn discrete_logarithm<G: SRandom + Group + GroupEncoding>(
 ) -> (Preimage<G>, Vec<G::Scalar>) {
     let mut morphismp: Preimage<G> = Preimage::new();
 
-    let var_x: usize = 0;
-    let (var_G, var_X): (usize, usize) = (0, 1);
+    let var_x= ScalarVar(0);
+    let (var_G, var_X) = (PointVar(0), PointVar(1));
     morphismp.allocate_scalars(1);
     morphismp.allocate_elements(2);
     morphismp.append_equation(var_X, &[(var_x, var_G)]);
@@ -67,8 +69,8 @@ fn dleq<G: Group + GroupEncoding + SRandom>(
     let X = G * x;
     let Y = H * x;
 
-    let var_x: usize = 0;
-    let (var_G, var_H, var_X, var_Y) = (0, 1, 2, 3);
+    let var_x = ScalarVar(0);
+    let (var_G, var_H, var_X, var_Y) = (PointVar(0), PointVar(1), PointVar(2), PointVar(3));
     morphismp.allocate_scalars(1);
     morphismp.allocate_elements(4);
     morphismp.set_elements(&[(var_G, G), (var_H, H), (var_X, X), (var_Y, Y)]);
@@ -94,8 +96,8 @@ fn pedersen_commitment<G: Group + GroupEncoding + SRandom>(
 
     let C = G*x + H*r;
 
-    let (var_x, var_r) = (0, 1);
-    let (var_G, var_H, var_C) = (0, 1, 2);
+    let (var_x, var_r) = (ScalarVar(0), ScalarVar(1));
+    let (var_G, var_H, var_C) = (PointVar(0), PointVar(1), PointVar(2));
     morphismp.allocate_scalars(2);
     morphismp.allocate_elements(3);
     morphismp.set_elements(&[(var_H, H), (var_G, G), (var_C, C)]);
@@ -125,9 +127,9 @@ fn pedersen_commitment_dleq<G: Group + GroupEncoding + SRandom>(
     let X = msm_pr::<G>(&witness, &[generators[0], generators[1]]);
     let Y = msm_pr::<G>(&witness, &[generators[2], generators[3]]);
 
-    let (var_x, var_r) = (0, 1);
-    let var_Gs = (0, 1, 2, 3);
-    let (var_X, var_Y) = (4, 5);
+    let (var_x, var_r) = (ScalarVar(0), ScalarVar(1));
+    let var_Gs = (PointVar(0), PointVar(1), PointVar(2), PointVar(3));
+    let (var_X, var_Y) = (PointVar(4), PointVar(5));
     morphismp.allocate_scalars(2);
     morphismp.allocate_elements(4);
     morphismp.allocate_elements(2);
@@ -161,9 +163,9 @@ fn bbs_blind_commitment_computation<G: Group + GroupEncoding + SRandom>(
     let C = Q_2*secret_prover_blind + J_1*msg_1 + J_2*msg_2 + J_3*msg_3;
 
     // This is the part that needs to be changed in the specification of blind bbs.
-    let (var_secret_prover_blind, var_msg_1, var_msg_2, var_msg_3) = (0, 1, 2, 3);
-    let (var_Q_2, var_J_1, var_J_2, var_J_3) = (0, 1, 2, 3);
-    let var_C = M+1;
+    let (var_secret_prover_blind, var_msg_1, var_msg_2, var_msg_3) = (ScalarVar(0), ScalarVar(1), ScalarVar(2), ScalarVar(3));
+    let (var_Q_2, var_J_1, var_J_2, var_J_3) = (PointVar(0), PointVar(1), PointVar(2), PointVar(3));
+    let var_C = PointVar(M + 1);
 
     morphismp.allocate_scalars(M+1);
     morphismp.allocate_elements(M+1);

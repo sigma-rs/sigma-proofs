@@ -5,6 +5,8 @@ use rand::rngs::OsRng;
 use sigma_rs::{
     NISigmaProtocol,
     GroupMorphismPreimage,
+    PointVar,
+    ScalarVar,
     SchnorrProof,
     codec::ShakeCodec
 };
@@ -28,14 +30,14 @@ fn fiat_shamir_schnorr_proof_ristretto() {
     // Scalars and Points bases settings
     morphismp.allocate_scalars(1);
     morphismp.allocate_elements(2);
-    morphismp.set_elements(&[(0, G), (1, H)]);
+    morphismp.set_elements(&[(PointVar(0), G), (PointVar(1), H)]);
 
     // Set the witness Vec
     let mut witness = Vec::new();
     witness.push(w);
 
     // The H = z * G equation where z is the unique scalar variable
-    morphismp.append_equation(1, &[(0, 0)]);
+    morphismp.append_equation(PointVar(1), &[(ScalarVar(0), PointVar(0))]);
 
     // The SigmaProtocol induced by morphismp
     let protocol = SchnorrProof(morphismp);
