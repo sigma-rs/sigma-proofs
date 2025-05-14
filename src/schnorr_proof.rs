@@ -20,14 +20,6 @@ use rand::{CryptoRng, Rng};
 /// The specific proof instance is defined by a [`GroupMorphismPreimage`] over a group `G`.
 pub struct SchnorrProof<G: Group + GroupEncoding + GroupSerialisation>(pub GroupMorphismPreimage<G>);
 
-/// Internal prover state during the protocol execution: (random nonce, witness)
-pub struct SchnorrState<S> {
-    /// Random nonces generated during commitment.
-    pub nonces: Vec<S>,
-    /// The witness scalars corresponding to the statement.
-    pub witness: Vec<S>,
-}
-
 impl<G> SigmaProtocol for SchnorrProof<G>
 where
     G: Group + GroupEncoding + GroupSerialisation,

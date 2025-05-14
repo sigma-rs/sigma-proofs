@@ -160,11 +160,13 @@ where
     _marker: core::marker::PhantomData<G>,
 }
 
-impl<G, H> Codec<G> for ByteSchnorrCodec<G, H>
+impl<G, H> Codec for ByteSchnorrCodec<G, H>
 where
     G: Group + GroupEncoding + GroupSerialisation,
     H: DuplexSpongeInterface,
 {
+    type Challenge = <G as Group>::Scalar;
+
     fn new(domain_sep: &[u8]) -> Self {
         let hasher = H::new(domain_sep);
         Self {
@@ -173,10 +175,11 @@ where
         }
     }
 
-    fn prover_message(&mut self, elems: &[G]) -> &mut Self {
-        for elem in elems {
+    fn prover_message(&mut self, data: &[u8]) -> &mut Self {
+        self.hasher.absorb(data);
+        /* for elem in elems {
             self.hasher.absorb(&G::serialize_element(elem));
-        }
+        } */
         self
     }
 

@@ -34,11 +34,13 @@ pub struct ShakeCodec<G: Group> {
     _marker: core::marker::PhantomData<G>,
 }
 
-impl<G> Codec<G> for ShakeCodec<G>
+impl<G> Codec for ShakeCodec<G>
 where
     G: Group + GroupEncoding,
     G::Scalar: PrimeField,
 {
+    type Challenge = <G as Group>::Scalar;
+
     /// Initializes the codec with a domain separation label, to avoid cross-protocol collisions.
     fn new(domain_sep: &[u8]) -> Self {
         let mut hasher = Shake128::default();
@@ -49,11 +51,9 @@ where
         }
     }
 
-    /// Absorbs a slice of group elements into the codec. Each element is serialized and fed into the hasher.
-    fn prover_message(&mut self, elems: &[G]) -> &mut Self {
-        for elem in elems {
-            self.hasher.update(elem.to_bytes().as_ref());
-        }
+    /// Absorbs a slice of group elements encodage into the codec.
+    fn prover_message(&mut self, data: &[u8]) -> &mut Self {
+        self.hasher.update(data);
         self
     }
 

@@ -30,7 +30,7 @@ fn discrete_logarithm<G: Group + GroupEncoding>(
 ) -> (GroupMorphismPreimage<G>, Vec<G::Scalar>) {
     let mut morphismp: GroupMorphismPreimage<G> = GroupMorphismPreimage::new();
 
-    let var_x= ScalarVar(0);
+    let var_x = ScalarVar(0);
     let (var_G, var_X) = (PointVar(0), PointVar(1));
     morphismp.allocate_scalars(1);
     morphismp.allocate_elements(2);

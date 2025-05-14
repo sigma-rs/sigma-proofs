@@ -2,8 +2,6 @@
 //!
 //! This module defines the `Codec` trait, a generic interface to manage codecs of a protocol execution.
 
-use group::Group;
-
 pub trait DuplexSpongeInterface {
     fn new(iv: &[u8]) -> Self;
 
@@ -23,15 +21,17 @@ pub trait DuplexSpongeInterface {
 /// - `new`
 /// - `prover_message`
 /// - `verifier_challenge`
-pub trait Codec<G: Group> {
+pub trait Codec {
+    type Challenge;
+
     /// Generates an empty codec that can be identified by a domain separator.
     fn new(domain_sep: &[u8]) -> Self;
 
-    /// Absorbs a list of group elements (e.g., commitments) into the codec.
-    fn prover_message(&mut self, elems: &[G]) -> &mut Self
+    /// Absorbs data into the codec.
+    fn prover_message(&mut self, data: &[u8]) -> &mut Self
     where
         Self: Sized;
 
     /// Produces a scalar that can be used as a challenge from the codec.
-    fn verifier_challenge(&mut self) -> G::Scalar;
+    fn verifier_challenge(&mut self) -> Self::Challenge;
 }

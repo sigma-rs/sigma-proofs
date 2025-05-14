@@ -19,7 +19,7 @@ use crate::{
     ProofError
 };
 
-use group::Group;
+use group::{Group, GroupEncoding};
 use rand::{CryptoRng, RngCore};
 
 /// A Fiat-Shamir transformation of a Sigma protocol into a non-interactive proof.
@@ -36,23 +36,23 @@ use rand::{CryptoRng, RngCore};
 /// - `G`: the group on which the protocol operates.
 pub struct NISigmaProtocol<P, C, G>
 where
-    G: Group,
+    G: Group + GroupEncoding,
     P: SigmaProtocol<Commitment = Vec<G>, Challenge = <G as Group>::Scalar>,
-    C: Codec<G>,
+    C: Codec<Challenge = <G as Group>::Scalar>,
 {
     /// Domain separation string for the Fiat-Shamir transform.
-    domain_sep: Vec<u8>,
+    pub domain_sep: Vec<u8>,
     /// Current codec state.
-    hash_state: C,
+    pub hash_state: C,
     /// Underlying Sigma protocol.
-    sigmap: P,
+    pub sigmap: P,
 }
 
 impl<P, C, G> NISigmaProtocol<P, C, G>
 where
-    G: Group,
+    G: Group + GroupEncoding,
     P: SigmaProtocol<Commitment = Vec<G>, Challenge = <G as Group>::Scalar>,
-    C: Codec<G>,
+    C: Codec<Challenge = <G as Group>::Scalar>,
 {
     /// Creates a new non-interactive Sigma protocol, identified by a domain separator (usually fixed per protocol instantiation), and an initialized Sigma protocol instance.
     pub fn new(iv: &[u8], instance: P) -> Self {
@@ -70,10 +70,15 @@ where
         self.hash_state = C::new(&self.domain_sep);
 
         let (commitment, prover_state) = self.sigmap.prover_commit(witness, rng);
+        // Commitment data for challenge generation
+        let mut data = Vec::new();
+        for commit in &commitment {
+            data.extend_from_slice(commit.to_bytes().as_ref());
+        }
         // Fiat Shamir challenge
         let challenge = self
             .hash_state
-            .prover_message(&commitment)
+            .prover_message(&data)
             .verifier_challenge();
         // Prover's response
         let response = self.sigmap.prover_response(prover_state, &challenge);
@@ -91,10 +96,15 @@ where
         self.hash_state = C::new(&self.domain_sep);
 
         let (commitment, response) = self.sigmap.deserialize_batchable(proof).unwrap();
+        // Commitment data for challenge generation
+        let mut data = Vec::new();
+        for commit in &commitment {
+            data.extend_from_slice(commit.to_bytes().as_ref());
+        }
         // Recompute the challenge
         let challenge = self
             .hash_state
-            .prover_message(&commitment)
+            .prover_message(&data)
             .verifier_challenge();
         // Verification of the proof
         self.sigmap.verifier(&commitment, &challenge, &response)
