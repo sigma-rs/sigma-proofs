@@ -4,7 +4,7 @@ use hex::encode;
 use group::{Group, GroupEncoding};
 
 use sigma_rs::{
-    transcript::{ByteSchnorrCodec, KeccakDuplexSponge}, 
+    codec::{ByteSchnorrCodec, KeccakDuplexSponge}, 
     GroupMorphismPreimage, 
     NISigmaProtocol
 };

@@ -28,5 +28,5 @@ pub use proof_composition::*;
 pub use schnorr_proof::*;
 pub use r#trait::*;
 
-pub mod transcript;
+pub mod codec;
 pub mod old;

@@ -6,7 +6,7 @@ use sigma_rs::{
     NISigmaProtocol,
     GroupMorphismPreimage,
     SchnorrProof,
-    transcript::ShakeTranscript
+    codec::ShakeCodec
 };
 
 type G = RistrettoPoint;
@@ -42,7 +42,7 @@ fn fiat_shamir_schnorr_proof_ristretto() {
 
     // Fiat-Shamir wrapper
     let mut nizk =
-        NISigmaProtocol::<SchnorrProof<G>, ShakeTranscript<G>, G>::new(domain_sep, protocol);
+        NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>, G>::new(domain_sep, protocol);
 
     // Prove
     let proof_bytes = nizk.prove(&witness, &mut rng);

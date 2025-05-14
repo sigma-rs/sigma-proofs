@@ -1,15 +1,15 @@
-//! Implementation of a Fiat-Shamir transcript codec using SHAKE128 (Keccak)
+//! Implementation of a Fiat-Shamir codec using SHAKE128
 //!
-//! This module defines `KeccakTranscript`, a concrete implementation of the `TranscriptCodec`
+//! This module defines `ShakeCodec`, a concrete implementation of the `Codec`
 //! trait. It uses the SHAKE128 extendable output function (XOF) from the Keccak family
 //! to generate Fiat-Shamir challenges for Sigma protocols.
 //!
-//! It allows commitments (group elements) to be absorbed into a transcript,
+//! It allows commitments (group elements) to be absorbed into a codec,
 //! and produces scalar challenges by squeezing bytes from the hash state.
 //!
 //! # Usage
-//! - The prover and verifier absorb the same messages into identical `KeccakTranscript` instances.
-//! - The prover and the verifier then squeeze the hash to generate a challenge scalar for the protocol. The verifier can check that the prover used the challenge output by the transcript because he owns an identical transcript.
+//! - The prover and verifier absorb the same messages into identical `ShakeCodec` instances.
+//! - The prover and the verifier then squeeze the hash to generate a challenge scalar for the protocol. The verifier can check that the prover used the challenge output by the codec because he owns an identical codec.
 
 use ff::PrimeField;
 use group::{Group, GroupEncoding};
@@ -18,28 +18,28 @@ use sha3::{
     Shake128,
 };
 
-use crate::transcript::r#trait::TranscriptCodec;
+use crate::codec::r#trait::Codec;
 
-/// A Fiat-Shamir transcript over a group `G`, using SHAKE128 (Keccak).
+/// A Fiat-Shamir codec over a group `G`, using SHAKE128.
 ///
 /// This struct manages the state of the hash function and produces
 /// deterministic, random-looking scalars for use in Sigma protocols.
 ///
-/// The transcript is initialized with a domain separator and absorbs serialized
+/// The codec is initialized with a domain separator and absorbs serialized
 /// group elements. It outputs challenges compatible with the group’s scalar field.
-pub struct ShakeTranscript<G: Group> {
+pub struct ShakeCodec<G: Group> {
     /// Internal SHAKE128 hasher state.
     hasher: Shake128,
-    /// Marker to bind this transcript to a specific group `G`.
+    /// Marker to bind this codec to a specific group `G`.
     _marker: core::marker::PhantomData<G>,
 }
 
-impl<G> TranscriptCodec<G> for ShakeTranscript<G>
+impl<G> Codec<G> for ShakeCodec<G>
 where
     G: Group + GroupEncoding,
     G::Scalar: PrimeField,
 {
-    /// Initializes the transcript with a domain separation label, to avoid cross-protocol collisions.
+    /// Initializes the codec with a domain separation label, to avoid cross-protocol collisions.
     fn new(domain_sep: &[u8]) -> Self {
         let mut hasher = Shake128::default();
         hasher.update(domain_sep);
@@ -49,7 +49,7 @@ where
         }
     }
 
-    /// Absorbs a slice of group elements into the transcript. Each element is serialized and fed into the hasher.
+    /// Absorbs a slice of group elements into the codec. Each element is serialized and fed into the hasher.
     fn prover_message(&mut self, elems: &[G]) -> &mut Self {
         for elem in elems {
             self.hasher.update(elem.to_bytes().as_ref());
@@ -57,7 +57,7 @@ where
         self
     }
 
-    /// Produce a random-looking challenge scalar from the transcript.
+    /// Produce a random-looking challenge scalar from the codec.
     ///
     /// The method reads from the finalized SHAKE128 state until it finds
     /// a valid scalar (i.e., one within the field).

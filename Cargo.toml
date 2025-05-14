@@ -2,7 +2,7 @@
 name = "sigma-rs"
 version = "0.1.0"
 authors = [
-    "nougzarm <nougzarm@icloud.com>",
+    "Nugzari Uzoevi <nougzarm@icloud.com>",
     "Michele Orrù <m@orru.net>",
     "Lénaïck Gouriou <lg@leanear.io>"
 ]

@@ -6,7 +6,7 @@ use rand::{
 };
 
 use sigma_rs::{
-    transcript::ShakeTranscript, 
+    codec::ShakeCodec, 
     GroupMorphismPreimage, 
     NISigmaProtocol, 
     SchnorrProof,
@@ -238,7 +238,7 @@ fn NI_discrete_logarithm() {
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-schnorr";
     let mut nizk =
-        NISigmaProtocol::<SchnorrProof<G>, ShakeTranscript<G>, G>::new(domain_sep, protocol);
+        NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>, G>::new(domain_sep, protocol);
 
     // Prove
     let proof_bytes = nizk.prove(&witness, &mut rng);
@@ -258,7 +258,7 @@ fn NI_dleq() {
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-DLEQ";
     let mut nizk =
-        NISigmaProtocol::<SchnorrProof<G>, ShakeTranscript<G>, G>::new(domain_sep, protocol);
+        NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>, G>::new(domain_sep, protocol);
 
     // Prove
     let proof_bytes = nizk.prove(&witness, &mut rng);
@@ -278,7 +278,7 @@ fn NI_pedersen_commitment() {
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-pedersen-commitment";
     let mut nizk =
-        NISigmaProtocol::<SchnorrProof<G>, ShakeTranscript<G>, G>::new(domain_sep, protocol);
+        NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>, G>::new(domain_sep, protocol);
 
     // Prove
     let proof_bytes = nizk.prove(&witness, &mut rng);
@@ -298,7 +298,7 @@ fn NI_pedersen_commitment_dleq() {
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-pedersen-commitment-DLEQ";
     let mut nizk =
-        NISigmaProtocol::<SchnorrProof<G>, ShakeTranscript<G>, G>::new(domain_sep, protocol);
+        NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>, G>::new(domain_sep, protocol);
 
     // Prove
     let proof_bytes = nizk.prove(&witness, &mut rng);
@@ -318,7 +318,7 @@ fn NI_bbs_blind_commitment_computation() {
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-bbs-blind-commitment-computation";
     let mut nizk =
-        NISigmaProtocol::<SchnorrProof<G>, ShakeTranscript<G>, G>::new(domain_sep, protocol);
+        NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>, G>::new(domain_sep, protocol);
 
     // Prove
     let proof_bytes = nizk.prove(&witness, &mut rng);

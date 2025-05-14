@@ -1,30 +1,30 @@
 use curve25519_dalek::ristretto::RistrettoPoint;
 use rand::rngs::OsRng;
 
-use sigma_rs::transcript::{
-    r#trait::TranscriptCodec, shake_transcript::ShakeTranscript,
+use sigma_rs::codec::{
+    r#trait::Codec, shake_codec::ShakeCodec,
 };
 
-pub type KeccakTranscriptRistretto = ShakeTranscript<curve25519_dalek::ristretto::RistrettoPoint>;
+pub type ShakeCodecRistretto = ShakeCodec<curve25519_dalek::ristretto::RistrettoPoint>;
 
 #[allow(non_snake_case)]
 #[test]
-fn keccak_transcript_ristretto() {
+fn shake_codec_ristretto() {
     // Type alias to mirror the Sage naming
-    type Transcript = KeccakTranscriptRistretto;
+    type Codec = ShakeCodecRistretto;
 
     // Generate some commitments
     let G = RistrettoPoint::random(&mut OsRng);
     let H = RistrettoPoint::random(&mut OsRng);
 
-    let domain_sep = b"test-keccak-ristretto";
+    let domain_sep = b"test-shake-ristretto";
 
-    // Initialize transcript
-    let mut binding = Transcript::new(domain_sep);
-    let transcript = binding.prover_message(&[G, H]);
+    // Initialize codec
+    let mut binding = Codec::new(domain_sep);
+    let codec = binding.prover_message(&[G, H]);
 
     // Derive challenge
-    let challenge = transcript.verifier_challenge();
+    let challenge = codec.verifier_challenge();
 
     // Output result
     println!("Challenge: {:?}", challenge);

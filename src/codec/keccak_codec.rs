@@ -1,4 +1,4 @@
-use crate::transcript::r#trait::{DuplexSpongeInterface, TranscriptCodec};
+use crate::codec::r#trait::{DuplexSpongeInterface, Codec};
 use crate::GroupSerialisation;
 use ff::PrimeField;
 use group::{Group, GroupEncoding};
@@ -160,7 +160,7 @@ where
     _marker: core::marker::PhantomData<G>,
 }
 
-impl<G, H> TranscriptCodec<G> for ByteSchnorrCodec<G, H>
+impl<G, H> Codec<G> for ByteSchnorrCodec<G, H>
 where
     G: Group + GroupEncoding + GroupSerialisation,
     H: DuplexSpongeInterface,
