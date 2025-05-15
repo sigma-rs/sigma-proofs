@@ -6,7 +6,7 @@
 
 use crate::{
     GroupMorphismPreimage,
-    GroupSerialisation, 
+    serialisation::GroupSerialisation, 
     SigmaProtocol,
     ProofError,
 };

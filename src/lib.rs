@@ -21,6 +21,7 @@ pub mod proof_composition;
 pub mod schnorr_proof;
 pub mod r#trait;
 pub mod proof_builder;
+pub mod serialisation;
 
 pub use errors::*;
 pub use fiat_shamir::*;

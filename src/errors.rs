@@ -1,3 +1,11 @@
+//! # ProofError: Error Types for Zero-Knowledge Proofs
+//!
+//! This module defines the [`ProofError`] enum, which encapsulates possible errors that may occur
+//! during the execution of Sigma protocols or their non-interactive variants.
+//!
+//! These errors include:
+//! - Verification failures (e.g., when a proof does not verify correctly).
+//! - Mismatched parameters during batch verification.
 use thiserror::Error;
 /// An error during proving or verification, such as a verification failure.
 #[derive(Debug, Error)]
