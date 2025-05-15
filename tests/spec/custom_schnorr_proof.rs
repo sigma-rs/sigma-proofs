@@ -5,7 +5,7 @@ use ff::PrimeField;
 use sigma_rs::{
     GroupMorphismPreimage, 
     SigmaProtocol, 
-    GroupSerialisation, 
+    serialisation::GroupSerialisation, 
     ProofError
 };
 
