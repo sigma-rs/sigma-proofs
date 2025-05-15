@@ -64,7 +64,7 @@ where
 
         let mut rhs = Vec::new();
         for (i, g) in commitment.iter().enumerate().take(self.morphismp.morphism.num_statements()) {
-            rhs.push(*g + self.morphismp.morphism.group_elements[self.morphismp.image[i].0] * *challenge);
+            rhs.push(*g + self.morphismp.morphism.group_elements[self.morphismp.image[i].index()] * *challenge);
         }
 
         match lhs == rhs {

@@ -71,7 +71,7 @@ where
             .take(self.0.morphism.num_statements())
         {
             rhs.push(
-                self.0.morphism.group_elements[self.0.image[i].0] * challenge + g,
+                self.0.morphism.group_elements[self.0.image[i].index()] * challenge + g,
             );
         }
 

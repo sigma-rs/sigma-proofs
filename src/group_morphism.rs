@@ -9,12 +9,25 @@
 //! - `GroupMorphismPreimage`: a higher-level structure managing morphisms and their associated images
 
 use group::{Group, GroupEncoding};
+use std::iter;
 
 #[derive(Copy, Clone)]
-pub struct ScalarVar(pub usize);
+pub struct ScalarVar(usize);
+
+impl ScalarVar {
+    pub fn index(&self) -> usize {
+        self.0
+    }
+}
 
 #[derive(Copy, Clone)]
-pub struct PointVar(pub usize);
+pub struct PointVar(usize);
+
+impl PointVar {
+    pub fn index(&self) -> usize {
+        self.0
+    }
+}
 
 /// A sparse linear combination of scalars and group elements.
 ///
@@ -37,7 +50,7 @@ pub struct Morphism<G: Group> {
 }
 
 /// Perform a simple multi-scalar multiplication (MSM) over scalars and points.
-fn msm_pr<G: Group>(scalars: &[G::Scalar], bases: &[G]) -> G {
+pub fn msm_pr<G: Group>(scalars: &[G::Scalar], bases: &[G]) -> G {
     let mut acc = G::identity();
     for (s, p) in scalars.iter().zip(bases.into_iter()) {
         acc += *p * s;
@@ -148,13 +161,8 @@ where
     /// Allocate space for `n` new scalars and return their ScalarVar.
     pub fn allocate_scalars(&mut self, n: usize) -> Vec<ScalarVar> {
         let start = self.morphism.num_scalars;
-        let indices: Vec<usize> = (start..start + n).collect();
-        let mut scalars = Vec::new();
-        for i in indices.iter() {
-            scalars.push(ScalarVar(*i));
-        }
         self.morphism.num_scalars += n;
-        scalars
+        (start..start + n).map(ScalarVar).collect()
     }
 
     /// Allocate space for `n` new group elements and return their PointVar.
@@ -163,9 +171,8 @@ where
     pub fn allocate_elements(&mut self, n: usize) -> Vec<PointVar> {
         let start = self.morphism.num_elements;
         let indices: Vec<usize> = (start..start + n).collect();
-        for _ in 0..n {
-            self.morphism.group_elements.push(G::identity());
-        }
+
+        self.morphism.group_elements.extend(iter::repeat(G::identity()).take(n));
         let mut points = Vec::new();
         for i in indices.iter() {
             points.push(PointVar(*i));
