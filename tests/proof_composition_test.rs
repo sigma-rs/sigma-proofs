@@ -53,6 +53,19 @@ impl SigmaProtocol for SchnorrZkp {
             false => Err(ProofError::VerificationFailure),
         }
     }
+    
+    fn serialize_batchable(
+        &self,
+        _commitment: &Self::Commitment,
+        _challenge: &Self::Challenge,
+        _response: &Self::Response,
+    ) -> Vec<u8> {
+        todo!()
+    }
+    
+    fn deserialize_batchable(&self, _data: &[u8]) -> Option<(Self::Commitment, Self::Response)> {
+        todo!()
+    }
 }
 
 #[allow(non_snake_case)]

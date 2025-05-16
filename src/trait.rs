@@ -66,12 +66,10 @@ pub trait SigmaProtocol {
     /// Panics if serialization is not supported for this protocol.
     fn serialize_batchable(
         &self,
-        _commitment: &Self::Commitment,
-        _challenge: &Self::Challenge,
-        _response: &Self::Response,
-    ) -> Vec<u8> {
-        panic!("serialize_batchable not implemented for this protocol")
-    }
+        commitment: &Self::Commitment,
+        challenge: &Self::Challenge,
+        response: &Self::Response,
+    ) -> Vec<u8>;
 
     /// Deserializes a proof transcript from bytes.
     ///
@@ -79,12 +77,7 @@ pub trait SigmaProtocol {
     ///
     /// # Panics
     /// Panics if deserialization is not supported for this protocol.
-    fn deserialize_batchable(
-        &self,
-        _data: &[u8]
-    ) -> Option<(Self::Commitment, Self::Response)> {
-        panic!("deserialize_batchable not implemented for this protocol")
-    }
+    fn deserialize_batchable(&self, _data: &[u8]) -> Option<(Self::Commitment, Self::Response)>;
 }
 
 pub trait CompactProtocol: SigmaProtocol {

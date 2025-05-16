@@ -9,6 +9,8 @@
 //!
 //! These constructions preserve zero-knowledge properties and follow standard Sigma protocol composition techniques.
 
+use std::convert::TryInto;
+
 use crate::{
     SigmaProtocol,
     SigmaProtocolSimulator,
@@ -98,6 +100,43 @@ where
             (Ok(()), Ok(())) => Ok(()),
             _ => Err(ProofError::VerificationFailure),
         }
+    }
+
+    fn serialize_batchable(
+        &self,
+        commitment: &Self::Commitment,
+        challenge: &Self::Challenge,
+        response: &Self::Response,
+    ) -> Vec<u8> {
+        let ser0 = self.protocol0.serialize_batchable(&commitment.0, challenge, &response.0);
+        let ser1 = self.protocol1.serialize_batchable(&commitment.1, challenge, &response.1);
+        let len0 = ser0.len() as u32;
+
+        let mut out = ser0;
+        out.extend(ser1);
+        out.extend(&len0.to_le_bytes()); // append length hint as trailer
+        out
+    }
+
+    fn deserialize_batchable(&self, data: &[u8]) -> Option<(Self::Commitment, Self::Response)> {   
+        if data.len() < 4 {
+            return None; // not enough bytes to contain the length suffix
+        }
+    
+        // Split off the last 4 bytes as the trailer
+        let (proof_data, len_bytes) = data.split_at(data.len() - 4);
+        let len0 = u32::from_le_bytes(len_bytes.try_into().ok()?) as usize;
+    
+        if proof_data.len() < len0 {
+            return None; // length hint exceeds available bytes
+        }
+    
+        let (ser0, ser1) = proof_data.split_at(len0);
+    
+        let (commitment0, response0) = self.protocol0.deserialize_batchable(ser0)?;
+        let (commitment1, response1) = self.protocol1.deserialize_batchable(ser1)?;
+    
+        Some(((commitment0, commitment1), (response0, response1)))
     }
 }
 
@@ -240,5 +279,57 @@ where
             (Ok(()), Ok(())) => Ok(()),
             _ => Err(ProofError::VerificationFailure),
         }
+    }
+
+    fn serialize_batchable(
+        &self,
+        commitment: &Self::Commitment,
+        challenge: &Self::Challenge,
+        response: &Self::Response,
+    ) -> Vec<u8> {
+        let (ch0, resp0, resp1) = response;
+        let ch1 = *challenge - *ch0;
+
+        let ser0 = self.protocol0.serialize_batchable(&commitment.0, ch0, resp0);
+        let ser1 = self.protocol1.serialize_batchable(&commitment.1, &ch1, resp1);
+
+        let mut out = ser0.clone();
+        out.extend(&ser1);
+        out.extend(ch0.to_repr().as_ref()); // serialize ch0
+        out.extend(&(ser0.len() as u32).to_le_bytes()); // append len0 (length of ser0)
+
+        out
+    }
+
+    fn deserialize_batchable(&self, data: &[u8]) -> Option<(Self::Commitment, Self::Response)> {
+        // The challenge is appended as `Challenge::Repr`, which must be a fixed size
+        let repr_len = <C as PrimeField>::Repr::default().as_ref().len();
+        if data.len() < repr_len + 4 {
+            return None;
+        }
+
+        let len0_bytes = &data[data.len() - 4..];
+        let ch0_bytes = &data[data.len() - 4 - repr_len..data.len() - 4];
+        let proof_data = &data[..data.len() - repr_len - 4];
+
+        let len0 = u32::from_le_bytes(len0_bytes.try_into().ok()?) as usize;
+        if proof_data.len() < len0 {
+            return None;
+        }
+
+        let mut repr = <C as PrimeField>::Repr::default();
+        repr.as_mut().copy_from_slice(ch0_bytes);
+
+        let result_ctoption = C::from_repr(repr);
+        if (!result_ctoption.is_some()).into() {
+            return None;
+        }
+        let ch0 = result_ctoption.unwrap();
+
+        let (proof0_bytes, proof1_bytes) = proof_data.split_at(len0);
+        let (commitment0, response0) = self.protocol0.deserialize_batchable(proof0_bytes)?;
+        let (commitment1, response1) = self.protocol1.deserialize_batchable(proof1_bytes)?;
+
+        Some(((commitment0, commitment1), (ch0, response0, response1)))
     }
 }

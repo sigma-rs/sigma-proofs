@@ -16,4 +16,7 @@ pub enum ProofError {
     /// Occurs during batch verification if the batch parameters do not have the right size.
     #[error("Mismatched parameter sizes for batch verification.")]
     BatchSizeMismatch,
+    /// Occurs when a feature is not implemented yet.
+    #[error("The method is not yet implemented for this struct")]
+    NotImplemented(&'static str),
 }
