@@ -46,6 +46,7 @@ where
 impl<G> ProofBuilder<G>
 where
     G: Group + GroupSerialisation,
+    ShakeCodec<G>: Clone,
 {
     /// Creates a new proof builder with a Schnorr protocol instance using the given domain separator.
     pub fn new(domain_sep: &[u8]) -> Self {

@@ -52,7 +52,7 @@ impl<P, C, G> NISigmaProtocol<P, C, G>
 where
     G: Group + GroupEncoding,
     P: SigmaProtocol<Commitment = Vec<G>, Challenge = <G as Group>::Scalar>,
-    C: Codec<Challenge = <G as Group>::Scalar>,
+    C: Codec<Challenge = <G as Group>::Scalar> + Clone,
 {
     /// Creates a new non-interactive Sigma protocol, identified by a domain separator (usually fixed per protocol instantiation), and an initialized Sigma protocol instance.
     pub fn new(iv: &[u8], instance: P) -> Self {
@@ -67,7 +67,7 @@ where
 
     /// Produces a non-interactive proof for a witness and serializes it as a vector of bytes.
     pub fn prove(&mut self, witness: &P::Witness, rng: &mut (impl RngCore + CryptoRng)) -> Vec<u8> {
-        self.hash_state = C::new(&self.domain_sep);
+        let mut codec = self.hash_state.clone();
 
         let (commitment, prover_state) = self.sigmap.prover_commit(witness, rng);
         // Commitment data for challenge generation
@@ -76,8 +76,7 @@ where
             data.extend_from_slice(commit.to_bytes().as_ref());
         }
         // Fiat Shamir challenge
-        let challenge = self
-            .hash_state
+        let challenge = codec
             .prover_message(&data)
             .verifier_challenge();
         // Prover's response
@@ -93,7 +92,7 @@ where
 
     /// Verify a non-interactive serialized proof and returns a Result: `Ok(())` if the proof verifies successfully, `Err(())` otherwise.
     pub fn verify(&mut self, proof: &[u8]) -> Result<(), ProofError> {
-        self.hash_state = C::new(&self.domain_sep);
+        let mut codec = self.hash_state.clone();
 
         let (commitment, response) = self.sigmap.deserialize_batchable(proof).unwrap();
         // Commitment data for challenge generation
@@ -102,8 +101,7 @@ where
             data.extend_from_slice(commit.to_bytes().as_ref());
         }
         // Recompute the challenge
-        let challenge = self
-            .hash_state
+        let challenge = codec
             .prover_message(&data)
             .verifier_challenge();
         // Verification of the proof

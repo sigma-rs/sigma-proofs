@@ -32,6 +32,7 @@ use num_traits::identities::One;
 const R: usize = 136;
 const N: usize = 136 + 64;
 
+#[derive(Clone)]
 pub struct KeccakPermutationState {
     pub state: [u8; 200],
     pub rate: usize,
@@ -100,6 +101,7 @@ impl KeccakPermutationState {
     }
 }
 
+#[derive(Clone)]
 pub struct KeccakDuplexSponge {
     pub state: KeccakPermutationState,
     pub rate: usize,
@@ -173,6 +175,7 @@ fn cardinal<F: PrimeField>() -> BigUint {
     BigUint::from_bytes_le(bytes.as_ref()) + BigUint::one()
 }
 
+#[derive(Clone)]
 pub struct ByteSchnorrCodec<G, H>
 where
     G: Group + GroupEncoding + GroupSerialisation,
