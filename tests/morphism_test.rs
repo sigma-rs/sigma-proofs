@@ -245,11 +245,14 @@ fn NI_discrete_logarithm() {
     let mut nizk =
         NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>, G>::new(domain_sep, protocol);
 
-    // Prove
-    let proof_bytes = nizk.prove(&witness, &mut rng);
-    // Verify
-    let verified = nizk.verify(&proof_bytes).is_ok();
-    assert!(verified, "Fiat-Shamir Schnorr proof verification failed");
+    // Batchable and compact proofs
+    let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng);
+    let proof_compact_bytes = nizk.prove_compact(&witness, &mut rng);
+    // Verify proofs
+    let verified_batchable = nizk.verify_batchable(&proof_batchable_bytes).is_ok();
+    let verified_compact = nizk.verify_compact(&proof_compact_bytes).is_ok();
+    assert!(verified_batchable, "Fiat-Shamir Schnorr proof verification failed");
+    assert!(verified_compact, "Fiat-Shamir Schnorr proof verification failed");
 }
 
 #[allow(non_snake_case)]
@@ -265,11 +268,14 @@ fn NI_dleq() {
     let mut nizk =
         NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>, G>::new(domain_sep, protocol);
 
-    // Prove
-    let proof_bytes = nizk.prove(&witness, &mut rng);
-    // Verify
-    let verified = nizk.verify(&proof_bytes).is_ok();
-    assert!(verified, "DLEQ proof verification failed");
+    // Batchable and compact proofs
+    let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng);
+    let proof_compact_bytes = nizk.prove_compact(&witness, &mut rng);
+    // Verify proofs
+    let verified_batchable = nizk.verify_batchable(&proof_batchable_bytes).is_ok();
+    let verified_compact = nizk.verify_compact(&proof_compact_bytes).is_ok();
+    assert!(verified_batchable, "Fiat-Shamir Schnorr proof verification failed");
+    assert!(verified_compact, "Fiat-Shamir Schnorr proof verification failed");
 }
 
 #[allow(non_snake_case)]
@@ -285,11 +291,14 @@ fn NI_pedersen_commitment() {
     let mut nizk =
         NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>, G>::new(domain_sep, protocol);
 
-    // Prove
-    let proof_bytes = nizk.prove(&witness, &mut rng);
-    // Verify
-    let verified = nizk.verify(&proof_bytes).is_ok();
-    assert!(verified, "DLEQ proof verification failed");
+    // Batchable and compact proofs
+    let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng);
+    let proof_compact_bytes = nizk.prove_compact(&witness, &mut rng);
+    // Verify proofs
+    let verified_batchable = nizk.verify_batchable(&proof_batchable_bytes).is_ok();
+    let verified_compact = nizk.verify_compact(&proof_compact_bytes).is_ok();
+    assert!(verified_batchable, "Fiat-Shamir Schnorr proof verification failed");
+    assert!(verified_compact, "Fiat-Shamir Schnorr proof verification failed");
 }
 
 #[allow(non_snake_case)]
@@ -305,11 +314,14 @@ fn NI_pedersen_commitment_dleq() {
     let mut nizk =
         NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>, G>::new(domain_sep, protocol);
 
-    // Prove
-    let proof_bytes = nizk.prove(&witness, &mut rng);
-    // Verify
-    let verified = nizk.verify(&proof_bytes).is_ok();
-    assert!(verified, "DLEQ proof verification failed");
+    // Batchable and compact proofs
+    let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng);
+    let proof_compact_bytes = nizk.prove_compact(&witness, &mut rng);
+    // Verify proofs
+    let verified_batchable = nizk.verify_batchable(&proof_batchable_bytes).is_ok();
+    let verified_compact = nizk.verify_compact(&proof_compact_bytes).is_ok();
+    assert!(verified_batchable, "Fiat-Shamir Schnorr proof verification failed");
+    assert!(verified_compact, "Fiat-Shamir Schnorr proof verification failed");
 }
 
 #[allow(non_snake_case)]
@@ -325,9 +337,12 @@ fn NI_bbs_blind_commitment_computation() {
     let mut nizk =
         NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>, G>::new(domain_sep, protocol);
 
-    // Prove
-    let proof_bytes = nizk.prove(&witness, &mut rng);
-    // Verify
-    let verified = nizk.verify(&proof_bytes).is_ok();
-    assert!(verified, "DLEQ proof verification failed");
+    // Batchable and compact proofs
+    let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng);
+    let proof_compact_bytes = nizk.prove_compact(&witness, &mut rng);
+    // Verify proofs
+    let verified_batchable = nizk.verify_batchable(&proof_batchable_bytes).is_ok();
+    let verified_compact = nizk.verify_compact(&proof_compact_bytes).is_ok();
+    assert!(verified_batchable, "Fiat-Shamir Schnorr proof verification failed");
+    assert!(verified_compact, "Fiat-Shamir Schnorr proof verification failed");
 }

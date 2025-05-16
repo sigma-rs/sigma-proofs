@@ -5,10 +5,7 @@
 //! through a group morphism abstraction (see Maurer09).
 
 use crate::{
-    GroupMorphismPreimage,
-    serialisation::GroupSerialisation, 
-    SigmaProtocol,
-    ProofError,
+    serialisation::GroupSerialisation, CompactProtocol, GroupMorphismPreimage, ProofError, SigmaProtocol
 };
 
 use ff::{Field, PrimeField};
@@ -81,7 +78,7 @@ where
         }
     }
 
-    /// Serializes the proof (`commitment`, `response`) into a batchable format for transmission.
+    /// Serializes the proof into a batchable (`commitment`, `response`) format for transmission.
     fn serialize_batchable(
         &self,
         commitment: &Self::Commitment,
@@ -89,32 +86,35 @@ where
         response: &Self::Response,
     ) -> Vec<u8> {
         let mut bytes = Vec::new();
-        let scalar_nb = self.0.morphism.num_scalars;
-        let point_nb = self.0.morphism.num_statements();
+        let commit_nb = self.0.morphism.num_statements();
+        let response_nb = self.0.morphism.num_scalars;
 
         // Serialize commitments
-        for commit in commitment.iter().take(point_nb) {
+        for commit in commitment.iter().take(commit_nb) {
             bytes.extend_from_slice(&G::serialize_element(commit));
         }
 
         // Serialize responses
-        for response in response.iter().take(scalar_nb) {
+        for response in response.iter().take(response_nb) {
             bytes.extend_from_slice(&G::serialize_scalar(response));
         }
         bytes
     }
 
     /// Deserializes a batchable proof format back into (`commitment`, `response`).
-    fn deserialize_batchable(&self, data: &[u8]) -> Option<(Self::Commitment, Self::Response)> {
-        let scalar_nb = self.0.morphism.num_scalars;
-        let point_nb = self.0.morphism.num_statements();
+    fn deserialize_batchable(
+        &self,
+        data: &[u8]
+    ) -> Option<(Self::Commitment, Self::Response)> {
+        let commit_nb = self.0.morphism.num_statements();
+        let response_nb = self.0.morphism.num_scalars;
 
-        let point_size = G::generator().to_bytes().as_ref().len();
-        let scalar_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
+        let commit_size = G::generator().to_bytes().as_ref().len();
+        let response_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
             .as_ref()
             .len();
 
-        let expected_len = scalar_nb * scalar_size + point_nb * point_size;
+        let expected_len = response_nb * response_size + commit_nb * commit_size;
         if data.len() != expected_len {
             return None;
         }
@@ -122,18 +122,18 @@ where
         let mut commitments: Self::Commitment = Vec::new();
         let mut responses: Self::Response = Vec::new();
 
-        for i in 0..point_nb {
-            let start = i * point_size;
-            let end = start + point_size;
+        for i in 0..commit_nb {
+            let start = i * commit_size;
+            let end = start + commit_size;
 
             let slice = &data[start..end];
             let elem = G::deserialize_element(slice)?;
             commitments.push(elem);
         }
 
-        for i in 0..scalar_nb {
-            let start = point_nb * point_size + i * scalar_size;
-            let end = start + scalar_size;
+        for i in 0..response_nb {
+            let start = commit_nb * commit_size + i * response_size;
+            let end = start + response_size;
 
             let slice = &data[start..end];
             let scalar = G::deserialize_scalar(slice)?;
@@ -141,5 +141,78 @@ where
         }
 
         Some((commitments, responses))
+    }
+}
+
+impl<G> CompactProtocol for SchnorrProof<G>
+where
+    G: Group + GroupEncoding + GroupSerialisation,
+{
+    fn get_commitment(
+        &self,
+        challenge: &Self::Challenge,
+        response: &Self::Response
+    ) -> Self::Commitment {
+        let response_image = self.0.morphism.evaluate(response);
+        let image= self.0.image();
+        
+        let mut commitment = Vec::new();
+        for i in 0..image.len() {
+            commitment.push(response_image[i] - image[i] * challenge);
+        }
+        commitment
+    }
+
+    /// Serializes the proof into a compact (`challenge`, `response`) format for transmission.
+    fn serialize_compact(
+        &self,
+        _commitment: &Self::Commitment,
+        challenge: &Self::Challenge,
+        response: &Self::Response,
+    ) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        let response_nb = self.0.morphism.num_scalars;
+
+        // Serialize challenge
+        bytes.extend_from_slice(&G::serialize_scalar(challenge));
+
+        // Serialize responses
+        for response in response.iter().take(response_nb) {
+            bytes.extend_from_slice(&G::serialize_scalar(response));
+        }
+        bytes
+    }
+
+    /// Deserializes a compact proof format back into (`challenge`, `response`).
+    fn deserialize_compact(
+        &self,
+        data: &[u8]
+    ) -> Option<(Self::Challenge, Self::Response)> {
+        let response_nb = self.0.morphism.num_scalars;
+        let response_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
+            .as_ref()
+            .len();
+
+        let expected_len = (response_nb + 1) * response_size;
+
+        if data.len() != expected_len {
+            return None;
+        }
+
+        let mut responses: Self::Response = Vec::new();
+
+        let slice = &data[0..response_size];
+        let challenge = G::deserialize_scalar(slice)?;
+
+        for i in 0..response_nb {
+            let start = (i + 1) * response_size;
+            let end = start + response_size;
+
+            let slice = &data[start..end];
+            let scalar = G::deserialize_scalar(slice)?;
+            responses.push(scalar);
+        }
+
+        Some((challenge, responses))
     }
 }

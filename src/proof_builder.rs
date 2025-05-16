@@ -101,10 +101,10 @@ where
     /// - `rng`: A random number generator
     ///
     /// # Returns
-    /// A serialized proof as a vector of bytes.
+    /// A serialized proof as a vector of bytes in batchable ('commitment', 'response') format.
     pub fn prove(&mut self, witness: &[<G as Group>::Scalar], rng: &mut (impl RngCore + CryptoRng)) -> Vec<u8> {
         let witness_tmp = witness.to_vec();
-        self.protocol.prove(&witness_tmp, rng)
+        self.protocol.prove_batchable(&witness_tmp, rng)
     }
 
     /// Verifies a serialized proof against the current statement.
@@ -115,6 +115,15 @@ where
     /// # Returns
     /// `Ok(())` if the proof is valid, or a [`ProofError`] if verification fails.
     pub fn verify(&mut self, proof: &[u8]) -> Result<(), ProofError> {
-        self.protocol.verify(proof)
+        self.protocol.verify_batchable(proof)
+    }
+
+    pub fn prove_compact(&mut self, witness: &[<G as Group>::Scalar], rng: &mut (impl RngCore + CryptoRng)) -> Vec<u8> {
+        let witness_tmp = witness.to_vec();
+        self.protocol.prove_compact(&witness_tmp, rng)
+    }
+
+    pub fn verify_compact(&mut self, proof: &[u8]) -> Result<(), ProofError> {
+        self.protocol.verify_compact(proof)
     }
 }

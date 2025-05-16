@@ -14,9 +14,7 @@
 //! - `G`: the group used for commitments and operations (`Group` trait).
 
 use crate::{
-    codec::Codec,
-    SigmaProtocol,
-    ProofError
+    codec::Codec, CompactProtocol, ProofError, SigmaProtocol
 };
 
 use group::{Group, GroupEncoding};
@@ -65,8 +63,12 @@ where
         }
     }
 
-    /// Produces a non-interactive proof for a witness and serializes it as a vector of bytes.
-    pub fn prove(&mut self, witness: &P::Witness, rng: &mut (impl RngCore + CryptoRng)) -> Vec<u8> {
+    /// Produces a non-interactive proof for a witness.
+    pub fn prove(
+        &mut self,
+        witness: &P::Witness,
+        rng: &mut (impl RngCore + CryptoRng)
+    ) -> (P::Commitment, P::Challenge, P::Response) {
         let mut codec = self.hash_state.clone();
 
         let (commitment, prover_state) = self.sigmap.prover_commit(witness, rng);
@@ -86,16 +88,53 @@ where
             .sigmap
             .verifier(&commitment, &challenge, &response)
             .is_ok());
+        (commitment, challenge, response)
+    }
+
+    /// Verify a non-interactive proof and returns a Result: `Ok(())` if the proof verifies successfully, `Err(())` otherwise.
+    pub fn verify(
+        &mut self,
+        commitment: &P::Commitment,
+        challenge: &P::Challenge,
+        response: &P::Response
+    ) -> Result<(), ProofError> {
+        let mut codec = self.hash_state.clone();
+
+        // Commitment data for expected challenge generation
+        let mut data = Vec::new();
+        for commit in commitment {
+            data.extend_from_slice(commit.to_bytes().as_ref());
+        }
+        // Recompute the challenge
+        let expected_challenge = codec
+            .prover_message(&data)
+            .verifier_challenge();
+        // Verification of the proof
+        match *challenge == expected_challenge {
+            true => self.sigmap.verifier(commitment, challenge, response),
+            false => Err(ProofError::VerificationFailure),
+        }
+    }
+
+    pub fn prove_batchable(
+        &mut self,
+        witness: &P::Witness,
+        rng: &mut (impl RngCore + CryptoRng)
+    ) -> Vec<u8> {
+        let (commitment, challenge, response) = self.prove(witness, rng);
         self.sigmap
             .serialize_batchable(&commitment, &challenge, &response)
     }
 
-    /// Verify a non-interactive serialized proof and returns a Result: `Ok(())` if the proof verifies successfully, `Err(())` otherwise.
-    pub fn verify(&mut self, proof: &[u8]) -> Result<(), ProofError> {
+    pub fn verify_batchable(
+        &mut self,
+        proof: &[u8]
+    ) -> Result<(), ProofError> {
+        let (commitment, response) = self.sigmap.deserialize_batchable(proof).unwrap();
+
         let mut codec = self.hash_state.clone();
 
-        let (commitment, response) = self.sigmap.deserialize_batchable(proof).unwrap();
-        // Commitment data for challenge generation
+        // Commitment data for expected challenge generation
         let mut data = Vec::new();
         for commit in &commitment {
             data.extend_from_slice(commit.to_bytes().as_ref());
@@ -106,5 +145,33 @@ where
             .verifier_challenge();
         // Verification of the proof
         self.sigmap.verifier(&commitment, &challenge, &response)
+    }
+}
+
+impl<P, C, G> NISigmaProtocol<P, C, G>
+where
+    G: Group + GroupEncoding,
+    P: SigmaProtocol<Commitment = Vec<G>, Challenge = <G as Group>::Scalar> + CompactProtocol,
+    C: Codec<Challenge = <G as Group>::Scalar> + Clone,
+{
+    pub fn prove_compact(
+        &mut self,
+        witness: &P::Witness,
+        rng: &mut (impl RngCore + CryptoRng)
+    ) -> Vec<u8> {
+        let (commitment, challenge, response) = self.prove(witness, rng);
+        self.sigmap
+            .serialize_compact(&commitment, &challenge, &response)
+    }
+
+    pub fn verify_compact(
+        &mut self,
+        proof: &[u8]
+    ) -> Result<(), ProofError> {
+        let (challenge, response) = self.sigmap.deserialize_compact(proof).unwrap();
+        // Compute the commitments
+        let commitment = self.sigmap.get_commitment(&challenge, &response);
+        // Verify the proof
+        self.verify(&commitment, &challenge, &response)
     }
 }
