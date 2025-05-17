@@ -3,7 +3,7 @@
 //! This module defines the [`ProofBuilder`] struct, a high-level utility that simplifies
 //! the construction and interaction with zero-knowledge proofs based on Sigma protocols.
 //!
-//! It abstracts over the underlying Schnorr proof, Fiat-Shamir transformation,
+//! It abstracts over the underlying Schnorr protocol, Fiat-Shamir transformation,
 //! and serialization concerns, making it easier to create proofs from linear
 //! relations over cryptographic groups.
 //!
@@ -18,12 +18,12 @@ use rand::{CryptoRng, RngCore};
 
 use crate::{
     codec::ShakeCodec, serialisation::GroupSerialisation, GroupMorphismPreimage, NISigmaProtocol,
-    PointVar, ProofError, ScalarVar, SchnorrProof,
+    PointVar, ProofError, ScalarVar, SchnorrProtocol,
 };
 
 /// A builder that helps construct Sigma proofs for linear group relations.
 ///
-/// This struct wraps a [`SchnorrProof`] over a [`GroupMorphismPreimage`] and applies
+/// This struct wraps a [`SchnorrProtocol`] over a [`GroupMorphismPreimage`] and applies
 /// the Fiat-Shamir transform via [`NISigmaProtocol`]. It provides a user-friendly API
 /// for allocating variables, defining statements, and generating proofs.
 ///
@@ -34,7 +34,7 @@ where
     G: Group + GroupSerialisation,
 {
     /// The underlying Sigma protocol instance with Fiat-Shamir transformation applied.
-    pub protocol: NISigmaProtocol<SchnorrProof<G>, ShakeCodec<G>, G>,
+    pub protocol: NISigmaProtocol<SchnorrProtocol<G>, ShakeCodec<G>, G>,
 }
 
 impl<G> ProofBuilder<G>
@@ -44,9 +44,9 @@ where
 {
     /// Creates a new proof builder with a Schnorr protocol instance using the given domain separator.
     pub fn new(domain_sep: &[u8]) -> Self {
-        let schnorr_proof = SchnorrProof(GroupMorphismPreimage::<G>::new());
+        let schnorr_proof = SchnorrProtocol(GroupMorphismPreimage::<G>::new());
         let protocol =
-            NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>, G>::new(domain_sep, schnorr_proof);
+            NISigmaProtocol::<SchnorrProtocol<G>, ShakeCodec<G>, G>::new(domain_sep, schnorr_proof);
         Self { protocol }
     }
 

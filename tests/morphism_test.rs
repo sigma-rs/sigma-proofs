@@ -6,7 +6,7 @@ use rand::{
 };
 
 use sigma_rs::{
-    codec::ShakeCodec, group_morphism::msm_pr, GroupMorphismPreimage, NISigmaProtocol, SchnorrProof,
+    codec::ShakeCodec, group_morphism::msm_pr, GroupMorphismPreimage, NISigmaProtocol, SchnorrProtocol,
 };
 
 type G = G1Projective;
@@ -222,7 +222,7 @@ fn test_bbs_blind_commitment_computation() {
 }
 
 /// This part tests the implementation of the SigmaProtocol trait for the
-/// SchnorrProof structure as well as the Fiat-Shamir NISigmaProtocol transform
+/// SchnorrProtocol structure as well as the Fiat-Shamir NISigmaProtocol transform
 #[allow(non_snake_case)]
 #[test]
 fn NI_discrete_logarithm() {
@@ -230,10 +230,10 @@ fn NI_discrete_logarithm() {
     let (morphismp, witness) = discrete_logarithm::<G>(&mut rng);
 
     // The SigmaProtocol induced by morphismp
-    let protocol = SchnorrProof(morphismp);
+    let protocol = SchnorrProtocol(morphismp);
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-schnorr";
-    let mut nizk = NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>, G>::new(domain_sep, protocol);
+    let mut nizk = NISigmaProtocol::<SchnorrProtocol<G>, ShakeCodec<G>, G>::new(domain_sep, protocol);
 
     // Batchable and compact proofs
     let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng);
@@ -258,10 +258,10 @@ fn NI_dleq() {
     let (morphismp, witness) = dleq::<G>(&mut rng);
 
     // The SigmaProtocol induced by morphismp
-    let protocol = SchnorrProof(morphismp);
+    let protocol = SchnorrProtocol(morphismp);
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-DLEQ";
-    let mut nizk = NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>, G>::new(domain_sep, protocol);
+    let mut nizk = NISigmaProtocol::<SchnorrProtocol<G>, ShakeCodec<G>, G>::new(domain_sep, protocol);
 
     // Batchable and compact proofs
     let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng);
@@ -286,10 +286,10 @@ fn NI_pedersen_commitment() {
     let (morphismp, witness) = pedersen_commitment::<G>(&mut rng);
 
     // The SigmaProtocol induced by morphismp
-    let protocol = SchnorrProof(morphismp);
+    let protocol = SchnorrProtocol(morphismp);
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-pedersen-commitment";
-    let mut nizk = NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>, G>::new(domain_sep, protocol);
+    let mut nizk = NISigmaProtocol::<SchnorrProtocol<G>, ShakeCodec<G>, G>::new(domain_sep, protocol);
 
     // Batchable and compact proofs
     let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng);
@@ -314,10 +314,10 @@ fn NI_pedersen_commitment_dleq() {
     let (morphismp, witness) = pedersen_commitment_dleq::<G>(&mut rng);
 
     // The SigmaProtocol induced by morphismp
-    let protocol = SchnorrProof(morphismp);
+    let protocol = SchnorrProtocol(morphismp);
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-pedersen-commitment-DLEQ";
-    let mut nizk = NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>, G>::new(domain_sep, protocol);
+    let mut nizk = NISigmaProtocol::<SchnorrProtocol<G>, ShakeCodec<G>, G>::new(domain_sep, protocol);
 
     // Batchable and compact proofs
     let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng);
@@ -342,10 +342,10 @@ fn NI_bbs_blind_commitment_computation() {
     let (morphismp, witness) = bbs_blind_commitment_computation::<G>(&mut rng);
 
     // The SigmaProtocol induced by morphismp
-    let protocol = SchnorrProof(morphismp);
+    let protocol = SchnorrProtocol(morphismp);
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-bbs-blind-commitment-computation";
-    let mut nizk = NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>, G>::new(domain_sep, protocol);
+    let mut nizk = NISigmaProtocol::<SchnorrProtocol<G>, ShakeCodec<G>, G>::new(domain_sep, protocol);
 
     // Batchable and compact proofs
     let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng);

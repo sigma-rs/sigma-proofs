@@ -8,14 +8,14 @@ use sigma_rs::{
 
 use crate::random::SRandom;
 
-pub struct SchnorrProofCustom<G>
+pub struct SchnorrProtocolCustom<G>
 where
     G: SRandom + GroupEncoding + GroupSerialisation,
 {
     pub morphismp: GroupMorphismPreimage<G>,
 }
 
-impl<G> SigmaProtocol for SchnorrProofCustom<G>
+impl<G> SigmaProtocol for SchnorrProtocolCustom<G>
 where
     G: SRandom + GroupEncoding + GroupSerialisation,
 {

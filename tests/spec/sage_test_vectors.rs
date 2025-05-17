@@ -9,13 +9,13 @@ use sigma_rs::{
     GroupMorphismPreimage, NISigmaProtocol,
 };
 
-use crate::{custom_schnorr_proof::SchnorrProofCustom, random::SRandom, test_drng::TestDRNG};
+use crate::{custom_schnorr_proof::SchnorrProtocolCustom, random::SRandom, test_drng::TestDRNG};
 
 type Preimage<G> = GroupMorphismPreimage<G>;
 
 type Gp = G1Projective;
 type Codec = ByteSchnorrCodec<Gp, KeccakDuplexSponge>;
-type SigmaP = SchnorrProofCustom<Gp>;
+type SigmaP = SchnorrProtocolCustom<Gp>;
 type NISigmaP = NISigmaProtocol<SigmaP, Codec, Gp>;
 
 #[allow(non_snake_case)]
@@ -192,13 +192,13 @@ fn bbs_blind_commitment_computation<G: Group + GroupEncoding + SRandom>(
 }
 
 /// This part tests the implementation of the SigmaProtocol trait for the
-/// SchnorrProof structure as well as the Fiat-Shamir NISigmaProtocol transform
+/// SchnorrProtocol structure as well as the Fiat-Shamir NISigmaProtocol transform
 #[allow(non_snake_case)]
 fn NI_discrete_logarithm(seed: &[u8], context: &[u8]) -> (Vec<Scalar>, Vec<u8>) {
     let mut rng = TestDRNG::new(seed);
     let (morphismp, witness) = discrete_logarithm::<Gp>(&mut rng);
 
-    let protocol = SchnorrProofCustom { morphismp };
+    let protocol = SchnorrProtocolCustom { morphismp };
     let domain_sep: Vec<u8> = context.to_vec();
     let mut nizk = NISigmaP::new(&domain_sep, protocol);
 
@@ -213,7 +213,7 @@ fn NI_dleq(seed: &[u8], context: &[u8]) -> (Vec<Scalar>, Vec<u8>) {
     let mut rng = TestDRNG::new(seed);
     let (morphismp, witness) = dleq::<Gp>(&mut rng);
 
-    let protocol = SchnorrProofCustom { morphismp };
+    let protocol = SchnorrProtocolCustom { morphismp };
     let domain_sep: Vec<u8> = context.to_vec();
     let mut nizk = NISigmaP::new(&domain_sep, protocol);
 
@@ -228,7 +228,7 @@ fn NI_pedersen_commitment(seed: &[u8], context: &[u8]) -> (Vec<Scalar>, Vec<u8>)
     let mut rng = TestDRNG::new(seed);
     let (morphismp, witness) = pedersen_commitment::<Gp>(&mut rng);
 
-    let protocol = SchnorrProofCustom { morphismp };
+    let protocol = SchnorrProtocolCustom { morphismp };
     let domain_sep: Vec<u8> = context.to_vec();
     let mut nizk = NISigmaP::new(&domain_sep, protocol);
 
@@ -243,7 +243,7 @@ fn NI_pedersen_commitment_dleq(seed: &[u8], context: &[u8]) -> (Vec<Scalar>, Vec
     let mut rng = TestDRNG::new(seed);
     let (morphismp, witness) = pedersen_commitment_dleq::<Gp>(&mut rng);
 
-    let protocol = SchnorrProofCustom { morphismp };
+    let protocol = SchnorrProtocolCustom { morphismp };
     let domain_sep: Vec<u8> = context.to_vec();
     let mut nizk = NISigmaP::new(&domain_sep, protocol);
 
@@ -258,7 +258,7 @@ fn NI_bbs_blind_commitment_computation(seed: &[u8], context: &[u8]) -> (Vec<Scal
     let mut rng = TestDRNG::new(seed);
     let (morphismp, witness) = bbs_blind_commitment_computation::<Gp>(&mut rng);
 
-    let protocol = SchnorrProofCustom { morphismp };
+    let protocol = SchnorrProtocolCustom { morphismp };
     let domain_sep: Vec<u8> = context.to_vec();
     let mut nizk = NISigmaP::new(&domain_sep, protocol);
 

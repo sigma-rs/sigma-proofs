@@ -1,6 +1,6 @@
 //! Implementation of the generic Schnorr Sigma Protocol over a group `G`.
 //!
-//! This module defines the [`SchnorrProof`] structure, which implements
+//! This module defines the [`SchnorrProtocol`] structure, which implements
 //! a Sigma protocol proving different types of discrete logarithm relations (eg. Schnorr, Pedersen's commitments)
 //! through a group morphism abstraction (see Maurer09).
 
@@ -16,11 +16,11 @@ use rand::{CryptoRng, Rng};
 /// A Schnorr protocol proving knowledge some discrete logarithm relation.
 ///
 /// The specific proof instance is defined by a [`GroupMorphismPreimage`] over a group `G`.
-pub struct SchnorrProof<G: Group + GroupEncoding + GroupSerialisation>(
+pub struct SchnorrProtocol<G: Group + GroupEncoding + GroupSerialisation>(
     pub GroupMorphismPreimage<G>,
 );
 
-impl<G> SigmaProtocol for SchnorrProof<G>
+impl<G> SigmaProtocol for SchnorrProtocol<G>
 where
     G: Group + GroupEncoding + GroupSerialisation,
 {
@@ -147,7 +147,7 @@ where
     }
 }
 
-impl<G> CompactProtocol for SchnorrProof<G>
+impl<G> CompactProtocol for SchnorrProtocol<G>
 where
     G: Group + GroupEncoding + GroupSerialisation,
 {
