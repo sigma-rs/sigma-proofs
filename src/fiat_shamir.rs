@@ -118,6 +118,7 @@ where
         let (commitment, challenge, response) = self.prove(witness, rng);
         self.sigmap
             .serialize_batchable(&commitment, &challenge, &response)
+            .unwrap()
     }
 
     pub fn verify_batchable(&mut self, proof: &[u8]) -> Result<(), ProofError> {
@@ -151,6 +152,7 @@ where
         let (commitment, challenge, response) = self.prove(witness, rng);
         self.sigmap
             .serialize_compact(&commitment, &challenge, &response)
+            .unwrap()
     }
 
     pub fn verify_compact(&mut self, proof: &[u8]) -> Result<(), ProofError> {

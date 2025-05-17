@@ -37,7 +37,7 @@ fn discrete_logarithm() {
         _ => false,
     };
 
-    // Prove and verify a proof
+    // Prove and verify a compact proof
     let compact_proof_bytes = proof_builder.prove_compact(&witness, &mut rng);
     let compact_result = match proof_builder.verify_compact(&compact_proof_bytes) {
         Ok(_) => true,

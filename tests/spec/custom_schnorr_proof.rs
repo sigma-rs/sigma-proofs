@@ -82,7 +82,7 @@ where
         commitment: &Self::Commitment,
         _challenge: &Self::Challenge,
         response: &Self::Response,
-    ) -> Vec<u8> {
+    ) -> Result<Vec<u8>, ProofError> {
         let mut bytes = Vec::new();
         let scalar_nb = self.morphismp.morphism.num_scalars;
         let point_nb = self.morphismp.morphism.num_statements();
@@ -96,10 +96,10 @@ where
             scalar_bytes.reverse();
             bytes.extend_from_slice(&scalar_bytes);
         }
-        bytes
+        Ok(bytes)
     }
 
-    fn deserialize_batchable(&self, data: &[u8]) -> Option<(Self::Commitment, Self::Response)> {
+    fn deserialize_batchable(&self, data: &[u8]) -> Result<(Self::Commitment, Self::Response), ProofError> {
         let scalar_nb = self.morphismp.morphism.num_scalars;
         let point_nb = self.morphismp.morphism.num_statements();
 
@@ -110,7 +110,7 @@ where
 
         let expected_len = scalar_nb * scalar_size + point_nb * point_size;
         if data.len() != expected_len {
-            return None;
+            return Err(ProofError::BatchSizeMismatch);
         }
 
         let mut commitments: Self::Commitment = Vec::new();
@@ -121,7 +121,7 @@ where
             let end = start + point_size;
 
             let slice = &data[start..end];
-            let elem = G::deserialize_element(slice)?;
+            let elem = G::deserialize_element(slice).ok_or(ProofError::GroupSerialisationFailure)?;
             commitments.push(elem);
         }
 
@@ -131,10 +131,10 @@ where
 
             let mut slice = data[start..end].to_vec();
             slice.reverse();
-            let scalar = G::deserialize_scalar(&slice)?;
+            let scalar = G::deserialize_scalar(&slice).ok_or(ProofError::GroupSerialisationFailure)?;
             responses.push(scalar);
         }
 
-        Some((commitments, responses))
+        Ok((commitments, responses))
     }
 }

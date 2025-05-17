@@ -54,11 +54,11 @@ impl SigmaProtocol for SchnorrZkp {
         _commitment: &Self::Commitment,
         _challenge: &Self::Challenge,
         _response: &Self::Response,
-    ) -> Vec<u8> {
+    ) -> Result<Vec<u8>, ProofError> {
         todo!()
     }
 
-    fn deserialize_batchable(&self, _data: &[u8]) -> Option<(Self::Commitment, Self::Response)> {
+    fn deserialize_batchable(&self, _data: &[u8]) -> Result<(Self::Commitment, Self::Response), ProofError> {
         todo!()
     }
 }

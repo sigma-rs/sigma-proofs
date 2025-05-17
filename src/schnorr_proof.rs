@@ -87,7 +87,7 @@ where
         commitment: &Self::Commitment,
         _challenge: &Self::Challenge,
         response: &Self::Response,
-    ) -> Vec<u8> {
+    ) -> Result<Vec<u8>, ProofError> {
         let mut bytes = Vec::new();
         let commit_nb = self.0.morphism.num_statements();
         let response_nb = self.0.morphism.num_scalars;
@@ -101,11 +101,14 @@ where
         for response in response.iter().take(response_nb) {
             bytes.extend_from_slice(&G::serialize_scalar(response));
         }
-        bytes
+        Ok(bytes)
     }
 
     /// Deserializes a batchable proof format back into (`commitment`, `response`).
-    fn deserialize_batchable(&self, data: &[u8]) -> Option<(Self::Commitment, Self::Response)> {
+    fn deserialize_batchable(
+        &self,
+        data: &[u8]
+    ) -> Result<(Self::Commitment, Self::Response), ProofError> {
         let commit_nb = self.0.morphism.num_statements();
         let response_nb = self.0.morphism.num_scalars;
 
@@ -116,7 +119,7 @@ where
 
         let expected_len = response_nb * response_size + commit_nb * commit_size;
         if data.len() != expected_len {
-            return None;
+            return Err(ProofError::BatchSizeMismatch);
         }
 
         let mut commitments: Self::Commitment = Vec::new();
@@ -127,7 +130,7 @@ where
             let end = start + commit_size;
 
             let slice = &data[start..end];
-            let elem = G::deserialize_element(slice)?;
+            let elem = G::deserialize_element(slice).ok_or(ProofError::GroupSerialisationFailure)?;
             commitments.push(elem);
         }
 
@@ -136,11 +139,11 @@ where
             let end = start + response_size;
 
             let slice = &data[start..end];
-            let scalar = G::deserialize_scalar(slice)?;
+            let scalar = G::deserialize_scalar(slice).ok_or(ProofError::GroupSerialisationFailure)?;
             responses.push(scalar);
         }
 
-        Some((commitments, responses))
+        Ok((commitments, responses))
     }
 }
 
@@ -169,7 +172,7 @@ where
         _commitment: &Self::Commitment,
         challenge: &Self::Challenge,
         response: &Self::Response,
-    ) -> Vec<u8> {
+    ) -> Result<Vec<u8>, ProofError> {
         let mut bytes = Vec::new();
         let response_nb = self.0.morphism.num_scalars;
 
@@ -180,11 +183,14 @@ where
         for response in response.iter().take(response_nb) {
             bytes.extend_from_slice(&G::serialize_scalar(response));
         }
-        bytes
+        Ok(bytes)
     }
 
     /// Deserializes a compact proof format back into (`challenge`, `response`).
-    fn deserialize_compact(&self, data: &[u8]) -> Option<(Self::Challenge, Self::Response)> {
+    fn deserialize_compact(
+        &self,
+        data: &[u8]
+    ) -> Result<(Self::Challenge, Self::Response), ProofError> {
         let response_nb = self.0.morphism.num_scalars;
         let response_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
             .as_ref()
@@ -193,23 +199,23 @@ where
         let expected_len = (response_nb + 1) * response_size;
 
         if data.len() != expected_len {
-            return None;
+            return Err(ProofError::BatchSizeMismatch);
         }
 
         let mut responses: Self::Response = Vec::new();
 
         let slice = &data[0..response_size];
-        let challenge = G::deserialize_scalar(slice)?;
+        let challenge = G::deserialize_scalar(slice).ok_or(ProofError::GroupSerialisationFailure)?;
 
         for i in 0..response_nb {
             let start = (i + 1) * response_size;
             let end = start + response_size;
 
             let slice = &data[start..end];
-            let scalar = G::deserialize_scalar(slice)?;
+            let scalar = G::deserialize_scalar(slice).ok_or(ProofError::GroupSerialisationFailure)?;
             responses.push(scalar);
         }
 
-        Some((challenge, responses))
+        Ok((challenge, responses))
     }
 }
