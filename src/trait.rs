@@ -67,7 +67,9 @@ pub trait SigmaProtocol {
         _challenge: &Self::Challenge,
         _response: &Self::Response,
     ) -> Result<Vec<u8>, ProofError> {
-        Err(ProofError::NotImplemented("serialize_batchable not implemented for this protocol"))
+        Err(ProofError::NotImplemented(
+            "serialize_batchable not implemented for this protocol",
+        ))
     }
 
     /// Deserializes a batchable proof from bytes.
@@ -75,9 +77,11 @@ pub trait SigmaProtocol {
     /// Returns `Some((commitment, response))` if parsing is successful, otherwise `None`.
     fn deserialize_batchable(
         &self,
-        _data: &[u8]
+        _data: &[u8],
     ) -> Result<(Self::Commitment, Self::Response), ProofError> {
-        Err(ProofError::NotImplemented("deserialize_batchable not implemented for this protocol"))
+        Err(ProofError::NotImplemented(
+            "deserialize_batchable not implemented for this protocol",
+        ))
     }
 }
 
@@ -85,13 +89,13 @@ pub trait SigmaProtocol {
 ///
 /// This is possible if it is possible to retrieve the commitments from the challenge and responses.
 /// This is what the get_commitment function is for.
-/// 
+///
 /// ## Minimal Implementation
 /// Types implementing `CompactProtocol` must define:
 /// - `get_commitment`
 pub trait CompactProtocol: SigmaProtocol {
     /// Returns the commitment for which ('commitment', 'challenge', 'response') is a valid transcription
-    /// 
+    ///
     /// This function allows to omit commitment in compact proofs of the type ('challenge', 'response')
     fn get_commitment(
         &self,
@@ -106,7 +110,9 @@ pub trait CompactProtocol: SigmaProtocol {
         _challenge: &Self::Challenge,
         _response: &Self::Response,
     ) -> Result<Vec<u8>, ProofError> {
-        Err(ProofError::NotImplemented("serialize_compact not implemented for this protocol"))
+        Err(ProofError::NotImplemented(
+            "serialize_compact not implemented for this protocol",
+        ))
     }
 
     /// Deserializes a compact proof from bytes.
@@ -114,9 +120,11 @@ pub trait CompactProtocol: SigmaProtocol {
     /// Returns `Some((challenge, response))` if parsing is successful, otherwise `None`.
     fn deserialize_compact(
         &self,
-        _data: &[u8]
+        _data: &[u8],
     ) -> Result<(Self::Challenge, Self::Response), ProofError> {
-        Err(ProofError::NotImplemented("deserialize_compact not implemented for this protocol"))
+        Err(ProofError::NotImplemented(
+            "deserialize_compact not implemented for this protocol",
+        ))
     }
 }
 

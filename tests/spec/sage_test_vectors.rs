@@ -9,11 +9,7 @@ use sigma_rs::{
     GroupMorphismPreimage, NISigmaProtocol,
 };
 
-use crate::{
-    custom_schnorr_protocol::SchnorrProtocolCustom, 
-    random::SRandom, 
-    test_drng::TestDRNG
-};
+use crate::{custom_schnorr_protocol::SchnorrProtocolCustom, random::SRandom, test_drng::TestDRNG};
 
 type Preimage<G> = GroupMorphismPreimage<G>;
 

@@ -17,8 +17,8 @@ use group::{Group, GroupEncoding};
 use rand::{CryptoRng, RngCore};
 
 use crate::{
-    codec::ShakeCodec, GroupMorphismPreimage, NISigmaProtocol,
-    PointVar, ProofError, ScalarVar, SchnorrProtocol,
+    codec::ShakeCodec, GroupMorphismPreimage, NISigmaProtocol, PointVar, ProofError, ScalarVar,
+    SchnorrProtocol,
 };
 
 /// A builder that helps construct Sigma proofs for linear group relations.
@@ -45,8 +45,10 @@ where
     /// Creates a new proof builder with a Schnorr protocol instance using the given domain separator.
     pub fn new(domain_sep: &[u8]) -> Self {
         let schnorr_protocol = SchnorrProtocol(GroupMorphismPreimage::<G>::new());
-        let protocol =
-            NISigmaProtocol::<SchnorrProtocol<G>, ShakeCodec<G>, G>::new(domain_sep, schnorr_protocol);
+        let protocol = NISigmaProtocol::<SchnorrProtocol<G>, ShakeCodec<G>, G>::new(
+            domain_sep,
+            schnorr_protocol,
+        );
         Self { protocol }
     }
 

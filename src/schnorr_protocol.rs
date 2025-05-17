@@ -5,25 +5,19 @@
 //! through a group morphism abstraction (see Maurer09).
 
 use crate::{
-    group_serialization::*,
-    GroupMorphismPreimage, 
-    ProofError,
-    SigmaProtocol,
-    CompactProtocol,
+    group_serialization::*, CompactProtocol, GroupMorphismPreimage, ProofError, SigmaProtocol,
     SigmaProtocolSimulator,
 };
 
+use core::iter;
 use ff::{Field, PrimeField};
 use group::{Group, GroupEncoding};
-use rand::{CryptoRng, Rng};
-use std::iter;
+use rand::{CryptoRng, RngCore};
 
 /// A Schnorr protocol proving knowledge some discrete logarithm relation.
 ///
 /// The specific proof instance is defined by a [`GroupMorphismPreimage`] over a group `G`.
-pub struct SchnorrProtocol<G: Group + GroupEncoding>(
-    pub GroupMorphismPreimage<G>,
-);
+pub struct SchnorrProtocol<G: Group + GroupEncoding>(pub GroupMorphismPreimage<G>);
 
 impl<G> SigmaProtocol for SchnorrProtocol<G>
 where
@@ -39,7 +33,7 @@ where
     fn prover_commit(
         &self,
         witness: &Self::Witness,
-        mut rng: &mut (impl Rng + CryptoRng),
+        mut rng: &mut (impl RngCore + CryptoRng),
     ) -> (Self::Commitment, Self::ProverState) {
         let nonces: Vec<G::Scalar> = (0..self.0.morphism.num_scalars)
             .map(|_| G::Scalar::random(&mut rng))
@@ -112,7 +106,7 @@ where
     /// Deserializes a batchable proof format back into (`commitment`, `response`).
     fn deserialize_batchable(
         &self,
-        data: &[u8]
+        data: &[u8],
     ) -> Result<(Self::Commitment, Self::Response), ProofError> {
         let commit_nb = self.0.morphism.num_statements();
         let response_nb = self.0.morphism.num_scalars;
@@ -144,7 +138,8 @@ where
             let end = start + response_size;
 
             let slice = &data[start..end];
-            let scalar = deserialize_scalar::<G>(slice).ok_or(ProofError::GroupSerializationFailure)?;
+            let scalar =
+                deserialize_scalar::<G>(slice).ok_or(ProofError::GroupSerializationFailure)?;
             responses.push(scalar);
         }
 
@@ -194,7 +189,7 @@ where
     /// Deserializes a compact proof format back into (`challenge`, `response`).
     fn deserialize_compact(
         &self,
-        data: &[u8]
+        data: &[u8],
     ) -> Result<(Self::Challenge, Self::Response), ProofError> {
         let response_nb = self.0.morphism.num_scalars;
         let response_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
@@ -210,14 +205,16 @@ where
         let mut responses: Self::Response = Vec::new();
 
         let slice = &data[0..response_size];
-        let challenge = deserialize_scalar::<G>(slice).ok_or(ProofError::GroupSerializationFailure)?;
+        let challenge =
+            deserialize_scalar::<G>(slice).ok_or(ProofError::GroupSerializationFailure)?;
 
         for i in 0..response_nb {
             let start = (i + 1) * response_size;
             let end = start + response_size;
 
             let slice = &data[start..end];
-            let scalar = deserialize_scalar::<G>(slice).ok_or(ProofError::GroupSerializationFailure)?;
+            let scalar =
+                deserialize_scalar::<G>(slice).ok_or(ProofError::GroupSerializationFailure)?;
             responses.push(scalar);
         }
 
@@ -232,7 +229,7 @@ where
     fn simulate_proof(
         &self,
         challenge: &Self::Challenge,
-        rng: &mut (impl Rng + CryptoRng),
+        rng: &mut (impl RngCore + CryptoRng),
     ) -> (Self::Commitment, Self::Response) {
         let mut response = Vec::new();
         response.extend(iter::repeat(G::Scalar::random(rng)).take(self.0.morphism.num_scalars));
@@ -241,9 +238,9 @@ where
     }
 
     fn simulate_transcription(
-            &self,
-            rng: &mut (impl Rng + CryptoRng),
-        ) -> (Self::Commitment, Self::Challenge, Self::Response) {
+        &self,
+        rng: &mut (impl RngCore + CryptoRng),
+    ) -> (Self::Commitment, Self::Challenge, Self::Response) {
         let challenge = G::Scalar::random(&mut *rng);
         let (commitment, response) = self.simulate_proof(&challenge, &mut *rng);
         (commitment, challenge, response)

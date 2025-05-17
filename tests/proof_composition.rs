@@ -58,7 +58,10 @@ impl SigmaProtocol for SchnorrZkp {
         todo!()
     }
 
-    fn deserialize_batchable(&self, _data: &[u8]) -> Result<(Self::Commitment, Self::Response), ProofError> {
+    fn deserialize_batchable(
+        &self,
+        _data: &[u8],
+    ) -> Result<(Self::Commitment, Self::Response), ProofError> {
         todo!()
     }
 }

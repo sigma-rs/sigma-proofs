@@ -2,10 +2,7 @@ use ff::PrimeField;
 use group::{Group, GroupEncoding};
 use rand::{CryptoRng, Rng};
 
-use sigma_rs::{
-    group_serialization::*,
-    GroupMorphismPreimage, ProofError, SigmaProtocol,
-};
+use sigma_rs::{group_serialization::*, GroupMorphismPreimage, ProofError, SigmaProtocol};
 
 use crate::random::SRandom;
 
@@ -99,7 +96,10 @@ where
         Ok(bytes)
     }
 
-    fn deserialize_batchable(&self, data: &[u8]) -> Result<(Self::Commitment, Self::Response), ProofError> {
+    fn deserialize_batchable(
+        &self,
+        data: &[u8],
+    ) -> Result<(Self::Commitment, Self::Response), ProofError> {
         let scalar_nb = self.morphismp.morphism.num_scalars;
         let point_nb = self.morphismp.morphism.num_statements();
 
@@ -130,7 +130,8 @@ where
             let end = start + scalar_size;
 
             let slice = data[start..end].to_vec();
-            let scalar = deserialize_scalar::<G>(&slice).ok_or(ProofError::GroupSerializationFailure)?;
+            let scalar =
+                deserialize_scalar::<G>(&slice).ok_or(ProofError::GroupSerializationFailure)?;
             responses.push(scalar);
         }
 

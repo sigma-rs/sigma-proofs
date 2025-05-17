@@ -32,8 +32,3 @@ pub use r#trait::*;
 pub use schnorr_protocol::*;
 
 pub mod codec;
-#[deprecated(
-    since = "0.2.0",
-    note = "This module contains the old implementation of Sigma protocols from Henry de Valence."
-)]
-pub mod old;

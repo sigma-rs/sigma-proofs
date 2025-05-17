@@ -118,7 +118,10 @@ where
         Ok(out)
     }
 
-    fn deserialize_batchable(&self, data: &[u8]) -> Result<(Self::Commitment, Self::Response), ProofError> {
+    fn deserialize_batchable(
+        &self,
+        data: &[u8],
+    ) -> Result<(Self::Commitment, Self::Response), ProofError> {
         if data.len() < 4 {
             return Err(ProofError::GroupSerializationFailure); // not enough bytes to contain the length suffix
         }
@@ -305,7 +308,10 @@ where
         Ok(out)
     }
 
-    fn deserialize_batchable(&self, data: &[u8]) -> Result<(Self::Commitment, Self::Response), ProofError> {
+    fn deserialize_batchable(
+        &self,
+        data: &[u8],
+    ) -> Result<(Self::Commitment, Self::Response), ProofError> {
         // The challenge is appended as `Challenge::Repr`, which must be a fixed size
         let repr_len = <C as PrimeField>::Repr::default().as_ref().len();
         if data.len() < repr_len + 4 {

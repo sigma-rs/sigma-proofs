@@ -20,34 +20,24 @@ exclude = [
 ]
 
 [dependencies]
-merlin = "3"
-rand = { version = "0.8", features = ["std", "rand_chacha"] }
 serde = "1"
 serde_derive = "1"
 thiserror = "1"
-# Disable default features to deselect a backend, then select one below
-curve25519-dalek = { version = "4", default-features = false, features = ["serde", "rand_core", "alloc", "digest", "precomputed-tables", "group"] }
 group = "0.13.0"
 ff = { version = "0.13", features = ["derive"] }
 sha3 = "0.10.8"
-rand_chacha = "0.3"
 hex = "0.4"
 sha2 = "0.10"
 subtle = "2.6.1"
 num-bigint = "0.4.6"
 num-traits = "0.2.19"
 tiny-keccak = { version = "2.0.2", features = ["fips202"] }
+rand = "0.8.5"
+curve25519-dalek = { version = "4", default-features = false, features = ["serde", "rand_core", "alloc", "digest", "precomputed-tables", "group"] }
 
 [dev-dependencies]
-bincode = "1"
-sha2 = "0.10"
-criterion = { version = "0.5", features = ["html_reports"]}
+bincode = "2"
 bls12_381 = "0.8.0"
+sha2 = "0.10"
+criterion = { version = "0.6", features = ["html_reports"]}
 hex-literal = "1.0.0"
-
-[[bench]]
-name = "dleq_benches"
-harness = false
-
-[features]
-debug-transcript = ["merlin/debug-transcript"]
