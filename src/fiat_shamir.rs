@@ -36,8 +36,6 @@ where
     P: SigmaProtocol<Commitment = Vec<G>, Challenge = <G as Group>::Scalar>,
     C: Codec<Challenge = <G as Group>::Scalar>,
 {
-    /// Domain separation string for the Fiat-Shamir transform.
-    pub domain_sep: Vec<u8>,
     /// Current codec state.
     pub hash_state: C,
     /// Underlying Sigma protocol.
@@ -52,10 +50,8 @@ where
 {
     /// Creates a new non-interactive Sigma protocol, identified by a domain separator (usually fixed per protocol instantiation), and an initialized Sigma protocol instance.
     pub fn new(iv: &[u8], instance: P) -> Self {
-        let domain_sep = iv.to_vec();
         let hash_state = C::new(iv);
         Self {
-            domain_sep,
             hash_state,
             sigmap: instance,
         }
