@@ -89,19 +89,15 @@ pub trait CompactProtocol: SigmaProtocol {
 
     fn serialize_compact(
         &self,
-        _commitment: &Self::Commitment,
-        _challenge: &Self::Challenge,
-        _response: &Self::Response,
-    ) -> Vec<u8> {
-        panic!("serialize_compact not implemented for this protocol")
-    }
+        commitment: &Self::Commitment,
+        challenge: &Self::Challenge,
+        response: &Self::Response,
+    ) -> Vec<u8>;
 
     fn deserialize_compact(
         &self,
-        _data: &[u8]
-    ) -> Option<(Self::Challenge, Self::Response)> {
-        panic!("deserialize_compact not implemented for this protocol")
-    }
+        data: &[u8]
+    ) -> Option<(Self::Challenge, Self::Response)>;
 }
 
 /// A trait defining the behavior of a Sigma protocol for which simulation of transcripts is necessary.
@@ -122,16 +118,16 @@ pub trait SigmaProtocolSimulator: SigmaProtocol {
     /// Panics if simulation is not implemented for this protocol.
     fn simulate_proof(
         &self,
-        _challenge: &Self::Challenge,
-        _rng: &mut (impl Rng + CryptoRng),
+        challenge: &Self::Challenge,
+        rng: &mut (impl Rng + CryptoRng),
     ) -> (Self::Commitment, Self::Response);
 
-    /// Simulates an entire protocol transcript including a random challenge.
+    /// Simulates an entire protocol transcript.
     ///
     /// # Panics
     /// Panics if simulation is not implemented for this protocol.
-    fn simulate_transcription(
+    fn simulate_transcript(
         &self,
-        _rng: &mut (impl Rng + CryptoRng),
+        rng: &mut (impl Rng + CryptoRng),
     ) -> (Self::Commitment, Self::Challenge, Self::Response);
 }

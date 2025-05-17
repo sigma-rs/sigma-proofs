@@ -118,24 +118,24 @@ where
         out
     }
 
-    fn deserialize_batchable(&self, data: &[u8]) -> Option<(Self::Commitment, Self::Response)> {   
+    fn deserialize_batchable(&self, data: &[u8]) -> Option<(Self::Commitment, Self::Response)> {
         if data.len() < 4 {
             return None; // not enough bytes to contain the length suffix
         }
-    
+
         // Split off the last 4 bytes as the trailer
         let (proof_data, len_bytes) = data.split_at(data.len() - 4);
         let len0 = u32::from_le_bytes(len_bytes.try_into().ok()?) as usize;
-    
+
         if proof_data.len() < len0 {
             return None; // length hint exceeds available bytes
         }
-    
+
         let (ser0, ser1) = proof_data.split_at(len0);
-    
+
         let (commitment0, response0) = self.protocol0.deserialize_batchable(ser0)?;
         let (commitment1, response1) = self.protocol1.deserialize_batchable(ser1)?;
-    
+
         Some(((commitment0, commitment1), (response0, response1)))
     }
 }
@@ -213,7 +213,7 @@ where
         let (r_index, r_witness_w) = witness;
         match r_witness_w {
             OrEnum::Left(ref r_witness) => {
-                let f_trnsc = self.protocol1.simulate_transcription(rng);
+                let f_trnsc = self.protocol1.simulate_transcript(rng);
                 let ST = OrState(f_trnsc.1, f_trnsc.2);
                 let (commit, r_pr_st) = self.protocol0.prover_commit(r_witness, rng);
                 (
@@ -222,7 +222,7 @@ where
                 )
             }
             OrEnum::Right(ref r_witness) => {
-                let f_trnsc = self.protocol0.simulate_transcription(rng);
+                let f_trnsc = self.protocol0.simulate_transcript(rng);
                 let ST = OrState(f_trnsc.1, f_trnsc.2);
                 let (commit, r_pr_st) = self.protocol1.prover_commit(r_witness, rng);
                 (

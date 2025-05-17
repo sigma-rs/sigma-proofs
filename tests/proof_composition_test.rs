@@ -2,10 +2,10 @@ use curve25519_dalek::{ristretto::RistrettoPoint, scalar::Scalar};
 use rand::{rngs::OsRng, CryptoRng, Rng};
 
 use sigma_rs::{
-    OrEnum, 
-    AndProtocol, 
-    OrProtocol, 
-    SigmaProtocol, 
+    OrEnum,
+    AndProtocol,
+    OrProtocol,
+    SigmaProtocol,
     SigmaProtocolSimulator,
     ProofError,
 };
@@ -53,7 +53,7 @@ impl SigmaProtocol for SchnorrZkp {
             false => Err(ProofError::VerificationFailure),
         }
     }
-    
+
     fn serialize_batchable(
         &self,
         _commitment: &Self::Commitment,
@@ -62,7 +62,7 @@ impl SigmaProtocol for SchnorrZkp {
     ) -> Vec<u8> {
         todo!()
     }
-    
+
     fn deserialize_batchable(&self, _data: &[u8]) -> Option<(Self::Commitment, Self::Response)> {
         todo!()
     }
@@ -80,7 +80,7 @@ impl SigmaProtocolSimulator for SchnorrZkp {
         (R, z)
     }
 
-    fn simulate_transcription(
+    fn simulate_transcript(
         &self,
         rng: &mut (impl Rng + CryptoRng),
     ) -> (Self::Commitment, Self::Challenge, Self::Response) {
