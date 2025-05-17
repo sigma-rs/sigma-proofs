@@ -21,7 +21,6 @@
 //! - `KeccakDuplexSponge`: Duplex sponge over 200-byte state buffer
 //! - `ByteSchnorrCodec`: Fiat-Shamir transcript codec compatible with Sage Schnorr proofs
 use crate::codec::r#trait::{Codec, DuplexSpongeInterface};
-use crate::serialisation::GroupSerialisation;
 use ff::PrimeField;
 use group::{Group, GroupEncoding};
 use num_bigint::BigUint;
@@ -178,7 +177,7 @@ fn cardinal<F: PrimeField>() -> BigUint {
 #[derive(Clone)]
 pub struct ByteSchnorrCodec<G, H>
 where
-    G: Group + GroupEncoding + GroupSerialisation,
+    G: Group + GroupEncoding,
     H: DuplexSpongeInterface,
 {
     hasher: H,
@@ -187,7 +186,7 @@ where
 
 impl<G, H> Codec for ByteSchnorrCodec<G, H>
 where
-    G: Group + GroupEncoding + GroupSerialisation,
+    G: Group + GroupEncoding,
     H: DuplexSpongeInterface,
 {
     type Challenge = <G as Group>::Scalar;

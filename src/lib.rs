@@ -19,17 +19,17 @@ pub mod group_morphism;
 pub mod group_serialisation;
 pub mod proof_builder;
 pub mod proof_composition;
-pub mod schnorr_proof;
-pub mod serialisation;
+pub mod schnorr_protocol;
 pub mod r#trait;
 
 pub use errors::*;
 pub use fiat_shamir::*;
 pub use group_morphism::*;
+pub use group_serialisation::*;
 pub use proof_builder::*;
 pub use proof_composition::*;
 pub use r#trait::*;
-pub use schnorr_proof::*;
+pub use schnorr_protocol::*;
 
 pub mod codec;
 #[deprecated(

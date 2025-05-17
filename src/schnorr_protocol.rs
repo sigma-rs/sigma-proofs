@@ -5,7 +5,8 @@
 //! through a group morphism abstraction (see Maurer09).
 
 use crate::{
-    serialisation::GroupSerialisation, CompactProtocol, GroupMorphismPreimage, ProofError,
+    group_serialisation::*,
+    CompactProtocol, GroupMorphismPreimage, ProofError,
     SigmaProtocol,
 };
 
@@ -16,13 +17,13 @@ use rand::{CryptoRng, Rng};
 /// A Schnorr protocol proving knowledge some discrete logarithm relation.
 ///
 /// The specific proof instance is defined by a [`GroupMorphismPreimage`] over a group `G`.
-pub struct SchnorrProtocol<G: Group + GroupEncoding + GroupSerialisation>(
+pub struct SchnorrProtocol<G: Group + GroupEncoding>(
     pub GroupMorphismPreimage<G>,
 );
 
 impl<G> SigmaProtocol for SchnorrProtocol<G>
 where
-    G: Group + GroupEncoding + GroupSerialisation,
+    G: Group + GroupEncoding,
 {
     type Commitment = Vec<G>;
     type ProverState = (Vec<<G as Group>::Scalar>, Vec<<G as Group>::Scalar>);
@@ -94,12 +95,12 @@ where
 
         // Serialize commitments
         for commit in commitment.iter().take(commit_nb) {
-            bytes.extend_from_slice(&G::serialize_element(commit));
+            bytes.extend_from_slice(&serialize_element(commit));
         }
 
         // Serialize responses
         for response in response.iter().take(response_nb) {
-            bytes.extend_from_slice(&G::serialize_scalar(response));
+            bytes.extend_from_slice(&serialize_scalar::<G>(response));
         }
         Ok(bytes)
     }
@@ -130,7 +131,7 @@ where
             let end = start + commit_size;
 
             let slice = &data[start..end];
-            let elem = G::deserialize_element(slice).ok_or(ProofError::GroupSerialisationFailure)?;
+            let elem = deserialize_element(slice).ok_or(ProofError::GroupSerialisationFailure)?;
             commitments.push(elem);
         }
 
@@ -139,7 +140,7 @@ where
             let end = start + response_size;
 
             let slice = &data[start..end];
-            let scalar = G::deserialize_scalar(slice).ok_or(ProofError::GroupSerialisationFailure)?;
+            let scalar = deserialize_scalar::<G>(slice).ok_or(ProofError::GroupSerialisationFailure)?;
             responses.push(scalar);
         }
 
@@ -149,7 +150,7 @@ where
 
 impl<G> CompactProtocol for SchnorrProtocol<G>
 where
-    G: Group + GroupEncoding + GroupSerialisation,
+    G: Group + GroupEncoding,
 {
     fn get_commitment(
         &self,
@@ -177,11 +178,11 @@ where
         let response_nb = self.0.morphism.num_scalars;
 
         // Serialize challenge
-        bytes.extend_from_slice(&G::serialize_scalar(challenge));
+        bytes.extend_from_slice(&serialize_scalar::<G>(challenge));
 
         // Serialize responses
         for response in response.iter().take(response_nb) {
-            bytes.extend_from_slice(&G::serialize_scalar(response));
+            bytes.extend_from_slice(&serialize_scalar::<G>(response));
         }
         Ok(bytes)
     }
@@ -205,14 +206,14 @@ where
         let mut responses: Self::Response = Vec::new();
 
         let slice = &data[0..response_size];
-        let challenge = G::deserialize_scalar(slice).ok_or(ProofError::GroupSerialisationFailure)?;
+        let challenge = deserialize_scalar::<G>(slice).ok_or(ProofError::GroupSerialisationFailure)?;
 
         for i in 0..response_nb {
             let start = (i + 1) * response_size;
             let end = start + response_size;
 
             let slice = &data[start..end];
-            let scalar = G::deserialize_scalar(slice).ok_or(ProofError::GroupSerialisationFailure)?;
+            let scalar = deserialize_scalar::<G>(slice).ok_or(ProofError::GroupSerialisationFailure)?;
             responses.push(scalar);
         }
 

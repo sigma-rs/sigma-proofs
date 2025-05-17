@@ -3,21 +3,22 @@ use group::{Group, GroupEncoding};
 use rand::{CryptoRng, Rng};
 
 use sigma_rs::{
-    serialisation::GroupSerialisation, GroupMorphismPreimage, ProofError, SigmaProtocol,
+    group_serialisation::*,
+    GroupMorphismPreimage, ProofError, SigmaProtocol,
 };
 
 use crate::random::SRandom;
 
 pub struct SchnorrProtocolCustom<G>
 where
-    G: SRandom + GroupEncoding + GroupSerialisation,
+    G: SRandom + GroupEncoding,
 {
     pub morphismp: GroupMorphismPreimage<G>,
 }
 
 impl<G> SigmaProtocol for SchnorrProtocolCustom<G>
 where
-    G: SRandom + GroupEncoding + GroupSerialisation,
+    G: SRandom + GroupEncoding,
 {
     type Commitment = Vec<G>;
     type ProverState = (Vec<<G as Group>::Scalar>, Vec<<G as Group>::Scalar>);
@@ -88,12 +89,11 @@ where
         let point_nb = self.morphismp.morphism.num_statements();
 
         for commit in commitment.iter().take(point_nb) {
-            bytes.extend_from_slice(&G::serialize_element(commit));
+            bytes.extend_from_slice(&serialize_element(commit));
         }
 
         for response in response.iter().take(scalar_nb) {
-            let mut scalar_bytes = G::serialize_scalar(response);
-            scalar_bytes.reverse();
+            let scalar_bytes = serialize_scalar::<G>(response);
             bytes.extend_from_slice(&scalar_bytes);
         }
         Ok(bytes)
@@ -121,7 +121,7 @@ where
             let end = start + point_size;
 
             let slice = &data[start..end];
-            let elem = G::deserialize_element(slice).ok_or(ProofError::GroupSerialisationFailure)?;
+            let elem = deserialize_element(slice).ok_or(ProofError::GroupSerialisationFailure)?;
             commitments.push(elem);
         }
 
@@ -129,9 +129,8 @@ where
             let start = point_nb * point_size + i * scalar_size;
             let end = start + scalar_size;
 
-            let mut slice = data[start..end].to_vec();
-            slice.reverse();
-            let scalar = G::deserialize_scalar(&slice).ok_or(ProofError::GroupSerialisationFailure)?;
+            let slice = data[start..end].to_vec();
+            let scalar = deserialize_scalar::<G>(&slice).ok_or(ProofError::GroupSerialisationFailure)?;
             responses.push(scalar);
         }
 

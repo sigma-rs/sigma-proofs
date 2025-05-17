@@ -13,11 +13,11 @@
 //! - Supports element assignment to statement variables
 //! - Offers one-shot `prove` and `verify` methods
 
-use group::Group;
+use group::{Group, GroupEncoding};
 use rand::{CryptoRng, RngCore};
 
 use crate::{
-    codec::ShakeCodec, serialisation::GroupSerialisation, GroupMorphismPreimage, NISigmaProtocol,
+    codec::ShakeCodec, GroupMorphismPreimage, NISigmaProtocol,
     PointVar, ProofError, ScalarVar, SchnorrProtocol,
 };
 
@@ -28,10 +28,10 @@ use crate::{
 /// for allocating variables, defining statements, and generating proofs.
 ///
 /// # Type Parameters
-/// - `G`: A group that implements both [`Group`] and [`GroupSerialisation`], such as `RistrettoPoint` or `G1Projective`.
+/// - `G`: A group that implements both [`Group`] and [`GroupEncoding`].
 pub struct ProofBuilder<G>
 where
-    G: Group + GroupSerialisation,
+    G: Group + GroupEncoding,
 {
     /// The underlying Sigma protocol instance with Fiat-Shamir transformation applied.
     pub protocol: NISigmaProtocol<SchnorrProtocol<G>, ShakeCodec<G>, G>,
@@ -39,14 +39,14 @@ where
 
 impl<G> ProofBuilder<G>
 where
-    G: Group + GroupSerialisation,
+    G: Group + GroupEncoding,
     ShakeCodec<G>: Clone,
 {
     /// Creates a new proof builder with a Schnorr protocol instance using the given domain separator.
     pub fn new(domain_sep: &[u8]) -> Self {
-        let schnorr_proof = SchnorrProtocol(GroupMorphismPreimage::<G>::new());
+        let schnorr_protocol = SchnorrProtocol(GroupMorphismPreimage::<G>::new());
         let protocol =
-            NISigmaProtocol::<SchnorrProtocol<G>, ShakeCodec<G>, G>::new(domain_sep, schnorr_proof);
+            NISigmaProtocol::<SchnorrProtocol<G>, ShakeCodec<G>, G>::new(domain_sep, schnorr_protocol);
         Self { protocol }
     }
 
