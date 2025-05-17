@@ -3,7 +3,7 @@ use group::{Group, GroupEncoding};
 use rand::{CryptoRng, Rng};
 
 use sigma_rs::{
-    group_serialisation::*,
+    group_serialization::*,
     GroupMorphismPreimage, ProofError, SigmaProtocol,
 };
 
@@ -121,7 +121,7 @@ where
             let end = start + point_size;
 
             let slice = &data[start..end];
-            let elem = deserialize_element(slice).ok_or(ProofError::GroupSerialisationFailure)?;
+            let elem = deserialize_element(slice).ok_or(ProofError::GroupSerializationFailure)?;
             commitments.push(elem);
         }
 
@@ -130,7 +130,7 @@ where
             let end = start + scalar_size;
 
             let slice = data[start..end].to_vec();
-            let scalar = deserialize_scalar::<G>(&slice).ok_or(ProofError::GroupSerialisationFailure)?;
+            let scalar = deserialize_scalar::<G>(&slice).ok_or(ProofError::GroupSerializationFailure)?;
             responses.push(scalar);
         }
 

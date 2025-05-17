@@ -5,7 +5,7 @@
 //! through a group morphism abstraction (see Maurer09).
 
 use crate::{
-    group_serialisation::*,
+    group_serialization::*,
     CompactProtocol, GroupMorphismPreimage, ProofError,
     SigmaProtocol,
 };
@@ -131,7 +131,7 @@ where
             let end = start + commit_size;
 
             let slice = &data[start..end];
-            let elem = deserialize_element(slice).ok_or(ProofError::GroupSerialisationFailure)?;
+            let elem = deserialize_element(slice).ok_or(ProofError::GroupSerializationFailure)?;
             commitments.push(elem);
         }
 
@@ -140,7 +140,7 @@ where
             let end = start + response_size;
 
             let slice = &data[start..end];
-            let scalar = deserialize_scalar::<G>(slice).ok_or(ProofError::GroupSerialisationFailure)?;
+            let scalar = deserialize_scalar::<G>(slice).ok_or(ProofError::GroupSerializationFailure)?;
             responses.push(scalar);
         }
 
@@ -206,14 +206,14 @@ where
         let mut responses: Self::Response = Vec::new();
 
         let slice = &data[0..response_size];
-        let challenge = deserialize_scalar::<G>(slice).ok_or(ProofError::GroupSerialisationFailure)?;
+        let challenge = deserialize_scalar::<G>(slice).ok_or(ProofError::GroupSerializationFailure)?;
 
         for i in 0..response_nb {
             let start = (i + 1) * response_size;
             let end = start + response_size;
 
             let slice = &data[start..end];
-            let scalar = deserialize_scalar::<G>(slice).ok_or(ProofError::GroupSerialisationFailure)?;
+            let scalar = deserialize_scalar::<G>(slice).ok_or(ProofError::GroupSerializationFailure)?;
             responses.push(scalar);
         }
 

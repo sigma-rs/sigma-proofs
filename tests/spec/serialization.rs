@@ -1,11 +1,3 @@
-//! Serialization for Group Elements and Scalars
-//!
-//! This module defines the [`GroupSerialisation`] trait, which provides a unified interface
-//! for serializing and deserializing group elements and their associated scalar field elements.
-//!
-//! It is used throughout the Sigma protocol framework for encoding proof data, hashing to transcripts,
-//! and verifying correctness of received data.
-
 use group::{Group, GroupEncoding};
 use ff::PrimeField;
 use std::convert::TryInto;
@@ -34,7 +26,7 @@ use std::convert::TryInto;
 /// - `deserialize_element`: Attempts to decode a group element from bytes
 /// - `serialize_scalar`: Encodes a scalar field element into bytes
 /// - `deserialize_scalar`: Attempts to decode a scalar from bytes
-pub trait GroupSerialisation: Group + GroupEncoding {
+pub trait GroupSerialization: Group + GroupEncoding {
     /// Serializes a group element (e.g., elliptic curve point) into a canonical byte representation.
     ///
     /// This representation must be deterministic and compatible with the corresponding
@@ -66,7 +58,7 @@ use curve25519_dalek::{
 };
 
 
-impl GroupSerialisation for RistrettoPoint {
+impl GroupSerialization for RistrettoPoint {
     /// Serializes a `RistrettoPoint` to 32-byte compressed form.
     fn serialize_element(point: &Self) -> Vec<u8> {
         point.compress().to_bytes().to_vec()
@@ -101,7 +93,7 @@ impl GroupSerialisation for RistrettoPoint {
     }
 }
 
-impl GroupSerialisation for G1Projective {
+impl GroupSerialization for G1Projective {
     /// Serializes a `G1Projective` element using compressed affine representation (48 bytes).
     fn serialize_element(point: &G1Projective) -> Vec<u8> {
         let affine = G1Affine::from(point);

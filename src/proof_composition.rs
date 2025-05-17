@@ -120,7 +120,7 @@ where
 
     fn deserialize_batchable(&self, data: &[u8]) -> Result<(Self::Commitment, Self::Response), ProofError> {
         if data.len() < 4 {
-            return Err(ProofError::GroupSerialisationFailure); // not enough bytes to contain the length suffix
+            return Err(ProofError::GroupSerializationFailure); // not enough bytes to contain the length suffix
         }
 
         // Split off the last 4 bytes as the trailer
@@ -128,7 +128,7 @@ where
         let len0 = u32::from_le_bytes(len_bytes.try_into().unwrap()) as usize;
 
         if proof_data.len() < len0 {
-            return Err(ProofError::GroupSerialisationFailure); // length hint exceeds available bytes
+            return Err(ProofError::GroupSerializationFailure); // length hint exceeds available bytes
         }
 
         let (ser0, ser1) = proof_data.split_at(len0);
@@ -309,7 +309,7 @@ where
         // The challenge is appended as `Challenge::Repr`, which must be a fixed size
         let repr_len = <C as PrimeField>::Repr::default().as_ref().len();
         if data.len() < repr_len + 4 {
-            return Err(ProofError::GroupSerialisationFailure);
+            return Err(ProofError::GroupSerializationFailure);
         }
 
         let len0_bytes = &data[data.len() - 4..];
@@ -318,7 +318,7 @@ where
 
         let len0 = u32::from_le_bytes(len0_bytes.try_into().unwrap()) as usize;
         if proof_data.len() < len0 {
-            return Err(ProofError::GroupSerialisationFailure);
+            return Err(ProofError::GroupSerializationFailure);
         }
 
         let mut repr = <C as PrimeField>::Repr::default();
@@ -326,7 +326,7 @@ where
 
         let result_ctoption = C::from_repr(repr);
         if (!result_ctoption.is_some()).into() {
-            return Err(ProofError::GroupSerialisationFailure);
+            return Err(ProofError::GroupSerializationFailure);
         }
         let ch0 = result_ctoption.unwrap();
 

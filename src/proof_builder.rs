@@ -106,10 +106,10 @@ where
         self.protocol.prove_batchable(&witness_tmp, rng)
     }
 
-    /// Verifies a serialized proof against the current statement.
+    /// Verifies a serialized batchable proof against the current statement.
     ///
     /// # Parameters
-    /// - `proof`: A byte slice containing the serialized proof
+    /// - `proof`: A byte slice containing the serialized batchable proof
     ///
     /// # Returns
     /// `Ok(())` if the proof is valid, or a [`ProofError`] if verification fails.
@@ -117,6 +117,14 @@ where
         self.protocol.verify_batchable(proof)
     }
 
+    /// Generates a compact proof for the current statement using the given witness.
+    ///
+    /// # Parameters
+    /// - `witness`: A list of scalars (one per allocated scalar variable)
+    /// - `rng`: A random number generator
+    ///
+    /// # Returns
+    /// A serialized proof as a vector of bytes in compact ('challenge', 'response') format.
     pub fn prove_compact(
         &mut self,
         witness: &[<G as Group>::Scalar],
@@ -126,6 +134,13 @@ where
         self.protocol.prove_compact(&witness_tmp, rng)
     }
 
+    /// Verifies a serialized compact proof against the current statement.
+    ///
+    /// # Parameters
+    /// - `proof`: A byte slice containing the serialized compact proof
+    ///
+    /// # Returns
+    /// `Ok(())` if the proof is valid, or a [`ProofError`] if verification fails.
     pub fn verify_compact(&mut self, proof: &[u8]) -> Result<(), ProofError> {
         self.protocol.verify_compact(proof)
     }

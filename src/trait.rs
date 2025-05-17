@@ -60,10 +60,7 @@ pub trait SigmaProtocol {
         response: &Self::Response,
     ) -> Result<(), ProofError>;
 
-    /// Serializes a proof transcript (commitment, challenge, response) to bytes for batching.
-    ///
-    /// # Panics
-    /// Panics if serialization is not supported for this protocol.
+    /// Serializes a proof transcript (commitment, challenge, response) to bytes batchable proof.
     fn serialize_batchable(
         &self,
         _commitment: &Self::Commitment,
@@ -73,12 +70,9 @@ pub trait SigmaProtocol {
         Err(ProofError::NotImplemented("serialize_batchable not implemented for this protocol"))
     }
 
-    /// Deserializes a proof transcript from bytes.
+    /// Deserializes a batchable proof from bytes.
     ///
     /// Returns `Some((commitment, response))` if parsing is successful, otherwise `None`.
-    ///
-    /// # Panics
-    /// Panics if deserialization is not supported for this protocol.
     fn deserialize_batchable(
         &self,
         _data: &[u8]
@@ -87,13 +81,25 @@ pub trait SigmaProtocol {
     }
 }
 
+/// A feature defining the behavior of a protocol for which it is possible to compact the proofs by omitting the commitments.
+///
+/// This is possible if it is possible to retrieve the commitments from the challenge and responses.
+/// This is what the get_commitment function is for.
+/// 
+/// ## Minimal Implementation
+/// Types implementing `CompactProtocol` must define:
+/// - `get_commitment`
 pub trait CompactProtocol: SigmaProtocol {
+    /// Returns the commitment for which ('commitment', 'challenge', 'response') is a valid transcription
+    /// 
+    /// This function allows to omit commitment in compact proofs of the type ('challenge', 'response')
     fn get_commitment(
         &self,
         challenge: &Self::Challenge,
         response: &Self::Response,
     ) -> Self::Commitment;
 
+    /// Serializes a proof transcript (commitment, challenge, response) to bytes compact proof.
     fn serialize_compact(
         &self,
         _commitment: &Self::Commitment,
@@ -103,6 +109,9 @@ pub trait CompactProtocol: SigmaProtocol {
         Err(ProofError::NotImplemented("serialize_compact not implemented for this protocol"))
     }
 
+    /// Deserializes a compact proof from bytes.
+    ///
+    /// Returns `Some((challenge, response))` if parsing is successful, otherwise `None`.
     fn deserialize_compact(
         &self,
         _data: &[u8]
@@ -124,9 +133,6 @@ pub trait SigmaProtocolSimulator: SigmaProtocol {
     /// Simulates a protocol transcript given a challenge.
     ///
     /// This serves to create zero-knowledge simulations without access to a witness.
-    ///
-    /// # Panics
-    /// Panics if simulation is not implemented for this protocol.
     fn simulate_proof(
         &self,
         challenge: &Self::Challenge,
@@ -134,9 +140,6 @@ pub trait SigmaProtocolSimulator: SigmaProtocol {
     ) -> (Self::Commitment, Self::Response);
 
     /// Simulates an entire protocol transcript.
-    ///
-    /// # Panics
-    /// Panics if simulation is not implemented for this protocol.
     fn simulate_transcript(
         &self,
         rng: &mut (impl Rng + CryptoRng),
