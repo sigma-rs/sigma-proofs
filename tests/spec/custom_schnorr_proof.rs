@@ -1,26 +1,23 @@
-use rand::{CryptoRng, Rng};
-use group::{Group, GroupEncoding};
 use ff::PrimeField;
+use group::{Group, GroupEncoding};
+use rand::{CryptoRng, Rng};
 
 use sigma_rs::{
-    GroupMorphismPreimage, 
-    SigmaProtocol, 
-    serialisation::GroupSerialisation, 
-    ProofError
+    serialisation::GroupSerialisation, GroupMorphismPreimage, ProofError, SigmaProtocol,
 };
 
 use crate::random::SRandom;
 
 pub struct SchnorrProofCustom<G>
 where
-    G: SRandom + GroupEncoding + GroupSerialisation
+    G: SRandom + GroupEncoding + GroupSerialisation,
 {
-    pub morphismp: GroupMorphismPreimage<G>
+    pub morphismp: GroupMorphismPreimage<G>,
 }
 
 impl<G> SigmaProtocol for SchnorrProofCustom<G>
 where
-    G: SRandom + GroupEncoding + GroupSerialisation
+    G: SRandom + GroupEncoding + GroupSerialisation,
 {
     type Commitment = Vec<G>;
     type ProverState = (Vec<<G as Group>::Scalar>, Vec<<G as Group>::Scalar>);
@@ -63,8 +60,15 @@ where
         let lhs = self.morphismp.morphism.evaluate(response);
 
         let mut rhs = Vec::new();
-        for (i, g) in commitment.iter().enumerate().take(self.morphismp.morphism.num_statements()) {
-            rhs.push(*g + self.morphismp.morphism.group_elements[self.morphismp.image[i].index()] * *challenge);
+        for (i, g) in commitment
+            .iter()
+            .enumerate()
+            .take(self.morphismp.morphism.num_statements())
+        {
+            rhs.push(
+                *g + self.morphismp.morphism.group_elements[self.morphismp.image[i].index()]
+                    * *challenge,
+            );
         }
 
         match lhs == rhs {
@@ -77,7 +81,7 @@ where
         &self,
         commitment: &Self::Commitment,
         _challenge: &Self::Challenge,
-        response: &Self::Response
+        response: &Self::Response,
     ) -> Vec<u8> {
         let mut bytes = Vec::new();
         let scalar_nb = self.morphismp.morphism.num_scalars;
@@ -95,15 +99,14 @@ where
         bytes
     }
 
-    fn deserialize_batchable(&self,
-        data: &[u8],
-    ) -> Option<(Self::Commitment, Self::Response)>
-    {
+    fn deserialize_batchable(&self, data: &[u8]) -> Option<(Self::Commitment, Self::Response)> {
         let scalar_nb = self.morphismp.morphism.num_scalars;
         let point_nb = self.morphismp.morphism.num_statements();
 
         let point_size = G::generator().to_bytes().as_ref().len();
-        let scalar_size = <<G as Group>::Scalar as PrimeField>::Repr::default().as_ref().len();
+        let scalar_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
+            .as_ref()
+            .len();
 
         let expected_len = scalar_nb * scalar_size + point_nb * point_size;
         if data.len() != expected_len {

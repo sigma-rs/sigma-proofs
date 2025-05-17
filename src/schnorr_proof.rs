@@ -5,7 +5,8 @@
 //! through a group morphism abstraction (see Maurer09).
 
 use crate::{
-    serialisation::GroupSerialisation, CompactProtocol, GroupMorphismPreimage, ProofError, SigmaProtocol
+    serialisation::GroupSerialisation, CompactProtocol, GroupMorphismPreimage, ProofError,
+    SigmaProtocol,
 };
 
 use ff::{Field, PrimeField};
@@ -15,7 +16,9 @@ use rand::{CryptoRng, Rng};
 /// A Schnorr protocol proving knowledge some discrete logarithm relation.
 ///
 /// The specific proof instance is defined by a [`GroupMorphismPreimage`] over a group `G`.
-pub struct SchnorrProof<G: Group + GroupEncoding + GroupSerialisation>(pub GroupMorphismPreimage<G>);
+pub struct SchnorrProof<G: Group + GroupEncoding + GroupSerialisation>(
+    pub GroupMorphismPreimage<G>,
+);
 
 impl<G> SigmaProtocol for SchnorrProof<G>
 where
@@ -33,7 +36,9 @@ where
         witness: &Self::Witness,
         mut rng: &mut (impl Rng + CryptoRng),
     ) -> (Self::Commitment, Self::ProverState) {
-        let nonces: Vec<G::Scalar> =  (0..self.0.morphism.num_scalars).map(|_| G::Scalar::random(&mut rng)).collect();
+        let nonces: Vec<G::Scalar> = (0..self.0.morphism.num_scalars)
+            .map(|_| G::Scalar::random(&mut rng))
+            .collect();
         let prover_state = (nonces.clone(), witness.clone());
         let commitment = self.0.morphism.evaluate(&nonces);
         (commitment, prover_state)
@@ -67,9 +72,7 @@ where
             .enumerate()
             .take(self.0.morphism.num_statements())
         {
-            rhs.push(
-                self.0.morphism.group_elements[self.0.image[i].index()] * challenge + g,
-            );
+            rhs.push(self.0.morphism.group_elements[self.0.image[i].index()] * challenge + g);
         }
 
         match lhs == rhs {
@@ -102,10 +105,7 @@ where
     }
 
     /// Deserializes a batchable proof format back into (`commitment`, `response`).
-    fn deserialize_batchable(
-        &self,
-        data: &[u8]
-    ) -> Option<(Self::Commitment, Self::Response)> {
+    fn deserialize_batchable(&self, data: &[u8]) -> Option<(Self::Commitment, Self::Response)> {
         let commit_nb = self.0.morphism.num_statements();
         let response_nb = self.0.morphism.num_scalars;
 
@@ -151,11 +151,11 @@ where
     fn get_commitment(
         &self,
         challenge: &Self::Challenge,
-        response: &Self::Response
+        response: &Self::Response,
     ) -> Self::Commitment {
         let response_image = self.0.morphism.evaluate(response);
-        let image= self.0.image();
-        
+        let image = self.0.image();
+
         let mut commitment = Vec::new();
         for i in 0..image.len() {
             commitment.push(response_image[i] - image[i] * challenge);
@@ -184,10 +184,7 @@ where
     }
 
     /// Deserializes a compact proof format back into (`challenge`, `response`).
-    fn deserialize_compact(
-        &self,
-        data: &[u8]
-    ) -> Option<(Self::Challenge, Self::Response)> {
+    fn deserialize_compact(&self, data: &[u8]) -> Option<(Self::Challenge, Self::Response)> {
         let response_nb = self.0.morphism.num_scalars;
         let response_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
             .as_ref()

@@ -14,17 +14,11 @@
 //! - Offers one-shot `prove` and `verify` methods
 
 use group::Group;
-use rand::{RngCore, CryptoRng};
+use rand::{CryptoRng, RngCore};
 
 use crate::{
-    codec::{ShakeCodec},
-    GroupMorphismPreimage,
-    serialisation::GroupSerialisation,
-    NISigmaProtocol,
-    SchnorrProof,
-    PointVar,
-    ScalarVar,
-    ProofError,
+    codec::ShakeCodec, serialisation::GroupSerialisation, GroupMorphismPreimage, NISigmaProtocol,
+    PointVar, ProofError, ScalarVar, SchnorrProof,
 };
 
 /// A builder that helps construct Sigma proofs for linear group relations.
@@ -51,8 +45,9 @@ where
     /// Creates a new proof builder with a Schnorr protocol instance using the given domain separator.
     pub fn new(domain_sep: &[u8]) -> Self {
         let schnorr_proof = SchnorrProof(GroupMorphismPreimage::<G>::new());
-        let protocol = NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>, G>::new(domain_sep, schnorr_proof);
-        Self{ protocol }
+        let protocol =
+            NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>, G>::new(domain_sep, schnorr_proof);
+        Self { protocol }
     }
 
     /// Adds a new equation to the proof statement of the form:
@@ -102,7 +97,11 @@ where
     ///
     /// # Returns
     /// A serialized proof as a vector of bytes in batchable ('commitment', 'response') format.
-    pub fn prove(&mut self, witness: &[<G as Group>::Scalar], rng: &mut (impl RngCore + CryptoRng)) -> Vec<u8> {
+    pub fn prove(
+        &mut self,
+        witness: &[<G as Group>::Scalar],
+        rng: &mut (impl RngCore + CryptoRng),
+    ) -> Vec<u8> {
         let witness_tmp = witness.to_vec();
         self.protocol.prove_batchable(&witness_tmp, rng)
     }
@@ -118,7 +117,11 @@ where
         self.protocol.verify_batchable(proof)
     }
 
-    pub fn prove_compact(&mut self, witness: &[<G as Group>::Scalar], rng: &mut (impl RngCore + CryptoRng)) -> Vec<u8> {
+    pub fn prove_compact(
+        &mut self,
+        witness: &[<G as Group>::Scalar],
+        rng: &mut (impl RngCore + CryptoRng),
+    ) -> Vec<u8> {
         let witness_tmp = witness.to_vec();
         self.protocol.prove_compact(&witness_tmp, rng)
     }

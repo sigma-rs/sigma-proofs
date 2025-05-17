@@ -11,11 +11,7 @@
 
 use std::convert::TryInto;
 
-use crate::{
-    SigmaProtocol,
-    SigmaProtocolSimulator,
-    ProofError,
-};
+use crate::{ProofError, SigmaProtocol, SigmaProtocolSimulator};
 
 use ff::PrimeField;
 use rand::{CryptoRng, Rng};
@@ -108,8 +104,12 @@ where
         challenge: &Self::Challenge,
         response: &Self::Response,
     ) -> Vec<u8> {
-        let ser0 = self.protocol0.serialize_batchable(&commitment.0, challenge, &response.0);
-        let ser1 = self.protocol1.serialize_batchable(&commitment.1, challenge, &response.1);
+        let ser0 = self
+            .protocol0
+            .serialize_batchable(&commitment.0, challenge, &response.0);
+        let ser1 = self
+            .protocol1
+            .serialize_batchable(&commitment.1, challenge, &response.1);
         let len0 = ser0.len() as u32;
 
         let mut out = ser0;
@@ -290,8 +290,12 @@ where
         let (ch0, resp0, resp1) = response;
         let ch1 = *challenge - *ch0;
 
-        let ser0 = self.protocol0.serialize_batchable(&commitment.0, ch0, resp0);
-        let ser1 = self.protocol1.serialize_batchable(&commitment.1, &ch1, resp1);
+        let ser0 = self
+            .protocol0
+            .serialize_batchable(&commitment.0, ch0, resp0);
+        let ser1 = self
+            .protocol1
+            .serialize_batchable(&commitment.1, &ch1, resp1);
 
         let mut out = ser0.clone();
         out.extend(&ser1);

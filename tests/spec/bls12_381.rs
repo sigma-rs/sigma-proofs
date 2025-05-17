@@ -1,18 +1,16 @@
-use group::Group;
-use ff::PrimeField;
 use bls12_381::G1Projective;
-use rand::{Rng, CryptoRng};
-use subtle::CtOption;
-use num_bigint::BigUint;
+use ff::PrimeField;
+use group::Group;
 use hex::FromHex;
+use num_bigint::BigUint;
 use num_traits::One;
+use rand::{CryptoRng, Rng};
+use subtle::CtOption;
 
 use crate::random::{SInput, SRandom};
 
 impl SInput for G1Projective {
-    fn scalar_from_hex_be(
-            hex_str: &str
-        ) -> Option<Self::Scalar> {
+    fn scalar_from_hex_be(hex_str: &str) -> Option<Self::Scalar> {
         let be_bytes = Vec::from_hex(hex_str).ok()?;
         if be_bytes.len() != 32 {
             return None;
@@ -33,11 +31,7 @@ impl SInput for G1Projective {
 }
 
 impl SRandom for G1Projective {
-    fn randint_big(
-        l: &BigUint,
-        h: &BigUint,
-        rng: &mut (impl Rng + CryptoRng)
-    ) -> BigUint {
+    fn randint_big(l: &BigUint, h: &BigUint, rng: &mut (impl Rng + CryptoRng)) -> BigUint {
         assert!(l <= h);
         let range = h - l + BigUint::one();
         let bits = range.bits();
@@ -53,11 +47,13 @@ impl SRandom for G1Projective {
         }
     }
 
-    fn srandom(
-        rng: &mut (impl Rng + CryptoRng)
-    ) -> Self::Scalar {
+    fn srandom(rng: &mut (impl Rng + CryptoRng)) -> Self::Scalar {
         let low = BigUint::parse_bytes(b"1", 10).unwrap();
-        let high = BigUint::parse_bytes(b"73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000000", 16).unwrap();
+        let high = BigUint::parse_bytes(
+            b"73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000000",
+            16,
+        )
+        .unwrap();
         let rand = Self::randint_big(&low, &high, rng);
         let mut hex_string = rand.to_str_radix(16);
         if hex_string.len() < 64 {
@@ -66,9 +62,7 @@ impl SRandom for G1Projective {
         G1Projective::scalar_from_hex_be(&hex_string).unwrap()
     }
 
-    fn prandom(
-        rng: &mut (impl Rng + CryptoRng)
-    ) -> Self {
+    fn prandom(rng: &mut (impl Rng + CryptoRng)) -> Self {
         Self::generator() * Self::srandom(rng)
     }
 }

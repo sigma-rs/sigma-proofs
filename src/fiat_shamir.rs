@@ -13,9 +13,7 @@
 //! - `C`: the codec (`Codec` trait).
 //! - `G`: the group used for commitments and operations (`Group` trait).
 
-use crate::{
-    codec::Codec, CompactProtocol, ProofError, SigmaProtocol
-};
+use crate::{codec::Codec, CompactProtocol, ProofError, SigmaProtocol};
 
 use group::{Group, GroupEncoding};
 use rand::{CryptoRng, RngCore};
@@ -67,7 +65,7 @@ where
     pub fn prove(
         &mut self,
         witness: &P::Witness,
-        rng: &mut (impl RngCore + CryptoRng)
+        rng: &mut (impl RngCore + CryptoRng),
     ) -> (P::Commitment, P::Challenge, P::Response) {
         let mut codec = self.hash_state.clone();
 
@@ -78,9 +76,7 @@ where
             data.extend_from_slice(commit.to_bytes().as_ref());
         }
         // Fiat Shamir challenge
-        let challenge = codec
-            .prover_message(&data)
-            .verifier_challenge();
+        let challenge = codec.prover_message(&data).verifier_challenge();
         // Prover's response
         let response = self.sigmap.prover_response(prover_state, &challenge);
         // Local verification of the proof
@@ -96,7 +92,7 @@ where
         &mut self,
         commitment: &P::Commitment,
         challenge: &P::Challenge,
-        response: &P::Response
+        response: &P::Response,
     ) -> Result<(), ProofError> {
         let mut codec = self.hash_state.clone();
 
@@ -106,9 +102,7 @@ where
             data.extend_from_slice(commit.to_bytes().as_ref());
         }
         // Recompute the challenge
-        let expected_challenge = codec
-            .prover_message(&data)
-            .verifier_challenge();
+        let expected_challenge = codec.prover_message(&data).verifier_challenge();
         // Verification of the proof
         match *challenge == expected_challenge {
             true => self.sigmap.verifier(commitment, challenge, response),
@@ -119,17 +113,14 @@ where
     pub fn prove_batchable(
         &mut self,
         witness: &P::Witness,
-        rng: &mut (impl RngCore + CryptoRng)
+        rng: &mut (impl RngCore + CryptoRng),
     ) -> Vec<u8> {
         let (commitment, challenge, response) = self.prove(witness, rng);
         self.sigmap
             .serialize_batchable(&commitment, &challenge, &response)
     }
 
-    pub fn verify_batchable(
-        &mut self,
-        proof: &[u8]
-    ) -> Result<(), ProofError> {
+    pub fn verify_batchable(&mut self, proof: &[u8]) -> Result<(), ProofError> {
         let (commitment, response) = self.sigmap.deserialize_batchable(proof).unwrap();
 
         let mut codec = self.hash_state.clone();
@@ -140,9 +131,7 @@ where
             data.extend_from_slice(commit.to_bytes().as_ref());
         }
         // Recompute the challenge
-        let challenge = codec
-            .prover_message(&data)
-            .verifier_challenge();
+        let challenge = codec.prover_message(&data).verifier_challenge();
         // Verification of the proof
         self.sigmap.verifier(&commitment, &challenge, &response)
     }
@@ -157,17 +146,14 @@ where
     pub fn prove_compact(
         &mut self,
         witness: &P::Witness,
-        rng: &mut (impl RngCore + CryptoRng)
+        rng: &mut (impl RngCore + CryptoRng),
     ) -> Vec<u8> {
         let (commitment, challenge, response) = self.prove(witness, rng);
         self.sigmap
             .serialize_compact(&commitment, &challenge, &response)
     }
 
-    pub fn verify_compact(
-        &mut self,
-        proof: &[u8]
-    ) -> Result<(), ProofError> {
+    pub fn verify_compact(&mut self, proof: &[u8]) -> Result<(), ProofError> {
         let (challenge, response) = self.sigmap.deserialize_compact(proof).unwrap();
         // Compute the commitments
         let commitment = self.sigmap.get_commitment(&challenge, &response);

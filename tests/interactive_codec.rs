@@ -1,10 +1,8 @@
 use curve25519_dalek::ristretto::RistrettoPoint;
-use rand::rngs::OsRng;
 use group::GroupEncoding;
+use rand::rngs::OsRng;
 
-use sigma_rs::codec::{
-    r#trait::Codec, shake_codec::ShakeCodec,
-};
+use sigma_rs::codec::{r#trait::Codec, shake_codec::ShakeCodec};
 
 pub type ShakeCodecRistretto = ShakeCodec<curve25519_dalek::ristretto::RistrettoPoint>;
 
@@ -23,9 +21,9 @@ fn shake_codec_ristretto() {
     // Initialize codec
     let mut binding = Codec::new(domain_sep);
     let mut data = Vec::new();
-        for commit in &[G, H] {
-            data.extend_from_slice(commit.to_bytes().as_ref());
-        }
+    for commit in &[G, H] {
+        data.extend_from_slice(commit.to_bytes().as_ref());
+    }
     let codec = binding.prover_message(&data);
 
     // Derive challenge

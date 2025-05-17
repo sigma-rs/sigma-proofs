@@ -6,11 +6,7 @@ use rand::{
 };
 
 use sigma_rs::{
-    codec::ShakeCodec, 
-    group_morphism::msm_pr,
-    GroupMorphismPreimage,
-    NISigmaProtocol, 
-    SchnorrProof,
+    codec::ShakeCodec, group_morphism::msm_pr, GroupMorphismPreimage, NISigmaProtocol, SchnorrProof,
 };
 
 type G = G1Projective;
@@ -20,7 +16,7 @@ fn discrete_logarithm<G: Group + GroupEncoding>(
     rng: &mut (impl Rng + CryptoRng),
 ) -> (GroupMorphismPreimage<G>, Vec<G::Scalar>) {
     let mut morphismp: GroupMorphismPreimage<G> = GroupMorphismPreimage::new();
-    
+
     let scalars = morphismp.allocate_scalars(1);
     let var_x = scalars[0];
 
@@ -51,14 +47,12 @@ fn dleq<G: Group + GroupEncoding>(
     let x = G::Scalar::random(&mut *rng);
     let X = G * x;
     let Y = H * x;
-    
+
     let scalars = morphismp.allocate_scalars(1);
     let var_x = scalars[0];
 
     let points = morphismp.allocate_elements(4);
-    let (var_G, var_H, var_X, var_Y) = (
-        points[0], points[1], points[2], points[3]
-    );
+    let (var_G, var_H, var_X, var_Y) = (points[0], points[1], points[2], points[3]);
 
     morphismp.set_elements(&[(var_G, G), (var_H, H), (var_X, X), (var_Y, Y)]);
     morphismp.append_equation(var_X, &[(var_x, var_G)]);
@@ -72,7 +66,7 @@ fn dleq<G: Group + GroupEncoding>(
 fn pedersen_commitment<G: Group + GroupEncoding>(
     rng: &mut (impl Rng + CryptoRng),
 ) -> (GroupMorphismPreimage<G>, Vec<G::Scalar>) {
-    let mut morphismp: GroupMorphismPreimage<G> = GroupMorphismPreimage::new();
+    let mut cs: GroupMorphismPreimage<G> = GroupMorphismPreimage::new();
 
     let G = G::generator();
     let H = G::random(&mut *rng);
@@ -82,17 +76,17 @@ fn pedersen_commitment<G: Group + GroupEncoding>(
 
     let C = G * x + H * r;
 
-    let scalars = morphismp.allocate_scalars(2);
+    let scalars = cs.allocate_scalars(2);
     let (var_x, var_r) = (scalars[0], scalars[1]);
 
-    let points = morphismp.allocate_elements(3);
+    let points = cs.allocate_elements(3);
     let (var_G, var_H, var_C) = (points[0], points[1], points[2]);
-    
-    morphismp.set_elements(&[(var_H, H), (var_G, G), (var_C, C)]);
-    morphismp.append_equation(var_C, &[(var_x, var_G), (var_r, var_H)]);
 
-    assert!(vec![C] == morphismp.morphism.evaluate(&witness));
-    (morphismp, witness)
+    cs.set_elements(&[(var_H, H), (var_G, G), (var_C, C)]);
+    cs.append_equation(var_C, &[(var_x, var_G), (var_r, var_H)]);
+
+    assert!(vec![C] == cs.morphism.evaluate(&witness));
+    (cs, witness)
 }
 
 #[allow(non_snake_case)]
@@ -164,14 +158,11 @@ fn bbs_blind_commitment_computation<G: Group + GroupEncoding>(
 
     // This is the part that needs to be changed in the specification of blind bbs.
     let scalars = morphismp.allocate_scalars(M + 1);
-    let (var_secret_prover_blind, var_msg_1, var_msg_2, var_msg_3) = (
-        scalars[0], scalars[1], scalars[2], scalars[3]
-    );
+    let (var_secret_prover_blind, var_msg_1, var_msg_2, var_msg_3) =
+        (scalars[0], scalars[1], scalars[2], scalars[3]);
 
     let points = morphismp.allocate_elements(M + 2);
-    let (var_Q_2, var_J_1, var_J_2, var_J_3) = (
-        points[0], points[1], points[2], points[3]
-    );
+    let (var_Q_2, var_J_1, var_J_2, var_J_3) = (points[0], points[1], points[2], points[3]);
     let var_C = points[M + 1];
 
     morphismp.set_elements(&[
@@ -242,8 +233,7 @@ fn NI_discrete_logarithm() {
     let protocol = SchnorrProof(morphismp);
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-schnorr";
-    let mut nizk =
-        NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>, G>::new(domain_sep, protocol);
+    let mut nizk = NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>, G>::new(domain_sep, protocol);
 
     // Batchable and compact proofs
     let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng);
@@ -251,8 +241,14 @@ fn NI_discrete_logarithm() {
     // Verify proofs
     let verified_batchable = nizk.verify_batchable(&proof_batchable_bytes).is_ok();
     let verified_compact = nizk.verify_compact(&proof_compact_bytes).is_ok();
-    assert!(verified_batchable, "Fiat-Shamir Schnorr proof verification failed");
-    assert!(verified_compact, "Fiat-Shamir Schnorr proof verification failed");
+    assert!(
+        verified_batchable,
+        "Fiat-Shamir Schnorr proof verification failed"
+    );
+    assert!(
+        verified_compact,
+        "Fiat-Shamir Schnorr proof verification failed"
+    );
 }
 
 #[allow(non_snake_case)]
@@ -265,8 +261,7 @@ fn NI_dleq() {
     let protocol = SchnorrProof(morphismp);
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-DLEQ";
-    let mut nizk =
-        NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>, G>::new(domain_sep, protocol);
+    let mut nizk = NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>, G>::new(domain_sep, protocol);
 
     // Batchable and compact proofs
     let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng);
@@ -274,8 +269,14 @@ fn NI_dleq() {
     // Verify proofs
     let verified_batchable = nizk.verify_batchable(&proof_batchable_bytes).is_ok();
     let verified_compact = nizk.verify_compact(&proof_compact_bytes).is_ok();
-    assert!(verified_batchable, "Fiat-Shamir Schnorr proof verification failed");
-    assert!(verified_compact, "Fiat-Shamir Schnorr proof verification failed");
+    assert!(
+        verified_batchable,
+        "Fiat-Shamir Schnorr proof verification failed"
+    );
+    assert!(
+        verified_compact,
+        "Fiat-Shamir Schnorr proof verification failed"
+    );
 }
 
 #[allow(non_snake_case)]
@@ -288,8 +289,7 @@ fn NI_pedersen_commitment() {
     let protocol = SchnorrProof(morphismp);
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-pedersen-commitment";
-    let mut nizk =
-        NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>, G>::new(domain_sep, protocol);
+    let mut nizk = NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>, G>::new(domain_sep, protocol);
 
     // Batchable and compact proofs
     let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng);
@@ -297,8 +297,14 @@ fn NI_pedersen_commitment() {
     // Verify proofs
     let verified_batchable = nizk.verify_batchable(&proof_batchable_bytes).is_ok();
     let verified_compact = nizk.verify_compact(&proof_compact_bytes).is_ok();
-    assert!(verified_batchable, "Fiat-Shamir Schnorr proof verification failed");
-    assert!(verified_compact, "Fiat-Shamir Schnorr proof verification failed");
+    assert!(
+        verified_batchable,
+        "Fiat-Shamir Schnorr proof verification failed"
+    );
+    assert!(
+        verified_compact,
+        "Fiat-Shamir Schnorr proof verification failed"
+    );
 }
 
 #[allow(non_snake_case)]
@@ -311,8 +317,7 @@ fn NI_pedersen_commitment_dleq() {
     let protocol = SchnorrProof(morphismp);
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-pedersen-commitment-DLEQ";
-    let mut nizk =
-        NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>, G>::new(domain_sep, protocol);
+    let mut nizk = NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>, G>::new(domain_sep, protocol);
 
     // Batchable and compact proofs
     let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng);
@@ -320,8 +325,14 @@ fn NI_pedersen_commitment_dleq() {
     // Verify proofs
     let verified_batchable = nizk.verify_batchable(&proof_batchable_bytes).is_ok();
     let verified_compact = nizk.verify_compact(&proof_compact_bytes).is_ok();
-    assert!(verified_batchable, "Fiat-Shamir Schnorr proof verification failed");
-    assert!(verified_compact, "Fiat-Shamir Schnorr proof verification failed");
+    assert!(
+        verified_batchable,
+        "Fiat-Shamir Schnorr proof verification failed"
+    );
+    assert!(
+        verified_compact,
+        "Fiat-Shamir Schnorr proof verification failed"
+    );
 }
 
 #[allow(non_snake_case)]
@@ -334,8 +345,7 @@ fn NI_bbs_blind_commitment_computation() {
     let protocol = SchnorrProof(morphismp);
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-bbs-blind-commitment-computation";
-    let mut nizk =
-        NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>, G>::new(domain_sep, protocol);
+    let mut nizk = NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>, G>::new(domain_sep, protocol);
 
     // Batchable and compact proofs
     let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng);
@@ -343,6 +353,12 @@ fn NI_bbs_blind_commitment_computation() {
     // Verify proofs
     let verified_batchable = nizk.verify_batchable(&proof_batchable_bytes).is_ok();
     let verified_compact = nizk.verify_compact(&proof_compact_bytes).is_ok();
-    assert!(verified_batchable, "Fiat-Shamir Schnorr proof verification failed");
-    assert!(verified_compact, "Fiat-Shamir Schnorr proof verification failed");
+    assert!(
+        verified_batchable,
+        "Fiat-Shamir Schnorr proof verification failed"
+    );
+    assert!(
+        verified_compact,
+        "Fiat-Shamir Schnorr proof verification failed"
+    );
 }

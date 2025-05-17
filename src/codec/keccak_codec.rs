@@ -20,14 +20,14 @@
 //! - `KeccakPermutationState`: Low-level Keccak-f[1600] state representation
 //! - `KeccakDuplexSponge`: Duplex sponge over 200-byte state buffer
 //! - `ByteSchnorrCodec`: Fiat-Shamir transcript codec compatible with Sage Schnorr proofs
-use crate::codec::r#trait::{DuplexSpongeInterface, Codec};
+use crate::codec::r#trait::{Codec, DuplexSpongeInterface};
 use crate::serialisation::GroupSerialisation;
 use ff::PrimeField;
 use group::{Group, GroupEncoding};
 use num_bigint::BigUint;
+use num_traits::identities::One;
 use std::convert::TryInto;
 use tiny_keccak::keccakf;
-use num_traits::identities::One;
 
 const R: usize = 136;
 const N: usize = 136 + 64;
@@ -162,7 +162,7 @@ impl DuplexSpongeInterface for KeccakDuplexSponge {
             self.squeeze_index += chunk_size;
             length -= chunk_size;
             output.extend_from_slice(
-                &self.state.state[self.squeeze_index..self.squeeze_index + chunk_size]
+                &self.state.state[self.squeeze_index..self.squeeze_index + chunk_size],
             );
         }
 

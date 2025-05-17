@@ -17,19 +17,23 @@ pub mod errors;
 pub mod fiat_shamir;
 pub mod group_morphism;
 pub mod group_serialisation;
+pub mod proof_builder;
 pub mod proof_composition;
 pub mod schnorr_proof;
-pub mod r#trait;
-pub mod proof_builder;
 pub mod serialisation;
+pub mod r#trait;
 
 pub use errors::*;
 pub use fiat_shamir::*;
 pub use group_morphism::*;
-pub use proof_composition::*;
-pub use schnorr_proof::*;
-pub use r#trait::*;
 pub use proof_builder::*;
+pub use proof_composition::*;
+pub use r#trait::*;
+pub use schnorr_proof::*;
 
 pub mod codec;
+#[deprecated(
+    since = "0.2.0",
+    note = "This module contains the old implementation of Sigma protocols from Henry de Valence."
+)]
 pub mod old;

@@ -1,7 +1,7 @@
-use sha2::{Sha256, Digest};
-use rand::{CryptoRng, Error, RngCore};
 use num_bigint::BigUint;
 use num_traits::One;
+use rand::{CryptoRng, Error, RngCore};
+use sha2::{Digest, Sha256};
 
 pub struct TestDRNG {
     seed: [u8; 32],
@@ -88,4 +88,4 @@ impl RngCore for TestDRNG {
     }
 }
 
-impl CryptoRng for TestDRNG { }
+impl CryptoRng for TestDRNG {}

@@ -35,10 +35,10 @@
 
 /// Implements batch verification of batchable proofs.
 pub mod batch_verifier;
-/// Implements proof creation.
-pub mod prover;
 /// Contains lower-level tools that allow programmable specification of proof statements.
 pub mod constraints;
+/// Implements proof creation.
+pub mod prover;
 /// Implements proof verification of compact and batchable proofs.
 pub mod verifier;
 
@@ -47,8 +47,7 @@ use curve25519_dalek::scalar::Scalar;
 use curve25519_dalek::traits::IsIdentity;
 
 use crate::old::Transcript;
-use crate::{ProofError};
-
+use crate::ProofError;
 
 /// An interface for specifying proof statements, common between
 /// provers and verifiers.

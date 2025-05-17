@@ -92,7 +92,8 @@ impl<G: Group> Morphism<G> {
         self.linear_combination
             .iter()
             .map(|lc| {
-                let coefficients: Vec<_> = lc.scalar_indices.iter().map(|&i| scalars[i.0]).collect();
+                let coefficients: Vec<_> =
+                    lc.scalar_indices.iter().map(|&i| scalars[i.0]).collect();
                 let elements: Vec<_> = lc
                     .element_indices
                     .iter()
@@ -172,7 +173,9 @@ where
         let start = self.morphism.num_elements;
         let indices: Vec<usize> = (start..start + n).collect();
 
-        self.morphism.group_elements.extend(iter::repeat(G::identity()).take(n));
+        self.morphism
+            .group_elements
+            .extend(iter::repeat(G::identity()).take(n));
         let mut points = Vec::new();
         for i in indices.iter() {
             points.push(PointVar(*i));

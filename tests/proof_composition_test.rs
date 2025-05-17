@@ -2,12 +2,7 @@ use curve25519_dalek::{ristretto::RistrettoPoint, scalar::Scalar};
 use rand::{rngs::OsRng, CryptoRng, Rng};
 
 use sigma_rs::{
-    OrEnum,
-    AndProtocol,
-    OrProtocol,
-    SigmaProtocol,
-    SigmaProtocolSimulator,
-    ProofError,
+    AndProtocol, OrEnum, OrProtocol, ProofError, SigmaProtocol, SigmaProtocolSimulator,
 };
 
 pub struct SchnorrZkp {

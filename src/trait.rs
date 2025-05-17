@@ -84,7 +84,7 @@ pub trait CompactProtocol: SigmaProtocol {
     fn get_commitment(
         &self,
         challenge: &Self::Challenge,
-        response: &Self::Response
+        response: &Self::Response,
     ) -> Self::Commitment;
 
     fn serialize_compact(
@@ -94,10 +94,7 @@ pub trait CompactProtocol: SigmaProtocol {
         response: &Self::Response,
     ) -> Vec<u8>;
 
-    fn deserialize_compact(
-        &self,
-        data: &[u8]
-    ) -> Option<(Self::Challenge, Self::Response)>;
+    fn deserialize_compact(&self, data: &[u8]) -> Option<(Self::Challenge, Self::Response)>;
 }
 
 /// A trait defining the behavior of a Sigma protocol for which simulation of transcripts is necessary.
