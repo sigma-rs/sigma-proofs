@@ -48,7 +48,7 @@ pub trait SigmaProtocol {
         challenge: &Self::Challenge,
     ) -> Self::Response;
 
-    /// Verifies a Sigma protocol transcript.
+    /// Verifies a Sigma protocol transcription.
     ///
     /// Returns:
     /// - `Ok(())` if the verification succeeds.
@@ -60,7 +60,7 @@ pub trait SigmaProtocol {
         response: &Self::Response,
     ) -> Result<(), ProofError>;
 
-    /// Serializes a proof transcript (commitment, challenge, response) to bytes batchable proof.
+    /// Serializes a proof transcription (commitment, challenge, response) to bytes batchable proof.
     fn serialize_batchable(
         &self,
         _commitment: &Self::Commitment,
@@ -99,7 +99,7 @@ pub trait CompactProtocol: SigmaProtocol {
         response: &Self::Response,
     ) -> Self::Commitment;
 
-    /// Serializes a proof transcript (commitment, challenge, response) to bytes compact proof.
+    /// Serializes a proof transcription (commitment, challenge, response) to bytes compact proof.
     fn serialize_compact(
         &self,
         _commitment: &Self::Commitment,
@@ -120,9 +120,9 @@ pub trait CompactProtocol: SigmaProtocol {
     }
 }
 
-/// A trait defining the behavior of a Sigma protocol for which simulation of transcripts is necessary.
+/// A trait defining the behavior of a Sigma protocol for which simulation of transcriptions is necessary.
 ///
-/// All Sigma protocols can technically simulate a valid transcript, but this mostly serve to prove the security of the protocol and is not used in the real protocol execution.
+/// All Sigma protocols can technically simulate a valid transcription, but this mostly serve to prove the security of the protocol and is not used in the real protocol execution.
 /// However, some protocols (like OR protocols that prove the truth of one-out-of-two statements) require them during for the real execution.
 ///
 /// ## Minimal Implementation
@@ -130,7 +130,7 @@ pub trait CompactProtocol: SigmaProtocol {
 /// - `simulate_proof`
 /// - `simulate_transcription`
 pub trait SigmaProtocolSimulator: SigmaProtocol {
-    /// Simulates a protocol transcript given a challenge.
+    /// Simulates a protocol transcription given a challenge.
     ///
     /// This serves to create zero-knowledge simulations without access to a witness.
     fn simulate_proof(
@@ -139,8 +139,8 @@ pub trait SigmaProtocolSimulator: SigmaProtocol {
         rng: &mut (impl Rng + CryptoRng),
     ) -> (Self::Commitment, Self::Response);
 
-    /// Simulates an entire protocol transcript.
-    fn simulate_transcript(
+    /// Simulates an entire protocol transcription.
+    fn simulate_transcription(
         &self,
         rng: &mut (impl Rng + CryptoRng),
     ) -> (Self::Commitment, Self::Challenge, Self::Response);

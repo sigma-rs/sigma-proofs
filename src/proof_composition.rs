@@ -173,7 +173,7 @@ pub enum OrEnum<L, R> {
     Right(R),
 }
 
-/// Internal state for a simulated transcript in an OR proof.
+/// Internal state for a simulated transcription in an OR proof.
 pub struct OrState<P: SigmaProtocol>(P::Challenge, P::Response);
 
 /// Enum to describe which side (left or right) is simulated in an OR proof.
@@ -213,7 +213,7 @@ where
         let (r_index, r_witness_w) = witness;
         match r_witness_w {
             OrEnum::Left(ref r_witness) => {
-                let f_trnsc = self.protocol1.simulate_transcript(rng);
+                let f_trnsc = self.protocol1.simulate_transcription(rng);
                 let ST = OrState(f_trnsc.1, f_trnsc.2);
                 let (commit, r_pr_st) = self.protocol0.prover_commit(r_witness, rng);
                 (
@@ -222,7 +222,7 @@ where
                 )
             }
             OrEnum::Right(ref r_witness) => {
-                let f_trnsc = self.protocol0.simulate_transcript(rng);
+                let f_trnsc = self.protocol0.simulate_transcription(rng);
                 let ST = OrState(f_trnsc.1, f_trnsc.2);
                 let (commit, r_pr_st) = self.protocol1.prover_commit(r_witness, rng);
                 (

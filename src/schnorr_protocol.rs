@@ -6,13 +6,17 @@
 
 use crate::{
     group_serialization::*,
-    CompactProtocol, GroupMorphismPreimage, ProofError,
+    GroupMorphismPreimage, 
+    ProofError,
     SigmaProtocol,
+    CompactProtocol,
+    SigmaProtocolSimulator,
 };
 
 use ff::{Field, PrimeField};
 use group::{Group, GroupEncoding};
 use rand::{CryptoRng, Rng};
+use std::iter;
 
 /// A Schnorr protocol proving knowledge some discrete logarithm relation.
 ///
@@ -218,5 +222,30 @@ where
         }
 
         Ok((challenge, responses))
+    }
+}
+
+impl<G> SigmaProtocolSimulator for SchnorrProtocol<G>
+where
+    G: Group + GroupEncoding,
+{
+    fn simulate_proof(
+        &self,
+        challenge: &Self::Challenge,
+        rng: &mut (impl Rng + CryptoRng),
+    ) -> (Self::Commitment, Self::Response) {
+        let mut response = Vec::new();
+        response.extend(iter::repeat(G::Scalar::random(rng)).take(self.0.morphism.num_scalars));
+        let commitment = self.get_commitment(challenge, &response);
+        (commitment, response)
+    }
+
+    fn simulate_transcription(
+            &self,
+            rng: &mut (impl Rng + CryptoRng),
+        ) -> (Self::Commitment, Self::Challenge, Self::Response) {
+        let challenge = G::Scalar::random(&mut *rng);
+        let (commitment, response) = self.simulate_proof(&challenge, &mut *rng);
+        (commitment, challenge, response)
     }
 }

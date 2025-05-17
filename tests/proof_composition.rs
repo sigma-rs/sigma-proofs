@@ -75,7 +75,7 @@ impl SigmaProtocolSimulator for SchnorrZkp {
         (R, z)
     }
 
-    fn simulate_transcript(
+    fn simulate_transcription(
         &self,
         rng: &mut (impl Rng + CryptoRng),
     ) -> (Self::Commitment, Self::Challenge, Self::Response) {
