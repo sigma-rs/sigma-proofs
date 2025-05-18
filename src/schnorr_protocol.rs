@@ -237,7 +237,7 @@ where
         (commitment, response)
     }
 
-    fn simulate_transcription(
+    fn simulate_transcript(
         &self,
         rng: &mut (impl RngCore + CryptoRng),
     ) -> (Self::Commitment, Self::Challenge, Self::Response) {

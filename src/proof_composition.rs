@@ -176,7 +176,7 @@ pub enum OrEnum<L, R> {
     Right(R),
 }
 
-/// Internal state for a simulated transcription in an OR proof.
+/// Internal state for a simulated transcript in an OR proof.
 pub struct OrState<P: SigmaProtocol>(P::Challenge, P::Response);
 
 /// Enum to describe which side (left or right) is simulated in an OR proof.
@@ -202,7 +202,7 @@ where
         usize,
         OrEnum<P::ProverState, Q::ProverState>,
         OrTranscription<P, Q>,
-    ); // ProverState = (real index, real prover state = (r, &real witness), fake transcription)
+    ); // ProverState = (real index, real prover state = (r, &real witness), fake transcript)
     type Response = (P::Challenge, P::Response, Q::Response);
     type Witness = (usize, OrEnum<P::Witness, Q::Witness>); // Index of the real witness, and Enum to wrap the real witness
     type Challenge = P::Challenge;
@@ -216,7 +216,7 @@ where
         let (r_index, r_witness_w) = witness;
         match r_witness_w {
             OrEnum::Left(ref r_witness) => {
-                let f_trnsc = self.protocol1.simulate_transcription(rng);
+                let f_trnsc = self.protocol1.simulate_transcript(rng);
                 let ST = OrState(f_trnsc.1, f_trnsc.2);
                 let (commit, r_pr_st) = self.protocol0.prover_commit(r_witness, rng);
                 (
@@ -225,7 +225,7 @@ where
                 )
             }
             OrEnum::Right(ref r_witness) => {
-                let f_trnsc = self.protocol0.simulate_transcription(rng);
+                let f_trnsc = self.protocol0.simulate_transcript(rng);
                 let ST = OrState(f_trnsc.1, f_trnsc.2);
                 let (commit, r_pr_st) = self.protocol1.prover_commit(r_witness, rng);
                 (
@@ -241,7 +241,7 @@ where
         state: Self::ProverState,
         challenge: &Self::Challenge,
     ) -> Self::Response {
-        // let state = (real index, real prover state, fakee transcription)
+        // let state = (real index, real prover state, fake transcript)
         let (_, r_pr_st, f_trnsc) = state;
 
         // Compute the real challenge
@@ -259,7 +259,7 @@ where
                 let r_response = self.protocol1.prover_response(r_prover_state, &r_challenge);
                 (f_ch, f_response.clone(), r_response)
             }
-            _ => panic!("Incoherence between real prover state and fake transcription"),
+            _ => panic!("Incoherence between real prover state and fake transcript"),
         }
     }
 
