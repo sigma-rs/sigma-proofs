@@ -171,23 +171,20 @@ where
     /// The allocated elements are initially set to the identity.
     pub fn allocate_elements(&mut self, n: usize) -> Vec<PointVar> {
         let start = self.morphism.num_elements;
-        let indices: Vec<usize> = (start..start + n).collect();
-
         self.morphism
             .group_elements
             .extend(iter::repeat(G::identity()).take(n));
-        let mut points = Vec::new();
-        for i in indices.iter() {
-            points.push(PointVar(*i));
-        }
+        let points = (start..start + n)
+            .map(PointVar)
+            .collect::<Vec<_>>();
         self.morphism.num_elements += n;
         points
     }
 
     /// Set the value of group elements at a given index, inside the list of allocated group elements.
     pub fn set_elements(&mut self, elements: &[(PointVar, G)]) {
-        for &(i, ref elt) in elements {
-            self.morphism.group_elements[i.0] = *elt;
+        for &(i, elt) in elements {
+            self.morphism.group_elements[i.0] = elt;
         }
     }
 
