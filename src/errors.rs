@@ -21,7 +21,7 @@ pub enum ProofError {
     /// Occurs when a feature is not implemented yet.
     #[error("The method is not yet implemented for this struct.")]
     NotImplemented(&'static str),
-    /// Serialization of a group element/scalar failed
+    /// Serialization of a group element/scalar failed.
     #[error("Serialization of a group element/scalar failed.")]
     GroupSerializationFailure,
 }
