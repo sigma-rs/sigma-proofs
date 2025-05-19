@@ -1,7 +1,10 @@
 use bls12_381::{G1Projective, Scalar};
 use group::{Group, GroupEncoding};
-use hex::encode;
 use rand::{CryptoRng, Rng};
+use std::fs;
+use core::str;
+use json::JsonValue;
+use hex::FromHex;
 
 use sigma_rs::{
     codec::{ByteSchnorrCodec, KeccakDuplexSponge},
@@ -18,13 +21,48 @@ type Codec = ByteSchnorrCodec<Gp, KeccakDuplexSponge>;
 type SigmaP = SchnorrProtocolCustom<Gp>;
 type NISigmaP = NISigmaProtocol<SigmaP, Codec, Gp>;
 
-const TEST_VECTORS: [&[u8]; 5] = [
-    b"80c96c2822d816de609d4b72dd0b2a9409a3402338c977467225e7f506a60f3153a7f447450d7336c0ef15e4151349d91495306d216d5fe2ff3e660bcaf227c4794cb0e0887f5bcff6d4a6189cf9a494",
-    b"a01abd54895b7df2d476b2371e1796278a114f7dd1514e05cc1c0c07d40957268684c8887aa3f8cee33856ca325412f5a4fffa7226a983c8fcd9bb59dbb7a72e5c4eacd80958c3685d7abaa477ba6d738b35998ea1d0089166d17ea0a206d2991bf0b87f1f5c977f93fdccf9ec820d989656662f146460d48e56bfc2f6482285",
-    b"91c620e60e68502ab1e0f0fa6b9f7e3225f678596da80c0e950e4149078562518ad37ed6177c71ebd6e2ca5fc32457d8228aa82bf0293a2d70def71e0e1f434af472458907c4827b694987a903126dd050b3ed6234dcd4d176f05582d3dab5515f790c5cdc927972d631a2ddceb53edb",
-    b"8e670749a002c02e0b343a47c0194743d9164d5026ddec0a9572a742748305f83b2fc679858f2f97debd72a08ec59dc38e5d6c8cc6cb284f4012d4eb41a807d1463ad0d8976f78baff1da1fdf2ad39027e8c66e0625b15740a72fc9e866f1d1014a32947fd44c55553eb2c13d21d639640b5d070987d8befea62367b235278d80a313d50f72e5c70de5fc1db95e042b3723344136144cc71c5515c5aa03d95d1",
-    b"803d5d4fdb311967832758ae7402d03304b570f97c0756e5385a50622d0ac7b5de87fe14d15041b1564ba4893a1187304ed12592b9ca9c5ca92a87c3960f0bcae541ddf880271c361cca15c67e13bc504cf96235363e99bb3e126b111c220c77427873389d2397cf0798d251ec82ced1649b5d0e9b2f95410a68b5b66158e50832488e540853a8c79a17d8b8290266ec150af102dd9ca4a6f076399da893b1f2caa78d192590708c02ab561eb3a01aa1"
-];
+#[allow(non_snake_case)]
+#[test]
+fn sage_test_vectors() {
+    let seed = b"hello world";
+    let context = b"yellow submarineyellow submarine";
+
+    let vectors = extract_vectors("tests/spec/allVectors.json").unwrap();
+
+    let functions: [fn(seed: &[u8], context: &[u8]) -> (Vec<Scalar>, Vec<u8>); 5] = [
+        NI_discrete_logarithm,
+        NI_dleq,
+        NI_pedersen_commitment,
+        NI_pedersen_commitment_dleq,
+        NI_bbs_blind_commitment_computation,
+    ];
+
+    for (i, f) in functions.iter().enumerate() {
+        let (_, proof_bytes) = f(seed, context);
+        assert!(context.to_vec() == vectors[i].0);
+        assert!(proof_bytes == vectors[i].1);
+    }
+}
+
+fn extract_vectors(path: &str) -> json::Result<Vec<(Vec<u8>, Vec<u8>)>> {
+    let content = fs::read_to_string(path)
+        .expect("Unable to read JSON file");
+
+    let root: JsonValue = json::parse(&content)
+        .expect("JSON parsing error");
+
+    let mut vectors: Vec<(Vec<u8>, Vec<u8>)> = Vec::new();
+
+    for (_, obj) in root.entries() {
+        let context_hex = obj["Context"].as_str()
+            .expect("Context field not found or not a string");
+        let proof_hex = obj["Proof"].as_str()
+            .expect("Context field not found or not a string");
+
+        vectors.push((Vec::from_hex(context_hex).unwrap(), Vec::from_hex(proof_hex).unwrap()));
+    }
+    Ok(vectors)
+}
 
 #[allow(non_snake_case)]
 fn discrete_logarithm<G: SRandom + Group + GroupEncoding>(
@@ -274,24 +312,4 @@ fn NI_bbs_blind_commitment_computation(seed: &[u8], context: &[u8]) -> (Vec<Scal
     let verified = nizk.verify_batchable(&proof_bytes).is_ok();
     assert!(verified, "Fiat-Shamir Schnorr proof verification failed");
     (witness, proof_bytes)
-}
-
-#[allow(non_snake_case)]
-#[test]
-fn sage_test_vectors() {
-    let seed = b"hello world";
-    let context = b"yellow submarineyellow submarine";
-
-    let functions: [fn(seed: &[u8], context: &[u8]) -> (Vec<Scalar>, Vec<u8>); 5] = [
-        NI_discrete_logarithm,
-        NI_dleq,
-        NI_pedersen_commitment,
-        NI_pedersen_commitment_dleq,
-        NI_bbs_blind_commitment_computation,
-    ];
-
-    for (i, f) in functions.iter().enumerate() {
-        let (_, proof_bytes) = f(seed, context);
-        assert!(encode(&proof_bytes).as_bytes() == TEST_VECTORS[i]);
-    }
 }
