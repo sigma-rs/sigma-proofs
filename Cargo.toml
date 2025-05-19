@@ -33,7 +33,6 @@ num-bigint = "0.4.6"
 num-traits = "0.2.19"
 tiny-keccak = { version = "2.0.2", features = ["fips202"] }
 rand = "0.8.5"
-json = "0.12.4"
 
 [dev-dependencies]
 bincode = "2"
@@ -42,3 +41,4 @@ curve25519-dalek = { version = "4", default-features = false, features = ["serde
 sha2 = "0.10"
 criterion = { version = "0.6", features = ["html_reports"]}
 hex-literal = "1.0.0"
+json = "0.12.4"
