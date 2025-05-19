@@ -33,11 +33,11 @@ num-bigint = "0.4.6"
 num-traits = "0.2.19"
 tiny-keccak = { version = "2.0.2", features = ["fips202"] }
 rand = "0.8.5"
-curve25519-dalek = { version = "4", default-features = false, features = ["serde", "rand_core", "alloc", "digest", "precomputed-tables", "group"] }
 
 [dev-dependencies]
 bincode = "2"
 bls12_381 = "0.8.0"
+curve25519-dalek = { version = "4", default-features = false, features = ["serde", "rand_core", "alloc", "digest", "precomputed-tables", "group"] }
 sha2 = "0.10"
 criterion = { version = "0.6", features = ["html_reports"]}
 hex-literal = "1.0.0"
