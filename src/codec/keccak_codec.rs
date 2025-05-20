@@ -38,6 +38,12 @@ pub struct KeccakPermutationState {
     pub capacity: usize,
 }
 
+impl Default for KeccakPermutationState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl KeccakPermutationState {
     pub fn new() -> Self {
         KeccakPermutationState {
@@ -49,9 +55,9 @@ impl KeccakPermutationState {
 
     fn _bytes_to_keccak_state(&self) -> [[u64; 5]; 5] {
         let mut flat: [u64; 25] = [0u64; 25];
-        for i in 0..25 {
+        for (i, item) in flat.iter_mut().enumerate() {
             let start = i * 8;
-            flat[i] = u64::from_le_bytes(self.state[start..start + 8].try_into().unwrap());
+            *item = u64::from_le_bytes(self.state[start..start + 8].try_into().unwrap());
         }
         let mut matrix = [[0u64; 5]; 5];
         for y in 0..5 {
@@ -69,8 +75,8 @@ impl KeccakPermutationState {
                 flat[5 * y + x] = state[x][y];
             }
         }
-        for i in 0..25 {
-            let bytes = flat[i].to_le_bytes();
+        for (i, item) in flat.iter().enumerate() {
+            let bytes = item.to_le_bytes();
             let start = i * 8;
             self.state[start..start + 8].copy_from_slice(&bytes);
         }
@@ -78,16 +84,16 @@ impl KeccakPermutationState {
 
     fn bytes_to_flat_state(&self) -> [u64; 25] {
         let mut flat = [0u64; 25];
-        for i in 0..25 {
+        for (i, item) in flat.iter_mut().enumerate() {
             let start = i * 8;
-            flat[i] = u64::from_le_bytes(self.state[start..start + 8].try_into().unwrap());
+            *item = u64::from_le_bytes(self.state[start..start + 8].try_into().unwrap());
         }
         flat
     }
 
     fn flat_state_to_bytes(&mut self, flat: [u64; 25]) {
-        for i in 0..25 {
-            let bytes = flat[i].to_le_bytes();
+        for (i, item) in flat.iter().enumerate() {
+            let bytes = item.to_le_bytes();
             let start = i * 8;
             self.state[start..start + 8].copy_from_slice(&bytes);
         }
