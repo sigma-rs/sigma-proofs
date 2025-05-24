@@ -42,6 +42,7 @@ pub struct LinearCombination {
 ///
 /// It supports dynamic allocation of scalars and elements,
 /// and evaluates by performing multi-scalar multiplications.
+#[derive(Default)]
 pub struct Morphism<G: Group> {
     pub linear_combination: Vec<LinearCombination>,
     pub group_elements: Vec<G>,
@@ -56,12 +57,6 @@ pub fn msm_pr<G: Group>(scalars: &[G::Scalar], bases: &[G]) -> G {
         acc += *p * s;
     }
     acc
-}
-
-impl<G: Group> Default for Morphism<G> {
-    fn default() -> Self {
-        Self::new()
-    }
 }
 
 impl<G: Group> Morphism<G> {
@@ -110,6 +105,7 @@ impl<G: Group> Morphism<G> {
 /// Provides a higher-level API to build proof instances from sparse constraints. The equations are manipulated solely through 2 lists:
 /// - the index of a set of Group elements (maintained in Morphism)
 /// - the index of a set of scalars (provided as input for the execution)
+#[derive(Default)]
 pub struct GroupMorphismPreimage<G>
 where
     G: Group + GroupEncoding,
@@ -118,15 +114,6 @@ where
     pub morphism: Morphism<G>,
     /// Indices pointing to elements representing the "target" images for each constraint.
     pub image: Vec<PointVar>,
-}
-
-impl<G> Default for GroupMorphismPreimage<G>
-where
-    G: Group + GroupEncoding,
-{
-    fn default() -> Self {
-        Self::new()
-    }
 }
 
 impl<G> GroupMorphismPreimage<G>

@@ -17,13 +17,8 @@ use rand::{CryptoRng, RngCore};
 /// A Schnorr protocol proving knowledge some discrete logarithm relation.
 ///
 /// The specific proof instance is defined by a [`GroupMorphismPreimage`] over a group `G`.
+#[derive(Default)]
 pub struct SchnorrProtocol<G: Group + GroupEncoding>(GroupMorphismPreimage<G>);
-
-impl<G: Group + GroupEncoding> Default for SchnorrProtocol<G> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 
 impl<G: Group + GroupEncoding> SchnorrProtocol<G> {
     pub fn new() -> Self {
@@ -119,13 +114,15 @@ where
         challenge: &Self::Challenge,
         response: &Self::Response,
     ) -> Result<(), ProofError> {
-        let lhs = self.evaluate(response);
+        if commitment.len() != self.statements_nb() || response.len() != self.scalars_nb() {
+            return Err(ProofError::Other);
+        }
 
+        let lhs = self.evaluate(response);
         let mut rhs = Vec::new();
         for (i, g) in commitment.iter().enumerate().take(self.statements_nb()) {
             rhs.push(self.0.morphism.group_elements[self.0.image[i].index()] * challenge + g);
         }
-
         match lhs == rhs {
             true => Ok(()),
             false => Err(ProofError::VerificationFailure),
@@ -139,10 +136,13 @@ where
         _challenge: &Self::Challenge,
         response: &Self::Response,
     ) -> Result<Vec<u8>, ProofError> {
-        let mut bytes = Vec::new();
         let commit_nb = self.statements_nb();
         let response_nb = self.scalars_nb();
+        if commitment.len() != commit_nb || response.len() != response_nb {
+            return Err(ProofError::Other);
+        }
 
+        let mut bytes = Vec::new();
         // Serialize commitments
         for commit in commitment.iter().take(commit_nb) {
             bytes.extend_from_slice(&serialize_element(commit));
@@ -230,6 +230,9 @@ where
     ) -> Result<Vec<u8>, ProofError> {
         let mut bytes = Vec::new();
         let response_nb = self.scalars_nb();
+        if response.len() != response_nb {
+            return Err(ProofError::Other);
+        }
 
         // Serialize challenge
         bytes.extend_from_slice(&serialize_scalar::<G>(challenge));

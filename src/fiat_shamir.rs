@@ -18,6 +18,12 @@ use crate::{codec::Codec, CompactProtocol, ProofError, SigmaProtocol};
 use group::{Group, GroupEncoding};
 use rand::{CryptoRng, RngCore};
 
+type Transcript<P> = (
+    <P as SigmaProtocol>::Commitment,
+    <P as SigmaProtocol>::Challenge,
+    <P as SigmaProtocol>::Response,
+);
+
 /// A Fiat-Shamir transformation of a Sigma protocol into a non-interactive proof.
 ///
 /// `NISigmaProtocol` wraps an interactive Sigma protocol `P`
@@ -62,7 +68,7 @@ where
         &mut self,
         witness: &P::Witness,
         rng: &mut (impl RngCore + CryptoRng),
-    ) -> Result<(P::Commitment, P::Challenge, P::Response), ProofError> {
+    ) -> Result<Transcript<P>, ProofError> {
         let mut codec = self.hash_state.clone();
 
         let (commitment, prover_state) = self.sigmap.prover_commit(witness, rng)?;

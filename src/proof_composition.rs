@@ -39,6 +39,11 @@ impl<G: Group + GroupEncoding> SigmaProtocol for AndProtocol<G> {
         witness: &Self::Witness,
         rng: &mut (impl rand::Rng + rand::CryptoRng),
     ) -> Result<(Self::Commitment, Self::ProverState), ProofError> {
+        let expected_w_len: usize = self.0.iter().map(|p| p.scalars_nb()).sum();
+        if expected_w_len != witness.len() || self.is_empty() {
+            return Err(ProofError::Other);
+        }
+
         let mut cursor = 0;
         let mut commitment = Vec::with_capacity(self.0.iter().map(|p| p.statements_nb()).sum());
         let mut state = Vec::with_capacity(self.len());
@@ -59,6 +64,10 @@ impl<G: Group + GroupEncoding> SigmaProtocol for AndProtocol<G> {
         state: Self::ProverState,
         challenge: &Self::Challenge,
     ) -> Result<Self::Response, ProofError> {
+        if state.len() != self.len() {
+            return Err(ProofError::Other);
+        }
+
         let mut response = Vec::with_capacity(self.0.iter().map(|p| p.scalars_nb()).sum());
         for (proto, proto_state) in self.0.iter().zip(state) {
             let proto_response = proto.prover_response(proto_state, challenge)?;
@@ -73,6 +82,12 @@ impl<G: Group + GroupEncoding> SigmaProtocol for AndProtocol<G> {
         challenge: &Self::Challenge,
         response: &Self::Response,
     ) -> Result<(), ProofError> {
+        let expected_c_len: usize = self.0.iter().map(|p| p.statements_nb()).sum();
+        let expected_r_len: usize = self.0.iter().map(|p| p.scalars_nb()).sum();
+        if commitment.len() != expected_c_len || response.len() != expected_r_len {
+            return Err(ProofError::Other);
+        }
+
         let mut c_cursor = 0;
         let mut r_cursor = 0;
         for proto in &self.0 {
@@ -96,6 +111,12 @@ impl<G: Group + GroupEncoding> SigmaProtocol for AndProtocol<G> {
         challenge: &Self::Challenge,
         response: &Self::Response,
     ) -> Result<Vec<u8>, ProofError> {
+        let expected_c_len: usize = self.0.iter().map(|p| p.statements_nb()).sum();
+        let expected_r_len: usize = self.0.iter().map(|p| p.scalars_nb()).sum();
+        if commitment.len() != expected_c_len || response.len() != expected_r_len {
+            return Err(ProofError::Other);
+        }
+
         let mut bytes = Vec::new();
         let mut c_cursor = 0;
         let mut r_cursor = 0;
@@ -185,12 +206,13 @@ impl<G: Group + GroupEncoding> SigmaProtocol for OrProtocol<G> {
         rng: &mut (impl rand::Rng + rand::CryptoRng),
     ) -> Result<(Self::Commitment, Self::ProverState), ProofError> {
         let real_index = witness.0;
-        if real_index >= self.len() {
+        let expected_w_len = self.0[real_index].scalars_nb();
+        if real_index >= self.len() || witness.1.len() != expected_w_len {
             return Err(ProofError::Other);
         }
 
-        let mut fake_transcripts = Vec::new();
-        let mut commitment = Vec::new();
+        let mut fake_transcripts = Vec::with_capacity(self.len() - 1);
+        let mut commitment = Vec::with_capacity(self.0.iter().map(|p| p.statements_nb()).sum());
         let (real_commit, real_state) = self.0[real_index].prover_commit(&witness.1, rng)?;
         for (i, proto) in self.0.iter().enumerate() {
             if i != real_index {
@@ -244,6 +266,16 @@ impl<G: Group + GroupEncoding> SigmaProtocol for OrProtocol<G> {
         challenge: &Self::Challenge,
         response: &Self::Response,
     ) -> Result<(), ProofError> {
+        let expected_c_len: usize = self.0.iter().map(|p| p.statements_nb()).sum();
+        let expected_ch_nb = self.len();
+        let expected_r_len: usize = self.0.iter().map(|p| p.scalars_nb()).sum();
+        if commitment.len() != expected_c_len
+            || response.0.len() != expected_ch_nb
+            || response.1.len() != expected_r_len
+        {
+            return Err(ProofError::Other);
+        }
+
         let mut expected_difference = *challenge;
         let mut c_cursor = 0;
         let mut r_cursor = 0;
@@ -270,6 +302,16 @@ impl<G: Group + GroupEncoding> SigmaProtocol for OrProtocol<G> {
         _challenge: &Self::Challenge,
         response: &Self::Response,
     ) -> Result<Vec<u8>, ProofError> {
+        let expected_c_len: usize = self.0.iter().map(|p| p.statements_nb()).sum();
+        let expected_ch_nb = self.len();
+        let expected_r_len: usize = self.0.iter().map(|p| p.scalars_nb()).sum();
+        if commitment.len() != expected_c_len
+            || response.0.len() != expected_ch_nb
+            || response.1.len() != expected_r_len
+        {
+            return Err(ProofError::Other);
+        }
+
         let mut bytes = Vec::new();
         let mut c_cursor = 0;
         let mut r_cursor = 0;
@@ -292,17 +334,26 @@ impl<G: Group + GroupEncoding> SigmaProtocol for OrProtocol<G> {
         &self,
         data: &[u8],
     ) -> Result<(Self::Commitment, Self::Response), ProofError> {
+        let point_size = G::generator().to_bytes().as_ref().len();
+        let scalar_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
+            .as_ref()
+            .len();
+
+        let expected_d_len: usize = self
+            .0
+            .iter()
+            .map(|p| (p.scalars_nb() + 1) * scalar_size + p.statements_nb() * point_size)
+            .sum();
+        if data.len() != expected_d_len {
+            return Err(ProofError::ProofSizeMismatch);
+        }
+
         let mut cursor = 0;
         let mut commitment = Vec::with_capacity(self.0.iter().map(|p| p.statements_nb()).sum());
         let mut response = (
             Vec::with_capacity(self.len()),
             Vec::with_capacity(self.0.iter().map(|p| p.scalars_nb()).sum()),
         );
-
-        let point_size = G::generator().to_bytes().as_ref().len();
-        let scalar_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
-            .as_ref()
-            .len();
 
         for proto in &self.0 {
             let c_nb = proto.statements_nb();
