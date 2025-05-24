@@ -1,287 +1,90 @@
-//! Sigma protocol composition: AND and OR constructions.
-//!
-//! This module provides combinators to compose two Sigma protocols
-//! into a new protocol proving statements with logical AND or OR relations.
-//!
-//! # Overview
-//! - `AndProtocol<P, Q>`: Proves both substatements (`P` and `Q`) simultaneously.
-//! - `OrProtocol<P, Q>`: Proves knowledge of a witness for *one* substatement, without revealing which one (using simulation for the other).
-//!
-//! These constructions preserve zero-knowledge properties and follow standard Sigma protocol composition techniques.
-
-use std::convert::TryInto;
-
-use crate::{ProofError, SigmaProtocol, SigmaProtocolSimulator};
-
 use ff::PrimeField;
-use rand::{CryptoRng, Rng};
+use group::{Group, GroupEncoding};
 
-/// Logical AND composition of two Sigma protocols.
-///
-/// The prover must know witnesses for both subprotocols `P` and `Q`.
-///
-/// # Example
-/// Proves that two independent statements hold simultaneously.
-pub struct AndProtocol<P, Q>
-where
-    P: SigmaProtocol,
-    Q: SigmaProtocol,
-{
-    protocol0: P,
-    protocol1: Q,
-}
+use crate::{
+    deserialize_scalar, serialize_scalar, ProofError, SchnorrProtocol, SigmaProtocol,
+    SigmaProtocolSimulator,
+};
 
-impl<P, Q> AndProtocol<P, Q>
-where
-    P: SigmaProtocol,
-    Q: SigmaProtocol,
-{
-    /// Create a new `AndProtocol` from two Sigma protocols.
-    pub fn new(protocol0: P, protocol1: Q) -> Self {
-        Self {
-            protocol0,
-            protocol1,
-        }
+pub struct AndProtocol<G: Group + GroupEncoding>(pub Vec<SchnorrProtocol<G>>);
+
+impl<G: Group + GroupEncoding> AndProtocol<G> {
+    pub fn new() -> Self {
+        AndProtocol(Vec::<SchnorrProtocol<G>>::new())
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn append_protocol(&mut self, protocol: SchnorrProtocol<G>) {
+        self.0.push(protocol);
     }
 }
 
-impl<P, Q> SigmaProtocol for AndProtocol<P, Q>
-where
-    P: SigmaProtocol,
-    Q: SigmaProtocol<Challenge = P::Challenge>,
-{
-    type Commitment = (P::Commitment, Q::Commitment);
-    type ProverState = (P::ProverState, Q::ProverState);
-    type Response = (P::Response, Q::Response);
-    type Witness = (P::Witness, Q::Witness);
-    type Challenge = P::Challenge;
-
-    fn prover_commit(
-        &self,
-        witnesses: &Self::Witness,
-        rng: &mut (impl Rng + CryptoRng),
-    ) -> (Self::Commitment, Self::ProverState) {
-        let (commitment0, pr_st0) = self.protocol0.prover_commit(&witnesses.0, rng);
-        let (commitment1, pr_st1) = self.protocol1.prover_commit(&witnesses.1, rng);
-
-        ((commitment0, commitment1), (pr_st0, pr_st1))
-    }
-
-    fn prover_response(
-        &self,
-        state: Self::ProverState,
-        challenge: &Self::Challenge,
-    ) -> Self::Response {
-        // Compute responses
-        let response0 = self.protocol0.prover_response(state.0, challenge);
-        let response1 = self.protocol1.prover_response(state.1, challenge);
-
-        (response0, response1)
-    }
-
-    fn verifier(
-        &self,
-        commitment: &Self::Commitment,
-        challenge: &Self::Challenge,
-        response: &Self::Response,
-    ) -> Result<(), ProofError> {
-        let verif0 = self
-            .protocol0
-            .verifier(&commitment.0, challenge, &response.0);
-        let verif1 = self
-            .protocol1
-            .verifier(&commitment.1, challenge, &response.1);
-
-        match (verif0, verif1) {
-            (Ok(()), Ok(())) => Ok(()),
-            _ => Err(ProofError::VerificationFailure),
-        }
-    }
-
-    fn serialize_batchable(
-        &self,
-        commitment: &Self::Commitment,
-        challenge: &Self::Challenge,
-        response: &Self::Response,
-    ) -> Result<Vec<u8>, ProofError> {
-        let ser0 = self
-            .protocol0
-            .serialize_batchable(&commitment.0, challenge, &response.0)?;
-        let ser1 = self
-            .protocol1
-            .serialize_batchable(&commitment.1, challenge, &response.1)?;
-        let len0 = ser0.len() as u32;
-
-        let mut out = ser0;
-        out.extend(ser1);
-        out.extend(&len0.to_le_bytes()); // append length hint as trailer
-        Ok(out)
-    }
-
-    fn deserialize_batchable(
-        &self,
-        data: &[u8],
-    ) -> Result<(Self::Commitment, Self::Response), ProofError> {
-        if data.len() < 4 {
-            return Err(ProofError::GroupSerializationFailure); // not enough bytes to contain the length suffix
-        }
-
-        // Split off the last 4 bytes as the trailer
-        let (proof_data, len_bytes) = data.split_at(data.len() - 4);
-        let len0 = u32::from_le_bytes(len_bytes.try_into().unwrap()) as usize;
-
-        if proof_data.len() < len0 {
-            return Err(ProofError::GroupSerializationFailure); // length hint exceeds available bytes
-        }
-
-        let (ser0, ser1) = proof_data.split_at(len0);
-
-        let (commitment0, response0) = self.protocol0.deserialize_batchable(ser0)?;
-        let (commitment1, response1) = self.protocol1.deserialize_batchable(ser1)?;
-
-        Ok(((commitment0, commitment1), (response0, response1)))
-    }
-}
-
-/// Logical OR composition of two Sigma protocols.
-///
-/// The prover knows a witness for **one** subprotocol `P` *or* `Q`,
-/// but does not reveal which. This uses simulation to hide the other statement.
-pub struct OrProtocol<P, Q>
-where
-    P: SigmaProtocol,
-    Q: SigmaProtocol,
-{
-    protocol0: P,
-    protocol1: Q,
-}
-
-impl<P, Q> OrProtocol<P, Q>
-where
-    P: SigmaProtocol,
-    Q: SigmaProtocol,
-{
-    /// Create a new `OrProtocol` from two Sigma protocols.
-    pub fn new(protocol0: P, protocol1: Q) -> Self {
-        Self {
-            protocol0,
-            protocol1,
-        }
-    }
-}
-
-/// Enum to wrap either the left or right variant in an OR proof.
-pub enum OrEnum<L, R> {
-    Left(L),
-    Right(R),
-}
-
-/// Internal state for a simulated transcript in an OR proof.
-pub struct OrState<P: SigmaProtocol>(P::Challenge, P::Response);
-
-/// Enum to describe which side (left or right) is simulated in an OR proof.
-pub enum OrTranscription<P, Q>
-where
-    P: SigmaProtocol,
-    Q: SigmaProtocol,
-{
-    Left(OrState<P>),
-    Right(OrState<Q>),
-}
-
-impl<P, Q, C> SigmaProtocol for OrProtocol<P, Q>
-where
-    C: PrimeField,
-    P: SigmaProtocol<Challenge = C> + SigmaProtocolSimulator,
-    Q: SigmaProtocol<Challenge = C> + SigmaProtocolSimulator,
-    P::Response: Clone,
-    Q::Response: Clone,
-{
-    type Commitment = (P::Commitment, Q::Commitment);
-    type ProverState = (
-        usize,
-        OrEnum<P::ProverState, Q::ProverState>,
-        OrTranscription<P, Q>,
-    ); // ProverState = (real index, real prover state = (r, &real witness), fake transcript)
-    type Response = (P::Challenge, P::Response, Q::Response);
-    type Witness = (usize, OrEnum<P::Witness, Q::Witness>); // Index of the real witness, and Enum to wrap the real witness
-    type Challenge = P::Challenge;
+impl<G: Group + GroupEncoding> SigmaProtocol for AndProtocol<G> {
+    type Commitment = Vec<G>;
+    type ProverState = Vec<(Vec<<G as Group>::Scalar>, Vec<<G as Group>::Scalar>)>;
+    type Response = Vec<<G as Group>::Scalar>;
+    type Witness = Vec<<G as Group>::Scalar>;
+    type Challenge = <G as Group>::Scalar;
 
     fn prover_commit(
         &self,
         witness: &Self::Witness,
-        rng: &mut (impl Rng + CryptoRng),
-    ) -> (Self::Commitment, Self::ProverState) {
-        // real index and real witness (wrapped)
-        let (r_index, r_witness_w) = witness;
-        match r_witness_w {
-            OrEnum::Left(ref r_witness) => {
-                let f_trnsc = self.protocol1.simulate_transcript(rng);
-                let ST = OrState(f_trnsc.1, f_trnsc.2);
-                let (commit, r_pr_st) = self.protocol0.prover_commit(r_witness, rng);
-                (
-                    (commit, f_trnsc.0),
-                    (*r_index, OrEnum::Left(r_pr_st), OrTranscription::Right(ST)),
-                )
-            }
-            OrEnum::Right(ref r_witness) => {
-                let f_trnsc = self.protocol0.simulate_transcript(rng);
-                let ST = OrState(f_trnsc.1, f_trnsc.2);
-                let (commit, r_pr_st) = self.protocol1.prover_commit(r_witness, rng);
-                (
-                    (f_trnsc.0, commit),
-                    (*r_index, OrEnum::Right(r_pr_st), OrTranscription::Left(ST)),
-                )
-            }
+        rng: &mut (impl rand::Rng + rand::CryptoRng),
+    ) -> Result<(Self::Commitment, Self::ProverState), ProofError> {
+        let mut commitment = Vec::new();
+        let mut state = Vec::new();
+        let mut cursor = 0;
+
+        for protocol in &self.0 {
+            let witness_len = protocol.scalars_nb();
+            let p_witness = &witness[cursor..(cursor + witness_len)];
+            let (commit, pr_state) = protocol.prover_commit(&p_witness.to_vec(), rng)?;
+            commitment.extend(commit);
+            state.push(pr_state);
+
+            cursor += witness_len;
         }
+        Ok((commitment, state))
     }
 
     fn prover_response(
         &self,
         state: Self::ProverState,
         challenge: &Self::Challenge,
-    ) -> Self::Response {
-        // let state = (real index, real prover state, fake transcript)
-        let (_, r_pr_st, f_trnsc) = state;
-
-        // Compute the real challenge
-        let r_challenge = match &f_trnsc {
-            OrTranscription::Left(OrState(ch, _)) => *challenge - ch,
-            OrTranscription::Right(OrState(ch, _)) => *challenge - ch,
-        };
-
-        match (r_pr_st, f_trnsc) {
-            (OrEnum::Left(r_prover_state), OrTranscription::Right(OrState(_, f_response))) => {
-                let r_response = self.protocol0.prover_response(r_prover_state, &r_challenge);
-                (r_challenge, r_response, f_response.clone())
-            }
-            (OrEnum::Right(r_prover_state), OrTranscription::Left(OrState(f_ch, f_response))) => {
-                let r_response = self.protocol1.prover_response(r_prover_state, &r_challenge);
-                (f_ch, f_response.clone(), r_response)
-            }
-            _ => panic!("Incoherence between real prover state and fake transcript"),
+    ) -> Result<Self::Response, ProofError> {
+        let mut response = Vec::new();
+        for (i, protocol) in self.0.iter().enumerate() {
+            let resp = protocol.prover_response(state[i].clone(), challenge)?;
+            response.extend(resp);
         }
+        Ok(response)
     }
 
     fn verifier(
         &self,
-        commitments: &Self::Commitment,
+        commitment: &Self::Commitment,
         challenge: &Self::Challenge,
         response: &Self::Response,
     ) -> Result<(), ProofError> {
-        let cond0 = self
-            .protocol0
-            .verifier(&commitments.0, &response.0, &response.1);
+        let mut commit_cursor = 0;
+        let mut resp_cursor = 0;
 
-        let challenge1 = *challenge - response.0;
-        let cond1 = self
-            .protocol1
-            .verifier(&commitments.1, &challenge1, &response.2);
+        for protocol in &self.0 {
+            let commit_len = protocol.points_nb();
+            let resp_len = protocol.scalars_nb();
 
-        match (cond0, cond1) {
-            (Ok(()), Ok(())) => Ok(()),
-            _ => Err(ProofError::VerificationFailure),
+            let commit = &commitment[commit_cursor..(commit_cursor + commit_len)];
+            let resp = &response[resp_cursor..(resp_cursor + resp_len)];
+
+            protocol.verifier(&commit.to_vec(), challenge, &resp.to_vec())?;
+
+            commit_cursor += commit_len;
+            resp_cursor += resp_len
         }
+        Ok(())
     }
 
     fn serialize_batchable(
@@ -290,56 +93,224 @@ where
         challenge: &Self::Challenge,
         response: &Self::Response,
     ) -> Result<Vec<u8>, ProofError> {
-        let (ch0, resp0, resp1) = response;
-        let ch1 = *challenge - *ch0;
+        let mut bytes = Vec::new();
+        let mut commit_cursor = 0;
+        let mut resp_cursor = 0;
 
-        let ser0 = self
-            .protocol0
-            .serialize_batchable(&commitment.0, ch0, resp0)?;
-        let ser1 = self
-            .protocol1
-            .serialize_batchable(&commitment.1, &ch1, resp1)?;
+        for protocol in &self.0 {
+            let commit_len = protocol.points_nb();
+            let resp_len = protocol.scalars_nb();
 
-        let mut out = ser0.clone();
-        out.extend(&ser1);
-        out.extend(ch0.to_repr().as_ref()); // serialize ch0
-        out.extend(&(ser0.len() as u32).to_le_bytes()); // append len0 (length of ser0)
-
-        Ok(out)
+            let commit = &commitment[commit_cursor..(commit_cursor + commit_len)];
+            let resp = &response[resp_cursor..(resp_cursor + resp_len)];
+            bytes.extend_from_slice(&protocol.serialize_batchable(
+                &commit.to_vec(),
+                challenge,
+                &resp.to_vec(),
+            )?);
+            commit_cursor += commit_len;
+            resp_cursor += resp_len;
+        }
+        Ok(bytes)
     }
 
     fn deserialize_batchable(
         &self,
         data: &[u8],
     ) -> Result<(Self::Commitment, Self::Response), ProofError> {
-        // The challenge is appended as `Challenge::Repr`, which must be a fixed size
-        let repr_len = <C as PrimeField>::Repr::default().as_ref().len();
-        if data.len() < repr_len + 4 {
-            return Err(ProofError::GroupSerializationFailure);
+        let mut commitment = Vec::new();
+        let mut response = Vec::new();
+        let mut cursor = 0;
+
+        let point_size = G::generator().to_bytes().as_ref().len();
+        let scalar_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
+            .as_ref()
+            .len();
+
+        for protocol in &self.0 {
+            let commit_nb = protocol.points_nb();
+            let response_nb = protocol.scalars_nb();
+            let proof_len = response_nb * scalar_size + commit_nb * point_size;
+            let (commit, resp) =
+                protocol.deserialize_batchable(&data[cursor..(cursor + proof_len)])?;
+            commitment.extend(commit);
+            response.extend(resp);
+            cursor += proof_len;
+        }
+        Ok((commitment, response))
+    }
+}
+
+pub struct OrProtocol<G: Group + GroupEncoding>(pub Vec<SchnorrProtocol<G>>);
+
+pub struct Transcript<G: Group> {
+    challenge: <G as Group>::Scalar,
+    response: Vec<<G as Group>::Scalar>,
+}
+
+impl<G: Group + GroupEncoding> OrProtocol<G> {
+    pub fn new() -> Self {
+        OrProtocol(Vec::<SchnorrProtocol<G>>::new())
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn append_protocol(&mut self, protocol: SchnorrProtocol<G>) {
+        self.0.push(protocol);
+    }
+}
+
+impl<G: Group + GroupEncoding> SigmaProtocol for OrProtocol<G> {
+    type Commitment = Vec<G>; // Vec(commitment)
+    type ProverState = (
+        usize,
+        (Vec<<G as Group>::Scalar>, Vec<<G as Group>::Scalar>),
+        Vec<Transcript<G>>,
+    ); // ( real_index, ( real_nonce, real_witness ), Vec( fake_transcriptions = (challenge, resp) ) )
+    type Response = (Vec<<G as Group>::Scalar>, Vec<<G as Group>::Scalar>); // Vec(challenge, response)
+    type Witness = (usize, Vec<<G as Group>::Scalar>); // (real_index, real_witness)
+    type Challenge = <G as Group>::Scalar; // Challenge
+
+    fn prover_commit(
+        &self,
+        witness: &Self::Witness,
+        rng: &mut (impl rand::Rng + rand::CryptoRng),
+    ) -> Result<(Self::Commitment, Self::ProverState), ProofError> {
+        let real_index = witness.0;
+        if real_index >= self.len() {
+            return Err(ProofError::Other);
         }
 
-        let len0_bytes = &data[data.len() - 4..];
-        let ch0_bytes = &data[data.len() - 4 - repr_len..data.len() - 4];
-        let proof_data = &data[..data.len() - repr_len - 4];
-
-        let len0 = u32::from_le_bytes(len0_bytes.try_into().unwrap()) as usize;
-        if proof_data.len() < len0 {
-            return Err(ProofError::GroupSerializationFailure);
+        let mut fake_transcripts = Vec::new();
+        let mut commitment = Vec::new();
+        let (real_commit, real_state) = self.0[real_index].prover_commit(&witness.1, rng)?;
+        for (i, protocol) in self.0.iter().enumerate() {
+            if i != real_index {
+                let (commit, challenge, resp) = protocol.simulate_transcript(rng);
+                fake_transcripts.push(Transcript {
+                    challenge,
+                    response: resp,
+                });
+                commitment.extend(commit);
+            } else {
+                commitment.extend(&real_commit);
+            }
         }
+        Ok((commitment, (real_index, real_state, fake_transcripts)))
+    }
 
-        let mut repr = <C as PrimeField>::Repr::default();
-        repr.as_mut().copy_from_slice(ch0_bytes);
+    fn prover_response(
+        &self,
+        state: Self::ProverState,
+        challenge: &Self::Challenge,
+    ) -> Result<Self::Response, ProofError> {
+        let (real_index, real_state, fake_transcripts) = state;
+        let mut response = (Vec::new(), Vec::new());
 
-        let result_ctoption = C::from_repr(repr);
-        if (!result_ctoption.is_some()).into() {
-            return Err(ProofError::GroupSerializationFailure);
+        let mut real_challenge = challenge.clone();
+        for transcript in &fake_transcripts {
+            real_challenge -= transcript.challenge.clone();
         }
-        let ch0 = result_ctoption.unwrap();
+        let real_response = self.0[real_index].prover_response(real_state, &real_challenge)?;
 
-        let (proof0_bytes, proof1_bytes) = proof_data.split_at(len0);
-        let (commitment0, response0) = self.protocol0.deserialize_batchable(proof0_bytes)?;
-        let (commitment1, response1) = self.protocol1.deserialize_batchable(proof1_bytes)?;
+        for (i, _) in self.0.iter().enumerate() {
+            if i < real_index {
+                response.0.push(fake_transcripts[i].challenge);
+                response.1.extend(&fake_transcripts[i].response);
+            } else if i == real_index {
+                response.0.push(real_challenge);
+                response.1.extend(&real_response);
+            } else if i > real_index {
+                response.0.push(fake_transcripts[i - 1].challenge);
+                response.1.extend(&fake_transcripts[i - 1].response);
+            }
+        }
+        Ok(response)
+    }
 
-        Ok(((commitment0, commitment1), (ch0, response0, response1)))
+    fn verifier(
+        &self,
+        commitment: &Self::Commitment,
+        challenge: &Self::Challenge,
+        response: &Self::Response,
+    ) -> Result<(), ProofError> {
+        let mut expected_difference = challenge.clone();
+
+        let mut commit_cursor = 0;
+        let mut resp_cursor = 0;
+        for (i, protocol) in self.0.iter().enumerate() {
+            let commit_len = protocol.points_nb();
+            let resp_len = protocol.scalars_nb();
+            let commit = &commitment[commit_cursor..(commit_cursor + commit_len)];
+            let resp = &response.1[resp_cursor..(resp_cursor + resp_len)];
+            protocol.verifier(&commit.to_vec(), &response.0[i], &resp.to_vec())?;
+            commit_cursor += commit_len;
+            resp_cursor += resp_len;
+
+            expected_difference += response.0[i];
+        }
+        Ok(())
+    }
+
+    fn serialize_batchable(
+        &self,
+        commitment: &Self::Commitment,
+        _challenge: &Self::Challenge,
+        response: &Self::Response,
+    ) -> Result<Vec<u8>, ProofError> {
+        let mut bytes = Vec::new();
+        let mut commit_cursor = 0;
+        let mut resp_cursor = 0;
+
+        for (i, protocol) in self.0.iter().enumerate() {
+            let commit_len = protocol.points_nb();
+            let resp_len = protocol.scalars_nb();
+
+            let commit = &commitment[commit_cursor..(commit_cursor + commit_len)];
+            let resp = &response.1[resp_cursor..(resp_cursor + resp_len)];
+            bytes.extend_from_slice(&protocol.serialize_batchable(
+                &commit.to_vec(),
+                &response.0[i],
+                &resp.to_vec(),
+            )?);
+            bytes.extend_from_slice(&serialize_scalar::<G>(&response.0[i]));
+            commit_cursor += commit_len;
+            resp_cursor += resp_len;
+        }
+        Ok(bytes)
+    }
+
+    fn deserialize_batchable(
+        &self,
+        data: &[u8],
+    ) -> Result<(Self::Commitment, Self::Response), ProofError> {
+        let mut commitment = Vec::new();
+        let mut response = (Vec::new(), Vec::new());
+        let mut cursor = 0;
+
+        let point_size = G::generator().to_bytes().as_ref().len();
+        let scalar_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
+            .as_ref()
+            .len();
+
+        for protocol in &self.0 {
+            let commit_nb = protocol.points_nb();
+            let response_nb = protocol.scalars_nb();
+            let proof_len = response_nb * scalar_size + commit_nb * point_size;
+            let (commit, resp) =
+                protocol.deserialize_batchable(&data[cursor..(cursor + proof_len)])?;
+            let challenge = deserialize_scalar::<G>(
+                &data[(cursor + proof_len)..(cursor + proof_len + scalar_size)],
+            )
+            .unwrap();
+            commitment.extend(commit);
+            response.1.extend(resp);
+            response.0.push(challenge);
+
+            cursor += proof_len + scalar_size;
+        }
+        Ok((commitment, response))
     }
 }

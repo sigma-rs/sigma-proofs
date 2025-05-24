@@ -23,5 +23,8 @@ pub enum ProofError {
     NotImplemented(&'static str),
     /// Serialization of a group element/scalar failed
     #[error("Serialization of a group element/scalar failed")]
+    /// Other error
     GroupSerializationFailure,
+    #[error("Other")]
+    Other,
 }

@@ -62,10 +62,10 @@ where
         &mut self,
         witness: &P::Witness,
         rng: &mut (impl RngCore + CryptoRng),
-    ) -> (P::Commitment, P::Challenge, P::Response) {
+    ) -> Result<(P::Commitment, P::Challenge, P::Response), ProofError> {
         let mut codec = self.hash_state.clone();
 
-        let (commitment, prover_state) = self.sigmap.prover_commit(witness, rng);
+        let (commitment, prover_state) = self.sigmap.prover_commit(witness, rng)?;
         // Commitment data for challenge generation
         let mut data = Vec::new();
         for commit in &commitment {
@@ -74,13 +74,10 @@ where
         // Fiat Shamir challenge
         let challenge = codec.prover_message(&data).verifier_challenge();
         // Prover's response
-        let response = self.sigmap.prover_response(prover_state, &challenge);
+        let response = self.sigmap.prover_response(prover_state, &challenge)?;
         // Local verification of the proof
-        assert!(self
-            .sigmap
-            .verifier(&commitment, &challenge, &response)
-            .is_ok());
-        (commitment, challenge, response)
+        self.sigmap.verifier(&commitment, &challenge, &response)?;
+        Ok((commitment, challenge, response))
     }
 
     /// Verify a non-interactive proof and returns a Result: `Ok(())` if the proof verifies successfully, `Err(())` otherwise.
@@ -110,11 +107,12 @@ where
         &mut self,
         witness: &P::Witness,
         rng: &mut (impl RngCore + CryptoRng),
-    ) -> Vec<u8> {
-        let (commitment, challenge, response) = self.prove(witness, rng);
-        self.sigmap
+    ) -> Result<Vec<u8>, ProofError> {
+        let (commitment, challenge, response) = self.prove(witness, rng)?;
+        Ok(self
+            .sigmap
             .serialize_batchable(&commitment, &challenge, &response)
-            .unwrap()
+            .unwrap())
     }
 
     pub fn verify_batchable(&mut self, proof: &[u8]) -> Result<(), ProofError> {
@@ -144,17 +142,18 @@ where
         &mut self,
         witness: &P::Witness,
         rng: &mut (impl RngCore + CryptoRng),
-    ) -> Vec<u8> {
-        let (commitment, challenge, response) = self.prove(witness, rng);
-        self.sigmap
+    ) -> Result<Vec<u8>, ProofError> {
+        let (commitment, challenge, response) = self.prove(witness, rng)?;
+        Ok(self
+            .sigmap
             .serialize_compact(&commitment, &challenge, &response)
-            .unwrap()
+            .unwrap())
     }
 
     pub fn verify_compact(&mut self, proof: &[u8]) -> Result<(), ProofError> {
         let (challenge, response) = self.sigmap.deserialize_compact(proof).unwrap();
         // Compute the commitments
-        let commitment = self.sigmap.get_commitment(&challenge, &response);
+        let commitment = self.sigmap.get_commitment(&challenge, &response)?;
         // Verify the proof
         self.verify(&commitment, &challenge, &response)
     }

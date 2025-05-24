@@ -31,14 +31,14 @@ fn discrete_logarithm() {
     proof_builder.set_elements(&[(var_X, X)]);
 
     // Prove and verify a proof
-    let proof_bytes = proof_builder.prove(&witness, &mut rng);
+    let proof_bytes = proof_builder.prove(&witness, &mut rng).unwrap();
     let result = match proof_builder.verify(&proof_bytes) {
         Ok(_) => true,
         _ => false,
     };
 
     // Prove and verify a compact proof
-    let compact_proof_bytes = proof_builder.prove_compact(&witness, &mut rng);
+    let compact_proof_bytes = proof_builder.prove_compact(&witness, &mut rng).unwrap();
     let compact_result = match proof_builder.verify_compact(&compact_proof_bytes) {
         Ok(_) => true,
         _ => false,

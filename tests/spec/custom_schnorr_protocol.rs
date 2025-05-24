@@ -6,11 +6,12 @@ use sigma_rs::{group_serialization::*, GroupMorphismPreimage, ProofError, SigmaP
 
 use crate::random::SRandom;
 
-pub struct SchnorrProtocolCustom<G>
-where
-    G: SRandom + GroupEncoding,
-{
-    pub morphismp: GroupMorphismPreimage<G>,
+pub struct SchnorrProtocolCustom<G: SRandom + GroupEncoding>(pub GroupMorphismPreimage<G>);
+
+impl<G: SRandom + GroupEncoding> SchnorrProtocolCustom<G> {
+    pub fn witness_len(&self) -> usize {
+        self.0.morphism.num_scalars
+    }
 }
 
 impl<G> SigmaProtocol for SchnorrProtocolCustom<G>
@@ -27,26 +28,34 @@ where
         &self,
         witness: &Self::Witness,
         rng: &mut (impl Rng + CryptoRng),
-    ) -> (Self::Commitment, Self::ProverState) {
+    ) -> Result<(Self::Commitment, Self::ProverState), ProofError> {
+        if witness.len() != self.witness_len() {
+            return Err(ProofError::Other);
+        }
+
         let mut nonces: Vec<G::Scalar> = Vec::new();
-        for _i in 0..self.morphismp.morphism.num_scalars {
+        for _i in 0..self.0.morphism.num_scalars {
             nonces.push(<G as SRandom>::srandom(&mut *rng));
         }
         let prover_state = (nonces.clone(), witness.clone());
-        let commitment = self.morphismp.morphism.evaluate(&nonces);
-        (commitment, prover_state)
+        let commitment = self.0.morphism.evaluate(&nonces);
+        Ok((commitment, prover_state))
     }
 
     fn prover_response(
         &self,
         state: Self::ProverState,
         challenge: &Self::Challenge,
-    ) -> Self::Response {
+    ) -> Result<Self::Response, ProofError> {
+        if state.0.len() != self.witness_len() || state.1.len() != self.witness_len() {
+            return Err(ProofError::Other);
+        }
+
         let mut responses = Vec::new();
-        for i in 0..self.morphismp.morphism.num_scalars {
+        for i in 0..self.0.morphism.num_scalars {
             responses.push(state.0[i] + *challenge * state.1[i]);
         }
-        responses
+        Ok(responses)
     }
 
     fn verifier(
@@ -55,18 +64,15 @@ where
         challenge: &Self::Challenge,
         response: &Self::Response,
     ) -> Result<(), ProofError> {
-        let lhs = self.morphismp.morphism.evaluate(response);
+        let lhs = self.0.morphism.evaluate(response);
 
         let mut rhs = Vec::new();
         for (i, g) in commitment
             .iter()
             .enumerate()
-            .take(self.morphismp.morphism.num_statements())
+            .take(self.0.morphism.num_statements())
         {
-            rhs.push(
-                *g + self.morphismp.morphism.group_elements[self.morphismp.image[i].index()]
-                    * *challenge,
-            );
+            rhs.push(*g + self.0.morphism.group_elements[self.0.image[i].index()] * *challenge);
         }
 
         match lhs == rhs {
@@ -82,8 +88,8 @@ where
         response: &Self::Response,
     ) -> Result<Vec<u8>, ProofError> {
         let mut bytes = Vec::new();
-        let scalar_nb = self.morphismp.morphism.num_scalars;
-        let point_nb = self.morphismp.morphism.num_statements();
+        let scalar_nb = self.0.morphism.num_scalars;
+        let point_nb = self.0.morphism.num_statements();
 
         for commit in commitment.iter().take(point_nb) {
             bytes.extend_from_slice(&serialize_element(commit));
@@ -100,8 +106,8 @@ where
         &self,
         data: &[u8],
     ) -> Result<(Self::Commitment, Self::Response), ProofError> {
-        let scalar_nb = self.morphismp.morphism.num_scalars;
-        let point_nb = self.morphismp.morphism.num_statements();
+        let scalar_nb = self.0.morphism.num_scalars;
+        let point_nb = self.0.morphism.num_statements();
 
         let point_size = G::generator().to_bytes().as_ref().len();
         let scalar_size = <<G as Group>::Scalar as PrimeField>::Repr::default()

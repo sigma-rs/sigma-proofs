@@ -1,10 +1,11 @@
-use curve25519_dalek::{ristretto::RistrettoPoint, scalar::Scalar};
+use curve25519_dalek::ristretto::RistrettoPoint;
 use ff::Field;
 use group::{Group, GroupEncoding};
 use rand::{rngs::OsRng, CryptoRng, Rng};
 
 use sigma_rs::{
-    AndProtocol, GroupMorphismPreimage, OrEnum, OrProtocol, SchnorrProtocol, SigmaProtocol,
+    codec::ShakeCodec, AndProtocol, GroupMorphismPreimage, NISigmaProtocol, OrProtocol,
+    SchnorrProtocol,
 };
 
 type G = RistrettoPoint;
@@ -27,7 +28,7 @@ fn DL_protocol<G: Group + GroupEncoding>(
     preimage.set_elements(&[(points[1], G * x)]);
 
     assert!(vec![G * x] == preimage.morphism.evaluate(&[x]));
-    (SchnorrProtocol(preimage), vec![x])
+    (SchnorrProtocol::from_preimage(preimage), vec![x])
 }
 
 #[allow(non_snake_case)]
@@ -54,127 +55,126 @@ fn pedersen_protocol<G: Group + GroupEncoding>(
     );
 
     assert!(vec![C] == preimage.morphism.evaluate(&witness));
-    (SchnorrProtocol(preimage), witness)
+    (SchnorrProtocol::from_preimage(preimage), witness)
 }
 
 #[allow(non_snake_case)]
 #[test]
 fn and_proof_correct() {
     let mut rng = OsRng;
+    let domain_sep = b"hello world";
 
     let (p1, x1) = DL_protocol::<G>(&mut rng);
     let (p2, x2) = pedersen_protocol::<G>(&mut rng);
 
-    let and_proof = AndProtocol::new(p1, p2);
+    let mut and_protocol = AndProtocol::<G>::new();
+    and_protocol.append_protocol(p1);
+    and_protocol.append_protocol(p2);
 
-    // Commitment phase
-    let witnesses = (x1, x2);
-    let (commitment, states) = and_proof.prover_commit(&witnesses, &mut rng);
+    let mut witness = Vec::new();
+    witness.extend(&x1);
+    witness.extend(&x2);
 
-    // Fiat-Shamir challenge (dummy for now)
-    let challenge = Scalar::random(&mut rng);
+    let mut nizk = NISigmaProtocol::<AndProtocol<RistrettoPoint>, ShakeCodec<G>, G>::new(
+        domain_sep,
+        and_protocol,
+    );
 
-    // Prover computes responses
-    let response = and_proof.prover_response(states, &challenge);
-    // Serialization of the proof
-    let proof_bytes = and_proof
-        .serialize_batchable(&commitment, &challenge, &response)
-        .unwrap();
-    // Deserialization of the proof
-    let (commitment_des, response_des) = and_proof.deserialize_batchable(&proof_bytes).unwrap();
-    // Verifier checks
-    let result = and_proof.verifier(&commitment_des, &challenge, &response_des);
-    assert!(result.is_ok());
+    // Batchable and compact proofs
+    let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
+    // Verify proofs
+    let verified_batchable = nizk.verify_batchable(&proof_batchable_bytes).is_ok();
+    assert!(
+        verified_batchable,
+        "Fiat-Shamir Schnorr proof verification failed"
+    );
 }
 
 #[allow(non_snake_case)]
 #[test]
 fn and_proof_incorrect() {
     let mut rng = OsRng;
+    let domain_sep = b"hello world";
 
     let (p1, _) = DL_protocol::<G>(&mut rng);
     let (p2, x2) = pedersen_protocol::<G>(&mut rng);
-    let fake_witness = Scalar::random(&mut rng);
 
-    let and_proof = AndProtocol::new(p1, p2);
+    let mut and_protocol = AndProtocol::<G>::new();
+    and_protocol.append_protocol(p1);
+    and_protocol.append_protocol(p2);
 
-    // Commitment phase
-    let witnesses = (vec![fake_witness], x2);
-    let (commitment, states) = and_proof.prover_commit(&witnesses, &mut rng);
+    let mut witness = Vec::new();
+    let fake_x = <RistrettoPoint as Group>::Scalar::random(&mut rng);
+    witness.push(fake_x);
+    witness.extend(x2);
 
-    // Fiat-Shamir challenge (dummy for now)
-    let challenge = Scalar::random(&mut rng);
+    let mut nizk = NISigmaProtocol::<AndProtocol<RistrettoPoint>, ShakeCodec<G>, G>::new(
+        domain_sep,
+        and_protocol,
+    );
 
-    // Prover computes responses
-    let response = and_proof.prover_response(states, &challenge);
-    // Serialization of the proof
-    let proof_bytes = and_proof
-        .serialize_batchable(&commitment, &challenge, &response)
-        .unwrap();
-    // Deserialization of the proof
-    let (commitment_des, response_des) = and_proof.deserialize_batchable(&proof_bytes).unwrap();
-    // Verifier checks
-    let result = and_proof.verifier(&commitment_des, &challenge, &response_des);
-    assert!(!result.is_ok());
+    // Prove (and local verification)
+    let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).is_err();
+    assert!(
+        proof_batchable_bytes,
+        "Fiat-Shamir Schnorr proof verification failed"
+    );
 }
 
 #[allow(non_snake_case)]
 #[test]
 fn or_proof_correct() {
     let mut rng = OsRng;
+    let domain_sep = b"hello world";
 
     let (p1, x1) = DL_protocol::<G>(&mut rng);
     let (p2, _) = pedersen_protocol::<G>(&mut rng);
 
-    let or_proof = OrProtocol::new(p1, p2);
+    let mut or_protocol = OrProtocol::<G>::new();
+    or_protocol.append_protocol(p1);
+    or_protocol.append_protocol(p2);
 
-    // Commitment phase
-    let witnesses = (0, OrEnum::Left(x1));
-    let (commitment, states) = or_proof.prover_commit(&witnesses, &mut rng);
+    let witness = (0, x1);
 
-    // Fiat-Shamir challenge (dummy for now)
-    let challenge = Scalar::random(&mut rng);
+    let mut nizk = NISigmaProtocol::<OrProtocol<RistrettoPoint>, ShakeCodec<G>, G>::new(
+        domain_sep,
+        or_protocol,
+    );
 
-    // Prover computes responses
-    let response = or_proof.prover_response(states, &challenge);
-    // Serialization of the proof
-    let proof_bytes = or_proof
-        .serialize_batchable(&commitment, &challenge, &response)
-        .unwrap();
-    // Deserialization of the proof
-    let (commitment_des, response_des) = or_proof.deserialize_batchable(&proof_bytes).unwrap();
-    // Verifier checks
-    let result = or_proof.verifier(&commitment_des, &challenge, &response_des);
-    assert!(result.is_ok());
+    // Batchable and compact proofs
+    let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
+    // Verify proofs
+    let verified_batchable = nizk.verify_batchable(&proof_batchable_bytes).is_ok();
+    assert!(
+        verified_batchable,
+        "Fiat-Shamir Schnorr proof verification failed"
+    );
 }
 
 #[allow(non_snake_case)]
 #[test]
 fn or_proof_incorrect() {
     let mut rng = OsRng;
+    let domain_sep = b"hello world";
 
     let (p1, _) = DL_protocol::<G>(&mut rng);
     let (p2, _) = pedersen_protocol::<G>(&mut rng);
-    let fake_witness = Scalar::random(&mut rng);
 
-    let or_proof = OrProtocol::new(p1, p2);
+    let mut or_protocol = OrProtocol::<G>::new();
+    or_protocol.append_protocol(p1);
+    or_protocol.append_protocol(p2);
 
-    // Commitment phase
-    let witnesses = (0, OrEnum::Left(vec![fake_witness]));
-    let (commitment, states) = or_proof.prover_commit(&witnesses, &mut rng);
+    let witness = (0, vec![<G as Group>::Scalar::random(&mut rng)]);
 
-    // Fiat-Shamir challenge (dummy for now)
-    let challenge = Scalar::random(&mut rng);
+    let mut nizk = NISigmaProtocol::<OrProtocol<RistrettoPoint>, ShakeCodec<G>, G>::new(
+        domain_sep,
+        or_protocol,
+    );
 
-    // Prover computes responses
-    let response = or_proof.prover_response(states, &challenge);
-    // Serialization of the proof
-    let proof_bytes = or_proof
-        .serialize_batchable(&commitment, &challenge, &response)
-        .unwrap();
-    // Deserialization of the proof
-    let (commitment_des, response_des) = or_proof.deserialize_batchable(&proof_bytes).unwrap();
-    // Verifier checks
-    let result = or_proof.verifier(&commitment_des, &challenge, &response_des);
-    assert!(!result.is_ok());
+    // Local verification
+    let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).is_err();
+    assert!(
+        proof_batchable_bytes,
+        "Fiat-Shamir Schnorr proof verification failed"
+    );
 }

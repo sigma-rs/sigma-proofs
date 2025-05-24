@@ -39,14 +39,14 @@ pub trait SigmaProtocol {
         &self,
         witness: &Self::Witness,
         rng: &mut (impl Rng + CryptoRng),
-    ) -> (Self::Commitment, Self::ProverState);
+    ) -> Result<(Self::Commitment, Self::ProverState), ProofError>;
 
     /// Computes the prover's response to a challenge based on the prover state.
     fn prover_response(
         &self,
         state: Self::ProverState,
         challenge: &Self::Challenge,
-    ) -> Self::Response;
+    ) -> Result<Self::Response, ProofError>;
 
     /// Verifies a Sigma protocol transcript.
     ///
@@ -101,7 +101,7 @@ pub trait CompactProtocol: SigmaProtocol {
         &self,
         challenge: &Self::Challenge,
         response: &Self::Response,
-    ) -> Self::Commitment;
+    ) -> Result<Self::Commitment, ProofError>;
 
     /// Serializes a proof transcript (commitment, challenge, response) to bytes compact proof.
     fn serialize_compact(

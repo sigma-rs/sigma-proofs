@@ -5,8 +5,8 @@
 //! through a group morphism abstraction (see Maurer09).
 
 use crate::{
-    group_serialization::*, CompactProtocol, GroupMorphismPreimage, ProofError, SigmaProtocol,
-    SigmaProtocolSimulator,
+    group_serialization::*, CompactProtocol, GroupMorphismPreimage, PointVar, ProofError,
+    ScalarVar, SigmaProtocol, SigmaProtocolSimulator,
 };
 
 use core::iter;
@@ -17,7 +17,45 @@ use rand::{CryptoRng, RngCore};
 /// A Schnorr protocol proving knowledge some discrete logarithm relation.
 ///
 /// The specific proof instance is defined by a [`GroupMorphismPreimage`] over a group `G`.
-pub struct SchnorrProtocol<G: Group + GroupEncoding>(pub GroupMorphismPreimage<G>);
+pub struct SchnorrProtocol<G: Group + GroupEncoding>(GroupMorphismPreimage<G>);
+
+impl<G: Group + GroupEncoding> SchnorrProtocol<G> {
+    pub fn new() -> Self {
+        SchnorrProtocol(GroupMorphismPreimage::<G>::new())
+    }
+
+    pub fn from_preimage(preimage: GroupMorphismPreimage<G>) -> Self {
+        SchnorrProtocol(preimage)
+    }
+
+    pub fn scalars_nb(&self) -> usize {
+        self.0.morphism.num_scalars
+    }
+
+    pub fn points_nb(&self) -> usize {
+        self.0.morphism.num_statements()
+    }
+
+    pub fn append_equation(&mut self, lhs: PointVar, rhs: &[(ScalarVar, PointVar)]) {
+        self.0.append_equation(lhs, rhs);
+    }
+
+    pub fn allocate_scalars(&mut self, n: usize) -> Vec<ScalarVar> {
+        self.0.allocate_scalars(n)
+    }
+
+    pub fn allocate_elements(&mut self, n: usize) -> Vec<PointVar> {
+        self.0.allocate_elements(n)
+    }
+
+    pub fn set_elements(&mut self, elements: &[(PointVar, G)]) {
+        self.0.set_elements(elements);
+    }
+
+    pub fn image(&self) -> Vec<G> {
+        self.0.image()
+    }
+}
 
 impl<G> SigmaProtocol for SchnorrProtocol<G>
 where
@@ -34,13 +72,17 @@ where
         &self,
         witness: &Self::Witness,
         mut rng: &mut (impl RngCore + CryptoRng),
-    ) -> (Self::Commitment, Self::ProverState) {
+    ) -> Result<(Self::Commitment, Self::ProverState), ProofError> {
+        if witness.len() != self.scalars_nb() {
+            return Err(ProofError::Other);
+        }
+
         let nonces: Vec<G::Scalar> = (0..self.0.morphism.num_scalars)
             .map(|_| G::Scalar::random(&mut rng))
             .collect();
         let prover_state = (nonces.clone(), witness.clone());
         let commitment = self.0.morphism.evaluate(&nonces);
-        (commitment, prover_state)
+        Ok((commitment, prover_state))
     }
 
     /// Prover's last message: computes the response to a given challenge.
@@ -48,12 +90,16 @@ where
         &self,
         state: Self::ProverState,
         challenge: &Self::Challenge,
-    ) -> Self::Response {
+    ) -> Result<Self::Response, ProofError> {
+        if state.0.len() != self.scalars_nb() || state.1.len() != self.scalars_nb() {
+            return Err(ProofError::Other);
+        }
+
         let mut responses = Vec::new();
         for i in 0..self.0.morphism.num_scalars {
             responses.push(state.0[i] + state.1[i] * challenge);
         }
-        responses
+        Ok(responses)
     }
 
     /// Verifier checks that the provided response satisfies the verification equations.
@@ -155,7 +201,11 @@ where
         &self,
         challenge: &Self::Challenge,
         response: &Self::Response,
-    ) -> Self::Commitment {
+    ) -> Result<Self::Commitment, ProofError> {
+        if response.len() != self.scalars_nb() {
+            return Err(ProofError::Other);
+        }
+
         let response_image = self.0.morphism.evaluate(response);
         let image = self.0.image();
 
@@ -163,7 +213,7 @@ where
         for i in 0..image.len() {
             commitment.push(response_image[i] - image[i] * challenge);
         }
-        commitment
+        Ok(commitment)
     }
 
     /// Serializes the proof into a compact (`challenge`, `response`) format for transmission.
@@ -233,7 +283,7 @@ where
     ) -> (Self::Commitment, Self::Response) {
         let mut response = Vec::new();
         response.extend(iter::repeat(G::Scalar::random(rng)).take(self.0.morphism.num_scalars));
-        let commitment = self.get_commitment(challenge, &response);
+        let commitment = self.get_commitment(challenge, &response).unwrap();
         (commitment, response)
     }
 

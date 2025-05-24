@@ -174,9 +174,7 @@ where
         self.morphism
             .group_elements
             .extend(iter::repeat(G::identity()).take(n));
-        let points = (start..start + n)
-            .map(PointVar)
-            .collect::<Vec<_>>();
+        let points = (start..start + n).map(PointVar).collect::<Vec<_>>();
         self.morphism.num_elements += n;
         points
     }
