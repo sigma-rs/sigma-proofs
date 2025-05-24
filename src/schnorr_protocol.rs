@@ -38,7 +38,7 @@ impl<G: Group + GroupEncoding> SchnorrProtocol<G> {
         self.0.morphism.num_scalars
     }
 
-    pub fn points_nb(&self) -> usize {
+    pub fn statements_nb(&self) -> usize {
         self.0.morphism.num_statements()
     }
 
@@ -56,6 +56,10 @@ impl<G: Group + GroupEncoding> SchnorrProtocol<G> {
 
     pub fn set_elements(&mut self, elements: &[(PointVar, G)]) {
         self.0.set_elements(elements);
+    }
+
+    pub fn evaluate(&self, scalars: &[<G as Group>::Scalar]) -> Vec<G> {
+        self.0.morphism.evaluate(scalars)
     }
 
     pub fn image(&self) -> Vec<G> {
@@ -83,11 +87,11 @@ where
             return Err(ProofError::Other);
         }
 
-        let nonces: Vec<G::Scalar> = (0..self.0.morphism.num_scalars)
+        let nonces: Vec<G::Scalar> = (0..self.scalars_nb())
             .map(|_| G::Scalar::random(&mut rng))
             .collect();
         let prover_state = (nonces.clone(), witness.clone());
-        let commitment = self.0.morphism.evaluate(&nonces);
+        let commitment = self.evaluate(&nonces);
         Ok((commitment, prover_state))
     }
 
@@ -102,7 +106,7 @@ where
         }
 
         let mut responses = Vec::new();
-        for i in 0..self.0.morphism.num_scalars {
+        for i in 0..self.scalars_nb() {
             responses.push(state.0[i] + state.1[i] * challenge);
         }
         Ok(responses)
@@ -115,14 +119,10 @@ where
         challenge: &Self::Challenge,
         response: &Self::Response,
     ) -> Result<(), ProofError> {
-        let lhs = self.0.morphism.evaluate(response);
+        let lhs = self.evaluate(response);
 
         let mut rhs = Vec::new();
-        for (i, g) in commitment
-            .iter()
-            .enumerate()
-            .take(self.0.morphism.num_statements())
-        {
+        for (i, g) in commitment.iter().enumerate().take(self.statements_nb()) {
             rhs.push(self.0.morphism.group_elements[self.0.image[i].index()] * challenge + g);
         }
 
@@ -140,8 +140,8 @@ where
         response: &Self::Response,
     ) -> Result<Vec<u8>, ProofError> {
         let mut bytes = Vec::new();
-        let commit_nb = self.0.morphism.num_statements();
-        let response_nb = self.0.morphism.num_scalars;
+        let commit_nb = self.statements_nb();
+        let response_nb = self.scalars_nb();
 
         // Serialize commitments
         for commit in commitment.iter().take(commit_nb) {
@@ -160,8 +160,8 @@ where
         &self,
         data: &[u8],
     ) -> Result<(Self::Commitment, Self::Response), ProofError> {
-        let commit_nb = self.0.morphism.num_statements();
-        let response_nb = self.0.morphism.num_scalars;
+        let commit_nb = self.statements_nb();
+        let response_nb = self.scalars_nb();
 
         let commit_size = G::generator().to_bytes().as_ref().len();
         let response_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
@@ -170,7 +170,7 @@ where
 
         let expected_len = response_nb * response_size + commit_nb * commit_size;
         if data.len() != expected_len {
-            return Err(ProofError::BatchSizeMismatch);
+            return Err(ProofError::ProofSizeMismatch);
         }
 
         let mut commitments: Self::Commitment = Vec::new();
@@ -181,7 +181,7 @@ where
             let end = start + commit_size;
 
             let slice = &data[start..end];
-            let elem = deserialize_element(slice).ok_or(ProofError::GroupSerializationFailure)?;
+            let elem = deserialize_element(slice)?;
             commitments.push(elem);
         }
 
@@ -190,8 +190,7 @@ where
             let end = start + response_size;
 
             let slice = &data[start..end];
-            let scalar =
-                deserialize_scalar::<G>(slice).ok_or(ProofError::GroupSerializationFailure)?;
+            let scalar = deserialize_scalar::<G>(slice)?;
             responses.push(scalar);
         }
 
@@ -212,8 +211,8 @@ where
             return Err(ProofError::Other);
         }
 
-        let response_image = self.0.morphism.evaluate(response);
-        let image = self.0.image();
+        let response_image = self.evaluate(response);
+        let image = self.image();
 
         let mut commitment = Vec::new();
         for i in 0..image.len() {
@@ -230,7 +229,7 @@ where
         response: &Self::Response,
     ) -> Result<Vec<u8>, ProofError> {
         let mut bytes = Vec::new();
-        let response_nb = self.0.morphism.num_scalars;
+        let response_nb = self.scalars_nb();
 
         // Serialize challenge
         bytes.extend_from_slice(&serialize_scalar::<G>(challenge));
@@ -247,7 +246,7 @@ where
         &self,
         data: &[u8],
     ) -> Result<(Self::Challenge, Self::Response), ProofError> {
-        let response_nb = self.0.morphism.num_scalars;
+        let response_nb = self.scalars_nb();
         let response_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
             .as_ref()
             .len();
@@ -255,22 +254,20 @@ where
         let expected_len = (response_nb + 1) * response_size;
 
         if data.len() != expected_len {
-            return Err(ProofError::BatchSizeMismatch);
+            return Err(ProofError::ProofSizeMismatch);
         }
 
         let mut responses: Self::Response = Vec::new();
 
         let slice = &data[0..response_size];
-        let challenge =
-            deserialize_scalar::<G>(slice).ok_or(ProofError::GroupSerializationFailure)?;
+        let challenge = deserialize_scalar::<G>(slice)?;
 
         for i in 0..response_nb {
             let start = (i + 1) * response_size;
             let end = start + response_size;
 
             let slice = &data[start..end];
-            let scalar =
-                deserialize_scalar::<G>(slice).ok_or(ProofError::GroupSerializationFailure)?;
+            let scalar = deserialize_scalar::<G>(slice)?;
             responses.push(scalar);
         }
 
@@ -288,7 +285,7 @@ where
         rng: &mut (impl RngCore + CryptoRng),
     ) -> (Self::Commitment, Self::Response) {
         let mut response = Vec::new();
-        response.extend(iter::repeat(G::Scalar::random(rng)).take(self.0.morphism.num_scalars));
+        response.extend(iter::repeat(G::Scalar::random(rng)).take(self.scalars_nb()));
         let commitment = self.get_commitment(challenge, &response).unwrap();
         (commitment, response)
     }

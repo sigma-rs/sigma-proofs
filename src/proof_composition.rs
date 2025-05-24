@@ -83,7 +83,7 @@ impl<G: Group + GroupEncoding> SigmaProtocol for AndProtocol<G> {
         let mut resp_cursor = 0;
 
         for protocol in &self.0 {
-            let commit_len = protocol.points_nb();
+            let commit_len = protocol.statements_nb();
             let resp_len = protocol.scalars_nb();
 
             let commit = &commitment[commit_cursor..(commit_cursor + commit_len)];
@@ -108,7 +108,7 @@ impl<G: Group + GroupEncoding> SigmaProtocol for AndProtocol<G> {
         let mut resp_cursor = 0;
 
         for protocol in &self.0 {
-            let commit_len = protocol.points_nb();
+            let commit_len = protocol.statements_nb();
             let resp_len = protocol.scalars_nb();
 
             let commit = &commitment[commit_cursor..(commit_cursor + commit_len)];
@@ -138,7 +138,7 @@ impl<G: Group + GroupEncoding> SigmaProtocol for AndProtocol<G> {
             .len();
 
         for protocol in &self.0 {
-            let commit_nb = protocol.points_nb();
+            let commit_nb = protocol.statements_nb();
             let response_nb = protocol.scalars_nb();
             let proof_len = response_nb * scalar_size + commit_nb * point_size;
             let (commit, resp) =
@@ -261,7 +261,7 @@ impl<G: Group + GroupEncoding> SigmaProtocol for OrProtocol<G> {
         let mut commit_cursor = 0;
         let mut resp_cursor = 0;
         for (i, protocol) in self.0.iter().enumerate() {
-            let commit_len = protocol.points_nb();
+            let commit_len = protocol.statements_nb();
             let resp_len = protocol.scalars_nb();
             let commit = &commitment[commit_cursor..(commit_cursor + commit_len)];
             let resp = &response.1[resp_cursor..(resp_cursor + resp_len)];
@@ -285,7 +285,7 @@ impl<G: Group + GroupEncoding> SigmaProtocol for OrProtocol<G> {
         let mut resp_cursor = 0;
 
         for (i, protocol) in self.0.iter().enumerate() {
-            let commit_len = protocol.points_nb();
+            let commit_len = protocol.statements_nb();
             let resp_len = protocol.scalars_nb();
 
             let commit = &commitment[commit_cursor..(commit_cursor + commit_len)];
@@ -316,7 +316,7 @@ impl<G: Group + GroupEncoding> SigmaProtocol for OrProtocol<G> {
             .len();
 
         for protocol in &self.0 {
-            let commit_nb = protocol.points_nb();
+            let commit_nb = protocol.statements_nb();
             let response_nb = protocol.scalars_nb();
             let proof_len = response_nb * scalar_size + commit_nb * point_size;
             let (commit, resp) =

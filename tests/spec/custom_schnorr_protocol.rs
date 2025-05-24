@@ -116,7 +116,7 @@ where
 
         let expected_len = scalar_nb * scalar_size + point_nb * point_size;
         if data.len() != expected_len {
-            return Err(ProofError::BatchSizeMismatch);
+            return Err(ProofError::ProofSizeMismatch);
         }
 
         let mut commitments: Self::Commitment = Vec::new();
@@ -127,7 +127,7 @@ where
             let end = start + point_size;
 
             let slice = &data[start..end];
-            let elem = deserialize_element(slice).ok_or(ProofError::GroupSerializationFailure)?;
+            let elem = deserialize_element(slice)?;
             commitments.push(elem);
         }
 
@@ -136,8 +136,7 @@ where
             let end = start + scalar_size;
 
             let slice = data[start..end].to_vec();
-            let scalar =
-                deserialize_scalar::<G>(&slice).ok_or(ProofError::GroupSerializationFailure)?;
+            let scalar = deserialize_scalar::<G>(&slice)?;
             responses.push(scalar);
         }
 
