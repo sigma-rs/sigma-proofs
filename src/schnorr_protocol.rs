@@ -19,6 +19,12 @@ use rand::{CryptoRng, RngCore};
 /// The specific proof instance is defined by a [`GroupMorphismPreimage`] over a group `G`.
 pub struct SchnorrProtocol<G: Group + GroupEncoding>(GroupMorphismPreimage<G>);
 
+impl<G: Group + GroupEncoding> Default for SchnorrProtocol<G> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<G: Group + GroupEncoding> SchnorrProtocol<G> {
     pub fn new() -> Self {
         SchnorrProtocol(GroupMorphismPreimage::<G>::new())

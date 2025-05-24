@@ -127,14 +127,18 @@ fn or_proof_correct() {
     let mut rng = OsRng;
     let domain_sep = b"hello world";
 
+    let (p0, _) = DL_protocol::<G>(&mut rng);
     let (p1, x1) = DL_protocol::<G>(&mut rng);
     let (p2, _) = pedersen_protocol::<G>(&mut rng);
+    let (p3, _) = pedersen_protocol::<G>(&mut rng);
 
     let mut or_protocol = OrProtocol::<G>::new();
+    or_protocol.append_protocol(p0);
     or_protocol.append_protocol(p1);
     or_protocol.append_protocol(p2);
+    or_protocol.append_protocol(p3);
 
-    let witness = (0, x1);
+    let witness = (1, x1);
 
     let mut nizk = NISigmaProtocol::<OrProtocol<RistrettoPoint>, ShakeCodec<G>, G>::new(
         domain_sep,

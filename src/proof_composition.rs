@@ -8,6 +8,12 @@ use crate::{
 
 pub struct AndProtocol<G: Group + GroupEncoding>(pub Vec<SchnorrProtocol<G>>);
 
+impl<G: Group + GroupEncoding> Default for AndProtocol<G> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<G: Group + GroupEncoding> AndProtocol<G> {
     pub fn new() -> Self {
         AndProtocol(Vec::<SchnorrProtocol<G>>::new())
@@ -15,6 +21,10 @@ impl<G: Group + GroupEncoding> AndProtocol<G> {
 
     pub fn len(&self) -> usize {
         self.0.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 
     pub fn append_protocol(&mut self, protocol: SchnorrProtocol<G>) {
@@ -148,6 +158,12 @@ pub struct Transcript<G: Group> {
     response: Vec<<G as Group>::Scalar>,
 }
 
+impl<G: Group + GroupEncoding> Default for OrProtocol<G> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<G: Group + GroupEncoding> OrProtocol<G> {
     pub fn new() -> Self {
         OrProtocol(Vec::<SchnorrProtocol<G>>::new())
@@ -155,6 +171,10 @@ impl<G: Group + GroupEncoding> OrProtocol<G> {
 
     pub fn len(&self) -> usize {
         self.0.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 
     pub fn append_protocol(&mut self, protocol: SchnorrProtocol<G>) {
@@ -173,6 +193,7 @@ impl<G: Group + GroupEncoding> SigmaProtocol for OrProtocol<G> {
     type Witness = (usize, Vec<<G as Group>::Scalar>); // (real_index, real_witness)
     type Challenge = <G as Group>::Scalar; // Challenge
 
+    #[warn(clippy::type_complexity)]
     fn prover_commit(
         &self,
         witness: &Self::Witness,
@@ -209,22 +230,21 @@ impl<G: Group + GroupEncoding> SigmaProtocol for OrProtocol<G> {
         let (real_index, real_state, fake_transcripts) = state;
         let mut response = (Vec::new(), Vec::new());
 
-        let mut real_challenge = challenge.clone();
+        let mut real_challenge = *challenge;
         for transcript in &fake_transcripts {
-            real_challenge -= transcript.challenge.clone();
+            real_challenge -= transcript.challenge;
         }
         let real_response = self.0[real_index].prover_response(real_state, &real_challenge)?;
 
         for (i, _) in self.0.iter().enumerate() {
-            if i < real_index {
-                response.0.push(fake_transcripts[i].challenge);
-                response.1.extend(&fake_transcripts[i].response);
-            } else if i == real_index {
+            if i == real_index {
                 response.0.push(real_challenge);
                 response.1.extend(&real_response);
-            } else if i > real_index {
-                response.0.push(fake_transcripts[i - 1].challenge);
-                response.1.extend(&fake_transcripts[i - 1].response);
+            } else {
+                let fake_index = if i < real_index { i } else { i - 1 };
+                let transcript = &fake_transcripts[fake_index];
+                response.0.push(transcript.challenge);
+                response.1.extend(&transcript.response);
             }
         }
         Ok(response)
@@ -236,7 +256,7 @@ impl<G: Group + GroupEncoding> SigmaProtocol for OrProtocol<G> {
         challenge: &Self::Challenge,
         response: &Self::Response,
     ) -> Result<(), ProofError> {
-        let mut expected_difference = challenge.clone();
+        let mut expected_difference = *challenge;
 
         let mut commit_cursor = 0;
         let mut resp_cursor = 0;
