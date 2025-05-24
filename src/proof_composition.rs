@@ -1,4 +1,4 @@
-use ff::PrimeField;
+use ff::{Field, PrimeField};
 use group::{Group, GroupEncoding};
 
 use crate::{
@@ -6,13 +6,8 @@ use crate::{
     SigmaProtocolSimulator,
 };
 
+#[derive(Default)]
 pub struct AndProtocol<G: Group + GroupEncoding>(pub Vec<SchnorrProtocol<G>>);
-
-impl<G: Group + GroupEncoding> Default for AndProtocol<G> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 
 impl<G: Group + GroupEncoding> AndProtocol<G> {
     pub fn new() -> Self {
@@ -44,18 +39,17 @@ impl<G: Group + GroupEncoding> SigmaProtocol for AndProtocol<G> {
         witness: &Self::Witness,
         rng: &mut (impl rand::Rng + rand::CryptoRng),
     ) -> Result<(Self::Commitment, Self::ProverState), ProofError> {
-        let mut commitment = Vec::new();
-        let mut state = Vec::new();
         let mut cursor = 0;
+        let mut commitment = Vec::with_capacity(self.0.iter().map(|p| p.statements_nb()).sum());
+        let mut state = Vec::with_capacity(self.len());
 
-        for protocol in &self.0 {
-            let witness_len = protocol.scalars_nb();
-            let p_witness = &witness[cursor..(cursor + witness_len)];
-            let (commit, pr_state) = protocol.prover_commit(&p_witness.to_vec(), rng)?;
-            commitment.extend(commit);
-            state.push(pr_state);
-
-            cursor += witness_len;
+        for proto in &self.0 {
+            let n = proto.scalars_nb();
+            let proto_witness = witness[cursor..(cursor + n)].to_vec();
+            let (proto_commit, proto_state) = proto.prover_commit(&proto_witness, rng)?;
+            commitment.extend(proto_commit);
+            state.push(proto_state);
+            cursor += n;
         }
         Ok((commitment, state))
     }
@@ -65,10 +59,10 @@ impl<G: Group + GroupEncoding> SigmaProtocol for AndProtocol<G> {
         state: Self::ProverState,
         challenge: &Self::Challenge,
     ) -> Result<Self::Response, ProofError> {
-        let mut response = Vec::new();
-        for (i, protocol) in self.0.iter().enumerate() {
-            let resp = protocol.prover_response(state[i].clone(), challenge)?;
-            response.extend(resp);
+        let mut response = Vec::with_capacity(self.0.iter().map(|p| p.scalars_nb()).sum());
+        for (proto, proto_state) in self.0.iter().zip(state) {
+            let proto_response = proto.prover_response(proto_state, challenge)?;
+            response.extend(proto_response);
         }
         Ok(response)
     }
@@ -79,20 +73,19 @@ impl<G: Group + GroupEncoding> SigmaProtocol for AndProtocol<G> {
         challenge: &Self::Challenge,
         response: &Self::Response,
     ) -> Result<(), ProofError> {
-        let mut commit_cursor = 0;
-        let mut resp_cursor = 0;
+        let mut c_cursor = 0;
+        let mut r_cursor = 0;
+        for proto in &self.0 {
+            let c_len = proto.statements_nb();
+            let r_len = proto.scalars_nb();
 
-        for protocol in &self.0 {
-            let commit_len = protocol.statements_nb();
-            let resp_len = protocol.scalars_nb();
+            let proto_commit = commitment[c_cursor..(c_cursor + c_len)].to_vec();
+            let proto_resp = response[r_cursor..(r_cursor + r_len)].to_vec();
 
-            let commit = &commitment[commit_cursor..(commit_cursor + commit_len)];
-            let resp = &response[resp_cursor..(resp_cursor + resp_len)];
+            proto.verifier(&proto_commit, challenge, &proto_resp)?;
 
-            protocol.verifier(&commit.to_vec(), challenge, &resp.to_vec())?;
-
-            commit_cursor += commit_len;
-            resp_cursor += resp_len
+            c_cursor += c_len;
+            r_cursor += r_len
         }
         Ok(())
     }
@@ -104,22 +97,19 @@ impl<G: Group + GroupEncoding> SigmaProtocol for AndProtocol<G> {
         response: &Self::Response,
     ) -> Result<Vec<u8>, ProofError> {
         let mut bytes = Vec::new();
-        let mut commit_cursor = 0;
-        let mut resp_cursor = 0;
+        let mut c_cursor = 0;
+        let mut r_cursor = 0;
+        for proto in &self.0 {
+            let c_len = proto.statements_nb();
+            let r_len = proto.scalars_nb();
 
-        for protocol in &self.0 {
-            let commit_len = protocol.statements_nb();
-            let resp_len = protocol.scalars_nb();
+            let proto_commit = commitment[c_cursor..(c_cursor + c_len)].to_vec();
+            let proto_resp = response[r_cursor..(r_cursor + r_len)].to_vec();
 
-            let commit = &commitment[commit_cursor..(commit_cursor + commit_len)];
-            let resp = &response[resp_cursor..(resp_cursor + resp_len)];
-            bytes.extend_from_slice(&protocol.serialize_batchable(
-                &commit.to_vec(),
-                challenge,
-                &resp.to_vec(),
-            )?);
-            commit_cursor += commit_len;
-            resp_cursor += resp_len;
+            bytes.extend(proto.serialize_batchable(&proto_commit, challenge, &proto_resp)?);
+
+            c_cursor += c_len;
+            r_cursor += r_len;
         }
         Ok(bytes)
     }
@@ -128,40 +118,35 @@ impl<G: Group + GroupEncoding> SigmaProtocol for AndProtocol<G> {
         &self,
         data: &[u8],
     ) -> Result<(Self::Commitment, Self::Response), ProofError> {
-        let mut commitment = Vec::new();
-        let mut response = Vec::new();
         let mut cursor = 0;
+        let mut commitment = Vec::with_capacity(self.0.iter().map(|p| p.statements_nb()).sum());
+        let mut response = Vec::with_capacity(self.0.iter().map(|p| p.scalars_nb()).sum());
 
         let point_size = G::generator().to_bytes().as_ref().len();
         let scalar_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
             .as_ref()
             .len();
 
-        for protocol in &self.0 {
-            let commit_nb = protocol.statements_nb();
-            let response_nb = protocol.scalars_nb();
-            let proof_len = response_nb * scalar_size + commit_nb * point_size;
-            let (commit, resp) =
-                protocol.deserialize_batchable(&data[cursor..(cursor + proof_len)])?;
-            commitment.extend(commit);
-            response.extend(resp);
+        for proto in &self.0 {
+            let c_nb = proto.statements_nb();
+            let r_nb = proto.scalars_nb();
+            let proof_len = r_nb * scalar_size + c_nb * point_size;
+            let (proto_commit, proto_resp) =
+                proto.deserialize_batchable(&data[cursor..(cursor + proof_len)])?;
+            commitment.extend(proto_commit);
+            response.extend(proto_resp);
             cursor += proof_len;
         }
         Ok((commitment, response))
     }
 }
 
+#[derive(Default)]
 pub struct OrProtocol<G: Group + GroupEncoding>(pub Vec<SchnorrProtocol<G>>);
 
 pub struct Transcript<G: Group> {
     challenge: <G as Group>::Scalar,
     response: Vec<<G as Group>::Scalar>,
-}
-
-impl<G: Group + GroupEncoding> Default for OrProtocol<G> {
-    fn default() -> Self {
-        Self::new()
-    }
 }
 
 impl<G: Group + GroupEncoding> OrProtocol<G> {
@@ -207,9 +192,9 @@ impl<G: Group + GroupEncoding> SigmaProtocol for OrProtocol<G> {
         let mut fake_transcripts = Vec::new();
         let mut commitment = Vec::new();
         let (real_commit, real_state) = self.0[real_index].prover_commit(&witness.1, rng)?;
-        for (i, protocol) in self.0.iter().enumerate() {
+        for (i, proto) in self.0.iter().enumerate() {
             if i != real_index {
-                let (commit, challenge, resp) = protocol.simulate_transcript(rng);
+                let (commit, challenge, resp) = proto.simulate_transcript(rng);
                 fake_transcripts.push(Transcript {
                     challenge,
                     response: resp,
@@ -228,7 +213,10 @@ impl<G: Group + GroupEncoding> SigmaProtocol for OrProtocol<G> {
         challenge: &Self::Challenge,
     ) -> Result<Self::Response, ProofError> {
         let (real_index, real_state, fake_transcripts) = state;
-        let mut response = (Vec::new(), Vec::new());
+        let mut response = (
+            Vec::with_capacity(self.len()),
+            Vec::with_capacity(self.0.iter().map(|p| p.scalars_nb()).sum()),
+        );
 
         let mut real_challenge = *challenge;
         for transcript in &fake_transcripts {
@@ -257,21 +245,23 @@ impl<G: Group + GroupEncoding> SigmaProtocol for OrProtocol<G> {
         response: &Self::Response,
     ) -> Result<(), ProofError> {
         let mut expected_difference = *challenge;
+        let mut c_cursor = 0;
+        let mut r_cursor = 0;
+        for (i, proto) in self.0.iter().enumerate() {
+            let c_len = proto.statements_nb();
+            let r_len = proto.scalars_nb();
+            let proto_commit = commitment[c_cursor..(c_cursor + c_len)].to_vec();
+            let proto_resp = response.1[r_cursor..(r_cursor + r_len)].to_vec();
+            proto.verifier(&proto_commit, &response.0[i], &proto_resp)?;
+            c_cursor += c_len;
+            r_cursor += r_len;
 
-        let mut commit_cursor = 0;
-        let mut resp_cursor = 0;
-        for (i, protocol) in self.0.iter().enumerate() {
-            let commit_len = protocol.statements_nb();
-            let resp_len = protocol.scalars_nb();
-            let commit = &commitment[commit_cursor..(commit_cursor + commit_len)];
-            let resp = &response.1[resp_cursor..(resp_cursor + resp_len)];
-            protocol.verifier(&commit.to_vec(), &response.0[i], &resp.to_vec())?;
-            commit_cursor += commit_len;
-            resp_cursor += resp_len;
-
-            expected_difference += response.0[i];
+            expected_difference -= response.0[i];
         }
-        Ok(())
+        match expected_difference.is_zero_vartime() {
+            true => Ok(()),
+            false => Err(ProofError::VerificationFailure),
+        }
     }
 
     fn serialize_batchable(
@@ -281,23 +271,19 @@ impl<G: Group + GroupEncoding> SigmaProtocol for OrProtocol<G> {
         response: &Self::Response,
     ) -> Result<Vec<u8>, ProofError> {
         let mut bytes = Vec::new();
-        let mut commit_cursor = 0;
-        let mut resp_cursor = 0;
+        let mut c_cursor = 0;
+        let mut r_cursor = 0;
 
-        for (i, protocol) in self.0.iter().enumerate() {
-            let commit_len = protocol.statements_nb();
-            let resp_len = protocol.scalars_nb();
+        for (i, proto) in self.0.iter().enumerate() {
+            let c_len = proto.statements_nb();
+            let r_len = proto.scalars_nb();
 
-            let commit = &commitment[commit_cursor..(commit_cursor + commit_len)];
-            let resp = &response.1[resp_cursor..(resp_cursor + resp_len)];
-            bytes.extend_from_slice(&protocol.serialize_batchable(
-                &commit.to_vec(),
-                &response.0[i],
-                &resp.to_vec(),
-            )?);
-            bytes.extend_from_slice(&serialize_scalar::<G>(&response.0[i]));
-            commit_cursor += commit_len;
-            resp_cursor += resp_len;
+            let proto_commit = commitment[c_cursor..(c_cursor + c_len)].to_vec();
+            let proto_resp = response.1[r_cursor..(r_cursor + r_len)].to_vec();
+            bytes.extend(proto.serialize_batchable(&proto_commit, &response.0[i], &proto_resp)?);
+            bytes.extend(&serialize_scalar::<G>(&response.0[i]));
+            c_cursor += c_len;
+            r_cursor += r_len;
         }
         Ok(bytes)
     }
@@ -306,28 +292,31 @@ impl<G: Group + GroupEncoding> SigmaProtocol for OrProtocol<G> {
         &self,
         data: &[u8],
     ) -> Result<(Self::Commitment, Self::Response), ProofError> {
-        let mut commitment = Vec::new();
-        let mut response = (Vec::new(), Vec::new());
         let mut cursor = 0;
+        let mut commitment = Vec::with_capacity(self.0.iter().map(|p| p.statements_nb()).sum());
+        let mut response = (
+            Vec::with_capacity(self.len()),
+            Vec::with_capacity(self.0.iter().map(|p| p.scalars_nb()).sum()),
+        );
 
         let point_size = G::generator().to_bytes().as_ref().len();
         let scalar_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
             .as_ref()
             .len();
 
-        for protocol in &self.0 {
-            let commit_nb = protocol.statements_nb();
-            let response_nb = protocol.scalars_nb();
-            let proof_len = response_nb * scalar_size + commit_nb * point_size;
-            let (commit, resp) =
-                protocol.deserialize_batchable(&data[cursor..(cursor + proof_len)])?;
-            let challenge = deserialize_scalar::<G>(
+        for proto in &self.0 {
+            let c_nb = proto.statements_nb();
+            let r_nb = proto.scalars_nb();
+            let proof_len = r_nb * scalar_size + c_nb * point_size;
+            let (proto_commit, proto_resp) =
+                proto.deserialize_batchable(&data[cursor..(cursor + proof_len)])?;
+            let proto_challenge = deserialize_scalar::<G>(
                 &data[(cursor + proof_len)..(cursor + proof_len + scalar_size)],
             )
             .unwrap();
-            commitment.extend(commit);
-            response.1.extend(resp);
-            response.0.push(challenge);
+            commitment.extend(proto_commit);
+            response.1.extend(proto_resp);
+            response.0.push(proto_challenge);
 
             cursor += proof_len + scalar_size;
         }
