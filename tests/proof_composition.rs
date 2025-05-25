@@ -82,10 +82,12 @@ fn and_proof_correct() {
 
     // Batchable and compact proofs
     let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
+    let proof_compact_bytes = nizk.prove_compact(&witness, &mut rng).unwrap();
     // Verify proofs
     let verified_batchable = nizk.verify_batchable(&proof_batchable_bytes).is_ok();
+    let verified_compact = nizk.verify_compact(&proof_compact_bytes).is_ok();
     assert!(
-        verified_batchable,
+        verified_batchable & verified_compact,
         "Fiat-Shamir Schnorr proof verification failed"
     );
 }
@@ -147,10 +149,14 @@ fn or_proof_correct() {
 
     // Batchable and compact proofs
     let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
+    let proof_compact_bytes = nizk.prove_compact(&witness, &mut rng).unwrap();
+    println!("batchable : {:?}", proof_batchable_bytes);
+    println!("compact : {:?}", proof_compact_bytes);
     // Verify proofs
     let verified_batchable = nizk.verify_batchable(&proof_batchable_bytes).is_ok();
+    let verified_compact = nizk.verify_compact(&proof_compact_bytes).is_ok();
     assert!(
-        verified_batchable,
+        verified_batchable & verified_compact,
         "Fiat-Shamir Schnorr proof verification failed"
     );
 }

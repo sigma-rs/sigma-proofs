@@ -2,8 +2,8 @@ use ff::{Field, PrimeField};
 use group::{Group, GroupEncoding};
 
 use crate::{
-    deserialize_scalar, serialize_scalar, ProofError, SchnorrProtocol, SigmaProtocol,
-    SigmaProtocolSimulator,
+    deserialize_scalar, serialize_scalar, CompactProtocol, ProofError, SchnorrProtocol,
+    SigmaProtocol, SigmaProtocolSimulator,
 };
 
 #[derive(Default)]
@@ -139,19 +139,28 @@ impl<G: Group + GroupEncoding> SigmaProtocol for AndProtocol<G> {
         &self,
         data: &[u8],
     ) -> Result<(Self::Commitment, Self::Response), ProofError> {
-        let mut cursor = 0;
-        let mut commitment = Vec::with_capacity(self.0.iter().map(|p| p.statements_nb()).sum());
-        let mut response = Vec::with_capacity(self.0.iter().map(|p| p.scalars_nb()).sum());
-
         let point_size = G::generator().to_bytes().as_ref().len();
         let scalar_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
             .as_ref()
             .len();
 
+        let expected_d_len: usize = self
+            .0
+            .iter()
+            .map(|p| p.scalars_nb() * scalar_size + p.statements_nb() * point_size)
+            .sum();
+        if data.len() != expected_d_len {
+            return Err(ProofError::ProofSizeMismatch);
+        }
+
+        let mut cursor = 0;
+        let mut commitment = Vec::with_capacity(self.0.iter().map(|p| p.statements_nb()).sum());
+        let mut response = Vec::with_capacity(self.0.iter().map(|p| p.scalars_nb()).sum());
+
         for proto in &self.0 {
-            let c_nb = proto.statements_nb();
-            let r_nb = proto.scalars_nb();
-            let proof_len = r_nb * scalar_size + c_nb * point_size;
+            let c_len = proto.statements_nb();
+            let r_len = proto.scalars_nb();
+            let proof_len = r_len * scalar_size + c_len * point_size;
             let (proto_commit, proto_resp) =
                 proto.deserialize_batchable(&data[cursor..(cursor + proof_len)])?;
             commitment.extend(proto_commit);
@@ -159,6 +168,78 @@ impl<G: Group + GroupEncoding> SigmaProtocol for AndProtocol<G> {
             cursor += proof_len;
         }
         Ok((commitment, response))
+    }
+}
+
+impl<G: Group + GroupEncoding> CompactProtocol for AndProtocol<G> {
+    fn get_commitment(
+        &self,
+        challenge: &Self::Challenge,
+        response: &Self::Response,
+    ) -> Result<Self::Commitment, ProofError> {
+        let expected_r_len: usize = self.0.iter().map(|p| p.scalars_nb()).sum();
+        if response.len() != expected_r_len {
+            return Err(ProofError::Other);
+        }
+
+        let mut commitment = Vec::with_capacity(self.0.iter().map(|p| p.statements_nb()).sum());
+        let mut cursor = 0;
+        for proto in &self.0 {
+            let r_len = proto.scalars_nb();
+            let proto_resp = response[cursor..(cursor + r_len)].to_vec();
+            let proto_commit = proto.get_commitment(challenge, &proto_resp)?;
+            commitment.extend(proto_commit);
+            cursor += r_len;
+        }
+        Ok(commitment)
+    }
+
+    fn serialize_compact(
+        &self,
+        commitment: &Self::Commitment,
+        challenge: &Self::Challenge,
+        response: &Self::Response,
+    ) -> Result<Vec<u8>, ProofError> {
+        let expected_c_len: usize = self.0.iter().map(|p| p.statements_nb()).sum();
+        let expected_r_len: usize = self.0.iter().map(|p| p.scalars_nb()).sum();
+        if commitment.len() != expected_c_len || response.len() != expected_r_len {
+            return Err(ProofError::Other);
+        }
+
+        let mut bytes = Vec::new();
+        bytes.extend(serialize_scalar::<G>(challenge));
+        for resp in response {
+            bytes.extend(serialize_scalar::<G>(resp));
+        }
+        Ok(bytes)
+    }
+
+    fn deserialize_compact(
+        &self,
+        data: &[u8],
+    ) -> Result<(Self::Challenge, Self::Response), ProofError> {
+        let scalar_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
+            .as_ref()
+            .len();
+
+        let expected_d_len: usize = self.0.iter().map(|p| (p.scalars_nb()) * scalar_size).sum();
+        if data.len() != expected_d_len + scalar_size {
+            return Err(ProofError::ProofSizeMismatch);
+        }
+
+        let challenge = deserialize_scalar::<G>(&data[..scalar_size])?;
+        let mut cursor = scalar_size;
+        let mut response = Vec::with_capacity(self.0.iter().map(|p| p.scalars_nb()).sum());
+        for proto in &self.0 {
+            let r_len = proto.scalars_nb();
+            for _ in 0..r_len {
+                response.push(deserialize_scalar::<G>(
+                    &data[cursor..(cursor + scalar_size)],
+                )?);
+                cursor += scalar_size;
+            }
+        }
+        Ok((challenge, response))
     }
 }
 
@@ -372,5 +453,96 @@ impl<G: Group + GroupEncoding> SigmaProtocol for OrProtocol<G> {
             cursor += proof_len + scalar_size;
         }
         Ok((commitment, response))
+    }
+}
+
+impl<G: Group + GroupEncoding> CompactProtocol for OrProtocol<G> {
+    fn get_commitment(
+        &self,
+        _challenge: &Self::Challenge,
+        response: &Self::Response,
+    ) -> Result<Self::Commitment, ProofError> {
+        let expected_ch_nb = self.len();
+        let expected_r_len: usize = self.0.iter().map(|p| p.scalars_nb()).sum();
+        if response.0.len() != expected_ch_nb || response.1.len() != expected_r_len {
+            return Err(ProofError::Other);
+        }
+
+        let mut commitment = Vec::with_capacity(self.0.iter().map(|p| p.statements_nb()).sum());
+        let mut cursor = 0;
+        for (i, proto) in self.0.iter().enumerate() {
+            let r_len = proto.scalars_nb();
+            let proto_resp = response.1[cursor..(cursor + r_len)].to_vec();
+            let proto_commit = proto.get_commitment(&response.0[i], &proto_resp)?;
+            commitment.extend(proto_commit);
+            cursor += r_len;
+        }
+        Ok(commitment)
+    }
+
+    fn serialize_compact(
+        &self,
+        commitment: &Self::Commitment,
+        challenge: &Self::Challenge,
+        response: &Self::Response,
+    ) -> Result<Vec<u8>, ProofError> {
+        let expected_c_len: usize = self.0.iter().map(|p| p.statements_nb()).sum();
+        let expected_ch_nb = self.len();
+        let expected_r_len: usize = self.0.iter().map(|p| p.scalars_nb()).sum();
+        if commitment.len() != expected_c_len
+            || response.0.len() != expected_ch_nb
+            || response.1.len() != expected_r_len
+        {
+            return Err(ProofError::Other);
+        }
+
+        let mut bytes = Vec::new();
+        bytes.extend(serialize_scalar::<G>(challenge));
+        for i in 0..self.len() {
+            bytes.extend(serialize_scalar::<G>(&response.0[i]));
+        }
+        for resp in &response.1 {
+            bytes.extend(serialize_scalar::<G>(resp));
+        }
+        Ok(bytes)
+    }
+
+    fn deserialize_compact(
+        &self,
+        data: &[u8],
+    ) -> Result<(Self::Challenge, Self::Response), ProofError> {
+        let scalar_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
+            .as_ref()
+            .len();
+
+        let expected_d_len: usize = self
+            .0
+            .iter()
+            .map(|p| (p.scalars_nb() + 1) * scalar_size)
+            .sum();
+        if data.len() != expected_d_len + scalar_size {
+            return Err(ProofError::ProofSizeMismatch);
+        }
+
+        let challenge = deserialize_scalar::<G>(&data[..scalar_size])?;
+        let mut cursor = scalar_size;
+        let mut ch_resp = Vec::with_capacity(self.len());
+        for _ in 0..self.len() {
+            ch_resp.push(deserialize_scalar::<G>(
+                &data[cursor..(cursor + scalar_size)],
+            )?);
+            cursor += scalar_size;
+        }
+        let mut response = Vec::with_capacity(self.0.iter().map(|p| p.scalars_nb()).sum());
+        for proto in &self.0 {
+            let r_len = proto.scalars_nb();
+            for _ in 0..r_len {
+                response.push(deserialize_scalar::<G>(
+                    &data[cursor..(cursor + scalar_size)],
+                )?);
+                cursor += scalar_size;
+            }
+        }
+        Ok((challenge, (ch_resp, response)))
     }
 }
