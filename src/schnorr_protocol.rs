@@ -196,8 +196,8 @@ where
     ///
     /// # Returns
     /// - A tuple `(commitment, response)` where
-    ///   * `commitment` is a vector of group elements (one per statement), and
-    ///   * `response`   is a vector of scalars (one per witness).
+    ///   * `commitment` is a vector of group elements, and
+    ///   * `response` is a vector of scalars.
     ///
     /// # Errors
     /// - `ProofError::ProofSizeMismatch` if the input length is not the exact number of bytes
@@ -280,6 +280,17 @@ where
         Ok(commitment)
     }
 
+    /// Serializes a compact transcript: challenge followed by responses.
+    /// # Parameters
+    /// - `_commitment`: Omitted in compact format (reconstructed during verification).
+    /// - `challenge`: The challenge scalar.
+    /// - `response`: The prover’s response.
+    /// 
+    /// # Returns
+    /// - A byte vector representing the compact proof.
+    ///
+    /// # Errors
+    /// - `ProofError::Other` if the response length does not match the expected number of scalars.
     fn serialize_response(&self, response: &Self::Response) -> Result<Vec<u8>, Error> {
         let mut bytes = Vec::new();
         let response_nb = self.scalars_nb();
@@ -294,6 +305,17 @@ where
         Ok(bytes)
     }
 
+    /// Deserializes a compact proof into a challenge and response.
+    ///
+    /// # Parameters
+    /// - `data`: A byte slice encoding the compact proof.
+    ///
+    /// # Returns
+    /// - A tuple `(challenge, response)`.
+    /// 
+    /// # Errors
+    /// - `ProofError::ProofSizeMismatch` if the input data length does not match the expected size.
+    /// - `ProofError::GroupSerializationFailure` if scalar deserialization fails.
     fn deserialize_response(&self, data: &[u8]) -> Result<(Self::Response, usize), Error> {
         let response_nb = self.scalars_nb();
         let response_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
