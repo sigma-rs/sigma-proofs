@@ -54,7 +54,14 @@ where
     P: SigmaProtocol<Commitment = Vec<G>, Challenge = <G as Group>::Scalar>,
     C: Codec<Challenge = <G as Group>::Scalar> + Clone,
 {
-    /// Creates a new non-interactive Sigma protocol, identified by a domain separator (usually fixed per protocol instantiation), and an initialized Sigma protocol instance.
+    /// Constructs a new `NISigmaProtocol` instance.
+    ///
+    /// # Parameters
+    /// - `iv`: Domain separation tag for the hash function (e.g., protocol name or context).
+    /// - `instance`: An instance of the interactive Sigma protocol.
+    ///
+    /// # Returns
+    /// A new `NISigmaProtocol` that can generate and verify non-interactive proofs.
     pub fn new(iv: &[u8], instance: P) -> Self {
         let hash_state = C::new(iv);
         Self {
@@ -63,7 +70,24 @@ where
         }
     }
 
-    /// Produces a non-interactive proof for a witness.
+    /// Generates a non-interactive proof for a witness.
+    ///
+    /// Executes the interactive protocol steps (commit, derive challenge via hash, respond),
+    /// and checks the result locally for consistency.
+    ///
+    /// # Parameters
+    /// - `witness`: The secret witness for the Sigma protocol.
+    /// - `rng`: A cryptographically secure random number generator.
+    ///
+    /// # Returns
+    /// A tuple of:
+    /// - `P::Commitment`: The prover's commitment(s).
+    /// - `P::Challenge`: The challenge derived via Fiat-Shamir.
+    /// - `P::Response`: The prover's response.
+    ///
+    /// # Panics
+    /// Panics if local verification fails.
+
     pub fn prove(
         &mut self,
         witness: &P::Witness,
@@ -86,7 +110,21 @@ where
         Ok((commitment, challenge, response))
     }
 
-    /// Verify a non-interactive proof and returns a Result: `Ok(())` if the proof verifies successfully, `Err(())` otherwise.
+    /// Verifies a non-interactive proof using the Fiat-Shamir transformation.
+    ///
+    /// # Parameters
+    /// - `commitment`: The commitment(s) sent by the prover.
+    /// - `challenge`: The challenge allegedly derived via Fiat-Shamir.
+    /// - `response`: The prover's response to the challenge.
+    ///
+    /// # Returns
+    /// - `Ok(())` if the proof is valid.
+    /// - `Err(ProofError::VerificationFailure)` if the challenge is invalid or the response fails to verify.
+    /// 
+    /// # Errors
+    /// - Returns `ProofError::VerificationFailure` if:
+    ///   - The challenge doesn't match the recomputed one from the commitment.
+    ///   - The response fails verification under the Sigma protocol.
     pub fn verify(
         &mut self,
         commitment: &P::Commitment,
@@ -108,7 +146,17 @@ where
             false => Err(ProofError::VerificationFailure),
         }
     }
-
+    /// Generates a batchable, serialized non-interactive proof.
+    ///
+    /// # Parameters
+    /// - `witness`: The secret witness.
+    /// - `rng`: A cryptographically secure random number generator.
+    ///
+    /// # Returns
+    /// A serialized proof suitable for batch verification.
+    ///
+    /// # Panics
+    /// Panics if serialization fails (should not happen under correct implementation).
     pub fn prove_batchable(
         &mut self,
         witness: &P::Witness,
@@ -120,6 +168,20 @@ where
             .serialize_batchable(&commitment, &challenge, &response)
             .unwrap())
     }
+
+    /// Verifies a batchable non-interactive proof.
+    ///
+    /// # Parameters
+    /// - `proof`: A serialized batchable proof.
+    ///
+    /// # Returns
+    /// - `Ok(())` if the proof is valid.
+    /// - `Err(ProofError)` if deserialization or verification fails.
+    /// 
+    /// # Errors
+    /// - Returns `ProofError::VerificationFailure` if:
+    ///   - The challenge doesn't match the recomputed one from the commitment.
+    ///   - The response fails verification under the Sigma protocol.
 
     pub fn verify_batchable(&mut self, proof: &[u8]) -> Result<(), ProofError> {
         let (commitment, response) = self.sigmap.deserialize_batchable(proof).unwrap();
@@ -144,6 +206,19 @@ where
     P: SigmaProtocol<Commitment = Vec<G>, Challenge = <G as Group>::Scalar> + CompactProtocol,
     C: Codec<Challenge = <G as Group>::Scalar> + Clone,
 {
+    /// Generates a compact serialized proof.
+    ///
+    /// Uses a more space-efficient representation compared to batchable proofs.
+    ///
+    /// # Parameters
+    /// - `witness`: The secret witness.
+    /// - `rng`: A cryptographically secure random number generator.
+    ///
+    /// # Returns
+    /// A compact, serialized proof.
+    ///
+    /// # Panics
+    /// Panics if serialization fails.
     pub fn prove_compact(
         &mut self,
         witness: &P::Witness,
@@ -156,6 +231,21 @@ where
             .unwrap())
     }
 
+    /// Verifies a compact proof.
+    ///
+    /// Recomputes the commitment from the challenge and response, then verifies it.
+    ///
+    /// # Parameters
+    /// - `proof`: A compact serialized proof.
+    ///
+    /// # Returns
+    /// - `Ok(())` if the proof is valid.
+    /// - `Err(ProofError)` if deserialization or verification fails.
+    /// 
+    /// # Errors
+    /// - Returns `ProofError::VerificationFailure` if:
+    ///   - Deserialization fails.
+    ///   - The recomputed commitment or response is invalid under the Sigma protocol.
     pub fn verify_compact(&mut self, proof: &[u8]) -> Result<(), ProofError> {
         let (challenge, response) = self.sigmap.deserialize_compact(proof).unwrap();
         // Compute the commitments

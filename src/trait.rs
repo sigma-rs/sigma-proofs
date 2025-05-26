@@ -94,9 +94,9 @@ pub trait SigmaProtocol {
 /// Types implementing `CompactProtocol` must define:
 /// - `get_commitment`
 pub trait CompactProtocol: SigmaProtocol {
-    /// Returns the commitment for which ('commitment', 'challenge', 'response') is a valid transcript
+    /// Returns the commitment for which ('commitment', 'challenge', 'response') is a valid transcript.
     ///
-    /// This function allows to omit commitment in compact proofs of the type ('challenge', 'response')
+    /// This function allows to omit commitment in compact proofs of the type ('challenge', 'response').
     fn get_commitment(
         &self,
         challenge: &Self::Challenge,

@@ -1,4 +1,4 @@
-//! Proof Builder for Sigma Protocols
+//! # Proof Builder for Sigma Protocols
 //!
 //! This module defines the [`ProofBuilder`] struct, a high-level utility that simplifies
 //! the construction and interaction with zero-knowledge proofs based on Sigma protocols.
@@ -8,10 +8,10 @@
 //! relations over cryptographic groups.
 //!
 //! ## Features
-//! - Allocates scalar and point variables for constructing group equations
-//! - Appends equations representing statements to be proven
-//! - Supports element assignment to statement variables
-//! - Offers one-shot `prove` and `verify` methods
+//! - Allocates scalar and point variables for constructing group equations.
+//! - Appends equations representing statements to be proven.
+//! - Supports element assignment to statement variables.
+//! - Offers one-shot `prove` and `verify` methods.
 
 use group::{Group, GroupEncoding};
 use rand::{CryptoRng, RngCore};
@@ -53,8 +53,8 @@ where
     /// `lhs = Σ (scalar_i * point_i)`
     ///
     /// # Parameters
-    /// - `lhs`: The variable representing the left-hand group element
-    /// - `rhs`: A list of (scalar variable, point variable) tuples for the linear combination
+    /// - `lhs`: The `PointVar` index representing the left-hand group element.
+    /// - `rhs`: A list of (scalar variable, point variable) tuples for the linear combination.
     pub fn append_equation(&mut self, lhs: PointVar, rhs: &[(ScalarVar, PointVar)]) {
         self.protocol.sigmap.append_equation(lhs, rhs);
     }
@@ -76,7 +76,7 @@ where
     /// Assigns specific group elements to point variables (indices).
     ///
     /// # Parameters
-    /// - `elements`: A list of `(PointVar, GroupElement)` pairs
+    /// - `elements`: A list of `(PointVar, GroupElement)` pairs.
     pub fn set_elements(&mut self, elements: &[(PointVar, G)]) {
         self.protocol.sigmap.set_elements(elements);
     }
@@ -91,8 +91,8 @@ where
     /// Generates a non-interactive zero-knowledge proof for the current statement using the given witness.
     ///
     /// # Parameters
-    /// - `witness`: A list of scalars (one per allocated scalar variable)
-    /// - `rng`: A random number generator
+    /// - `witness`: A list of scalars (one per allocated scalar variable).
+    /// - `rng`: A random number generator.
     ///
     /// # Returns
     /// A serialized proof as a vector of bytes in batchable ('commitment', 'response') format.
@@ -108,7 +108,7 @@ where
     /// Verifies a serialized batchable proof against the current statement.
     ///
     /// # Parameters
-    /// - `proof`: A byte slice containing the serialized batchable proof
+    /// - `proof`: A byte slice containing the serialized batchable proof.
     ///
     /// # Returns
     /// `Ok(())` if the proof is valid, or a [`ProofError`] if verification fails.
@@ -119,8 +119,8 @@ where
     /// Generates a compact proof for the current statement using the given witness.
     ///
     /// # Parameters
-    /// - `witness`: A list of scalars (one per allocated scalar variable)
-    /// - `rng`: A random number generator
+    /// - `witness`: A list of scalars (one per allocated scalar variable).
+    /// - `rng`: A random number generator.
     ///
     /// # Returns
     /// A serialized proof as a vector of bytes in compact ('challenge', 'response') format.
@@ -136,7 +136,7 @@ where
     /// Verifies a serialized compact proof against the current statement.
     ///
     /// # Parameters
-    /// - `proof`: A byte slice containing the serialized compact proof
+    /// - `proof`: A byte slice containing the serialized compact proof.
     ///
     /// # Returns
     /// `Ok(())` if the proof is valid, or a [`ProofError`] if verification fails.
