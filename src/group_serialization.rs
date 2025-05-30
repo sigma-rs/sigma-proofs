@@ -1,7 +1,7 @@
 //! Serialization and deserialization utilities for group elements and scalars.
 //!
 //! This module provides functions to convert group elements and scalars to and from
-//! byte representations using canonical encodings. 
+//! byte representations using canonical encodings.
 
 use ff::PrimeField;
 use group::{Group, GroupEncoding};
@@ -45,7 +45,7 @@ pub fn deserialize_element<G: Group + GroupEncoding>(data: &[u8]) -> Result<G, P
     }
 }
 
-/// Serialize a scalar field element into a byte vector 
+/// Serialize a scalar field element into a byte vector
 ///
 /// # Parameters
 /// - `scalar`: A reference to the scalar field element to serialize.

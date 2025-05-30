@@ -64,7 +64,7 @@ pub struct Morphism<G: Group> {
 }
 
 /// Perform a simple multi-scalar multiplication (MSM) over scalars and points.
-/// 
+///
 /// Given slices of scalars and corresponding group elements (bases),
 /// returns the sum of each base multiplied by its scalar coefficient.
 ///
@@ -197,7 +197,7 @@ where
         (start..start + n).map(ScalarVar).collect()
     }
 
-   /// Allocates space for `n` new group elements, initialized to the identity element.
+    /// Allocates space for `n` new group elements, initialized to the identity element.
     ///
     /// # Parameters
     /// - `n`: Number of group elements to allocate.

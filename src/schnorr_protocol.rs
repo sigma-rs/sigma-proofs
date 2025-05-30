@@ -18,7 +18,7 @@ use rand::{CryptoRng, RngCore};
 ///
 /// This implementation generalizes Schnorr’s discrete logarithm proof by using
 /// a [`GroupMorphismPreimage`], representing an abstract linear relation over the group.
-/// 
+///
 /// # Type Parameters
 /// - `G`: A cryptographic group implementing `Group` and `GroupEncoding`.
 #[derive(Default)]
@@ -172,18 +172,18 @@ where
         }
     }
 
-        /// Serializes the proof into a batchable format: commitments followed by responses.
-        ///
-        /// # Parameters
-        /// - `commitment`: A vector of group elements (typically sent in the first round).
-        /// - `_challenge`: The verifier’s challenge (omitted from batchable format).
-        /// - `response`: A vector of scalars forming the prover’s response.
-        ///
-        /// # Returns
-        /// - A byte vector representing the serialized batchable proof.
-        ///
-        /// # Errors
-        /// - `ProofError::Other` if the commitment or response length is incorrect.
+    /// Serializes the proof into a batchable format: commitments followed by responses.
+    ///
+    /// # Parameters
+    /// - `commitment`: A vector of group elements (typically sent in the first round).
+    /// - `_challenge`: The verifier’s challenge (omitted from batchable format).
+    /// - `response`: A vector of scalars forming the prover’s response.
+    ///
+    /// # Returns
+    /// - A byte vector representing the serialized batchable proof.
+    ///
+    /// # Errors
+    /// - `ProofError::Other` if the commitment or response length is incorrect.
 
     fn serialize_batchable(
         &self,
@@ -307,12 +307,12 @@ where
     /// - `_commitment`: Omitted in compact format (reconstructed during verification).
     /// - `challenge`: The challenge scalar.
     /// - `response`: The prover’s response.
-    /// 
+    ///
     /// # Returns
     /// - A byte vector representing the compact proof.
     ///
     /// # Errors
-/// - `ProofError::Other` if the response length does not match the expected number of scalars.
+    /// - `ProofError::Other` if the response length does not match the expected number of scalars.
     fn serialize_compact(
         &self,
         _commitment: &Self::Commitment,
@@ -342,7 +342,7 @@ where
     ///
     /// # Returns
     /// - A tuple `(challenge, response)`.
-    /// 
+    ///
     /// # Errors
     /// - `ProofError::ProofSizeMismatch` if the input data length does not match the expected size.
     /// - `ProofError::GroupSerializationFailure` if scalar deserialization fails.
@@ -384,11 +384,11 @@ where
     G: Group + GroupEncoding,
 {
     /// Simulates a valid transcript for a given challenge without a witness.
-    /// 
+    ///
     /// # Parameters
     /// - `challenge`: A scalar value representing the challenge.
     /// - `rng`: A cryptographically secure RNG.
-    /// 
+    ///
     /// # Returns
     /// - A commitment and response forming a valid proof for the given challenge.
     fn simulate_proof(

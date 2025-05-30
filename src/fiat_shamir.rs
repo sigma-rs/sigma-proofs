@@ -120,7 +120,7 @@ where
     /// # Returns
     /// - `Ok(())` if the proof is valid.
     /// - `Err(ProofError::VerificationFailure)` if the challenge is invalid or the response fails to verify.
-    /// 
+    ///
     /// # Errors
     /// - Returns `ProofError::VerificationFailure` if:
     ///   - The challenge doesn't match the recomputed one from the commitment.
@@ -177,7 +177,7 @@ where
     /// # Returns
     /// - `Ok(())` if the proof is valid.
     /// - `Err(ProofError)` if deserialization or verification fails.
-    /// 
+    ///
     /// # Errors
     /// - Returns `ProofError::VerificationFailure` if:
     ///   - The challenge doesn't match the recomputed one from the commitment.
@@ -241,7 +241,7 @@ where
     /// # Returns
     /// - `Ok(())` if the proof is valid.
     /// - `Err(ProofError)` if deserialization or verification fails.
-    /// 
+    ///
     /// # Errors
     /// - Returns `ProofError::VerificationFailure` if:
     ///   - Deserialization fails.
