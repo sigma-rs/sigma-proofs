@@ -53,7 +53,7 @@ where
     /// `lhs = Σ (scalar_i * point_i)`
     ///
     /// # Parameters
-    /// - `lhs`: The `PointVar` index representing the left-hand group element.
+    /// - `lhs`: The [`PointVar`] index representing the left-hand group element.
     /// - `rhs`: A list of (scalar variable, point variable) tuples for the linear combination.
     pub fn append_equation(&mut self, lhs: PointVar, rhs: &[(ScalarVar, PointVar)]) {
         self.protocol.sigmap.append_equation(lhs, rhs);
@@ -61,14 +61,14 @@ where
 
     /// Allocates `n` scalar variables for use in the proof.
     ///
-    /// Returns a vector of `ScalarVar` indices.
+    /// Returns a vector of [`ScalarVar`] indices.
     pub fn allocate_scalars(&mut self, n: usize) -> Vec<ScalarVar> {
         self.protocol.sigmap.allocate_scalars(n)
     }
 
     /// Allocates `n` point variables (group elements) for use in the proof.
     ///
-    /// Returns a vector of `PointVar` indices.
+    /// Returns a vector of [`PointVar`] indices.
     pub fn allocate_elements(&mut self, n: usize) -> Vec<PointVar> {
         self.protocol.sigmap.allocate_elements(n)
     }

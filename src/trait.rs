@@ -1,6 +1,6 @@
 //! Sigma Protocol Trait
 //!
-//! This module defines the `SigmaProtocol` trait, a generic interface for 3-message Sigma protocols.
+//! This module defines the [`SigmaProtocol`] trait, a generic interface for 3-message Sigma protocols.
 
 use crate::ProofError;
 use rand::{CryptoRng, Rng};
@@ -19,7 +19,7 @@ use rand::{CryptoRng, Rng};
 /// - `Challenge`: The verifier's challenge value.
 ///
 /// ## Minimal Implementation
-/// Types implementing `SigmaProtocol` must define:
+/// Types implementing [`SigmaProtocol`] must define:
 /// - `prover_commit`
 /// - `prover_response`
 /// - `verifier`
@@ -91,7 +91,7 @@ pub trait SigmaProtocol {
 /// This is what the get_commitment function is for.
 ///
 /// ## Minimal Implementation
-/// Types implementing `CompactProtocol` must define:
+/// Types implementing [`CompactProtocol`] must define:
 /// - `get_commitment`
 pub trait CompactProtocol: SigmaProtocol {
     /// Returns the commitment for which ('commitment', 'challenge', 'response') is a valid transcript.
@@ -134,7 +134,7 @@ pub trait CompactProtocol: SigmaProtocol {
 /// However, some protocols (like OR protocols that prove the truth of one-out-of-two statements) require them during for the real execution.
 ///
 /// ## Minimal Implementation
-/// Types implementing `SigmaProtocolSimulator` must define:
+/// Types implementing [`SigmaProtocolSimulator`] must define:
 /// - `simulate_proof`
 /// - `simulate_transcript`
 pub trait SigmaProtocolSimulator: SigmaProtocol {

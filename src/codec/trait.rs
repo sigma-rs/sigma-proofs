@@ -1,6 +1,6 @@
 //! Codec Trait
 //!
-//! This module defines the `Codec` trait, a generic interface to manage codecs of a protocol execution.
+//! This module defines the [`Codec`] trait, a generic interface to manage codecs of a protocol execution.
 
 pub trait DuplexSpongeInterface {
     fn new(iv: &[u8]) -> Self;
@@ -17,7 +17,7 @@ pub trait DuplexSpongeInterface {
 /// The output is deterministic for a given set of input. Thus, both Prover and Verifier can generate the codec on their sides and ensure the same inputs have been used in both side of the protocol.
 ///
 /// ## Minimal Implementation
-/// Types implementing `Codec` must define:
+/// Types implementing [`Codec`] must define:
 /// - `new`
 /// - `prover_message`
 /// - `verifier_challenge`

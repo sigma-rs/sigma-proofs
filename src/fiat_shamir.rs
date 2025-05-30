@@ -1,6 +1,6 @@
 //! Fiat-Shamir transformation for Sigma protocols.
 //!
-//! This module defines `NISigmaProtocol`, a generic non-interactive Sigma protocol wrapper,
+//! This module defines [`NISigmaProtocol`], a generic non-interactive Sigma protocol wrapper,
 //! based on applying the Fiat-Shamir heuristic using a codec.
 //!
 //! It transforms an interactive Sigma protocol into a non-interactive one,
@@ -9,9 +9,9 @@
 //!
 //! # Usage
 //! This struct is generic over:
-//! - `P`: the underlying Sigma protocol (`SigmaProtocol` trait).
-//! - `C`: the codec (`Codec` trait).
-//! - `G`: the group used for commitments and operations (`Group` trait).
+//! - `P`: the underlying Sigma protocol ([`SigmaProtocol`] trait).
+//! - `C`: the codec ([`Codec`] trait).
+//! - `G`: the group used for commitments and operations ([`Group`] trait).
 
 use crate::{codec::Codec, CompactProtocol, ProofError, SigmaProtocol};
 
@@ -26,7 +26,7 @@ type Transcript<P> = (
 
 /// A Fiat-Shamir transformation of a Sigma protocol into a non-interactive proof.
 ///
-/// `NISigmaProtocol` wraps an interactive Sigma protocol `P`
+/// [`NISigmaProtocol`] wraps an interactive Sigma protocol `P`
 /// and a hash-based codec `C`, to produce non-interactive proofs.
 ///
 /// It manages the domain separation, codec reset,
@@ -54,14 +54,14 @@ where
     P: SigmaProtocol<Commitment = Vec<G>, Challenge = <G as Group>::Scalar>,
     C: Codec<Challenge = <G as Group>::Scalar> + Clone,
 {
-    /// Constructs a new `NISigmaProtocol` instance.
+    /// Constructs a new [`NISigmaProtocol`] instance.
     ///
     /// # Parameters
     /// - `iv`: Domain separation tag for the hash function (e.g., protocol name or context).
     /// - `instance`: An instance of the interactive Sigma protocol.
     ///
     /// # Returns
-    /// A new `NISigmaProtocol` that can generate and verify non-interactive proofs.
+    /// A new [`NISigmaProtocol`] that can generate and verify non-interactive proofs.
     pub fn new(iv: &[u8], instance: P) -> Self {
         let hash_state = C::new(iv);
         Self {

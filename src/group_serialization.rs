@@ -47,7 +47,7 @@ pub fn deserialize_element<G: Group + GroupEncoding>(data: &[u8]) -> Result<G, P
 
 /// Serialize a scalar field element into a byte vector 
 ///
-/// # Inputs
+/// # Parameters
 /// - `scalar`: A reference to the scalar field element to serialize.
 ///
 /// # Outputs

@@ -83,10 +83,10 @@ pub fn msm_pr<G: Group>(scalars: &[G::Scalar], bases: &[G]) -> G {
 }
 
 impl<G: Group> Morphism<G> {
-    /// Creates a new empty `Morphism`.
+    /// Creates a new empty [`Morphism`].
     ///
     /// # Returns
-    /// A `Morphism` instance with empty linear combinations and group elements,
+    /// A [`Morphism`] instance with empty linear combinations and group elements,
     /// and zero allocated scalars and elements.
     pub fn new() -> Self {
         Self {
@@ -100,7 +100,7 @@ impl<G: Group> Morphism<G> {
     /// Adds a new linear combination constraint to the morphism.
     ///
     /// # Parameters
-    /// - `lc`: The `LinearCombination` to add.
+    /// - `lc`: The [`LinearCombination`] to add.
     pub fn append(&mut self, lc: LinearCombination) {
         self.linear_combination.push(lc);
     }
@@ -134,14 +134,14 @@ impl<G: Group> Morphism<G> {
     }
 }
 
-/// A wrapper struct coupling a `Morphism` with the corresponding expected output (image) elements.
+/// A wrapper struct coupling a [`Morphism`] with the corresponding expected output (image) elements.
 ///
 /// This structure represents the *preimage problem* for a group morphism: given a set of scalar inputs,
 /// determine whether their image under the morphism matches a target set of group elements.
 ///
 /// Internally, the constraint system is defined through:
-/// - A list of group elements and linear equations (held in the `Morphism` field),
-/// - A list of `PointVar` indices (`image`) that specify the expected output for each constraint.
+/// - A list of group elements and linear equations (held in the [`Morphism`] field),
+/// - A list of [`PointVar`] indices (`image`) that specify the expected output for each constraint.
 #[derive(Default)]
 pub struct GroupMorphismPreimage<G>
 where
@@ -190,7 +190,7 @@ where
     /// - `n`: Number of scalar variables to allocate.
     ///
     /// # Returns
-    /// A vector of `ScalarVar` representing the newly allocated scalar indices.
+    /// A vector of [`ScalarVar`] representing the newly allocated scalar indices.
     pub fn allocate_scalars(&mut self, n: usize) -> Vec<ScalarVar> {
         let start = self.morphism.num_scalars;
         self.morphism.num_scalars += n;
@@ -203,7 +203,7 @@ where
     /// - `n`: Number of group elements to allocate.
     ///
     /// # Returns
-    /// A vector of `PointVar` representing the newly allocated group element indices.
+    /// A vector of [`PointVar`] representing the newly allocated group element indices.
     pub fn allocate_elements(&mut self, n: usize) -> Vec<PointVar> {
         let start = self.morphism.num_elements;
         self.morphism
