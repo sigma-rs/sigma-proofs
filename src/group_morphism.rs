@@ -9,7 +9,7 @@
 //! - [`GroupMorphismPreimage`]: a higher-level structure managing morphisms and their associated images
 
 use group::{Group, GroupEncoding};
-use std::iter;
+use std::iter::repeat_n;
 
 /// A wrapper representing an index for a scalar variable.
 ///
@@ -208,7 +208,7 @@ where
         let start = self.morphism.num_elements;
         self.morphism
             .group_elements
-            .extend(iter::repeat(G::identity()).take(n));
+            .extend(repeat_n(G::identity(), n));
         let points = (start..start + n).map(PointVar).collect::<Vec<_>>();
         self.morphism.num_elements += n;
         points

@@ -87,7 +87,6 @@ where
     ///
     /// # Panics
     /// Panics if local verification fails.
-
     pub fn prove(
         &mut self,
         witness: &P::Witness,
@@ -182,7 +181,6 @@ where
     /// - Returns `ProofError::VerificationFailure` if:
     ///   - The challenge doesn't match the recomputed one from the commitment.
     ///   - The response fails verification under the Sigma protocol.
-
     pub fn verify_batchable(&mut self, proof: &[u8]) -> Result<(), ProofError> {
         let (commitment, response) = self.sigmap.deserialize_batchable(proof).unwrap();
 

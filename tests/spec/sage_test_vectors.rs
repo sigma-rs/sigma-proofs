@@ -21,6 +21,7 @@ type Codec = ByteSchnorrCodec<Gp, KeccakDuplexSponge>;
 type SigmaP = SchnorrProtocolCustom<Gp>;
 type NISigmaP = NISigmaProtocol<SigmaP, Codec, Gp>;
 
+#[allow(clippy::type_complexity)]
 #[allow(non_snake_case)]
 #[test]
 fn sage_test_vectors() {
@@ -150,15 +151,15 @@ fn pedersen_commitment_dleq<G: Group + GroupEncoding + SRandom>(
 ) -> (Preimage<G>, Vec<G::Scalar>) {
     let mut morphismp: Preimage<G> = Preimage::new();
 
-    let mut generators = Vec::<G>::new();
-    generators.push(G::prandom(rng));
-    generators.push(G::prandom(rng));
-    generators.push(G::prandom(rng));
-    generators.push(G::prandom(rng));
+        let generators: Vec<G> = vec![
+        G::prandom(rng),
+        G::prandom(rng),
+        G::prandom(rng),
+        G::prandom(rng),
+    ];
 
-    let mut witness = Vec::<G::Scalar>::new();
-    witness.push(G::srandom(rng));
-    witness.push(G::srandom(rng));
+    let witness: Vec<G::Scalar> = vec![G::srandom(rng), G::srandom(rng)];
+
 
     let X = msm_pr::<G>(&witness, &[generators[0], generators[1]]);
     let Y = msm_pr::<G>(&witness, &[generators[2], generators[3]]);

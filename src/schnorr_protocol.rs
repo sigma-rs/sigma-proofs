@@ -9,7 +9,6 @@ use crate::{
     ScalarVar, SigmaProtocol, SigmaProtocolSimulator,
 };
 
-use core::iter;
 use ff::{Field, PrimeField};
 use group::{Group, GroupEncoding};
 use rand::{CryptoRng, RngCore};
@@ -20,7 +19,7 @@ use rand::{CryptoRng, RngCore};
 /// a [`GroupMorphismPreimage`], representing an abstract linear relation over the group.
 ///
 /// # Type Parameters
-/// - `G`: A cryptographic group implementing `Group` and `GroupEncoding`.
+/// - `G`: A cryptographic group implementing [`Group`] and [`GroupEncoding`].
 #[derive(Default)]
 pub struct SchnorrProtocol<G: Group + GroupEncoding>(GroupMorphismPreimage<G>);
 
@@ -89,7 +88,6 @@ where
     ///
     /// # Errors
     /// -`ProofError::Other` if the witness vector length is incorrect.
-
     fn prover_commit(
         &self,
         witness: &Self::Witness,
@@ -118,7 +116,6 @@ where
     ///
     /// # Errors
     /// - Returns `ProofError::Other` if the prover state vectors have incorrect lengths.
-
     fn prover_response(
         &self,
         state: Self::ProverState,
@@ -150,7 +147,6 @@ where
     /// -`Err(ProofError::VerificationFailure)` if the computed relation
     /// does not hold for the provided challenge and response, indicating proof invalidity.
     /// -`Err(ProofError::Other)` if the commitment or response length is incorrect.
-
     fn verifier(
         &self,
         commitment: &Self::Commitment,
@@ -184,7 +180,6 @@ where
     ///
     /// # Errors
     /// - `ProofError::Other` if the commitment or response length is incorrect.
-
     fn serialize_batchable(
         &self,
         commitment: &Self::Commitment,
@@ -225,7 +220,6 @@ where
     ///   expected for `commit_nb` commitments plus `response_nb` responses.
     /// - `ProofError::GroupSerializationFailure` if any group element or scalar fails to
     ///   deserialize (propagated from `deserialize_element` or `deserialize_scalar`).
-
     fn deserialize_batchable(
         &self,
         data: &[u8],
@@ -397,7 +391,8 @@ where
         rng: &mut (impl RngCore + CryptoRng),
     ) -> (Self::Commitment, Self::Response) {
         let mut response = Vec::new();
-        response.extend(iter::repeat(G::Scalar::random(rng)).take(self.scalars_nb()));
+        response.extend(std::iter::repeat_n(G::Scalar::random(rng), self.scalars_nb())
+);
         let commitment = self.get_commitment(challenge, &response).unwrap();
         (commitment, response)
     }
