@@ -411,7 +411,7 @@ where
         rng: &mut (impl RngCore + CryptoRng),
     ) -> (Self::Commitment, Self::Challenge, Self::Response) {
         let challenge = G::Scalar::random(&mut *rng);
-        let (commitment, response) = self.simulate_proof(&challenge, &mut *rng);
+        let (commitment, response) = self.simulate_proof(&challenge, rng);
         (commitment, challenge, response)
     }
 }
