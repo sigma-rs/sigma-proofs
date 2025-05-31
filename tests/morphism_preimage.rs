@@ -96,15 +96,14 @@ fn pedersen_commitment_dleq<G: Group + GroupEncoding>(
 ) -> (GroupMorphismPreimage<G>, Vec<G::Scalar>) {
     let mut morphismp: GroupMorphismPreimage<G> = GroupMorphismPreimage::new();
 
-    let mut generators = Vec::<G>::new();
-    generators.push(G::random(&mut *rng));
-    generators.push(G::random(&mut *rng));
-    generators.push(G::random(&mut *rng));
-    generators.push(G::random(&mut *rng));
+    let generators: Vec<G> = vec![
+        G::random(&mut *rng),
+        G::random(&mut *rng),
+        G::random(&mut *rng),
+        G::random(&mut *rng),
+    ];
 
-    let mut witness = Vec::<G::Scalar>::new();
-    witness.push(G::Scalar::random(&mut *rng));
-    witness.push(G::Scalar::random(&mut *rng));
+    let witness: Vec<G::Scalar> = vec![G::Scalar::random(&mut *rng), G::Scalar::random(&mut *rng)];
 
     let X = msm_pr::<G>(&witness, &[generators[0], generators[1]]);
     let Y = msm_pr::<G>(&witness, &[generators[2], generators[3]]);

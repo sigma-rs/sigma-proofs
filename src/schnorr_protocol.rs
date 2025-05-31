@@ -9,14 +9,17 @@ use crate::{
     ScalarVar, SigmaProtocol, SigmaProtocolSimulator,
 };
 
-use core::iter;
 use ff::{Field, PrimeField};
 use group::{Group, GroupEncoding};
 use rand::{CryptoRng, RngCore};
 
-/// A Schnorr protocol proving knowledge some discrete logarithm relation.
+/// A Schnorr protocol proving knowledge of a witness for a linear group relation.
 ///
-/// The specific proof instance is defined by a [`GroupMorphismPreimage`] over a group `G`.
+/// This implementation generalizes Schnorr’s discrete logarithm proof by using
+/// a [`GroupMorphismPreimage`], representing an abstract linear relation over the group.
+///
+/// # Type Parameters
+/// - `G`: A cryptographic group implementing [`Group`] and [`GroupEncoding`].
 #[derive(Default)]
 pub struct SchnorrProtocol<G: Group + GroupEncoding>(GroupMorphismPreimage<G>);
 
@@ -72,7 +75,19 @@ where
     type Witness = Vec<<G as Group>::Scalar>;
     type Challenge = <G as Group>::Scalar;
 
-    /// Prover's first message: generates a random commitment based on random nonces.
+    /// Prover's first message: generates a commitment using random nonces.
+    ///
+    /// # Parameters
+    /// - `witness`: A vector of scalars that satisfy the morphism relation.
+    /// - `rng`: A cryptographically secure random number generator.
+    ///
+    /// # Returns
+    /// - A tuple containing:
+    ///     - The commitment (a vector of group elements).
+    ///     - The prover state (random nonces and witness) used to compute the response.
+    ///
+    /// # Errors
+    /// -`ProofError::Other` if the witness vector length is incorrect.
     fn prover_commit(
         &self,
         witness: &Self::Witness,
@@ -90,7 +105,17 @@ where
         Ok((commitment, prover_state))
     }
 
-    /// Prover's last message: computes the response to a given challenge.
+    /// Computes the prover's response (second message) using the challenge.
+    ///
+    /// # Parameters
+    /// - `state`: The prover state returned by `prover_commit`, typically containing randomness and witness components.
+    /// - `challenge`: The verifier's challenge scalar.
+    ///
+    /// # Returns
+    /// - A vector of scalars forming the prover's response.
+    ///
+    /// # Errors
+    /// - Returns `ProofError::Other` if the prover state vectors have incorrect lengths.
     fn prover_response(
         &self,
         state: Self::ProverState,
@@ -106,8 +131,22 @@ where
         }
         Ok(responses)
     }
-
-    /// Verifier checks that the provided response satisfies the verification equations.
+    /// Verifies the correctness of the proof.
+    ///
+    /// # Parameters
+    /// - `commitment`: The prover's commitment vector (group elements).
+    /// - `challenge`: The challenge scalar.
+    /// - `response`: The prover's response vector.
+    ///
+    /// # Returns
+    /// - `Ok(())` if the proof is valid.
+    /// - `Err(ProofError::VerificationFailure)` if the proof is invalid.
+    /// - `Err(ProofError::Other)` if the lengths of commitment or response do not match the expected counts.
+    ///
+    /// # Errors
+    /// -`Err(ProofError::VerificationFailure)` if the computed relation
+    /// does not hold for the provided challenge and response, indicating proof invalidity.
+    /// -`Err(ProofError::Other)` if the commitment or response length is incorrect.
     fn verifier(
         &self,
         commitment: &Self::Commitment,
@@ -129,7 +168,18 @@ where
         }
     }
 
-    /// Serializes the proof into a batchable (`commitment`, `response`) format for transmission.
+    /// Serializes the proof into a batchable format: commitments followed by responses.
+    ///
+    /// # Parameters
+    /// - `commitment`: A vector of group elements (typically sent in the first round).
+    /// - `_challenge`: The verifier’s challenge (omitted from batchable format).
+    /// - `response`: A vector of scalars forming the prover’s response.
+    ///
+    /// # Returns
+    /// - A byte vector representing the serialized batchable proof.
+    ///
+    /// # Errors
+    /// - `ProofError::Other` if the commitment or response length is incorrect.
     fn serialize_batchable(
         &self,
         commitment: &Self::Commitment,
@@ -155,7 +205,21 @@ where
         Ok(bytes)
     }
 
-    /// Deserializes a batchable proof format back into (`commitment`, `response`).
+    /// Deserializes a batchable proof into a commitment vector and response vector.
+    ///
+    /// # Parameters
+    /// - `data`: A byte slice containing the serialized proof.
+    ///
+    /// # Returns
+    /// - A tuple `(commitment, response)` where  
+    ///   * `commitment` is a vector of group elements (one per statement), and  
+    ///   * `response`   is a vector of scalars (one per witness).
+    ///
+    /// # Errors
+    /// - `ProofError::ProofSizeMismatch` if the input length is not the exact number of bytes
+    ///   expected for `commit_nb` commitments plus `response_nb` responses.
+    /// - `ProofError::GroupSerializationFailure` if any group element or scalar fails to
+    ///   deserialize (propagated from `deserialize_element` or `deserialize_scalar`).
     fn deserialize_batchable(
         &self,
         data: &[u8],
@@ -202,6 +266,17 @@ impl<G> CompactProtocol for SchnorrProtocol<G>
 where
     G: Group + GroupEncoding,
 {
+    /// Recomputes the commitment from the challenge and response (used in compact proofs).
+    ///
+    /// # Parameters
+    /// - `challenge`: The challenge scalar issued by the verifier or derived via Fiat–Shamir.
+    /// - `response`: The prover’s response vector.
+    ///
+    /// # Returns
+    /// - A vector of group elements representing the recomputed commitment (one per linear constraint).
+    ///
+    /// # Errors
+    /// - `ProofError::Other` if the response length does not match the expected number of scalars.
     fn get_commitment(
         &self,
         challenge: &Self::Challenge,
@@ -221,7 +296,17 @@ where
         Ok(commitment)
     }
 
-    /// Serializes the proof into a compact (`challenge`, `response`) format for transmission.
+    /// Serializes a compact transcript: challenge followed by responses.
+    /// # Parameters
+    /// - `_commitment`: Omitted in compact format (reconstructed during verification).
+    /// - `challenge`: The challenge scalar.
+    /// - `response`: The prover’s response.
+    ///
+    /// # Returns
+    /// - A byte vector representing the compact proof.
+    ///
+    /// # Errors
+    /// - `ProofError::Other` if the response length does not match the expected number of scalars.
     fn serialize_compact(
         &self,
         _commitment: &Self::Commitment,
@@ -244,7 +329,17 @@ where
         Ok(bytes)
     }
 
-    /// Deserializes a compact proof format back into (`challenge`, `response`).
+    /// Deserializes a compact proof into a challenge and response.
+    ///
+    /// # Parameters
+    /// - `data`: A byte slice encoding the compact proof.
+    ///
+    /// # Returns
+    /// - A tuple `(challenge, response)`.
+    ///
+    /// # Errors
+    /// - `ProofError::ProofSizeMismatch` if the input data length does not match the expected size.
+    /// - `ProofError::GroupSerializationFailure` if scalar deserialization fails.
     fn deserialize_compact(
         &self,
         data: &[u8],
@@ -282,17 +377,35 @@ impl<G> SigmaProtocolSimulator for SchnorrProtocol<G>
 where
     G: Group + GroupEncoding,
 {
+    /// Simulates a valid transcript for a given challenge without a witness.
+    ///
+    /// # Parameters
+    /// - `challenge`: A scalar value representing the challenge.
+    /// - `rng`: A cryptographically secure RNG.
+    ///
+    /// # Returns
+    /// - A commitment and response forming a valid proof for the given challenge.
     fn simulate_proof(
         &self,
         challenge: &Self::Challenge,
         rng: &mut (impl RngCore + CryptoRng),
     ) -> (Self::Commitment, Self::Response) {
         let mut response = Vec::new();
-        response.extend(iter::repeat(G::Scalar::random(rng)).take(self.scalars_nb()));
+        response.extend(std::iter::repeat_n(
+            G::Scalar::random(rng),
+            self.scalars_nb(),
+        ));
         let commitment = self.get_commitment(challenge, &response).unwrap();
         (commitment, response)
     }
 
+    /// Simulates a full proof transcript using a randomly generated challenge.
+    ///
+    /// # Parameters
+    /// - `rng`: A cryptographically secure RNG.
+    ///
+    /// # Returns
+    /// - A tuple `(commitment, challenge, response)` forming a valid proof.
     fn simulate_transcript(
         &self,
         rng: &mut (impl RngCore + CryptoRng),

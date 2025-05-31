@@ -21,7 +21,7 @@ impl TestDRNG {
         assert!(l <= h);
         let range = h - l + 1;
         let bits = 64 - range.leading_zeros();
-        let bytes_needed = ((bits + 7) / 8) as usize;
+        let bytes_needed = bits.div_ceil(8) as usize;
 
         loop {
             let mut buf = vec![0u8; bytes_needed];
@@ -40,7 +40,7 @@ impl TestDRNG {
         assert!(l <= h);
         let range = h - l + BigUint::one();
         let bits = range.bits();
-        let bytes_needed = ((bits + 7) / 8) as usize;
+        let bytes_needed = bits.div_ceil(8) as usize;
 
         loop {
             let mut buf = vec![0u8; bytes_needed];

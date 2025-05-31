@@ -24,25 +24,18 @@ fn discrete_logarithm() {
     let G = G::generator();
     proof_builder.set_elements(&[(var_G, G)]);
 
-    let mut witness = Vec::new();
-    witness.push(Scalar::random(rng));
+    let witness = vec![Scalar::random(rng)];
 
     let X = G * witness[0];
     proof_builder.set_elements(&[(var_X, X)]);
 
     // Prove and verify a proof
     let proof_bytes = proof_builder.prove(&witness, &mut rng).unwrap();
-    let result = match proof_builder.verify(&proof_bytes) {
-        Ok(_) => true,
-        _ => false,
-    };
+    let result = proof_builder.verify(&proof_bytes).is_ok();
 
     // Prove and verify a compact proof
     let compact_proof_bytes = proof_builder.prove_compact(&witness, &mut rng).unwrap();
-    let compact_result = match proof_builder.verify_compact(&compact_proof_bytes) {
-        Ok(_) => true,
-        _ => false,
-    };
+    let compact_result = proof_builder.verify_compact(&compact_proof_bytes).is_ok();
 
     assert!(result);
     assert!(compact_result);
