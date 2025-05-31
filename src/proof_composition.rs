@@ -1,10 +1,10 @@
 use ff::{Field, PrimeField};
 use group::{Group, GroupEncoding};
 
-use crate::{
-    deserialize_scalar, serialize_scalar, CompactProtocol, ProofError, SchnorrProtocol,
-    SigmaProtocol, SigmaProtocolSimulator,
-};
+use crate::errors::ProofError;
+use crate::group_serialization::{deserialize_scalar, serialize_scalar};
+use crate::schnorr_protocol::SchnorrProtocol;
+use crate::traits::{CompactProtocol, SigmaProtocol, SigmaProtocolSimulator};
 
 #[derive(Default)]
 pub struct AndProtocol<G: Group + GroupEncoding>(pub Vec<SchnorrProtocol<G>>);

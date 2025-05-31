@@ -2,7 +2,7 @@ use bls12_381::{G1Projective, Scalar};
 use group::ff::Field;
 
 use rand::rngs::OsRng;
-use sigma_rs::ProofBuilder;
+use sigma_rs::proof_builder::ProofBuilder;
 
 type G = G1Projective;
 

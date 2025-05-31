@@ -13,7 +13,9 @@
 //! - `C`: the codec ([`Codec`] trait).
 //! - `G`: the group used for commitments and operations ([`Group`] trait).
 
-use crate::{codec::Codec, CompactProtocol, ProofError, SigmaProtocol};
+use crate::codec::Codec;
+use crate::errors::ProofError;
+use crate::traits::{CompactProtocol, SigmaProtocol};
 
 use group::{Group, GroupEncoding};
 use rand::{CryptoRng, RngCore};

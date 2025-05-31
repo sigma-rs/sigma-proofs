@@ -2,7 +2,7 @@
 //!
 //! This module defines the [`SigmaProtocol`] trait, a generic interface for 3-message Sigma protocols.
 
-use crate::ProofError;
+use crate::errors::ProofError;
 use rand::{CryptoRng, Rng};
 
 /// A trait defining the behavior of a generic Sigma protocol.

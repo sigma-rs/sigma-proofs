@@ -2,9 +2,11 @@ use ff::PrimeField;
 use group::{Group, GroupEncoding};
 use rand::{CryptoRng, Rng};
 
-use sigma_rs::{group_serialization::*, GroupMorphismPreimage, ProofError, SigmaProtocol};
-
 use crate::random::SRandom;
+use sigma_rs::errors::ProofError;
+use sigma_rs::group_morphism::GroupMorphismPreimage;
+use sigma_rs::group_serialization::*;
+use sigma_rs::traits::SigmaProtocol;
 
 pub struct SchnorrProtocolCustom<G: SRandom + GroupEncoding>(pub GroupMorphismPreimage<G>);
 
