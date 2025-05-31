@@ -6,10 +6,11 @@ use json::JsonValue;
 use rand::{CryptoRng, Rng};
 use std::fs;
 
+use sigma_rs::fiat_shamir::NISigmaProtocol;
+use sigma_rs::group_morphism::GroupMorphismPreimage;
 use sigma_rs::{
     codec::{ByteSchnorrCodec, KeccakDuplexSponge},
     group_morphism::msm_pr,
-    GroupMorphismPreimage, NISigmaProtocol,
 };
 
 use crate::{custom_schnorr_protocol::SchnorrProtocolCustom, random::SRandom, test_drng::TestDRNG};

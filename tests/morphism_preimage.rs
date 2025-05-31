@@ -5,10 +5,9 @@ use rand::{
     {CryptoRng, Rng},
 };
 
-use sigma_rs::{
-    codec::ShakeCodec, group_morphism::msm_pr, GroupMorphismPreimage, NISigmaProtocol,
-    SchnorrProtocol,
-};
+use sigma_rs::fiat_shamir::NISigmaProtocol;
+use sigma_rs::group_morphism::{msm_pr, GroupMorphismPreimage};
+use sigma_rs::{codec::ShakeCodec, schnorr_protocol::SchnorrProtocol};
 
 type G = G1Projective;
 

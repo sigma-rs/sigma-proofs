@@ -6,7 +6,7 @@
 use ff::PrimeField;
 use group::{Group, GroupEncoding};
 
-use crate::ProofError;
+use crate::errors::ProofError;
 
 /// Serialize a group element into a byte vector.
 ///

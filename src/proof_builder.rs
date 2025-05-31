@@ -16,7 +16,11 @@
 use group::{Group, GroupEncoding};
 use rand::{CryptoRng, RngCore};
 
-use crate::{codec::ShakeCodec, NISigmaProtocol, PointVar, ProofError, ScalarVar, SchnorrProtocol};
+use crate::codec::ShakeCodec;
+use crate::errors::ProofError;
+use crate::fiat_shamir::NISigmaProtocol;
+use crate::group_morphism::{PointVar, ScalarVar};
+use crate::schnorr_protocol::SchnorrProtocol;
 
 /// A builder that helps construct Sigma proofs for linear group relations.
 ///

@@ -4,9 +4,11 @@
 //! a Sigma protocol proving different types of discrete logarithm relations (eg. Schnorr, Pedersen's commitments)
 //! through a group morphism abstraction (see Maurer09).
 
+use crate::errors::ProofError;
+use crate::group_morphism::{GroupMorphismPreimage, PointVar, ScalarVar};
 use crate::{
-    group_serialization::*, CompactProtocol, GroupMorphismPreimage, PointVar, ProofError,
-    ScalarVar, SigmaProtocol, SigmaProtocolSimulator,
+    group_serialization::*,
+    traits::{CompactProtocol, SigmaProtocol, SigmaProtocolSimulator},
 };
 
 use ff::{Field, PrimeField};
@@ -211,8 +213,8 @@ where
     /// - `data`: A byte slice containing the serialized proof.
     ///
     /// # Returns
-    /// - A tuple `(commitment, response)` where  
-    ///   * `commitment` is a vector of group elements (one per statement), and  
+    /// - A tuple `(commitment, response)` where
+    ///   * `commitment` is a vector of group elements (one per statement), and
     ///   * `response`   is a vector of scalars (one per witness).
     ///
     /// # Errors
