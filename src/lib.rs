@@ -32,3 +32,6 @@ pub use r#trait::*;
 pub use schnorr_protocol::*;
 
 pub mod codec;
+
+#[cfg(feature = "test-utils")]
+pub mod test_utils;

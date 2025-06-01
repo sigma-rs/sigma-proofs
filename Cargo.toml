@@ -42,7 +42,12 @@ curve25519-dalek = { version = "4", default-features = false, features = ["serde
 hex-literal = "1.0.0"
 json = "0.12.4"
 sha2 = "0.10"
+sigma-rs = { path = ".", features = ["test-utils"] }
 
 [profile.dev]
 # Makes tests run much faster at the cost of slightly longer builds and worse debug info.
 opt-level = 1
+
+# QUESTION: Would we prefer to have this as a seperate crate in the workspace instead?
+[features]
+test-utils = []
