@@ -26,6 +26,8 @@ use crate::{codec::ShakeCodec, NISigmaProtocol, PointVar, ProofError, ScalarVar,
 ///
 /// # Type Parameters
 /// - `G`: A group that implements both [`Group`] and [`GroupEncoding`].
+///
+/// [`GroupMorphismPreimage`]: crate::GroupMorphismPreimage
 pub struct ProofBuilder<G>
 where
     G: Group + GroupEncoding,
