@@ -9,7 +9,6 @@
 //! - `GroupMorphismPreimage`: a higher-level structure managing morphisms and their associated images
 
 use group::{Group, GroupEncoding};
-use std::iter;
 
 #[derive(Copy, Clone)]
 pub struct ScalarVar(usize);
@@ -47,8 +46,6 @@ pub struct Morphism<G: Group> {
     pub linear_combination: Vec<LinearCombination>,
     pub group_elements: Vec<G>,
     pub num_scalars: usize,
-    /// QUESTION: Why is there a count of elements seperate from group_elements.len()
-    pub num_elements: usize,
 }
 
 /// Perform a simple multi-scalar multiplication (MSM) over scalars and points.
@@ -67,7 +64,6 @@ impl<G: Group> Morphism<G> {
             linear_combination: Vec::new(),
             group_elements: Vec::new(),
             num_scalars: 0,
-            num_elements: 0,
         }
     }
 
@@ -139,9 +135,12 @@ where
         self.morphism.num_statements() * repr_len // total size of a commit
     }
 
-    /// Append a new equation relating scalars to group elements.
+    /// Adds a new equation to the statement of the form:
+    /// `lhs = Σ (scalar_i * point_i)`
     ///
-    /// `lhs` is the image, and `rhs` is a list of (scalar, element) pairs.
+    /// # Parameters
+    /// - `lhs`: The variable representing the left-hand group element
+    /// - `rhs`: A list of (scalar variable, point variable) tuples for the linear combination
     pub fn append_equation(&mut self, lhs: PointVar, rhs: &[(ScalarVar, PointVar)]) {
         let lc = LinearCombination {
             scalar_indices: rhs.iter().map(|&(s, _)| s).collect(),
@@ -151,32 +150,51 @@ where
         self.image.push(lhs);
     }
 
-    /// Allocate space for `n` new scalars and return their ScalarVar.
-    pub fn allocate_scalars(&mut self, n: usize) -> Vec<ScalarVar> {
-        let start = self.morphism.num_scalars;
-        self.morphism.num_scalars += n;
-        (start..start + n).map(ScalarVar).collect()
+    /// Allocates a scalar variable for use in the morphism.
+    pub fn allocate_scalar(&mut self) -> ScalarVar {
+        self.morphism.num_scalars += 1;
+        ScalarVar(self.morphism.num_scalars - 1)
     }
 
-    /// Allocate space for `n` new group elements and return their PointVar.
+    /// Allocates `n` scalar variables for use in the morphism.
     ///
-    /// The allocated elements are initially set to the identity.
-    pub fn allocate_elements(&mut self, n: usize) -> Vec<PointVar> {
-        let start = self.morphism.num_elements;
-        // NOTE: This uses identity as the default value for an allocated, but unassigned,
-        // variable.
-        self.morphism
-            .group_elements
-            .extend(iter::repeat(G::identity()).take(n));
-        let points = (start..start + n).map(PointVar).collect::<Vec<_>>();
-        self.morphism.num_elements += n;
-        points
+    /// Returns a vector of `ScalarVar` indices.
+    // TODO: When no_std suport is desired, the `Vec` return type here can be changed to
+    // `T: FromIterator<ScalarVar>`, which allows the caller to decide whether the result should be
+    // collected into a `Vec`, `[_; N]`, `Array`, etc.
+    pub fn allocate_scalars(&mut self, n: usize) -> Vec<ScalarVar> {
+        (0..n).map(|_| self.allocate_scalar()).collect()
     }
 
-    /// Set the value of group elements at a given index, inside the list of allocated group elements.
-    pub fn set_elements(&mut self, elements: &[(PointVar, G)]) {
-        for &(i, elt) in elements {
-            self.morphism.group_elements[i.0] = elt;
+    /// Allocates a point variable (group element) for use in the morphism.
+    pub fn allocate_element(&mut self) -> PointVar {
+        self.morphism.group_elements.push(G::identity());
+        PointVar(self.morphism.group_elements.len() - 1)
+    }
+
+    /// Allocates `n` point variables (group elements) for use in the morphism.
+    ///
+    /// Returns a vector of `PointVar` indices.
+    pub fn allocate_elements(&mut self, n: usize) -> Vec<PointVar> {
+        (0..n).map(|_| self.allocate_element()).collect()
+    }
+
+    /// Assign a group element value to a point variable.
+    ///
+    /// # Parameters
+    /// - `var`: The variable to assign.
+    /// - `element`: The value to assign to the variable.
+    pub fn assign_element(&mut self, var: PointVar, element: G) {
+        self.morphism.group_elements[var.0] = element;
+    }
+
+    /// Assigns specific group elements to point variables (indices).
+    ///
+    /// # Parameters
+    /// - `elements`: A list of `(PointVar, GroupElement)` pairs
+    pub fn assign_elements(&mut self, elements: &[(PointVar, G)]) {
+        for (var, element) in elements {
+            self.assign_element(*var, *element)
         }
     }
 

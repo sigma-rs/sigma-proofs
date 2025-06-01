@@ -27,13 +27,13 @@ fn discrete_logarithm<G: Group + GroupEncoding>(
     morphismp.append_equation(var_X, &[(var_x, var_G)]);
 
     let G = G::generator();
-    morphismp.set_elements(&[(var_G, G)]);
+    morphismp.assign_elements(&[(var_G, G)]);
 
     let x = G::Scalar::random(&mut *rng);
     let X = G * x;
     assert!(vec![X] == morphismp.morphism.evaluate(&[x]));
 
-    morphismp.set_elements(&[(var_X, X)]);
+    morphismp.assign_elements(&[(var_X, X)]);
     (morphismp, vec![x])
 }
 
@@ -55,7 +55,7 @@ fn dleq<G: Group + GroupEncoding>(
     let points = morphismp.allocate_elements(4);
     let (var_G, var_H, var_X, var_Y) = (points[0], points[1], points[2], points[3]);
 
-    morphismp.set_elements(&[(var_G, G), (var_H, H), (var_X, X), (var_Y, Y)]);
+    morphismp.assign_elements(&[(var_G, G), (var_H, H), (var_X, X), (var_Y, Y)]);
     morphismp.append_equation(var_X, &[(var_x, var_G)]);
     morphismp.append_equation(var_Y, &[(var_x, var_H)]);
 
@@ -83,7 +83,7 @@ fn pedersen_commitment<G: Group + GroupEncoding>(
     let points = cs.allocate_elements(3);
     let (var_G, var_H, var_C) = (points[0], points[1], points[2]);
 
-    cs.set_elements(&[(var_H, H), (var_G, G), (var_C, C)]);
+    cs.assign_elements(&[(var_H, H), (var_G, G), (var_C, C)]);
     cs.append_equation(var_C, &[(var_x, var_G), (var_r, var_H)]);
 
     assert!(vec![C] == cs.morphism.evaluate(&witness));
@@ -116,13 +116,13 @@ fn pedersen_commitment_dleq<G: Group + GroupEncoding>(
     let var_Gs = (points[0], points[1], points[2], points[3]);
     let (var_X, var_Y) = (points[4], points[5]);
 
-    morphismp.set_elements(&[
+    morphismp.assign_elements(&[
         (var_Gs.0, generators[0]),
         (var_Gs.1, generators[1]),
         (var_Gs.2, generators[2]),
         (var_Gs.3, generators[3]),
     ]);
-    morphismp.set_elements(&[(var_X, X), (var_Y, Y)]);
+    morphismp.assign_elements(&[(var_X, X), (var_Y, Y)]);
 
     morphismp.append_equation(var_X, &[(var_x, var_Gs.0), (var_r, var_Gs.1)]);
     morphismp.append_equation(var_Y, &[(var_x, var_Gs.2), (var_r, var_Gs.3)]);
@@ -166,7 +166,7 @@ fn bbs_blind_commitment_computation<G: Group + GroupEncoding>(
     let (var_Q_2, var_J_1, var_J_2, var_J_3) = (points[0], points[1], points[2], points[3]);
     let var_C = points[M + 1];
 
-    morphismp.set_elements(&[
+    morphismp.assign_elements(&[
         (var_Q_2, Q_2),
         (var_J_1, J_1),
         (var_J_2, J_2),
@@ -231,7 +231,7 @@ fn NI_discrete_logarithm() {
     let (morphismp, witness) = discrete_logarithm::<G>(&mut rng);
 
     // The SigmaProtocol induced by morphismp
-    let protocol = SchnorrProtocol::from_preimage(morphismp);
+    let protocol = SchnorrProtocol::from(morphismp);
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-schnorr";
     let mut nizk =
@@ -260,7 +260,7 @@ fn NI_dleq() {
     let (morphismp, witness) = dleq::<G>(&mut rng);
 
     // The SigmaProtocol induced by morphismp
-    let protocol = SchnorrProtocol::from_preimage(morphismp);
+    let protocol = SchnorrProtocol::from(morphismp);
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-DLEQ";
     let mut nizk =
@@ -289,7 +289,7 @@ fn NI_pedersen_commitment() {
     let (morphismp, witness) = pedersen_commitment::<G>(&mut rng);
 
     // The SigmaProtocol induced by morphismp
-    let protocol = SchnorrProtocol::from_preimage(morphismp);
+    let protocol = SchnorrProtocol::from(morphismp);
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-pedersen-commitment";
     let mut nizk =
@@ -318,7 +318,7 @@ fn NI_pedersen_commitment_dleq() {
     let (morphismp, witness) = pedersen_commitment_dleq::<G>(&mut rng);
 
     // The SigmaProtocol induced by morphismp
-    let protocol = SchnorrProtocol::from_preimage(morphismp);
+    let protocol = SchnorrProtocol::from(morphismp);
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-pedersen-commitment-DLEQ";
     let mut nizk =
@@ -347,7 +347,7 @@ fn NI_bbs_blind_commitment_computation() {
     let (morphismp, witness) = bbs_blind_commitment_computation::<G>(&mut rng);
 
     // The SigmaProtocol induced by morphismp
-    let protocol = SchnorrProtocol::from_preimage(morphismp);
+    let protocol = SchnorrProtocol::from(morphismp);
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-bbs-blind-commitment-computation";
     let mut nizk =
