@@ -156,14 +156,25 @@ where
         ScalarVar(self.morphism.num_scalars - 1)
     }
 
-    /// Allocates `n` scalar variables for use in the morphism.
+    /// Allocates a fixed-size array of point variables (group elements) for use in the morphism.
     ///
-    /// Returns a vector of `ScalarVar` indices.
-    // TODO: When no_std suport is desired, the `Vec` return type here can be changed to
-    // `T: FromIterator<ScalarVar>`, which allows the caller to decide whether the result should be
-    // collected into a `Vec`, `[_; N]`, `Array`, etc.
-    pub fn allocate_scalars(&mut self, n: usize) -> Vec<ScalarVar> {
-        (0..n).map(|_| self.allocate_scalar()).collect()
+    /// Returns an array of `PointVar` indices.
+    ///
+    /// # Example
+    /// ```
+    /// # use sigma_rs::GroupMorphismPreimage;
+    /// use curve25519_dalek::RistrettoPoint as G;
+    ///
+    /// let mut morphism = GroupMorphismPreimage::<G>::new();
+    /// let [var_x, var_y] = morphism.allocate_scalars();
+    /// let vars = morphism.allocate_scalars::<10>();
+    /// ```
+    pub fn allocate_scalars<const N: usize>(&mut self) -> [ScalarVar; N] {
+        let mut vars = [ScalarVar(usize::MAX); N];
+        for var in vars.iter_mut() {
+            *var = self.allocate_scalar();
+        }
+        vars
     }
 
     /// Allocates a point variable (group element) for use in the morphism.
@@ -172,11 +183,25 @@ where
         PointVar(self.morphism.group_elements.len() - 1)
     }
 
-    /// Allocates `n` point variables (group elements) for use in the morphism.
+    /// Allocates a fixed-size array of point variables (group elements) for use in the morphism.
     ///
-    /// Returns a vector of `PointVar` indices.
-    pub fn allocate_elements(&mut self, n: usize) -> Vec<PointVar> {
-        (0..n).map(|_| self.allocate_element()).collect()
+    /// Returns an array of `PointVar` indices.
+    ///
+    /// # Example
+    /// ```
+    /// # use sigma_rs::GroupMorphismPreimage;
+    /// use curve25519_dalek::RistrettoPoint as G;
+    ///
+    /// let mut morphism = GroupMorphismPreimage::<G>::new();
+    /// let [var_g, var_h] = morphism.allocate_elements();
+    /// let vars = morphism.allocate_elements::<10>();
+    /// ```
+    pub fn allocate_elements<const N: usize>(&mut self) -> [PointVar; N] {
+        let mut vars = [PointVar(usize::MAX); N];
+        for var in vars.iter_mut() {
+            *var = self.allocate_element();
+        }
+        vars
     }
 
     /// Assign a group element value to a point variable.

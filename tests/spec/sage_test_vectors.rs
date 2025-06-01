@@ -9,12 +9,10 @@ use std::fs;
 use sigma_rs::{
     codec::{ByteSchnorrCodec, KeccakDuplexSponge},
     group_morphism::msm_pr,
-    GroupMorphismPreimage, NISigmaProtocol,
+    GroupMorphismPreimage as Preimage, NISigmaProtocol,
 };
 
 use crate::{custom_schnorr_protocol::SchnorrProtocolCustom, random::SRandom, test_drng::TestDRNG};
-
-type Preimage<G> = GroupMorphismPreimage<G>;
 
 type Gp = G1Projective;
 type Codec = ByteSchnorrCodec<Gp, KeccakDuplexSponge>;
@@ -73,11 +71,8 @@ fn discrete_logarithm<G: SRandom + Group + GroupEncoding>(
 ) -> (Preimage<G>, Vec<G::Scalar>) {
     let mut morphismp: Preimage<G> = Preimage::new();
 
-    let scalars = morphismp.allocate_scalars(1);
-    let var_x = scalars[0];
-
-    let points = morphismp.allocate_elements(2);
-    let (var_G, var_X) = (points[0], points[1]);
+    let var_x = morphismp.allocate_scalar();
+    let [var_G, var_X] = morphismp.allocate_elements();
 
     morphismp.append_equation(var_X, &[(var_x, var_G)]);
 
@@ -103,11 +98,8 @@ fn dleq<G: Group + GroupEncoding + SRandom>(
     let X = G * x;
     let Y = H * x;
 
-    let scalars = morphismp.allocate_scalars(1);
-    let var_x = scalars[0];
-
-    let points = morphismp.allocate_elements(4);
-    let (var_G, var_H, var_X, var_Y) = (points[0], points[1], points[2], points[3]);
+    let var_x = morphismp.allocate_scalar();
+    let [var_G, var_H, var_X, var_Y] = morphismp.allocate_elements();
 
     morphismp.assign_elements(&[(var_G, G), (var_H, H), (var_X, X), (var_Y, Y)]);
     morphismp.append_equation(var_X, &[(var_x, var_G)]);
@@ -131,11 +123,8 @@ fn pedersen_commitment<G: Group + GroupEncoding + SRandom>(
 
     let C = G * x + H * r;
 
-    let scalars = morphismp.allocate_scalars(2);
-    let (var_x, var_r) = (scalars[0], scalars[1]);
-
-    let points = morphismp.allocate_elements(3);
-    let (var_G, var_H, var_C) = (points[0], points[1], points[2]);
+    let [var_x, var_r] = morphismp.allocate_scalars();
+    let [var_G, var_H, var_C] = morphismp.allocate_elements();
 
     morphismp.assign_elements(&[(var_H, H), (var_G, G), (var_C, C)]);
     morphismp.append_equation(var_C, &[(var_x, var_G), (var_r, var_H)]);
@@ -150,36 +139,27 @@ fn pedersen_commitment_dleq<G: Group + GroupEncoding + SRandom>(
 ) -> (Preimage<G>, Vec<G::Scalar>) {
     let mut morphismp: Preimage<G> = Preimage::new();
 
-    let mut generators = Vec::<G>::new();
-    generators.push(G::prandom(rng));
-    generators.push(G::prandom(rng));
-    generators.push(G::prandom(rng));
-    generators.push(G::prandom(rng));
+    let generators: Vec<G> = (0..4).map(|_| G::prandom(rng)).collect();
+    let witness: Vec<G::Scalar> = (0..2).map(|_| G::srandom(rng)).collect();
 
-    let mut witness = Vec::<G::Scalar>::new();
-    witness.push(G::srandom(rng));
-    witness.push(G::srandom(rng));
+    let X = msm_pr::<G>(&witness, &generators[..2]);
+    let Y = msm_pr::<G>(&witness, &generators[2..]);
 
-    let X = msm_pr::<G>(&witness, &[generators[0], generators[1]]);
-    let Y = msm_pr::<G>(&witness, &[generators[2], generators[3]]);
+    let [var_x, var_r] = morphismp.allocate_scalars();
 
-    let scalars = morphismp.allocate_scalars(2);
-    let (var_x, var_r) = (scalars[0], scalars[1]);
-
-    let points = morphismp.allocate_elements(6);
-    let var_Gs = (points[0], points[1], points[2], points[3]);
-    let (var_X, var_Y) = (points[4], points[5]);
+    let var_Gs = morphismp.allocate_elements::<4>();
+    let [var_X, var_Y] = morphismp.allocate_elements();
 
     morphismp.assign_elements(&[
-        (var_Gs.0, generators[0]),
-        (var_Gs.1, generators[1]),
-        (var_Gs.2, generators[2]),
-        (var_Gs.3, generators[3]),
+        (var_Gs[0], generators[0]),
+        (var_Gs[1], generators[1]),
+        (var_Gs[2], generators[2]),
+        (var_Gs[3], generators[3]),
     ]);
     morphismp.assign_elements(&[(var_X, X), (var_Y, Y)]);
 
-    morphismp.append_equation(var_X, &[(var_x, var_Gs.0), (var_r, var_Gs.1)]);
-    morphismp.append_equation(var_Y, &[(var_x, var_Gs.2), (var_r, var_Gs.3)]);
+    morphismp.append_equation(var_X, &[(var_x, var_Gs[0]), (var_r, var_Gs[1])]);
+    morphismp.append_equation(var_Y, &[(var_x, var_Gs[2]), (var_r, var_Gs[3])]);
 
     assert!(vec![X, Y] == morphismp.morphism.evaluate(&witness));
     (morphismp, witness)
@@ -191,8 +171,7 @@ fn bbs_blind_commitment_computation<G: Group + GroupEncoding + SRandom>(
 ) -> (Preimage<G>, Vec<G::Scalar>) {
     let mut morphismp: Preimage<G> = Preimage::new();
 
-    // length (committed_messages)
-    let M = 3;
+    // BBS messag length is 3
     // BBS.create_generators(M + 1, "BLIND_" || api_id)
     let (Q_2, J_1, J_2, J_3) = (
         G::prandom(rng),
@@ -208,13 +187,10 @@ fn bbs_blind_commitment_computation<G: Group + GroupEncoding + SRandom>(
     let C = Q_2 * secret_prover_blind + J_1 * msg_1 + J_2 * msg_2 + J_3 * msg_3;
 
     // This is the part that needs to be changed in the specification of blind bbs.
-    let scalars = morphismp.allocate_scalars(M + 1);
-    let (var_secret_prover_blind, var_msg_1, var_msg_2, var_msg_3) =
-        (scalars[0], scalars[1], scalars[2], scalars[3]);
+    let [var_secret_prover_blind, var_msg_1, var_msg_2, var_msg_3] = morphismp.allocate_scalars();
 
-    let points = morphismp.allocate_elements(M + 2);
-    let (var_Q_2, var_J_1, var_J_2, var_J_3) = (points[0], points[1], points[2], points[3]);
-    let var_C = points[M + 1];
+    let [var_Q_2, var_J_1, var_J_2, var_J_3] = morphismp.allocate_elements();
+    let var_C = morphismp.allocate_element();
 
     morphismp.assign_elements(&[
         (var_Q_2, Q_2),
