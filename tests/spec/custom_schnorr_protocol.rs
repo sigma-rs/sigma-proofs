@@ -3,7 +3,7 @@ use group::{Group, GroupEncoding};
 use rand::{CryptoRng, Rng};
 
 use crate::random::SRandom;
-use sigma_rs::errors::ProofError;
+use sigma_rs::errors::Error;
 use sigma_rs::group_morphism::GroupMorphismPreimage;
 use sigma_rs::group_serialization::*;
 use sigma_rs::traits::SigmaProtocol;
@@ -30,9 +30,9 @@ where
         &self,
         witness: &Self::Witness,
         rng: &mut (impl Rng + CryptoRng),
-    ) -> Result<(Self::Commitment, Self::ProverState), ProofError> {
+    ) -> Result<(Self::Commitment, Self::ProverState), Error> {
         if witness.len() != self.witness_len() {
-            return Err(ProofError::ProofSizeMismatch);
+            return Err(Error::ProofSizeMismatch);
         }
 
         let mut nonces: Vec<G::Scalar> = Vec::new();
@@ -48,9 +48,9 @@ where
         &self,
         state: Self::ProverState,
         challenge: &Self::Challenge,
-    ) -> Result<Self::Response, ProofError> {
+    ) -> Result<Self::Response, Error> {
         if state.0.len() != self.witness_len() || state.1.len() != self.witness_len() {
-            return Err(ProofError::ProofSizeMismatch);
+            return Err(Error::ProofSizeMismatch);
         }
 
         let mut responses = Vec::new();
@@ -65,7 +65,7 @@ where
         commitment: &Self::Commitment,
         challenge: &Self::Challenge,
         response: &Self::Response,
-    ) -> Result<(), ProofError> {
+    ) -> Result<(), Error> {
         let lhs = self.0.morphism.evaluate(response);
 
         let mut rhs = Vec::new();
@@ -79,7 +79,7 @@ where
 
         match lhs == rhs {
             true => Ok(()),
-            false => Err(ProofError::VerificationFailure),
+            false => Err(Error::VerificationFailure),
         }
     }
 
@@ -88,7 +88,7 @@ where
         commitment: &Self::Commitment,
         _challenge: &Self::Challenge,
         response: &Self::Response,
-    ) -> Result<Vec<u8>, ProofError> {
+    ) -> Result<Vec<u8>, Error> {
         let mut bytes = Vec::new();
         let scalar_nb = self.0.morphism.num_scalars;
         let point_nb = self.0.morphism.num_statements();
@@ -107,7 +107,7 @@ where
     fn deserialize_batchable(
         &self,
         data: &[u8],
-    ) -> Result<(Self::Commitment, Self::Response), ProofError> {
+    ) -> Result<(Self::Commitment, Self::Response), Error> {
         let scalar_nb = self.0.morphism.num_scalars;
         let point_nb = self.0.morphism.num_statements();
 
@@ -118,7 +118,7 @@ where
 
         let expected_len = scalar_nb * scalar_size + point_nb * point_size;
         if data.len() != expected_len {
-            return Err(ProofError::ProofSizeMismatch);
+            return Err(Error::ProofSizeMismatch);
         }
 
         let mut commitments: Self::Commitment = Vec::new();

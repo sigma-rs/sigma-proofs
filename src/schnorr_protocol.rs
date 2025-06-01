@@ -4,7 +4,7 @@
 //! a Sigma protocol proving different types of discrete logarithm relations (eg. Schnorr, Pedersen's commitments)
 //! through a group morphism abstraction (see Maurer09).
 
-use crate::errors::ProofError;
+use crate::errors::Error;
 use crate::group_morphism::GroupMorphismPreimage;
 use crate::{
     group_serialization::*,
@@ -71,9 +71,9 @@ where
         &self,
         witness: &Self::Witness,
         mut rng: &mut (impl RngCore + CryptoRng),
-    ) -> Result<(Self::Commitment, Self::ProverState), ProofError> {
+    ) -> Result<(Self::Commitment, Self::ProverState), Error> {
         if witness.len() != self.scalars_nb() {
-            return Err(ProofError::ProofSizeMismatch);
+            return Err(Error::ProofSizeMismatch);
         }
 
         let nonces: Vec<G::Scalar> = (0..self.scalars_nb())
@@ -99,9 +99,9 @@ where
         &self,
         state: Self::ProverState,
         challenge: &Self::Challenge,
-    ) -> Result<Self::Response, ProofError> {
+    ) -> Result<Self::Response, Error> {
         if state.0.len() != self.scalars_nb() || state.1.len() != self.scalars_nb() {
-            return Err(ProofError::ProofSizeMismatch);
+            return Err(Error::ProofSizeMismatch);
         }
 
         let mut responses = Vec::new();
@@ -131,9 +131,9 @@ where
         commitment: &Self::Commitment,
         challenge: &Self::Challenge,
         response: &Self::Response,
-    ) -> Result<(), ProofError> {
+    ) -> Result<(), Error> {
         if commitment.len() != self.statements_nb() || response.len() != self.scalars_nb() {
-            return Err(ProofError::ProofSizeMismatch);
+            return Err(Error::ProofSizeMismatch);
         }
 
         let lhs = self.0.morphism.evaluate(response);
@@ -143,7 +143,7 @@ where
         }
         match lhs == rhs {
             true => Ok(()),
-            false => Err(ProofError::VerificationFailure),
+            false => Err(Error::VerificationFailure),
         }
     }
 
@@ -164,11 +164,11 @@ where
         commitment: &Self::Commitment,
         _challenge: &Self::Challenge,
         response: &Self::Response,
-    ) -> Result<Vec<u8>, ProofError> {
+    ) -> Result<Vec<u8>, Error> {
         let commit_nb = self.statements_nb();
         let response_nb = self.scalars_nb();
         if commitment.len() != commit_nb || response.len() != response_nb {
-            return Err(ProofError::ProofSizeMismatch);
+            return Err(Error::ProofSizeMismatch);
         }
 
         let mut bytes = Vec::new();
@@ -202,7 +202,7 @@ where
     fn deserialize_batchable(
         &self,
         data: &[u8],
-    ) -> Result<(Self::Commitment, Self::Response), ProofError> {
+    ) -> Result<(Self::Commitment, Self::Response), Error> {
         let commit_nb = self.statements_nb();
         let response_nb = self.scalars_nb();
 
@@ -213,7 +213,7 @@ where
 
         let expected_len = response_nb * response_size + commit_nb * commit_size;
         if data.len() != expected_len {
-            return Err(ProofError::ProofSizeMismatch);
+            return Err(Error::ProofSizeMismatch);
         }
 
         let mut commitments: Self::Commitment = Vec::new();
@@ -260,9 +260,9 @@ where
         &self,
         challenge: &Self::Challenge,
         response: &Self::Response,
-    ) -> Result<Self::Commitment, ProofError> {
+    ) -> Result<Self::Commitment, Error> {
         if response.len() != self.scalars_nb() {
-            return Err(ProofError::ProofSizeMismatch);
+            return Err(Error::ProofSizeMismatch);
         }
 
         let response_image = self.0.morphism.evaluate(response);
@@ -291,11 +291,11 @@ where
         _commitment: &Self::Commitment,
         challenge: &Self::Challenge,
         response: &Self::Response,
-    ) -> Result<Vec<u8>, ProofError> {
+    ) -> Result<Vec<u8>, Error> {
         let mut bytes = Vec::new();
         let response_nb = self.scalars_nb();
         if response.len() != response_nb {
-            return Err(ProofError::ProofSizeMismatch);
+            return Err(Error::ProofSizeMismatch);
         }
 
         // Serialize challenge
@@ -319,10 +319,7 @@ where
     /// # Errors
     /// - `ProofError::ProofSizeMismatch` if the input data length does not match the expected size.
     /// - `ProofError::GroupSerializationFailure` if scalar deserialization fails.
-    fn deserialize_compact(
-        &self,
-        data: &[u8],
-    ) -> Result<(Self::Challenge, Self::Response), ProofError> {
+    fn deserialize_compact(&self, data: &[u8]) -> Result<(Self::Challenge, Self::Response), Error> {
         let response_nb = self.scalars_nb();
         let response_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
             .as_ref()
@@ -331,7 +328,7 @@ where
         let expected_len = (response_nb + 1) * response_size;
 
         if data.len() != expected_len {
-            return Err(ProofError::ProofSizeMismatch);
+            return Err(Error::ProofSizeMismatch);
         }
 
         let mut responses: Self::Response = Vec::new();

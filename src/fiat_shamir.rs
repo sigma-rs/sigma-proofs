@@ -14,7 +14,7 @@
 //! - `G`: the group used for commitments and operations ([`Group`] trait).
 
 use crate::codec::Codec;
-use crate::errors::ProofError;
+use crate::errors::Error;
 use crate::traits::{CompactProtocol, SigmaProtocol};
 
 use group::{Group, GroupEncoding};
@@ -94,7 +94,7 @@ where
         &mut self,
         witness: &P::Witness,
         rng: &mut (impl RngCore + CryptoRng),
-    ) -> Result<Transcript<P>, ProofError> {
+    ) -> Result<Transcript<P>, Error> {
         // QUESTION: Why is the self mutable? It's unclear whether the intention is to have a
         // single NISigmaProtocol be used multiple times, or not. E.g. is the intention that
         // someone might call `proto.verify(commit1, chal1, res1); proto.verify(commit2, chal2, res2)`
@@ -138,7 +138,7 @@ where
         commitment: &P::Commitment,
         challenge: &P::Challenge,
         response: &P::Response,
-    ) -> Result<(), ProofError> {
+    ) -> Result<(), Error> {
         let mut codec = self.hash_state.clone();
 
         // Commitment data for expected challenge generation
@@ -151,7 +151,7 @@ where
         // Verification of the proof
         match *challenge == expected_challenge {
             true => self.sigmap.verifier(commitment, challenge, response),
-            false => Err(ProofError::VerificationFailure),
+            false => Err(Error::VerificationFailure),
         }
     }
     /// Generates a batchable, serialized non-interactive proof.
@@ -169,7 +169,7 @@ where
         &mut self,
         witness: &P::Witness,
         rng: &mut (impl RngCore + CryptoRng),
-    ) -> Result<Vec<u8>, ProofError> {
+    ) -> Result<Vec<u8>, Error> {
         // NOTE: Returning the commitments as part of a serialized proof might be a barrier in that
         // the commitment is often provided by the verifier, linked to some external message. E.g.
         // it might be a commitment that to a prior state (e.g. balance of a wallet prior to a
@@ -197,7 +197,7 @@ where
     /// - Returns `ProofError::VerificationFailure` if:
     ///   - The challenge doesn't match the recomputed one from the commitment.
     ///   - The response fails verification under the Sigma protocol.
-    pub fn verify_batchable(&mut self, proof: &[u8]) -> Result<(), ProofError> {
+    pub fn verify_batchable(&mut self, proof: &[u8]) -> Result<(), Error> {
         let (commitment, response) = self.sigmap.deserialize_batchable(proof).unwrap();
 
         let mut codec = self.hash_state.clone();
@@ -237,7 +237,7 @@ where
         &mut self,
         witness: &P::Witness,
         rng: &mut (impl RngCore + CryptoRng),
-    ) -> Result<Vec<u8>, ProofError> {
+    ) -> Result<Vec<u8>, Error> {
         let (commitment, challenge, response) = self.prove(witness, rng)?;
         Ok(self
             .sigmap
@@ -260,7 +260,7 @@ where
     /// - Returns `ProofError::VerificationFailure` if:
     ///   - Deserialization fails.
     ///   - The recomputed commitment or response is invalid under the Sigma protocol.
-    pub fn verify_compact(&mut self, proof: &[u8]) -> Result<(), ProofError> {
+    pub fn verify_compact(&mut self, proof: &[u8]) -> Result<(), Error> {
         let (challenge, response) = self.sigmap.deserialize_compact(proof).unwrap();
         // Compute the commitments
         let commitment = self.sigmap.get_commitment(&challenge, &response)?;
