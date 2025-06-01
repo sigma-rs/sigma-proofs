@@ -175,8 +175,8 @@ where
     /// `lhs = Σ (scalar_i * point_i)`
     ///
     /// # Parameters
-    /// - `lhs`: The variable representing the left-hand group element
-    /// - `rhs`: A list of (scalar variable, point variable) tuples for the linear combination
+    /// - `lhs`: The image group element variable (left-hand side of the equation).
+    /// - `rhs`: A slice of `(ScalarVar, PointVar)` pairs representing the linear combination on the right-hand side.
     pub fn append_equation(&mut self, lhs: PointVar, rhs: &[(ScalarVar, PointVar)]) {
         let lc = LinearCombination {
             scalar_indices: rhs.iter().map(|&(s, _)| s).collect(),
@@ -220,7 +220,7 @@ where
         PointVar(self.morphism.group_elements.len() - 1)
     }
 
-    /// Allocates space for `N` new group elements, initialized to the identity element.
+    /// Allocates `N` point variables (group elements) for use in the morphism.
     ///
     /// # Returns
     /// An array of [`PointVar`] representing the newly allocated group element indices.
