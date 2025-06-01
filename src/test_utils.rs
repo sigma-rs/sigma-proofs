@@ -2,7 +2,7 @@
 
 use group::{Group, GroupEncoding};
 
-use crate::{group_morphism::msm_pr, GroupMorphismPreimage};
+use crate::group_morphism::{msm_pr, GroupMorphismPreimage};
 
 /// Morphism for knowledge of a discrete logarithm relative to a fixed basepoint.
 #[allow(non_snake_case)]

@@ -4,13 +4,11 @@ use hex::FromHex;
 use json::JsonValue;
 use std::fs;
 
-use sigma_rs::{
-    codec::{ByteSchnorrCodec, KeccakDuplexSponge},
-    test_utils::{
-        bbs_blind_commitment_computation, discrete_logarithm, dleq, pedersen_commitment,
-        pedersen_commitment_dleq,
-    },
-    NISigmaProtocol,
+use sigma_rs::codec::{ByteSchnorrCodec, KeccakDuplexSponge};
+use sigma_rs::fiat_shamir::NISigmaProtocol;
+use sigma_rs::test_utils::{
+    bbs_blind_commitment_computation, discrete_logarithm, dleq, pedersen_commitment,
+    pedersen_commitment_dleq,
 };
 
 use crate::{custom_schnorr_protocol::SchnorrProtocolCustom, random::SRandom, test_drng::TestDRNG};
@@ -19,6 +17,7 @@ type Codec = ByteSchnorrCodec<G, KeccakDuplexSponge>;
 type SigmaP = SchnorrProtocolCustom<G>;
 type NISigmaP = NISigmaProtocol<SigmaP, Codec, G>;
 
+#[allow(clippy::type_complexity)]
 #[allow(non_snake_case)]
 #[test]
 fn sage_test_vectors() {

@@ -22,27 +22,21 @@ exclude = [
 [dependencies]
 ff = { version = "0.13", features = ["derive"] }
 group = "0.13.0"
-hex = "0.4"
 num-bigint = "0.4.6"
 num-traits = "0.2.19"
 rand = "0.8.5"
-serde = "1"
-serde_derive = "1"
-sha2 = "0.10"
 sha3 = "0.10.8"
-subtle = "2.6.1"
 thiserror = "1"
 tiny-keccak = { version = "2.0.2", features = ["fips202"] }
 
 [dev-dependencies]
-bincode = "2"
 bls12_381 = "0.8.0"
-criterion = { version = "0.6", features = ["html_reports"] }
 curve25519-dalek = { version = "4", default-features = false, features = ["serde", "rand_core", "alloc", "digest", "precomputed-tables", "group"] }
-hex-literal = "1.0.0"
+hex = "0.4"
 json = "0.12.4"
 sha2 = "0.10"
 sigma-rs = { path = ".", features = ["test-utils"] }
+subtle = "2.6.1"
 
 [profile.dev]
 # Makes tests run much faster at the cost of slightly longer builds and worse debug info.

@@ -20,16 +20,7 @@ pub mod group_serialization;
 pub mod proof_builder;
 pub mod proof_composition;
 pub mod schnorr_protocol;
-pub mod r#trait;
-
-pub use errors::*;
-pub use fiat_shamir::*;
-pub use group_morphism::*;
-pub use group_serialization::*;
-pub use proof_builder::*;
-pub use proof_composition::*;
-pub use r#trait::*;
-pub use schnorr_protocol::*;
+pub mod traits;
 
 pub mod codec;
 

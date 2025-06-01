@@ -1,4 +1,4 @@
-//! Proof Builder for Sigma Protocols
+//! # Proof Builder for Sigma Protocols
 //!
 //! This module defines the [`ProofBuilder`] struct, a high-level utility that simplifies
 //! the construction and interaction with zero-knowledge proofs based on Sigma protocols.
@@ -8,12 +8,12 @@
 //! relations over cryptographic groups.
 //!
 //! ## Features
-//! - Allocates scalar and point variables for constructing group equations
-//! - Appends equations representing statements to be proven
-//! - Supports element assignment to statement variables
-//! - Offers one-shot `prove` and `verify` methods
+//! - Allocates scalar and point variables for constructing group equations.
+//! - Appends equations representing statements to be proven.
+//! - Supports element assignment to statement variables.
+//! - Offers one-shot `prove` and `verify` methods.
 
-use crate::{codec::ShakeCodec, NISigmaProtocol, SchnorrProtocol};
+use crate::{codec::ShakeCodec, fiat_shamir::NISigmaProtocol, schnorr_protocol::SchnorrProtocol};
 
 /// An alias for a [`SchnorrProtocol`] over a [`GroupMorphismPreimage`] and applies
 /// the Fiat-Shamir transform via [`NISigmaProtocol`].

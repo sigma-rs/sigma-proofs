@@ -4,12 +4,15 @@
 //! supporting sigma protocols over group-based statements (e.g., discrete logarithms, DLEQ proofs). See Maurer09.
 //!
 //! It includes:
-//! - `LinearCombination`: a sparse representation of scalar multiplication relations
-//! - `Morphism`: a collection of linear combinations acting on group elements
-//! - `GroupMorphismPreimage`: a higher-level structure managing morphisms and their associated images
+//! - [`LinearCombination`]: a sparse representation of scalar multiplication relations
+//! - [`Morphism`]: a collection of linear combinations acting on group elements
+//! - [`GroupMorphismPreimage`]: a higher-level structure managing morphisms and their associated images
 
 use group::{Group, GroupEncoding};
 
+/// A wrapper representing an index for a scalar variable.
+///
+/// Used to reference scalars in sparse linear combinations.
 #[derive(Copy, Clone)]
 pub struct ScalarVar(usize);
 
@@ -18,7 +21,9 @@ impl ScalarVar {
         self.0
     }
 }
-
+/// A wrapper representing an index for a group element (point).
+///
+/// Used to reference group elements in sparse linear combinations.
 #[derive(Copy, Clone)]
 pub struct PointVar(usize);
 
@@ -28,10 +33,14 @@ impl PointVar {
     }
 }
 
-/// A sparse linear combination of scalars and group elements.
+/// Represents a sparse linear combination of scalars and group elements.
 ///
-/// Stores indices into external lists of scalars and group elements.
-/// Used to define individual constraints inside a Morphism.
+/// For example, it can represent an equation like:
+/// `s_1 * P_1 + s_2 * P_2 + ... + s_n * P_n`
+///
+/// where `s_i` are scalars (referenced by `scalar_indices`) and `P_i` are group elements (referenced by `element_indices`).
+///
+/// The indices refer to external lists managed by the containing Morphism.
 pub struct LinearCombination {
     pub scalar_indices: Vec<ScalarVar>,
     pub element_indices: Vec<PointVar>,
@@ -43,12 +52,25 @@ pub struct LinearCombination {
 /// and evaluates by performing multi-scalar multiplications.
 #[derive(Default)]
 pub struct Morphism<G: Group> {
+    /// The set of linear combination constraints (equations).
     pub linear_combination: Vec<LinearCombination>,
+    /// The list of group elements referenced in the morphism.
     pub group_elements: Vec<G>,
+    /// The total number of scalar variables allocated.
     pub num_scalars: usize,
 }
 
 /// Perform a simple multi-scalar multiplication (MSM) over scalars and points.
+///
+/// Given slices of scalars and corresponding group elements (bases),
+/// returns the sum of each base multiplied by its scalar coefficient.
+///
+/// # Parameters
+/// - `scalars`: slice of scalar multipliers
+/// - `bases`: slice of group elements to be multiplied by the scalars
+///
+/// # Returns
+/// The group element result of the MSM.
 pub fn msm_pr<G: Group>(scalars: &[G::Scalar], bases: &[G]) -> G {
     let mut acc = G::identity();
     for (s, p) in scalars.iter().zip(bases.iter()) {
@@ -58,7 +80,11 @@ pub fn msm_pr<G: Group>(scalars: &[G::Scalar], bases: &[G]) -> G {
 }
 
 impl<G: Group> Morphism<G> {
-    /// Creates a new empty Morphism.
+    /// Creates a new empty [`Morphism`].
+    ///
+    /// # Returns
+    /// A [`Morphism`] instance with empty linear combinations and group elements,
+    /// and zero allocated scalars and elements.
     pub fn new() -> Self {
         Self {
             linear_combination: Vec::new(),
@@ -67,19 +93,26 @@ impl<G: Group> Morphism<G> {
         }
     }
 
-    /// Adds a new linear combination constraint.
+    /// Adds a new linear combination constraint to the morphism.
+    ///
+    /// # Parameters
+    /// - `lc`: The [`LinearCombination`] to add.
     pub fn append(&mut self, lc: LinearCombination) {
         self.linear_combination.push(lc);
     }
 
-    /// Returns the number of constraint statements.
+    /// Returns the number of linear combination constraints.
     pub fn num_statements(&self) -> usize {
         self.linear_combination.len()
     }
 
-    /// Evaluate the Morphism given a set of scalar values.
+    /// Evaluates all linear combinations in the morphism with the provided scalars.
     ///
-    /// Computes all linear combinations using the provided scalars and returns their group outputs.
+    /// # Parameters
+    /// - `scalars`: A slice of scalar values corresponding to the scalar variables.
+    ///
+    /// # Returns
+    /// A vector of group elements, each being the result of evaluating one linear combination with the scalars.
     pub fn evaluate(&self, scalars: &[<G as Group>::Scalar]) -> Vec<G> {
         self.linear_combination
             .iter()
@@ -101,11 +134,14 @@ impl<G: Group> Morphism<G> {
     }
 }
 
-/// A wrapper struct coupling a Morphism and the corresponding expected image elements.
+/// A wrapper struct coupling a [`Morphism`] with the corresponding expected output (image) elements.
 ///
-/// Provides a higher-level API to build proof instances from sparse constraints. The equations are manipulated solely through 2 lists:
-/// - the index of a set of Group elements (maintained in Morphism)
-/// - the index of a set of scalars (provided as input for the execution)
+/// This structure represents the *preimage problem* for a group morphism: given a set of scalar inputs,
+/// determine whether their image under the morphism matches a target set of group elements.
+///
+/// Internally, the constraint system is defined through:
+/// - A list of group elements and linear equations (held in the [`Morphism`] field),
+/// - A list of [`PointVar`] indices (`image`) that specify the expected output for each constraint.
 #[derive(Default)]
 pub struct GroupMorphismPreimage<G>
 where
@@ -129,7 +165,7 @@ where
         }
     }
 
-    /// Computes the number of bytes needed when serializing all the current commitments.
+    /// Computes the total number of bytes required to serialize all current commitments.
     pub fn commit_bytes_len(&self) -> usize {
         let repr_len = <G::Repr as Default>::default().as_ref().len(); // size of encoded point
         self.morphism.num_statements() * repr_len // total size of a commit
@@ -156,13 +192,14 @@ where
         ScalarVar(self.morphism.num_scalars - 1)
     }
 
-    /// Allocates a fixed-size array of point variables (group elements) for use in the morphism.
+    /// Allocates space for `N` new scalar variables.
     ///
-    /// Returns an array of `PointVar` indices.
+    /// # Returns
+    /// An array of [`ScalarVar`] representing the newly allocated scalar indices.
     ///
     /// # Example
     /// ```
-    /// # use sigma_rs::GroupMorphismPreimage;
+    /// # use sigma_rs::group_morphism::GroupMorphismPreimage;
     /// use curve25519_dalek::RistrettoPoint as G;
     ///
     /// let mut morphism = GroupMorphismPreimage::<G>::new();
@@ -183,13 +220,14 @@ where
         PointVar(self.morphism.group_elements.len() - 1)
     }
 
-    /// Allocates a fixed-size array of point variables (group elements) for use in the morphism.
+    /// Allocates space for `N` new group elements, initialized to the identity element.
     ///
-    /// Returns an array of `PointVar` indices.
+    /// # Returns
+    /// An array of [`PointVar`] representing the newly allocated group element indices.
     ///
     /// # Example
     /// ```
-    /// # use sigma_rs::GroupMorphismPreimage;
+    /// # use sigma_rs::group_morphism::GroupMorphismPreimage;
     /// use curve25519_dalek::RistrettoPoint as G;
     ///
     /// let mut morphism = GroupMorphismPreimage::<G>::new();
@@ -223,7 +261,10 @@ where
         }
     }
 
-    /// Return the group elements corresponding to the image indices.
+    /// Returns the current group elements corresponding to the image variables.
+    ///
+    /// # Returns
+    /// A vector of group elements (`Vec<G>`) representing the morphism's image.
     pub fn image(&self) -> Vec<G> {
         let mut result = Vec::new();
         for i in &self.image {

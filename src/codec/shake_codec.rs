@@ -1,6 +1,6 @@
 //! Implementation of a Fiat-Shamir codec using SHAKE128
 //!
-//! This module defines `ShakeCodec`, a concrete implementation of the `Codec`
+//! This module defines [`ShakeCodec`], a concrete implementation of the [`Codec`]
 //! trait. It uses the SHAKE128 extendable output function (XOF) from the Keccak family
 //! to generate Fiat-Shamir challenges for Sigma protocols.
 //!
@@ -8,7 +8,7 @@
 //! and produces scalar challenges by squeezing bytes from the hash state.
 //!
 //! # Usage
-//! - The prover and verifier absorb the same messages into identical `ShakeCodec` instances.
+//! - The prover and verifier absorb the same messages into identical [`ShakeCodec`] instances.
 //! - The prover and the verifier then squeeze the hash to generate a challenge scalar for the protocol. The verifier can check that the prover used the challenge output by the codec because he owns an identical codec.
 
 use ff::PrimeField;

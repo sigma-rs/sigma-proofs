@@ -3,10 +3,11 @@ use ff::Field;
 use group::{Group, GroupEncoding};
 use rand::{rngs::OsRng, CryptoRng, Rng};
 
-use sigma_rs::{
-    codec::ShakeCodec, AndProtocol, GroupMorphismPreimage, NISigmaProtocol, OrProtocol,
-    SchnorrProtocol,
-};
+use sigma_rs::codec::ShakeCodec;
+use sigma_rs::fiat_shamir::NISigmaProtocol;
+use sigma_rs::group_morphism::GroupMorphismPreimage;
+use sigma_rs::proof_composition::{AndProtocol, OrProtocol};
+use sigma_rs::schnorr_protocol::SchnorrProtocol;
 
 type G = RistrettoPoint;
 

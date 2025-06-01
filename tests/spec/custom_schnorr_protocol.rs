@@ -2,9 +2,11 @@ use ff::PrimeField;
 use group::{Group, GroupEncoding};
 use rand::{CryptoRng, Rng};
 
-use sigma_rs::{group_serialization::*, GroupMorphismPreimage, ProofError, SigmaProtocol};
-
 use crate::random::SRandom;
+use sigma_rs::errors::ProofError;
+use sigma_rs::group_morphism::GroupMorphismPreimage;
+use sigma_rs::group_serialization::*;
+use sigma_rs::traits::SigmaProtocol;
 
 pub struct SchnorrProtocolCustom<G: SRandom + GroupEncoding>(pub GroupMorphismPreimage<G>);
 
@@ -30,7 +32,7 @@ where
         rng: &mut (impl Rng + CryptoRng),
     ) -> Result<(Self::Commitment, Self::ProverState), ProofError> {
         if witness.len() != self.witness_len() {
-            return Err(ProofError::Other);
+            return Err(ProofError::ProofSizeMismatch);
         }
 
         let mut nonces: Vec<G::Scalar> = Vec::new();
@@ -48,7 +50,7 @@ where
         challenge: &Self::Challenge,
     ) -> Result<Self::Response, ProofError> {
         if state.0.len() != self.witness_len() || state.1.len() != self.witness_len() {
-            return Err(ProofError::Other);
+            return Err(ProofError::ProofSizeMismatch);
         }
 
         let mut responses = Vec::new();

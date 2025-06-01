@@ -6,8 +6,8 @@
 //! These errors include:
 //! - Verification failures (e.g., when a proof does not verify correctly).
 //! - Mismatched parameters during batch verification.
-//! - Not implemented methods
-//! - Group element/scalar serialization failed
+//! - Unimplemented methods.
+//! - Group element or scalar serialization failures.
 use thiserror::Error;
 /// An error during proving or verification, such as a verification failure.
 #[derive(Debug, Error)]
@@ -15,16 +15,10 @@ pub enum ProofError {
     /// Something is wrong with the proof, causing a verification failure.
     #[error("Verification failed.")]
     VerificationFailure,
-    /// Occurs during batch verification if the batch parameters do not have the right size.
+    /// Indicates a mismatch in parameter sizes during batch verification.
     #[error("Mismatched parameter sizes for batch verification.")]
     ProofSizeMismatch,
-    /// Occurs when a feature is not implemented yet.
-    #[error("The method is not yet implemented for this struct")]
-    NotImplemented(&'static str),
-    /// Serialization of a group element/scalar failed
-    #[error("Serialization of a group element/scalar failed")]
+    /// Serialization of a group element/scalar has failed.
+    #[error("Serialization of a group element/scalar failed.")]
     GroupSerializationFailure,
-    /// Other error
-    #[error("Other")]
-    Other,
 }

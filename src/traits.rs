@@ -1,8 +1,8 @@
 //! Sigma Protocol Trait
 //!
-//! This module defines the `SigmaProtocol` trait, a generic interface for 3-message Sigma protocols.
+//! This module defines the [`SigmaProtocol`] trait, a generic interface for 3-message Sigma protocols.
 
-use crate::ProofError;
+use crate::errors::ProofError;
 use rand::{CryptoRng, Rng};
 
 /// A trait defining the behavior of a generic Sigma protocol.
@@ -19,7 +19,7 @@ use rand::{CryptoRng, Rng};
 /// - `Challenge`: The verifier's challenge value.
 ///
 /// ## Minimal Implementation
-/// Types implementing `SigmaProtocol` must define:
+/// Types implementing [`SigmaProtocol`] must define:
 /// - `prover_commit`
 /// - `prover_response`
 /// - `verifier`
@@ -66,11 +66,7 @@ pub trait SigmaProtocol {
         _commitment: &Self::Commitment,
         _challenge: &Self::Challenge,
         _response: &Self::Response,
-    ) -> Result<Vec<u8>, ProofError> {
-        Err(ProofError::NotImplemented(
-            "serialize_batchable not implemented for this protocol",
-        ))
-    }
+    ) -> Result<Vec<u8>, ProofError>;
 
     /// Deserializes a batchable proof from bytes.
     ///
@@ -78,11 +74,7 @@ pub trait SigmaProtocol {
     fn deserialize_batchable(
         &self,
         _data: &[u8],
-    ) -> Result<(Self::Commitment, Self::Response), ProofError> {
-        Err(ProofError::NotImplemented(
-            "deserialize_batchable not implemented for this protocol",
-        ))
-    }
+    ) -> Result<(Self::Commitment, Self::Response), ProofError>;
 }
 
 /// A feature defining the behavior of a protocol for which it is possible to compact the proofs by omitting the commitments.
@@ -91,12 +83,12 @@ pub trait SigmaProtocol {
 /// This is what the get_commitment function is for.
 ///
 /// ## Minimal Implementation
-/// Types implementing `CompactProtocol` must define:
+/// Types implementing [`CompactProtocol`] must define:
 /// - `get_commitment`
 pub trait CompactProtocol: SigmaProtocol {
-    /// Returns the commitment for which ('commitment', 'challenge', 'response') is a valid transcript
+    /// Returns the commitment for which ('commitment', 'challenge', 'response') is a valid transcript.
     ///
-    /// This function allows to omit commitment in compact proofs of the type ('challenge', 'response')
+    /// This function allows to omit commitment in compact proofs of the type ('challenge', 'response').
     fn get_commitment(
         &self,
         challenge: &Self::Challenge,
@@ -109,11 +101,7 @@ pub trait CompactProtocol: SigmaProtocol {
         _commitment: &Self::Commitment,
         _challenge: &Self::Challenge,
         _response: &Self::Response,
-    ) -> Result<Vec<u8>, ProofError> {
-        Err(ProofError::NotImplemented(
-            "serialize_compact not implemented for this protocol",
-        ))
-    }
+    ) -> Result<Vec<u8>, ProofError>;
 
     /// Deserializes a compact proof from bytes.
     ///
@@ -121,11 +109,7 @@ pub trait CompactProtocol: SigmaProtocol {
     fn deserialize_compact(
         &self,
         _data: &[u8],
-    ) -> Result<(Self::Challenge, Self::Response), ProofError> {
-        Err(ProofError::NotImplemented(
-            "deserialize_compact not implemented for this protocol",
-        ))
-    }
+    ) -> Result<(Self::Challenge, Self::Response), ProofError>;
 }
 
 /// A trait defining the behavior of a Sigma protocol for which simulation of transcripts is necessary.
@@ -134,7 +118,7 @@ pub trait CompactProtocol: SigmaProtocol {
 /// However, some protocols (like OR protocols that prove the truth of one-out-of-two statements) require them during for the real execution.
 ///
 /// ## Minimal Implementation
-/// Types implementing `SigmaProtocolSimulator` must define:
+/// Types implementing [`SigmaProtocolSimulator`] must define:
 /// - `simulate_proof`
 /// - `simulate_transcript`
 pub trait SigmaProtocolSimulator: SigmaProtocol {
