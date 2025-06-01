@@ -6,7 +6,7 @@ authors = [
     "Michele Orrù <m@orru.net>",
     "Lénaïck Gouriou <lg@leanear.io>"
 ]
-edition = "2018"
+edition = "2024"
 license = "CC0-1.0"
 readme = "README.md"
 repository = "https://github.com/mmaker/sigma-rs"
