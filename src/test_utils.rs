@@ -101,7 +101,7 @@ pub fn pedersen_commitment_dleq<G: Group + GroupEncoding>(
 }
 
 /// Morphism for knowledge of an opening for use in a BBS commitment.
-// BBS messag length is 3
+// BBS message length is 3
 #[allow(non_snake_case)]
 pub fn bbs_blind_commitment_computation<G: Group + GroupEncoding>(
     [Q_2, J_1, J_2, J_3]: [G; 4],
