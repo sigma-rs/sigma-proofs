@@ -18,13 +18,7 @@ pub enum ProofError {
     /// Indicates a mismatch in parameter sizes during batch verification.
     #[error("Mismatched parameter sizes for batch verification.")]
     ProofSizeMismatch,
-    /// Occurs when a feature has not been implemented yet.
-    #[error("The method is not yet implemented for this struct.")]
-    NotImplemented(&'static str),
     /// Serialization of a group element/scalar has failed.
     #[error("Serialization of a group element/scalar failed.")]
     GroupSerializationFailure,
-    /// Other error.
-    #[error("Other")]
-    Other,
 }

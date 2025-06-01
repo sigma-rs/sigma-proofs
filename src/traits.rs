@@ -66,11 +66,7 @@ pub trait SigmaProtocol {
         _commitment: &Self::Commitment,
         _challenge: &Self::Challenge,
         _response: &Self::Response,
-    ) -> Result<Vec<u8>, ProofError> {
-        Err(ProofError::NotImplemented(
-            "serialize_batchable not implemented for this protocol",
-        ))
-    }
+    ) -> Result<Vec<u8>, ProofError>;
 
     /// Deserializes a batchable proof from bytes.
     ///
@@ -78,11 +74,7 @@ pub trait SigmaProtocol {
     fn deserialize_batchable(
         &self,
         _data: &[u8],
-    ) -> Result<(Self::Commitment, Self::Response), ProofError> {
-        Err(ProofError::NotImplemented(
-            "deserialize_batchable not implemented for this protocol",
-        ))
-    }
+    ) -> Result<(Self::Commitment, Self::Response), ProofError>;
 }
 
 /// A feature defining the behavior of a protocol for which it is possible to compact the proofs by omitting the commitments.
@@ -109,11 +101,7 @@ pub trait CompactProtocol: SigmaProtocol {
         _commitment: &Self::Commitment,
         _challenge: &Self::Challenge,
         _response: &Self::Response,
-    ) -> Result<Vec<u8>, ProofError> {
-        Err(ProofError::NotImplemented(
-            "serialize_compact not implemented for this protocol",
-        ))
-    }
+    ) -> Result<Vec<u8>, ProofError>;
 
     /// Deserializes a compact proof from bytes.
     ///
@@ -121,11 +109,7 @@ pub trait CompactProtocol: SigmaProtocol {
     fn deserialize_compact(
         &self,
         _data: &[u8],
-    ) -> Result<(Self::Challenge, Self::Response), ProofError> {
-        Err(ProofError::NotImplemented(
-            "deserialize_compact not implemented for this protocol",
-        ))
-    }
+    ) -> Result<(Self::Challenge, Self::Response), ProofError>;
 }
 
 /// A trait defining the behavior of a Sigma protocol for which simulation of transcripts is necessary.

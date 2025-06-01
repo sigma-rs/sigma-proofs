@@ -89,14 +89,14 @@ where
     ///     - The prover state (random nonces and witness) used to compute the response.
     ///
     /// # Errors
-    /// -`ProofError::Other` if the witness vector length is incorrect.
+    /// -`ProofError::ProofSizeMismatch` if the witness vector length is incorrect.
     fn prover_commit(
         &self,
         witness: &Self::Witness,
         mut rng: &mut (impl RngCore + CryptoRng),
     ) -> Result<(Self::Commitment, Self::ProverState), ProofError> {
         if witness.len() != self.scalars_nb() {
-            return Err(ProofError::Other);
+            return Err(ProofError::ProofSizeMismatch);
         }
 
         let nonces: Vec<G::Scalar> = (0..self.scalars_nb())
@@ -117,14 +117,14 @@ where
     /// - A vector of scalars forming the prover's response.
     ///
     /// # Errors
-    /// - Returns `ProofError::Other` if the prover state vectors have incorrect lengths.
+    /// - Returns `ProofError::ProofSizeMismatch` if the prover state vectors have incorrect lengths.
     fn prover_response(
         &self,
         state: Self::ProverState,
         challenge: &Self::Challenge,
     ) -> Result<Self::Response, ProofError> {
         if state.0.len() != self.scalars_nb() || state.1.len() != self.scalars_nb() {
-            return Err(ProofError::Other);
+            return Err(ProofError::ProofSizeMismatch);
         }
 
         let mut responses = Vec::new();
@@ -143,12 +143,12 @@ where
     /// # Returns
     /// - `Ok(())` if the proof is valid.
     /// - `Err(ProofError::VerificationFailure)` if the proof is invalid.
-    /// - `Err(ProofError::Other)` if the lengths of commitment or response do not match the expected counts.
+    /// - `Err(ProofError::ProofSizeMismatch)` if the lengths of commitment or response do not match the expected counts.
     ///
     /// # Errors
     /// -`Err(ProofError::VerificationFailure)` if the computed relation
     /// does not hold for the provided challenge and response, indicating proof invalidity.
-    /// -`Err(ProofError::Other)` if the commitment or response length is incorrect.
+    /// -`Err(ProofError::ProofSizeMismatch)` if the commitment or response length is incorrect.
     fn verifier(
         &self,
         commitment: &Self::Commitment,
@@ -156,7 +156,7 @@ where
         response: &Self::Response,
     ) -> Result<(), ProofError> {
         if commitment.len() != self.statements_nb() || response.len() != self.scalars_nb() {
-            return Err(ProofError::Other);
+            return Err(ProofError::ProofSizeMismatch);
         }
 
         let lhs = self.evaluate(response);
@@ -181,7 +181,7 @@ where
     /// - A byte vector representing the serialized batchable proof.
     ///
     /// # Errors
-    /// - `ProofError::Other` if the commitment or response length is incorrect.
+    /// - `ProofError::ProofSizeMismatch` if the commitment or response length is incorrect.
     fn serialize_batchable(
         &self,
         commitment: &Self::Commitment,
@@ -191,7 +191,7 @@ where
         let commit_nb = self.statements_nb();
         let response_nb = self.scalars_nb();
         if commitment.len() != commit_nb || response.len() != response_nb {
-            return Err(ProofError::Other);
+            return Err(ProofError::ProofSizeMismatch);
         }
 
         let mut bytes = Vec::new();
@@ -278,14 +278,14 @@ where
     /// - A vector of group elements representing the recomputed commitment (one per linear constraint).
     ///
     /// # Errors
-    /// - `ProofError::Other` if the response length does not match the expected number of scalars.
+    /// - `ProofError::ProofSizeMismatch` if the response length does not match the expected number of scalars.
     fn get_commitment(
         &self,
         challenge: &Self::Challenge,
         response: &Self::Response,
     ) -> Result<Self::Commitment, ProofError> {
         if response.len() != self.scalars_nb() {
-            return Err(ProofError::Other);
+            return Err(ProofError::ProofSizeMismatch);
         }
 
         let response_image = self.evaluate(response);
@@ -308,7 +308,7 @@ where
     /// - A byte vector representing the compact proof.
     ///
     /// # Errors
-    /// - `ProofError::Other` if the response length does not match the expected number of scalars.
+    /// - `ProofError::ProofSizeMismatch` if the response length does not match the expected number of scalars.
     fn serialize_compact(
         &self,
         _commitment: &Self::Commitment,
@@ -318,7 +318,7 @@ where
         let mut bytes = Vec::new();
         let response_nb = self.scalars_nb();
         if response.len() != response_nb {
-            return Err(ProofError::Other);
+            return Err(ProofError::ProofSizeMismatch);
         }
 
         // Serialize challenge

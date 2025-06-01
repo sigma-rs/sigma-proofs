@@ -32,7 +32,7 @@ where
         rng: &mut (impl Rng + CryptoRng),
     ) -> Result<(Self::Commitment, Self::ProverState), ProofError> {
         if witness.len() != self.witness_len() {
-            return Err(ProofError::Other);
+            return Err(ProofError::ProofSizeMismatch);
         }
 
         let mut nonces: Vec<G::Scalar> = Vec::new();
@@ -50,7 +50,7 @@ where
         challenge: &Self::Challenge,
     ) -> Result<Self::Response, ProofError> {
         if state.0.len() != self.witness_len() || state.1.len() != self.witness_len() {
-            return Err(ProofError::Other);
+            return Err(ProofError::ProofSizeMismatch);
         }
 
         let mut responses = Vec::new();
