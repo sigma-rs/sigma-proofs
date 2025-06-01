@@ -1,5 +1,5 @@
 use bls12_381::{G1Projective as G, Scalar};
-use group::{ff::Field, Group};
+use group::{Group, ff::Field};
 use rand::rngs::OsRng;
 
 use sigma_rs::fiat_shamir::NISigmaProtocol;
