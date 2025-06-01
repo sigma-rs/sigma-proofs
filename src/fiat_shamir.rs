@@ -48,6 +48,7 @@ where
     pub sigmap: P,
 }
 
+// QUESTION: Is the morphism supposed to be written to the transcript? I don't see that here.
 impl<P, C, G> NISigmaProtocol<P, C, G>
 where
     G: Group + GroupEncoding,
@@ -69,6 +70,12 @@ where
         witness: &P::Witness,
         rng: &mut (impl RngCore + CryptoRng),
     ) -> Result<Transcript<P>, ProofError> {
+        // QUESTION: Why is the self mutable? It's unclear whether the intention is to have a
+        // single NISigmaProtocol be used multiple times, or not. E.g. is the intention that
+        // someone might call `proto.verify(commit1, chal1, res1); proto.verify(commit2, chal2, res2)`
+        // both operations to contribute to the same transcript? If so, then why is the hash_state
+        // cloned here? And if not, why make the receiver mutable? Another option is to have the
+        // receiver take ownership of self, if the intention is to _enforce_ non-reuse.
         let mut codec = self.hash_state.clone();
 
         let (commitment, prover_state) = self.sigmap.prover_commit(witness, rng)?;
@@ -114,6 +121,13 @@ where
         witness: &P::Witness,
         rng: &mut (impl RngCore + CryptoRng),
     ) -> Result<Vec<u8>, ProofError> {
+        // NOTE: Returning the commitments as part of a serialized proof might be a barrier in that
+        // the commitment is often provided by the verifier, linked to some external message. E.g.
+        // it might be a commitment that to a prior state (e.g. balance of a wallet prior to a
+        // transaction) for which the prover is showing knowledge of an opening, or it might be
+        // calculated as a linear function of other commitments (e.g. subtracting the current
+        // timestamp from an issuance timestamp to compute a commitment to the age of a
+        // credential).
         let (commitment, challenge, response) = self.prove(witness, rng)?;
         Ok(self
             .sigmap

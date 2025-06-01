@@ -47,6 +47,7 @@ pub struct Morphism<G: Group> {
     pub linear_combination: Vec<LinearCombination>,
     pub group_elements: Vec<G>,
     pub num_scalars: usize,
+    /// QUESTION: Why is there a count of elements seperate from group_elements.len()
     pub num_elements: usize,
 }
 
@@ -89,6 +90,10 @@ impl<G: Group> Morphism<G> {
             .map(|lc| {
                 let coefficients: Vec<_> =
                     lc.scalar_indices.iter().map(|&i| scalars[i.0]).collect();
+                // QUESTION: This accesses the group_elements, but it does not attempt to tell
+                // whether they have been set. If I allocate a point var, and use it in the
+                // equations here, will the variables always be set. I think not, as a result, the
+                // solution here may not be valid.
                 let elements: Vec<_> = lc
                     .element_indices
                     .iter()
@@ -158,6 +163,8 @@ where
     /// The allocated elements are initially set to the identity.
     pub fn allocate_elements(&mut self, n: usize) -> Vec<PointVar> {
         let start = self.morphism.num_elements;
+        // NOTE: This uses identity as the default value for an allocated, but unassigned,
+        // variable.
         self.morphism
             .group_elements
             .extend(iter::repeat(G::identity()).take(n));
