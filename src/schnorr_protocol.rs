@@ -5,8 +5,8 @@
 //! through a group morphism abstraction (see Maurer09).
 
 use crate::{
-    group_serialization::*, CompactProtocol, GroupMorphismPreimage, PointVar, ProofError,
-    ScalarVar, SigmaProtocol, SigmaProtocolSimulator,
+    group_serialization::*, CompactProtocol, GroupMorphismPreimage, ProofError, SigmaProtocol,
+    SigmaProtocolSimulator,
 };
 
 use core::iter;
@@ -21,14 +21,6 @@ use rand::{CryptoRng, RngCore};
 pub struct SchnorrProtocol<G: Group + GroupEncoding>(GroupMorphismPreimage<G>);
 
 impl<G: Group + GroupEncoding> SchnorrProtocol<G> {
-    pub fn new() -> Self {
-        SchnorrProtocol(GroupMorphismPreimage::<G>::new())
-    }
-
-    pub fn from_preimage(preimage: GroupMorphismPreimage<G>) -> Self {
-        SchnorrProtocol(preimage)
-    }
-
     pub fn scalars_nb(&self) -> usize {
         self.0.morphism.num_scalars
     }
@@ -36,29 +28,14 @@ impl<G: Group + GroupEncoding> SchnorrProtocol<G> {
     pub fn statements_nb(&self) -> usize {
         self.0.morphism.num_statements()
     }
+}
 
-    pub fn append_equation(&mut self, lhs: PointVar, rhs: &[(ScalarVar, PointVar)]) {
-        self.0.append_equation(lhs, rhs);
-    }
-
-    pub fn allocate_scalars(&mut self, n: usize) -> Vec<ScalarVar> {
-        self.0.allocate_scalars(n)
-    }
-
-    pub fn allocate_elements(&mut self, n: usize) -> Vec<PointVar> {
-        self.0.allocate_elements(n)
-    }
-
-    pub fn set_elements(&mut self, elements: &[(PointVar, G)]) {
-        self.0.set_elements(elements);
-    }
-
-    pub fn evaluate(&self, scalars: &[<G as Group>::Scalar]) -> Vec<G> {
-        self.0.morphism.evaluate(scalars)
-    }
-
-    pub fn image(&self) -> Vec<G> {
-        self.0.image()
+impl<G> From<GroupMorphismPreimage<G>> for SchnorrProtocol<G>
+where
+    G: Group + GroupEncoding,
+{
+    fn from(value: GroupMorphismPreimage<G>) -> Self {
+        Self(value)
     }
 }
 
@@ -86,7 +63,7 @@ where
             .map(|_| G::Scalar::random(&mut rng))
             .collect();
         let prover_state = (nonces.clone(), witness.clone());
-        let commitment = self.evaluate(&nonces);
+        let commitment = self.0.morphism.evaluate(&nonces);
         Ok((commitment, prover_state))
     }
 
@@ -118,7 +95,7 @@ where
             return Err(ProofError::Other);
         }
 
-        let lhs = self.evaluate(response);
+        let lhs = self.0.morphism.evaluate(response);
         let mut rhs = Vec::new();
         for (i, g) in commitment.iter().enumerate().take(self.statements_nb()) {
             rhs.push(self.0.morphism.group_elements[self.0.image[i].index()] * challenge + g);
@@ -211,8 +188,8 @@ where
             return Err(ProofError::Other);
         }
 
-        let response_image = self.evaluate(response);
-        let image = self.image();
+        let response_image = self.0.morphism.evaluate(response);
+        let image = self.0.image();
 
         let mut commitment = Vec::new();
         for i in 0..image.len() {
@@ -288,6 +265,8 @@ where
         rng: &mut (impl RngCore + CryptoRng),
     ) -> (Self::Commitment, Self::Response) {
         let mut response = Vec::new();
+        // FIXME: This repeats the same element over and over, which was probably not the
+        // intention.
         response.extend(iter::repeat(G::Scalar::random(rng)).take(self.scalars_nb()));
         let commitment = self.get_commitment(challenge, &response).unwrap();
         (commitment, response)
