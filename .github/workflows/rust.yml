@@ -39,6 +39,6 @@ jobs:
         components: rustfmt, clippy
 
     - name: Build (nightly)
-      run: cargo +nightly build --all-features --verbose
+      run: cargo +${{ matrix.toolchain }} build --all-features --verbose
     - name: Run tests (nightly)
-      run: cargo +nightly test --all-features --verbose
+      run: cargo +${{ matrix.toolchain }} test --all-features --verbose

@@ -1,3 +1,1 @@
-[toolchain]
-channel = "1.86"
-components = ["clippy", "rust-analyzer"]
+1.86
