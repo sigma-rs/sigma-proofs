@@ -50,7 +50,7 @@ where
     pub sigmap: P,
 }
 
-// QUESTION: Is the morphism supposed to be written to the transcript? I don't see that here.
+// TODO: Write a serialization of the morphism to the transcript.
 impl<P, C, G> NISigmaProtocol<P, C, G>
 where
     G: Group + GroupEncoding,

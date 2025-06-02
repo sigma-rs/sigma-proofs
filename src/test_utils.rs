@@ -115,10 +115,6 @@ pub fn bbs_blind_commitment_computation<G: Group + GroupEncoding>(
 ) -> (GroupMorphismPreimage<G>, Vec<G::Scalar>) {
     let mut morphismp = GroupMorphismPreimage::new();
 
-    // QUESTION: Are these comments supposed to be placeholders of some kind?
-    // BBS.create_generators(M + 1, "BLIND_" || api_id)
-    // BBS.messages_to_scalars(committed_messages,  api_id)
-
     // these are computed before the proof in the specification
     let C = Q_2 * secret_prover_blind + J_1 * msg_1 + J_2 * msg_2 + J_3 * msg_3;
 
