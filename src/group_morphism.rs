@@ -396,7 +396,7 @@ where
     /// # Returns
     ///
     /// Return `Ok` on success, and an error if unassigned elements prevent the image from being
-    /// computed. Modifies the instance in the [GroupMorphismPreimage].
+    /// computed. Modifies the group elements assigned in the [GroupMorphismPreimage].
     pub fn compute_image(&mut self, scalars: &[<G as Group>::Scalar]) -> Result<(), Error> {
         if self.morphism.constraints.len() != self.image.len() {
             panic!(
@@ -425,7 +425,7 @@ where
     /// # Returns
     ///
     /// A vector of group elements (`Vec<G>`) representing the morphism's image.
-    // TODO: Should this return Instance?
+    // TODO: Should this return GroupMap?
     pub fn image(&self) -> Result<Vec<G>, Error> {
         self.image
             .iter()
