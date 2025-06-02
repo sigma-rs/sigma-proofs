@@ -1,7 +1,7 @@
 use curve25519_dalek::ristretto::RistrettoPoint;
 use ff::Field;
 use group::{Group, GroupEncoding};
-use rand::{CryptoRng, Rng, rngs::OsRng};
+use rand::{rngs::OsRng, CryptoRng, Rng};
 
 use sigma_rs::codec::ShakeCodec;
 use sigma_rs::fiat_shamir::NISigmaProtocol;
@@ -28,7 +28,7 @@ fn DL_protocol<G: Group + GroupEncoding>(
     preimage.assign_element(var_G, G);
     preimage.assign_element(var_xG, G * x);
 
-    assert!(vec![G * x] == preimage.morphism.evaluate(&[x]));
+    assert!(vec![G * x] == preimage.morphism.evaluate(&[x]).unwrap());
     (SchnorrProtocol::from(preimage), vec![x])
 }
 
@@ -49,13 +49,13 @@ fn pedersen_protocol<G: Group + GroupEncoding>(
     let scalars = preimage.allocate_scalars::<2>();
     let points = preimage.allocate_elements::<3>();
 
-    preimage.assign_elements(&[(points[1], H), (points[0], G), (points[2], C)]);
+    preimage.assign_elements([(points[1], H), (points[0], G), (points[2], C)]);
     preimage.append_equation(
         points[2],
         &[(scalars[0], points[0]), (scalars[1], points[1])],
     );
 
-    assert!(vec![C] == preimage.morphism.evaluate(&witness));
+    assert!(vec![C] == preimage.morphism.evaluate(&witness).unwrap());
     (SchnorrProtocol::from(preimage), witness)
 }
 

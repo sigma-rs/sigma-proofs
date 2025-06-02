@@ -8,12 +8,15 @@
 //! - [`Morphism`]: a collection of linear combinations acting on group elements
 //! - [`GroupMorphismPreimage`]: a higher-level structure managing morphisms and their associated images
 
+use std::iter;
+
+use crate::errors::Error;
 use group::{Group, GroupEncoding};
 
 /// A wrapper representing an index for a scalar variable.
 ///
 /// Used to reference scalars in sparse linear combinations.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
 pub struct ScalarVar(usize);
 
 impl ScalarVar {
@@ -21,10 +24,11 @@ impl ScalarVar {
         self.0
     }
 }
+
 /// A wrapper representing an index for a group element (point).
 ///
 /// Used to reference group elements in sparse linear combinations.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
 pub struct PointVar(usize);
 
 impl PointVar {
@@ -38,12 +42,84 @@ impl PointVar {
 /// For example, it can represent an equation like:
 /// `s_1 * P_1 + s_2 * P_2 + ... + s_n * P_n`
 ///
-/// where `s_i` are scalars (referenced by `scalar_indices`) and `P_i` are group elements (referenced by `element_indices`).
+/// where `s_i` are scalars (referenced by `scalar_vars`) and `P_i` are group elements (referenced by `element_vars`).
 ///
 /// The indices refer to external lists managed by the containing Morphism.
 pub struct LinearCombination {
-    pub scalar_indices: Vec<ScalarVar>,
-    pub element_indices: Vec<PointVar>,
+    pub scalar_vars: Vec<ScalarVar>,
+    pub element_vars: Vec<PointVar>,
+}
+
+/// Instance of a relation (i.e. morphism) containing assignments of [PointVar] to group elements.
+// QUESTION: Name was chosen with relation to the name "relation". Should it be named something
+// else if we want to call the structure its related to "morphism"?
+#[derive(Clone, Debug)]
+pub struct Instance<G>(Vec<Option<G>>);
+
+impl<G: Group> Instance<G> {
+    /// Assign a group element value to a point variable.
+    ///
+    /// # Parameters
+    ///
+    /// - `var`: The variable to assign.
+    /// - `element`: The value to assign to the variable.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the given assignment conflicts with the existing assignment.
+    pub fn assign_element(&mut self, var: PointVar, element: G) {
+        if self.0.len() <= var.0 {
+            self.0.resize(var.0 + 1, None);
+        } else if let Some(assignment) = self.0[var.0] {
+            // QUESTION: Should we panic here? It seems like a good sanity check in that if you
+            // assign the same point twice, its probably a mistake. But maybe there are legitmate
+            // reasons to do this.
+            assert_eq!(
+                assignment, element,
+                "conflicting assignments for var {var:?}"
+            )
+        }
+        self.0[var.0] = Some(element);
+    }
+
+    /// Assigns specific group elements to point variables (indices).
+    ///
+    /// # Parameters
+    ///
+    /// - `assignments`: A collection of `(PointVar, GroupElement)` pairs that can be iterated over.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the collection contains two conflicting assignments for the same variable.
+    pub fn assign_elements(&mut self, assignments: impl IntoIterator<Item = (PointVar, G)>) {
+        for (var, elem) in assignments.into_iter() {
+            self.assign_element(var, elem);
+        }
+    }
+
+    /// Get the element value assigned to the given point var.
+    ///
+    /// Returns [Error::UninitializedPointVar] if a value is not assigned.
+    pub fn get(&self, var: PointVar) -> Result<G, Error> {
+        self.0[var.0].ok_or(Error::UnassignedPointVar { var })
+    }
+
+    /// Iterate over the assigned variables in this instance.
+    // NOTE: Not implemented as `IntoIterator` for now because doing so requires explicitly
+    // defining an iterator type, See https://github.com/rust-lang/rust/issues/63063
+    #[allow(clippy::should_implement_trait)]
+    pub fn into_iter(self) -> impl Iterator<Item = (PointVar, G)> {
+        self.0
+            .into_iter()
+            .enumerate()
+            .filter_map(|(i, x)| x.map(|x| (PointVar(i), x)))
+    }
+}
+
+impl<G> Default for Instance<G> {
+    fn default() -> Self {
+        Self(Vec::default())
+    }
 }
 
 /// A Morphism represents a list of linear combinations over group elements.
@@ -53,11 +129,15 @@ pub struct LinearCombination {
 #[derive(Default)]
 pub struct Morphism<G: Group> {
     /// The set of linear combination constraints (equations).
-    pub linear_combination: Vec<LinearCombination>,
+    pub constraints: Vec<LinearCombination>,
     /// The list of group elements referenced in the morphism.
-    pub group_elements: Vec<G>,
+    ///
+    /// Uninitialized group elements are presented with `None`.
+    pub instance: Instance<G>,
     /// The total number of scalar variables allocated.
     pub num_scalars: usize,
+    /// The total number of group element variables allocated.
+    pub num_elements: usize,
 }
 
 /// Perform a simple multi-scalar multiplication (MSM) over scalars and points.
@@ -83,13 +163,15 @@ impl<G: Group> Morphism<G> {
     /// Creates a new empty [`Morphism`].
     ///
     /// # Returns
+    ///
     /// A [`Morphism`] instance with empty linear combinations and group elements,
     /// and zero allocated scalars and elements.
     pub fn new() -> Self {
         Self {
-            linear_combination: Vec::new(),
-            group_elements: Vec::new(),
+            constraints: Vec::new(),
+            instance: Instance::default(),
             num_scalars: 0,
+            num_elements: 0,
         }
     }
 
@@ -98,12 +180,7 @@ impl<G: Group> Morphism<G> {
     /// # Parameters
     /// - `lc`: The [`LinearCombination`] to add.
     pub fn append(&mut self, lc: LinearCombination) {
-        self.linear_combination.push(lc);
-    }
-
-    /// Returns the number of linear combination constraints.
-    pub fn num_statements(&self) -> usize {
-        self.linear_combination.len()
+        self.constraints.push(lc);
     }
 
     /// Evaluates all linear combinations in the morphism with the provided scalars.
@@ -112,23 +189,23 @@ impl<G: Group> Morphism<G> {
     /// - `scalars`: A slice of scalar values corresponding to the scalar variables.
     ///
     /// # Returns
+    ///
     /// A vector of group elements, each being the result of evaluating one linear combination with the scalars.
-    pub fn evaluate(&self, scalars: &[<G as Group>::Scalar]) -> Vec<G> {
-        self.linear_combination
+    pub fn evaluate(&self, scalars: &[<G as Group>::Scalar]) -> Result<Vec<G>, Error> {
+        self.constraints
             .iter()
             .map(|lc| {
-                let coefficients: Vec<_> =
-                    lc.scalar_indices.iter().map(|&i| scalars[i.0]).collect();
-                // QUESTION: This accesses the group_elements, but it does not attempt to tell
-                // whether they have been set. If I allocate a point var, and use it in the
-                // equations here, will the variables always be set. I think not, as a result, the
-                // solution here may not be valid.
-                let elements: Vec<_> = lc
-                    .element_indices
+                let coefficients = lc
+                    .scalar_vars
                     .iter()
-                    .map(|&i| self.group_elements[i.0])
-                    .collect();
-                msm_pr(&coefficients, &elements)
+                    .map(|&i| scalars[i.0])
+                    .collect::<Vec<_>>();
+                let elements = lc
+                    .element_vars
+                    .iter()
+                    .map(|&i| self.instance.get(i))
+                    .collect::<Result<Vec<_>, Error>>()?;
+                Ok(msm_pr(&coefficients, &elements))
             })
             .collect()
     }
@@ -168,7 +245,7 @@ where
     /// Computes the total number of bytes required to serialize all current commitments.
     pub fn commit_bytes_len(&self) -> usize {
         let repr_len = <G::Repr as Default>::default().as_ref().len(); // size of encoded point
-        self.morphism.num_statements() * repr_len // total size of a commit
+        self.morphism.constraints.len() * repr_len // total size of a commit
     }
 
     /// Adds a new equation to the statement of the form:
@@ -179,8 +256,8 @@ where
     /// - `rhs`: A slice of `(ScalarVar, PointVar)` pairs representing the linear combination on the right-hand side.
     pub fn append_equation(&mut self, lhs: PointVar, rhs: &[(ScalarVar, PointVar)]) {
         let lc = LinearCombination {
-            scalar_indices: rhs.iter().map(|&(s, _)| s).collect(),
-            element_indices: rhs.iter().map(|&(_, e)| e).collect(),
+            scalar_vars: rhs.iter().map(|&(s, _)| s).collect(),
+            element_vars: rhs.iter().map(|&(_, e)| e).collect(),
         };
         self.morphism.append(lc);
         self.image.push(lhs);
@@ -216,8 +293,8 @@ where
 
     /// Allocates a point variable (group element) for use in the morphism.
     pub fn allocate_element(&mut self) -> PointVar {
-        self.morphism.group_elements.push(G::identity());
-        PointVar(self.morphism.group_elements.len() - 1)
+        self.morphism.num_elements += 1;
+        PointVar(self.morphism.num_elements - 1)
     }
 
     /// Allocates `N` point variables (group elements) for use in the morphism.
@@ -245,31 +322,76 @@ where
     /// Assign a group element value to a point variable.
     ///
     /// # Parameters
+    ///
     /// - `var`: The variable to assign.
     /// - `element`: The value to assign to the variable.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the given assignment conflicts with the existing assignment.
     pub fn assign_element(&mut self, var: PointVar, element: G) {
-        self.morphism.group_elements[var.0] = element;
+        self.morphism.instance.assign_element(var, element)
     }
 
     /// Assigns specific group elements to point variables (indices).
     ///
     /// # Parameters
-    /// - `elements`: A list of `(PointVar, GroupElement)` pairs
-    pub fn assign_elements(&mut self, elements: &[(PointVar, G)]) {
-        for (var, element) in elements {
-            self.assign_element(*var, *element)
+    ///
+    /// - `assignments`: A collection of `(PointVar, GroupElement)` pairs that can be iterated over.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the collection contains two conflicting assignments for the same variable.
+    pub fn assign_elements(&mut self, assignments: impl IntoIterator<Item = (PointVar, G)>) {
+        self.morphism.instance.assign_elements(assignments)
+    }
+
+    /// Evaluates all linear combinations in the morphism with the provided scalars, computing the
+    /// left-hand side of this constraints (i.e. the image).
+    ///
+    /// After calling this function, all point variables will be assigned.
+    ///
+    /// # Parameters
+    ///
+    /// - `scalars`: A slice of scalar values corresponding to the scalar variables.
+    ///
+    /// # Returns
+    ///
+    /// Return `Ok` on success, and an error if unassigned elements prevent the image from being
+    /// computed. Modifies the instance in the [GroupMorphismPreimage].
+    pub fn compute_image(&mut self, scalars: &[<G as Group>::Scalar]) -> Result<(), Error> {
+        if self.morphism.constraints.len() != self.image.len() {
+            panic!("invalid GroupMorphismPreimage: different number of constraints and image variables");
         }
+
+        for (lc, lhs) in iter::zip(self.morphism.constraints.as_slice(), self.image.as_slice()) {
+            let coefficients = lc
+                .scalar_vars
+                .iter()
+                .map(|&i| scalars[i.0])
+                .collect::<Vec<_>>();
+            let elements = lc
+                .element_vars
+                .iter()
+                .map(|&i| self.morphism.instance.get(i))
+                .collect::<Result<Vec<_>, Error>>()?;
+            self.morphism
+                .instance
+                .assign_element(*lhs, msm_pr(&coefficients, &elements))
+        }
+        Ok(())
     }
 
     /// Returns the current group elements corresponding to the image variables.
     ///
     /// # Returns
+    ///
     /// A vector of group elements (`Vec<G>`) representing the morphism's image.
-    pub fn image(&self) -> Vec<G> {
-        let mut result = Vec::new();
-        for i in &self.image {
-            result.push(self.morphism.group_elements[i.0]);
-        }
-        result
+    // TODO: Should this return Instance?
+    pub fn image(&self) -> Result<Vec<G>, Error> {
+        self.image
+            .iter()
+            .map(|&var| self.morphism.instance.get(var))
+            .collect()
     }
 }

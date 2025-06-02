@@ -40,7 +40,7 @@ where
             nonces.push(<G as SRandom>::srandom(&mut *rng));
         }
         let prover_state = (nonces.clone(), witness.clone());
-        let commitment = self.0.morphism.evaluate(&nonces);
+        let commitment = self.0.morphism.evaluate(&nonces)?;
         Ok((commitment, prover_state))
     }
 
@@ -66,15 +66,18 @@ where
         challenge: &Self::Challenge,
         response: &Self::Response,
     ) -> Result<(), Error> {
-        let lhs = self.0.morphism.evaluate(response);
+        let lhs = self.0.morphism.evaluate(response)?;
 
         let mut rhs = Vec::new();
         for (i, g) in commitment
             .iter()
             .enumerate()
-            .take(self.0.morphism.num_statements())
+            .take(self.0.morphism.constraints.len())
         {
-            rhs.push(*g + self.0.morphism.group_elements[self.0.image[i].index()] * *challenge);
+            rhs.push({
+                let image_var = self.0.image[i];
+                *g + self.0.morphism.instance.get(image_var)? * *challenge
+            });
         }
 
         match lhs == rhs {
@@ -91,7 +94,7 @@ where
     ) -> Result<Vec<u8>, Error> {
         let mut bytes = Vec::new();
         let scalar_nb = self.0.morphism.num_scalars;
-        let point_nb = self.0.morphism.num_statements();
+        let point_nb = self.0.morphism.constraints.len();
 
         for commit in commitment.iter().take(point_nb) {
             bytes.extend_from_slice(&serialize_element(commit));
@@ -109,7 +112,7 @@ where
         data: &[u8],
     ) -> Result<(Self::Commitment, Self::Response), Error> {
         let scalar_nb = self.0.morphism.num_scalars;
-        let point_nb = self.0.morphism.num_statements();
+        let point_nb = self.0.morphism.constraints.len();
 
         let point_size = G::generator().to_bytes().as_ref().len();
         let scalar_size = <<G as Group>::Scalar as PrimeField>::Repr::default()

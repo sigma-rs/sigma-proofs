@@ -31,7 +31,7 @@ impl<G: Group + GroupEncoding> SchnorrProtocol<G> {
     }
 
     pub fn statements_nb(&self) -> usize {
-        self.0.morphism.num_statements()
+        self.0.morphism.constraints.len()
     }
 }
 
@@ -80,7 +80,7 @@ where
             .map(|_| G::Scalar::random(&mut rng))
             .collect();
         let prover_state = (nonces.clone(), witness.clone());
-        let commitment = self.0.morphism.evaluate(&nonces);
+        let commitment = self.0.morphism.evaluate(&nonces)?;
         Ok((commitment, prover_state))
     }
 
@@ -136,10 +136,13 @@ where
             return Err(Error::ProofSizeMismatch);
         }
 
-        let lhs = self.0.morphism.evaluate(response);
+        let lhs = self.0.morphism.evaluate(response)?;
         let mut rhs = Vec::new();
         for (i, g) in commitment.iter().enumerate().take(self.statements_nb()) {
-            rhs.push(self.0.morphism.group_elements[self.0.image[i].index()] * challenge + g);
+            rhs.push({
+                let image_var = self.0.image[i];
+                self.0.morphism.instance.get(image_var)? * challenge + g
+            });
         }
         match lhs == rhs {
             true => Ok(()),
@@ -265,8 +268,8 @@ where
             return Err(Error::ProofSizeMismatch);
         }
 
-        let response_image = self.0.morphism.evaluate(response);
-        let image = self.0.image();
+        let response_image = self.0.morphism.evaluate(response)?;
+        let image = self.0.image()?;
 
         let mut commitment = Vec::new();
         for i in 0..image.len() {
