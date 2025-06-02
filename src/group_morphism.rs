@@ -117,7 +117,7 @@ impl<G: Group> Instance<G> {
             self.0.resize(var.0 + 1, None);
         } else if let Some(assignment) = self.0[var.0] {
             // QUESTION: Should we panic here? It seems like a good sanity check in that if you
-            // assign the same point twice, its probably a mistake. But maybe there are legitmate
+            // assign the same point twice, its probably a mistake. But maybe there are legitimate
             // reasons to do this.
             assert_eq!(
                 assignment, element,
