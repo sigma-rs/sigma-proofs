@@ -1,7 +1,7 @@
 use curve25519_dalek::ristretto::RistrettoPoint;
 use ff::Field;
 use group::{Group, GroupEncoding};
-use rand::{rngs::OsRng, CryptoRng, Rng};
+use rand::{CryptoRng, Rng, rngs::OsRng};
 
 use sigma_rs::codec::ShakeCodec;
 use sigma_rs::fiat_shamir::NISigmaProtocol;

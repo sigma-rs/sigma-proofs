@@ -107,7 +107,7 @@ pub trait CompactProtocol: SigmaProtocol {
     ///
     /// Returns `Some((challenge, response))` if parsing is successful, otherwise `None`.
     fn deserialize_compact(&self, _data: &[u8])
-        -> Result<(Self::Challenge, Self::Response), Error>;
+    -> Result<(Self::Challenge, Self::Response), Error>;
 }
 
 /// A trait defining the behavior of a Sigma protocol for which simulation of transcripts is necessary.

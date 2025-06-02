@@ -414,7 +414,9 @@ where
     /// computed. Modifies the instance in the [GroupMorphismPreimage].
     pub fn compute_image(&mut self, scalars: &[<G as Group>::Scalar]) -> Result<(), Error> {
         if self.morphism.constraints.len() != self.image.len() {
-            panic!("invalid GroupMorphismPreimage: different number of constraints and image variables");
+            panic!(
+                "invalid GroupMorphismPreimage: different number of constraints and image variables"
+            );
         }
 
         for (lc, lhs) in iter::zip(self.morphism.constraints.as_slice(), self.image.as_slice()) {
