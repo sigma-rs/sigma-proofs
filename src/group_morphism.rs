@@ -59,8 +59,6 @@ pub struct Morphism<G: Group> {
     pub group_elements: Vec<G>,
     /// The total number of scalar variables allocated.
     pub num_scalars: usize,
-    ///The total number of group elements allocated.
-    pub num_elements: usize,
 }
 
 /// Perform a simple multi-scalar multiplication (MSM) over scalars and points.
@@ -93,7 +91,6 @@ impl<G: Group> Morphism<G> {
             linear_combination: Vec::new(),
             group_elements: Vec::new(),
             num_scalars: 0,
-            num_elements: 0,
         }
     }
 
@@ -205,13 +202,11 @@ where
     /// # Returns
     /// A vector of [`PointVar`] representing the newly allocated group element indices.
     pub fn allocate_elements(&mut self, n: usize) -> Vec<PointVar> {
-        let start = self.morphism.num_elements;
+        let start = self.morphism.group_elements.len();
         self.morphism
             .group_elements
             .extend(repeat_n(G::identity(), n));
-        let points = (start..start + n).map(PointVar).collect::<Vec<_>>();
-        self.morphism.num_elements += n;
-        points
+        (start..start + n).map(PointVar).collect::<Vec<_>>()
     }
 
     /// Sets the values of group elements at specified indices.
