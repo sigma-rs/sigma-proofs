@@ -22,12 +22,12 @@ fn discrete_logarithm() {
     proof_builder.append_equation(var_X, &[(var_x, var_G)]);
 
     let G = G::generator();
-    proof_builder.set_elements(&[(var_G, G)]);
+    proof_builder.assign_elements(&[(var_G, G)]);
 
     let witness = vec![Scalar::random(rng)];
 
     let X = G * witness[0];
-    proof_builder.set_elements(&[(var_X, X)]);
+    proof_builder.assign_elements(&[(var_X, X)]);
 
     // Prove and verify a proof
     let proof_bytes = proof_builder.prove(&witness, &mut rng).unwrap();

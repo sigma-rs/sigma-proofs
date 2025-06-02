@@ -25,8 +25,8 @@ fn DL_protocol<G: Group + GroupEncoding>(
     let points = preimage.allocate_elements(2);
 
     preimage.append_equation(points[1], &[(scalars[0], points[0])]);
-    preimage.set_elements(&[(points[0], G)]);
-    preimage.set_elements(&[(points[1], G * x)]);
+    preimage.assign_elements(&[(points[0], G)]);
+    preimage.assign_elements(&[(points[1], G * x)]);
 
     assert!(vec![G * x] == preimage.morphism.evaluate(&[x]));
     (SchnorrProtocol::from_preimage(preimage), vec![x])
@@ -49,7 +49,7 @@ fn pedersen_protocol<G: Group + GroupEncoding>(
     let scalars = preimage.allocate_scalars(2);
     let points = preimage.allocate_elements(3);
 
-    preimage.set_elements(&[(points[1], H), (points[0], G), (points[2], C)]);
+    preimage.assign_elements(&[(points[1], H), (points[0], G), (points[2], C)]);
     preimage.append_equation(
         points[2],
         &[(scalars[0], points[0]), (scalars[1], points[1])],

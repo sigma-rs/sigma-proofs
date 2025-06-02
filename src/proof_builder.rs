@@ -81,8 +81,8 @@ where
     ///
     /// # Parameters
     /// - `elements`: A list of `(PointVar, GroupElement)` pairs.
-    pub fn set_elements(&mut self, elements: &[(PointVar, G)]) {
-        self.protocol.sigmap.set_elements(elements);
+    pub fn assign_elements(&mut self, elements: &[(PointVar, G)]) {
+        self.protocol.sigmap.assign_elements(elements);
     }
 
     /// Returns the expected group element results (`lhs`) of the current equations.

@@ -54,8 +54,8 @@ impl<G: Group + GroupEncoding> SchnorrProtocol<G> {
         self.0.allocate_elements(n)
     }
 
-    pub fn set_elements(&mut self, elements: &[(PointVar, G)]) {
-        self.0.set_elements(elements);
+    pub fn assign_elements(&mut self, elements: &[(PointVar, G)]) {
+        self.0.assign_elements(elements);
     }
 
     pub fn evaluate(&self, scalars: &[<G as Group>::Scalar]) -> Vec<G> {

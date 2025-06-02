@@ -9,7 +9,6 @@
 //! - [`GroupMorphismPreimage`]: a higher-level structure managing morphisms and their associated images
 
 use group::{Group, GroupEncoding};
-use std::iter::repeat_n;
 
 /// A wrapper representing an index for a scalar variable.
 ///
@@ -168,10 +167,12 @@ where
         self.morphism.num_statements() * repr_len // total size of a commit
     }
 
-    /// Append a new equation relating scalars to group elements.
+    /// Adds a new equation to the statement of the form:
+    /// `lhs = Σ (scalar_i * point_i)`
+    /// 
     /// # Parameters
-    /// - `lhs`: The image group element variable (left-hand side of the equation).
-    /// - `rhs`: A slice of `(ScalarVar, PointVar)` pairs representing the linear combination on the right-hand side.
+    /// - `lhs`: The variable representing the left-hand group element
+    /// - `rhs`: A list of (scalar variable, point variable) tuples for the linear combination
     pub fn append_equation(&mut self, lhs: PointVar, rhs: &[(ScalarVar, PointVar)]) {
         let lc = LinearCombination {
             scalar_indices: rhs.iter().map(|&(s, _)| s).collect(),
@@ -179,6 +180,12 @@ where
         };
         self.morphism.append(lc);
         self.image.push(lhs);
+    }
+
+    /// Allocates a scalar variable for use in the morphism.
+    pub fn allocate_scalar(&mut self) -> ScalarVar {
+        self.morphism.num_scalars += 1;
+        ScalarVar(self.morphism.num_scalars - 1)
     }
 
     /// Allocates space for `n` new scalar variables.
@@ -189,9 +196,13 @@ where
     /// # Returns
     /// A vector of [`ScalarVar`] representing the newly allocated scalar indices.
     pub fn allocate_scalars(&mut self, n: usize) -> Vec<ScalarVar> {
-        let start = self.morphism.num_scalars;
-        self.morphism.num_scalars += n;
-        (start..start + n).map(ScalarVar).collect()
+        (0..n).map(|_| self.allocate_scalar()).collect()
+    }
+
+    /// Allocates a point variable (group element) for use in the morphism.
+    pub fn allocate_element(&mut self) -> PointVar {
+        self.morphism.group_elements.push(G::identity());
+        PointVar(self.morphism.group_elements.len() - 1)
     }
 
     /// Allocates space for `n` new group elements, initialized to the identity element.
@@ -202,20 +213,25 @@ where
     /// # Returns
     /// A vector of [`PointVar`] representing the newly allocated group element indices.
     pub fn allocate_elements(&mut self, n: usize) -> Vec<PointVar> {
-        let start = self.morphism.group_elements.len();
-        self.morphism
-            .group_elements
-            .extend(repeat_n(G::identity(), n));
-        (start..start + n).map(PointVar).collect::<Vec<_>>()
+        (0..n).map(|_| self.allocate_element()).collect()
     }
 
-    /// Sets the values of group elements at specified indices.
+    /// Assign a group element value to a point variable.
     ///
     /// # Parameters
-    /// - `elements`: A slice of `(PointVar, G)` tuples specifying which elements to update and their new values.
-    pub fn set_elements(&mut self, elements: &[(PointVar, G)]) {
-        for &(i, elt) in elements {
-            self.morphism.group_elements[i.0] = elt;
+    /// - `var`: The variable to assign.
+    /// - `element`: The value to assign to the variable.
+    pub fn assign_element(&mut self, var: PointVar, element: G) {
+        self.morphism.group_elements[var.0] = element;
+    }
+
+    /// Assigns specific group elements to point variables (indices).
+    ///
+    /// # Parameters
+    /// - `elements`: A list of `(PointVar, GroupElement)` pairs
+    pub fn assign_elements(&mut self, elements: &[(PointVar, G)]) {
+        for (var, element) in elements {
+            self.assign_element(*var, *element)
         }
     }
 
