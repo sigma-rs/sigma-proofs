@@ -144,9 +144,9 @@ where
     /// - `Err(ProofError::Other)` if the lengths of commitment or response do not match the expected counts.
     ///
     /// # Errors
-    /// -`Err(ProofError::VerificationFailure)` if the computed relation
+    /// - `Err(ProofError::VerificationFailure)` if the computed relation
     /// does not hold for the provided challenge and response, indicating proof invalidity.
-    /// -`Err(ProofError::Other)` if the commitment or response length is incorrect.
+    /// - `Err(ProofError::Other)` if the commitment or response length is incorrect.
     fn verifier(
         &self,
         commitment: &Self::Commitment,
@@ -212,8 +212,8 @@ where
     ///
     /// # Returns
     /// - A tuple `(commitment, response)` where  
-    ///   * `commitment` is a vector of group elements (one per statement), and  
-    ///   * `response`   is a vector of scalars (one per witness).
+    ///   * `commitment` is a vector of group elements, and  
+    ///   * `response` is a vector of scalars.
     ///
     /// # Errors
     /// - `ProofError::ProofSizeMismatch` if the input length is not the exact number of bytes
