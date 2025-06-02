@@ -76,7 +76,7 @@ fn and_proof_correct() {
     witness.extend(&x1);
     witness.extend(&x2);
 
-    let mut nizk = NISigmaProtocol::<AndProtocol<RistrettoPoint>, ShakeCodec<G>, G>::new(
+    let nizk = NISigmaProtocol::<AndProtocol<RistrettoPoint>, ShakeCodec<G>, G>::new(
         domain_sep,
         and_protocol,
     );
@@ -111,7 +111,7 @@ fn and_proof_incorrect() {
     witness.push(fake_x);
     witness.extend(x2);
 
-    let mut nizk = NISigmaProtocol::<AndProtocol<RistrettoPoint>, ShakeCodec<G>, G>::new(
+    let nizk = NISigmaProtocol::<AndProtocol<RistrettoPoint>, ShakeCodec<G>, G>::new(
         domain_sep,
         and_protocol,
     );
@@ -143,7 +143,7 @@ fn or_proof_correct() {
 
     let witness = (1, x1);
 
-    let mut nizk = NISigmaProtocol::<OrProtocol<RistrettoPoint>, ShakeCodec<G>, G>::new(
+    let nizk = NISigmaProtocol::<OrProtocol<RistrettoPoint>, ShakeCodec<G>, G>::new(
         domain_sep,
         or_protocol,
     );
@@ -177,7 +177,7 @@ fn or_proof_incorrect() {
 
     let witness = (0, vec![<G as Group>::Scalar::random(&mut rng)]);
 
-    let mut nizk = NISigmaProtocol::<OrProtocol<RistrettoPoint>, ShakeCodec<G>, G>::new(
+    let nizk = NISigmaProtocol::<OrProtocol<RistrettoPoint>, ShakeCodec<G>, G>::new(
         domain_sep,
         or_protocol,
     );

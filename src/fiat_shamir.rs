@@ -90,7 +90,7 @@ where
     /// # Panics
     /// Panics if local verification fails.
     pub fn prove(
-        &mut self,
+        &self,
         witness: &P::Witness,
         rng: &mut (impl RngCore + CryptoRng),
     ) -> Result<Transcript<P>, ProofError> {
@@ -127,7 +127,7 @@ where
     ///   - The challenge doesn't match the recomputed one from the commitment.
     ///   - The response fails verification under the Sigma protocol.
     pub fn verify(
-        &mut self,
+        &self,
         commitment: &P::Commitment,
         challenge: &P::Challenge,
         response: &P::Response,
@@ -159,7 +159,7 @@ where
     /// # Panics
     /// Panics if serialization fails (should not happen under correct implementation).
     pub fn prove_batchable(
-        &mut self,
+        &self,
         witness: &P::Witness,
         rng: &mut (impl RngCore + CryptoRng),
     ) -> Result<Vec<u8>, ProofError> {
@@ -183,7 +183,7 @@ where
     /// - Returns `ProofError::VerificationFailure` if:
     ///   - The challenge doesn't match the recomputed one from the commitment.
     ///   - The response fails verification under the Sigma protocol.
-    pub fn verify_batchable(&mut self, proof: &[u8]) -> Result<(), ProofError> {
+    pub fn verify_batchable(&self, proof: &[u8]) -> Result<(), ProofError> {
         let (commitment, response) = self.sigmap.deserialize_batchable(proof).unwrap();
 
         let mut codec = self.hash_state.clone();
@@ -220,7 +220,7 @@ where
     /// # Panics
     /// Panics if serialization fails.
     pub fn prove_compact(
-        &mut self,
+        &self,
         witness: &P::Witness,
         rng: &mut (impl RngCore + CryptoRng),
     ) -> Result<Vec<u8>, ProofError> {
@@ -246,7 +246,7 @@ where
     /// - Returns `ProofError::VerificationFailure` if:
     ///   - Deserialization fails.
     ///   - The recomputed commitment or response is invalid under the Sigma protocol.
-    pub fn verify_compact(&mut self, proof: &[u8]) -> Result<(), ProofError> {
+    pub fn verify_compact(&self, proof: &[u8]) -> Result<(), ProofError> {
         let (challenge, response) = self.sigmap.deserialize_compact(proof).unwrap();
         // Compute the commitments
         let commitment = self.sigmap.get_commitment(&challenge, &response)?;

@@ -250,7 +250,7 @@ fn NI_discrete_logarithm(seed: &[u8], context: &[u8]) -> (Vec<Scalar>, Vec<u8>) 
 
     let protocol = SchnorrProtocolCustom(morphismp);
     let domain_sep: Vec<u8> = context.to_vec();
-    let mut nizk = NISigmaP::new(&domain_sep, protocol);
+    let nizk = NISigmaP::new(&domain_sep, protocol);
 
     let proof_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
     let verified = nizk.verify_batchable(&proof_bytes).is_ok();
@@ -265,7 +265,7 @@ fn NI_dleq(seed: &[u8], context: &[u8]) -> (Vec<Scalar>, Vec<u8>) {
 
     let protocol = SchnorrProtocolCustom(morphismp);
     let domain_sep: Vec<u8> = context.to_vec();
-    let mut nizk = NISigmaP::new(&domain_sep, protocol);
+    let nizk = NISigmaP::new(&domain_sep, protocol);
 
     let proof_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
     let verified = nizk.verify_batchable(&proof_bytes).is_ok();
@@ -280,7 +280,7 @@ fn NI_pedersen_commitment(seed: &[u8], context: &[u8]) -> (Vec<Scalar>, Vec<u8>)
 
     let protocol = SchnorrProtocolCustom(morphismp);
     let domain_sep: Vec<u8> = context.to_vec();
-    let mut nizk = NISigmaP::new(&domain_sep, protocol);
+    let nizk = NISigmaP::new(&domain_sep, protocol);
 
     let proof_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
     let verified = nizk.verify_batchable(&proof_bytes).is_ok();
@@ -295,7 +295,7 @@ fn NI_pedersen_commitment_dleq(seed: &[u8], context: &[u8]) -> (Vec<Scalar>, Vec
 
     let protocol = SchnorrProtocolCustom(morphismp);
     let domain_sep: Vec<u8> = context.to_vec();
-    let mut nizk = NISigmaP::new(&domain_sep, protocol);
+    let nizk = NISigmaP::new(&domain_sep, protocol);
 
     let proof_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
     let verified = nizk.verify_batchable(&proof_bytes).is_ok();
@@ -310,7 +310,7 @@ fn NI_bbs_blind_commitment_computation(seed: &[u8], context: &[u8]) -> (Vec<Scal
 
     let protocol = SchnorrProtocolCustom(morphismp);
     let domain_sep: Vec<u8> = context.to_vec();
-    let mut nizk = NISigmaP::new(&domain_sep, protocol);
+    let nizk = NISigmaP::new(&domain_sep, protocol);
 
     let proof_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
     let verified = nizk.verify_batchable(&proof_bytes).is_ok();

@@ -232,7 +232,7 @@ fn NI_discrete_logarithm() {
     let protocol = SchnorrProtocol::from_preimage(morphismp);
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-schnorr";
-    let mut nizk =
+    let nizk =
         NISigmaProtocol::<SchnorrProtocol<G>, ShakeCodec<G>, G>::new(domain_sep, protocol);
 
     // Batchable and compact proofs
@@ -261,7 +261,7 @@ fn NI_dleq() {
     let protocol = SchnorrProtocol::from_preimage(morphismp);
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-DLEQ";
-    let mut nizk =
+    let nizk =
         NISigmaProtocol::<SchnorrProtocol<G>, ShakeCodec<G>, G>::new(domain_sep, protocol);
 
     // Batchable and compact proofs
@@ -290,7 +290,7 @@ fn NI_pedersen_commitment() {
     let protocol = SchnorrProtocol::from_preimage(morphismp);
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-pedersen-commitment";
-    let mut nizk =
+    let nizk =
         NISigmaProtocol::<SchnorrProtocol<G>, ShakeCodec<G>, G>::new(domain_sep, protocol);
 
     // Batchable and compact proofs
@@ -319,7 +319,7 @@ fn NI_pedersen_commitment_dleq() {
     let protocol = SchnorrProtocol::from_preimage(morphismp);
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-pedersen-commitment-DLEQ";
-    let mut nizk =
+    let nizk =
         NISigmaProtocol::<SchnorrProtocol<G>, ShakeCodec<G>, G>::new(domain_sep, protocol);
 
     // Batchable and compact proofs
@@ -348,7 +348,7 @@ fn NI_bbs_blind_commitment_computation() {
     let protocol = SchnorrProtocol::from_preimage(morphismp);
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-bbs-blind-commitment-computation";
-    let mut nizk =
+    let nizk =
         NISigmaProtocol::<SchnorrProtocol<G>, ShakeCodec<G>, G>::new(domain_sep, protocol);
 
     // Batchable and compact proofs
