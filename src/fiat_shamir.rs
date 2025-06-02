@@ -95,12 +95,6 @@ where
         witness: &P::Witness,
         rng: &mut (impl RngCore + CryptoRng),
     ) -> Result<Transcript<P>, Error> {
-        // QUESTION: Why is the self mutable? It's unclear whether the intention is to have a
-        // single NISigmaProtocol be used multiple times, or not. E.g. is the intention that
-        // someone might call `proto.verify(commit1, chal1, res1); proto.verify(commit2, chal2, res2)`
-        // both operations to contribute to the same transcript? If so, then why is the hash_state
-        // cloned here? And if not, why make the receiver mutable? Another option is to have the
-        // receiver take ownership of self, if the intention is to _enforce_ non-reuse.
         let mut codec = self.hash_state.clone();
 
         let (commitment, prover_state) = self.sigmap.prover_commit(witness, rng)?;
