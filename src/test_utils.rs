@@ -12,16 +12,16 @@ pub fn discrete_logarithm<G: Group + GroupEncoding>(
     let mut morphismp: GroupMorphismPreimage<G> = GroupMorphismPreimage::new();
 
     let var_x = morphismp.allocate_scalar();
-    let [var_G, var_X] = morphismp.allocate_elements();
+    let var_G = morphismp.allocate_element();
 
-    morphismp.append_equation(var_X, [(var_x, var_G)]);
+    let var_X = morphismp.allocate_eq(var_x * var_G);
 
     morphismp.assign_element(var_G, G::generator());
+    morphismp.compute_image(&[x]).unwrap();
 
-    let X = G::generator() * x;
-    assert!(vec![X] == morphismp.morphism.evaluate(&[x]).unwrap());
+    let X = morphismp.morphism.instance.get(var_X).unwrap();
 
-    morphismp.assign_element(var_X, X);
+    assert_eq!(X, G::generator() * x);
     (morphismp, vec![x])
 }
 
@@ -33,17 +33,20 @@ pub fn dleq<G: Group + GroupEncoding>(
 ) -> (GroupMorphismPreimage<G>, Vec<G::Scalar>) {
     let mut morphismp: GroupMorphismPreimage<G> = GroupMorphismPreimage::new();
 
-    let X = G::generator() * x;
-    let Y = H * x;
-
     let var_x = morphismp.allocate_scalar();
-    let [var_G, var_H, var_X, var_Y] = morphismp.allocate_elements();
+    let [var_G, var_H] = morphismp.allocate_elements();
 
-    morphismp.assign_elements([(var_G, G::generator()), (var_H, H), (var_X, X), (var_Y, Y)]);
-    morphismp.append_equation(var_X, [(var_x, var_G)]);
-    morphismp.append_equation(var_Y, [(var_x, var_H)]);
+    let var_X = morphismp.allocate_eq(var_x * var_G);
+    let var_Y = morphismp.allocate_eq(var_x * var_H);
 
-    assert!(vec![X, Y] == morphismp.morphism.evaluate(&[x]).unwrap());
+    morphismp.assign_elements([(var_G, G::generator()), (var_H, H)]);
+    morphismp.compute_image(&[x]).unwrap();
+
+    let X = morphismp.morphism.instance.get(var_X).unwrap();
+    let Y = morphismp.morphism.instance.get(var_Y).unwrap();
+
+    assert_eq!(X, G::generator() * x);
+    assert_eq!(Y, H * x);
     (morphismp, vec![x])
 }
 
@@ -56,16 +59,18 @@ pub fn pedersen_commitment<G: Group + GroupEncoding>(
 ) -> (GroupMorphismPreimage<G>, Vec<G::Scalar>) {
     let mut cs: GroupMorphismPreimage<G> = GroupMorphismPreimage::new();
 
-    let C = G::generator() * x + H * r;
-
     let [var_x, var_r] = cs.allocate_scalars();
-    let [var_G, var_H, var_C] = cs.allocate_elements();
+    let [var_G, var_H] = cs.allocate_elements();
 
-    cs.assign_elements([(var_H, H), (var_G, G::generator()), (var_C, C)]);
-    cs.append_equation(var_C, [(var_x, var_G), (var_r, var_H)]);
+    let var_C = cs.allocate_eq(var_x * var_G + var_r * var_H);
+
+    cs.assign_elements([(var_H, H), (var_G, G::generator())]);
+    cs.compute_image(&[x, r]).unwrap();
+
+    let C = cs.morphism.instance.get(var_C).unwrap();
 
     let witness = vec![x, r];
-    assert!(vec![C] == cs.morphism.evaluate(&witness).unwrap());
+    assert_eq!(C, G::generator() * x + H * r);
     (cs, witness)
 }
 
@@ -93,8 +98,8 @@ pub fn pedersen_commitment_dleq<G: Group + GroupEncoding>(
     ]);
     morphismp.assign_elements([(var_X, X), (var_Y, Y)]);
 
-    morphismp.append_equation(var_X, [(var_x, var_Gs[0]), (var_r, var_Gs[1])]);
-    morphismp.append_equation(var_Y, [(var_x, var_Gs[2]), (var_r, var_Gs[3])]);
+    morphismp.constrain(var_X, [(var_x, var_Gs[0]), (var_r, var_Gs[1])]);
+    morphismp.constrain(var_Y, [(var_x, var_Gs[2]), (var_r, var_Gs[3])]);
 
     assert!(vec![X, Y] == morphismp.morphism.evaluate(&witness).unwrap());
     (morphismp, witness.to_vec())
@@ -131,7 +136,7 @@ pub fn bbs_blind_commitment_computation<G: Group + GroupEncoding>(
         (var_C, C),
     ]);
 
-    morphismp.append_equation(
+    morphismp.constrain(
         var_C,
         [
             (var_secret_prover_blind, var_Q_2),

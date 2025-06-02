@@ -26,5 +26,5 @@ pub enum Error {
     GroupSerializationFailure,
     /// Uninitialized group element variable.
     #[error("Uninitialized group element variable {var:?}")]
-    UnassignedPointVar { var: PointVar },
+    UnassignedPointVar { var: PointVar<()> },
 }

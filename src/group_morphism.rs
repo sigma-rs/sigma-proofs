@@ -9,10 +9,14 @@
 //! - [`GroupMorphismPreimage`]: a higher-level structure managing morphisms and their associated images
 
 use std::iter;
+use std::marker::PhantomData;
 
 use crate::errors::Error;
 use ff::Field;
 use group::{Group, GroupEncoding};
+
+/// Implementations of core ops for the linear combination types.
+mod ops;
 
 /// A wrapper representing an index for a scalar variable.
 ///
@@ -30,24 +34,25 @@ impl ScalarVar {
 ///
 /// Used to reference group elements in sparse linear combinations.
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
-pub struct PointVar(usize);
+pub struct PointVar<G>(usize, PhantomData<G>);
 
-impl PointVar {
+impl<G> PointVar<G> {
     pub fn index(&self) -> usize {
         self.0
     }
 }
 
 /// A term in a linear combination, representing `scalar * elem * weight`.
-struct Term<G: Group> {
+#[derive(Copy, Clone, Debug)]
+pub struct Term<G: Group> {
     scalar: ScalarVar,
-    elem: PointVar,
+    elem: PointVar<G>,
     /// A public constanat weight applied to the point as part of the morphism.
     weight: G::Scalar,
 }
 
-impl<G: Group> From<(ScalarVar, PointVar)> for Term<G> {
-    fn from((scalar, elem): (ScalarVar, PointVar)) -> Self {
+impl<G: Group> From<(ScalarVar, PointVar<G>)> for Term<G> {
+    fn from((scalar, elem): (ScalarVar, PointVar<G>)) -> Self {
         Self {
             scalar,
             elem,
@@ -107,7 +112,7 @@ impl<G: Group> Instance<G> {
     /// # Panics
     ///
     /// Panics if the given assignment conflicts with the existing assignment.
-    pub fn assign_element(&mut self, var: PointVar, element: G) {
+    pub fn assign_element(&mut self, var: PointVar<G>, element: G) {
         if self.0.len() <= var.0 {
             self.0.resize(var.0 + 1, None);
         } else if let Some(assignment) = self.0[var.0] {
@@ -131,7 +136,7 @@ impl<G: Group> Instance<G> {
     /// # Panics
     ///
     /// Panics if the collection contains two conflicting assignments for the same variable.
-    pub fn assign_elements(&mut self, assignments: impl IntoIterator<Item = (PointVar, G)>) {
+    pub fn assign_elements(&mut self, assignments: impl IntoIterator<Item = (PointVar<G>, G)>) {
         for (var, elem) in assignments.into_iter() {
             self.assign_element(var, elem);
         }
@@ -140,19 +145,21 @@ impl<G: Group> Instance<G> {
     /// Get the element value assigned to the given point var.
     ///
     /// Returns [Error::UninitializedPointVar] if a value is not assigned.
-    pub fn get(&self, var: PointVar) -> Result<G, Error> {
-        self.0[var.0].ok_or(Error::UnassignedPointVar { var })
+    pub fn get(&self, var: PointVar<G>) -> Result<G, Error> {
+        self.0[var.0].ok_or(Error::UnassignedPointVar {
+            var: PointVar(var.0, PhantomData),
+        })
     }
 
     /// Iterate over the assigned variables in this instance.
     // NOTE: Not implemented as `IntoIterator` for now because doing so requires explicitly
     // defining an iterator type, See https://github.com/rust-lang/rust/issues/63063
     #[allow(clippy::should_implement_trait)]
-    pub fn into_iter(self) -> impl Iterator<Item = (PointVar, G)> {
+    pub fn into_iter(self) -> impl Iterator<Item = (PointVar<G>, G)> {
         self.0
             .into_iter()
             .enumerate()
-            .filter_map(|(i, x)| x.map(|x| (PointVar(i), x)))
+            .filter_map(|(i, x)| x.map(|x| (PointVar(i, PhantomData), x)))
     }
 }
 
@@ -265,7 +272,7 @@ where
     /// The underlying morphism describing the structure of the statement.
     pub morphism: Morphism<G>,
     /// Indices pointing to elements representing the "target" images for each constraint.
-    pub image: Vec<PointVar>,
+    pub image: Vec<PointVar<G>>,
 }
 
 impl<G> GroupMorphismPreimage<G>
@@ -292,9 +299,21 @@ where
     /// # Parameters
     /// - `lhs`: The image group element variable (left-hand side of the equation).
     /// - `rhs`: A slice of `(ScalarVar, PointVar)` pairs representing the linear combination on the right-hand side.
-    pub fn append_equation(&mut self, lhs: PointVar, rhs: impl Into<LinearCombination<G>>) {
+    pub fn constrain(&mut self, lhs: PointVar<G>, rhs: impl Into<LinearCombination<G>>) {
         self.morphism.append(rhs.into());
         self.image.push(lhs);
+    }
+
+    /// Adds a new equation to the statement of the form:
+    /// `lhs = Σ (scalar_i * point_i)`
+    ///
+    /// # Parameters
+    /// - `lhs`: The image group element variable (left-hand side of the equation).
+    /// - `rhs`: A slice of `(ScalarVar, PointVar)` pairs representing the linear combination on the right-hand side.
+    pub fn allocate_eq(&mut self, rhs: impl Into<LinearCombination<G>>) -> PointVar<G> {
+        let var = self.allocate_element();
+        self.constrain(var, rhs);
+        var
     }
 
     /// Allocates a scalar variable for use in the morphism.
@@ -326,9 +345,9 @@ where
     }
 
     /// Allocates a point variable (group element) for use in the morphism.
-    pub fn allocate_element(&mut self) -> PointVar {
+    pub fn allocate_element(&mut self) -> PointVar<G> {
         self.morphism.num_elements += 1;
-        PointVar(self.morphism.num_elements - 1)
+        PointVar(self.morphism.num_elements - 1, PhantomData)
     }
 
     /// Allocates `N` point variables (group elements) for use in the morphism.
@@ -345,8 +364,8 @@ where
     /// let [var_g, var_h] = morphism.allocate_elements();
     /// let vars = morphism.allocate_elements::<10>();
     /// ```
-    pub fn allocate_elements<const N: usize>(&mut self) -> [PointVar; N] {
-        let mut vars = [PointVar(usize::MAX); N];
+    pub fn allocate_elements<const N: usize>(&mut self) -> [PointVar<G>; N] {
+        let mut vars = [PointVar(usize::MAX, PhantomData); N];
         for var in vars.iter_mut() {
             *var = self.allocate_element();
         }
@@ -363,7 +382,7 @@ where
     /// # Panics
     ///
     /// Panics if the given assignment conflicts with the existing assignment.
-    pub fn assign_element(&mut self, var: PointVar, element: G) {
+    pub fn assign_element(&mut self, var: PointVar<G>, element: G) {
         self.morphism.instance.assign_element(var, element)
     }
 
@@ -376,7 +395,7 @@ where
     /// # Panics
     ///
     /// Panics if the collection contains two conflicting assignments for the same variable.
-    pub fn assign_elements(&mut self, assignments: impl IntoIterator<Item = (PointVar, G)>) {
+    pub fn assign_elements(&mut self, assignments: impl IntoIterator<Item = (PointVar<G>, G)>) {
         self.morphism.instance.assign_elements(assignments)
     }
 
