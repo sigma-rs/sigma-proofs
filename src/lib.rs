@@ -23,3 +23,6 @@ pub mod schnorr_protocol;
 pub mod traits;
 
 pub mod codec;
+
+#[cfg(feature = "test-utils")]
+pub mod test_utils;

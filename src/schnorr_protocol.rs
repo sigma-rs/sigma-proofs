@@ -4,8 +4,8 @@
 //! a Sigma protocol proving different types of discrete logarithm relations (eg. Schnorr, Pedersen's commitments)
 //! through a group morphism abstraction (see Maurer09).
 
-use crate::errors::ProofError;
-use crate::group_morphism::{GroupMorphismPreimage, PointVar, ScalarVar};
+use crate::errors::Error;
+use crate::group_morphism::GroupMorphismPreimage;
 use crate::{
     group_serialization::*,
     traits::{CompactProtocol, SigmaProtocol, SigmaProtocolSimulator},
@@ -26,44 +26,21 @@ use rand::{CryptoRng, RngCore};
 pub struct SchnorrProtocol<G: Group + GroupEncoding>(GroupMorphismPreimage<G>);
 
 impl<G: Group + GroupEncoding> SchnorrProtocol<G> {
-    pub fn new() -> Self {
-        SchnorrProtocol(GroupMorphismPreimage::<G>::new())
-    }
-
-    pub fn from_preimage(preimage: GroupMorphismPreimage<G>) -> Self {
-        SchnorrProtocol(preimage)
-    }
-
     pub fn scalars_nb(&self) -> usize {
         self.0.morphism.num_scalars
     }
 
     pub fn statements_nb(&self) -> usize {
-        self.0.morphism.num_statements()
+        self.0.morphism.constraints.len()
     }
+}
 
-    pub fn append_equation(&mut self, lhs: PointVar, rhs: &[(ScalarVar, PointVar)]) {
-        self.0.append_equation(lhs, rhs);
-    }
-
-    pub fn allocate_scalars(&mut self, n: usize) -> Vec<ScalarVar> {
-        self.0.allocate_scalars(n)
-    }
-
-    pub fn allocate_elements(&mut self, n: usize) -> Vec<PointVar> {
-        self.0.allocate_elements(n)
-    }
-
-    pub fn assign_elements(&mut self, elements: &[(PointVar, G)]) {
-        self.0.assign_elements(elements);
-    }
-
-    pub fn evaluate(&self, scalars: &[<G as Group>::Scalar]) -> Vec<G> {
-        self.0.morphism.evaluate(scalars)
-    }
-
-    pub fn image(&self) -> Vec<G> {
-        self.0.image()
+impl<G> From<GroupMorphismPreimage<G>> for SchnorrProtocol<G>
+where
+    G: Group + GroupEncoding,
+{
+    fn from(value: GroupMorphismPreimage<G>) -> Self {
+        Self(value)
     }
 }
 
@@ -94,16 +71,16 @@ where
         &self,
         witness: &Self::Witness,
         mut rng: &mut (impl RngCore + CryptoRng),
-    ) -> Result<(Self::Commitment, Self::ProverState), ProofError> {
+    ) -> Result<(Self::Commitment, Self::ProverState), Error> {
         if witness.len() != self.scalars_nb() {
-            return Err(ProofError::ProofSizeMismatch);
+            return Err(Error::ProofSizeMismatch);
         }
 
         let nonces: Vec<G::Scalar> = (0..self.scalars_nb())
             .map(|_| G::Scalar::random(&mut rng))
             .collect();
         let prover_state = (nonces.clone(), witness.clone());
-        let commitment = self.evaluate(&nonces);
+        let commitment = self.0.morphism.evaluate(&nonces)?;
         Ok((commitment, prover_state))
     }
 
@@ -122,9 +99,9 @@ where
         &self,
         state: Self::ProverState,
         challenge: &Self::Challenge,
-    ) -> Result<Self::Response, ProofError> {
+    ) -> Result<Self::Response, Error> {
         if state.0.len() != self.scalars_nb() || state.1.len() != self.scalars_nb() {
-            return Err(ProofError::ProofSizeMismatch);
+            return Err(Error::ProofSizeMismatch);
         }
 
         let mut responses = Vec::new();
@@ -154,19 +131,22 @@ where
         commitment: &Self::Commitment,
         challenge: &Self::Challenge,
         response: &Self::Response,
-    ) -> Result<(), ProofError> {
+    ) -> Result<(), Error> {
         if commitment.len() != self.statements_nb() || response.len() != self.scalars_nb() {
-            return Err(ProofError::ProofSizeMismatch);
+            return Err(Error::ProofSizeMismatch);
         }
 
-        let lhs = self.evaluate(response);
+        let lhs = self.0.morphism.evaluate(response)?;
         let mut rhs = Vec::new();
         for (i, g) in commitment.iter().enumerate().take(self.statements_nb()) {
-            rhs.push(self.0.morphism.group_elements[self.0.image[i].index()] * challenge + g);
+            rhs.push({
+                let image_var = self.0.image[i];
+                self.0.morphism.group_elements.get(image_var)? * challenge + g
+            });
         }
         match lhs == rhs {
             true => Ok(()),
-            false => Err(ProofError::VerificationFailure),
+            false => Err(Error::VerificationFailure),
         }
     }
 
@@ -187,11 +167,11 @@ where
         commitment: &Self::Commitment,
         _challenge: &Self::Challenge,
         response: &Self::Response,
-    ) -> Result<Vec<u8>, ProofError> {
+    ) -> Result<Vec<u8>, Error> {
         let commit_nb = self.statements_nb();
         let response_nb = self.scalars_nb();
         if commitment.len() != commit_nb || response.len() != response_nb {
-            return Err(ProofError::ProofSizeMismatch);
+            return Err(Error::ProofSizeMismatch);
         }
 
         let mut bytes = Vec::new();
@@ -225,7 +205,7 @@ where
     fn deserialize_batchable(
         &self,
         data: &[u8],
-    ) -> Result<(Self::Commitment, Self::Response), ProofError> {
+    ) -> Result<(Self::Commitment, Self::Response), Error> {
         let commit_nb = self.statements_nb();
         let response_nb = self.scalars_nb();
 
@@ -236,7 +216,7 @@ where
 
         let expected_len = response_nb * response_size + commit_nb * commit_size;
         if data.len() != expected_len {
-            return Err(ProofError::ProofSizeMismatch);
+            return Err(Error::ProofSizeMismatch);
         }
 
         let mut commitments: Self::Commitment = Vec::new();
@@ -283,13 +263,13 @@ where
         &self,
         challenge: &Self::Challenge,
         response: &Self::Response,
-    ) -> Result<Self::Commitment, ProofError> {
+    ) -> Result<Self::Commitment, Error> {
         if response.len() != self.scalars_nb() {
-            return Err(ProofError::ProofSizeMismatch);
+            return Err(Error::ProofSizeMismatch);
         }
 
-        let response_image = self.evaluate(response);
-        let image = self.image();
+        let response_image = self.0.morphism.evaluate(response)?;
+        let image = self.0.image()?;
 
         let mut commitment = Vec::new();
         for i in 0..image.len() {
@@ -314,11 +294,11 @@ where
         _commitment: &Self::Commitment,
         challenge: &Self::Challenge,
         response: &Self::Response,
-    ) -> Result<Vec<u8>, ProofError> {
+    ) -> Result<Vec<u8>, Error> {
         let mut bytes = Vec::new();
         let response_nb = self.scalars_nb();
         if response.len() != response_nb {
-            return Err(ProofError::ProofSizeMismatch);
+            return Err(Error::ProofSizeMismatch);
         }
 
         // Serialize challenge
@@ -342,10 +322,7 @@ where
     /// # Errors
     /// - `ProofError::ProofSizeMismatch` if the input data length does not match the expected size.
     /// - `ProofError::GroupSerializationFailure` if scalar deserialization fails.
-    fn deserialize_compact(
-        &self,
-        data: &[u8],
-    ) -> Result<(Self::Challenge, Self::Response), ProofError> {
+    fn deserialize_compact(&self, data: &[u8]) -> Result<(Self::Challenge, Self::Response), Error> {
         let response_nb = self.scalars_nb();
         let response_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
             .as_ref()
@@ -354,7 +331,7 @@ where
         let expected_len = (response_nb + 1) * response_size;
 
         if data.len() != expected_len {
-            return Err(ProofError::ProofSizeMismatch);
+            return Err(Error::ProofSizeMismatch);
         }
 
         let mut responses: Self::Response = Vec::new();
@@ -393,6 +370,8 @@ where
         rng: &mut (impl RngCore + CryptoRng),
     ) -> (Self::Commitment, Self::Response) {
         let mut response = Vec::new();
+        // FIXME: This repeats the same element over and over, which was probably not the
+        // intention.
         response.extend(std::iter::repeat_n(
             G::Scalar::random(rng),
             self.scalars_nb(),

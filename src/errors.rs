@@ -8,10 +8,13 @@
 //! - Mismatched parameters during batch verification.
 //! - Unimplemented methods.
 //! - Group element or scalar serialization failures.
-use thiserror::Error;
+
+use crate::group_morphism::GroupVar;
+
 /// An error during proving or verification, such as a verification failure.
-#[derive(Debug, Error)]
-pub enum ProofError {
+#[non_exhaustive]
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
     /// Something is wrong with the proof, causing a verification failure.
     #[error("Verification failed.")]
     VerificationFailure,
@@ -21,4 +24,7 @@ pub enum ProofError {
     /// Serialization of a group element/scalar has failed.
     #[error("Serialization of a group element/scalar failed.")]
     GroupSerializationFailure,
+    /// Uninitialized group element variable.
+    #[error("Uninitialized group element variable {var:?}")]
+    UnassignedGroupVar { var: GroupVar },
 }

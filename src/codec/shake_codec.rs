@@ -14,8 +14,8 @@
 use ff::PrimeField;
 use group::{Group, GroupEncoding};
 use sha3::{
-    digest::{ExtendableOutput, Update, XofReader},
     Shake128,
+    digest::{ExtendableOutput, Update, XofReader},
 };
 
 use crate::codec::r#trait::Codec;

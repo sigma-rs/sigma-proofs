@@ -1,7 +1,7 @@
 use curve25519_dalek::ristretto::RistrettoPoint;
 use ff::Field;
 use group::{Group, GroupEncoding};
-use rand::{rngs::OsRng, CryptoRng, Rng};
+use rand::{CryptoRng, Rng, rngs::OsRng};
 
 use sigma_rs::codec::ShakeCodec;
 use sigma_rs::fiat_shamir::NISigmaProtocol;
@@ -21,15 +21,15 @@ fn DL_protocol<G: Group + GroupEncoding>(
 
     let x = <G as Group>::Scalar::random(rng);
 
-    let scalars = preimage.allocate_scalars(1);
-    let points = preimage.allocate_elements(2);
+    let var_x = preimage.allocate_scalar();
+    let [var_G, var_xG] = preimage.allocate_elements();
 
-    preimage.append_equation(points[1], &[(scalars[0], points[0])]);
-    preimage.assign_elements(&[(points[0], G)]);
-    preimage.assign_elements(&[(points[1], G * x)]);
+    preimage.constrain(var_xG, [(var_x, var_G)]);
+    preimage.assign_element(var_G, G);
+    preimage.assign_element(var_xG, G * x);
 
-    assert!(vec![G * x] == preimage.morphism.evaluate(&[x]));
-    (SchnorrProtocol::from_preimage(preimage), vec![x])
+    assert!(vec![G * x] == preimage.morphism.evaluate(&[x]).unwrap());
+    (SchnorrProtocol::from(preimage), vec![x])
 }
 
 #[allow(non_snake_case)]
@@ -46,17 +46,17 @@ fn pedersen_protocol<G: Group + GroupEncoding>(
 
     let C = G * x + H * r;
 
-    let scalars = preimage.allocate_scalars(2);
-    let points = preimage.allocate_elements(3);
+    let scalars = preimage.allocate_scalars::<2>();
+    let points = preimage.allocate_elements::<3>();
 
-    preimage.assign_elements(&[(points[1], H), (points[0], G), (points[2], C)]);
-    preimage.append_equation(
+    preimage.assign_elements([(points[1], H), (points[0], G), (points[2], C)]);
+    preimage.constrain(
         points[2],
-        &[(scalars[0], points[0]), (scalars[1], points[1])],
+        [(scalars[0], points[0]), (scalars[1], points[1])],
     );
 
-    assert!(vec![C] == preimage.morphism.evaluate(&witness));
-    (SchnorrProtocol::from_preimage(preimage), witness)
+    assert!(vec![C] == preimage.morphism.evaluate(&witness).unwrap());
+    (SchnorrProtocol::from(preimage), witness)
 }
 
 #[allow(non_snake_case)]

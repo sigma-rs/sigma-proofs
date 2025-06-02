@@ -1,7 +1,7 @@
 use ff::{Field, PrimeField};
 use group::{Group, GroupEncoding};
 
-use crate::errors::ProofError;
+use crate::errors::Error;
 use crate::group_serialization::{deserialize_scalar, serialize_scalar};
 use crate::schnorr_protocol::SchnorrProtocol;
 use crate::traits::{CompactProtocol, SigmaProtocol, SigmaProtocolSimulator};
@@ -38,10 +38,10 @@ impl<G: Group + GroupEncoding> SigmaProtocol for AndProtocol<G> {
         &self,
         witness: &Self::Witness,
         rng: &mut (impl rand::Rng + rand::CryptoRng),
-    ) -> Result<(Self::Commitment, Self::ProverState), ProofError> {
+    ) -> Result<(Self::Commitment, Self::ProverState), Error> {
         let expected_w_len: usize = self.0.iter().map(|p| p.scalars_nb()).sum();
         if expected_w_len != witness.len() || self.is_empty() {
-            return Err(ProofError::ProofSizeMismatch);
+            return Err(Error::ProofSizeMismatch);
         }
 
         let mut cursor = 0;
@@ -63,9 +63,9 @@ impl<G: Group + GroupEncoding> SigmaProtocol for AndProtocol<G> {
         &self,
         state: Self::ProverState,
         challenge: &Self::Challenge,
-    ) -> Result<Self::Response, ProofError> {
+    ) -> Result<Self::Response, Error> {
         if state.len() != self.len() {
-            return Err(ProofError::ProofSizeMismatch);
+            return Err(Error::ProofSizeMismatch);
         }
 
         let mut response = Vec::with_capacity(self.0.iter().map(|p| p.scalars_nb()).sum());
@@ -81,11 +81,11 @@ impl<G: Group + GroupEncoding> SigmaProtocol for AndProtocol<G> {
         commitment: &Self::Commitment,
         challenge: &Self::Challenge,
         response: &Self::Response,
-    ) -> Result<(), ProofError> {
+    ) -> Result<(), Error> {
         let expected_c_len: usize = self.0.iter().map(|p| p.statements_nb()).sum();
         let expected_r_len: usize = self.0.iter().map(|p| p.scalars_nb()).sum();
         if commitment.len() != expected_c_len || response.len() != expected_r_len {
-            return Err(ProofError::ProofSizeMismatch);
+            return Err(Error::ProofSizeMismatch);
         }
 
         let mut c_cursor = 0;
@@ -110,11 +110,11 @@ impl<G: Group + GroupEncoding> SigmaProtocol for AndProtocol<G> {
         commitment: &Self::Commitment,
         challenge: &Self::Challenge,
         response: &Self::Response,
-    ) -> Result<Vec<u8>, ProofError> {
+    ) -> Result<Vec<u8>, Error> {
         let expected_c_len: usize = self.0.iter().map(|p| p.statements_nb()).sum();
         let expected_r_len: usize = self.0.iter().map(|p| p.scalars_nb()).sum();
         if commitment.len() != expected_c_len || response.len() != expected_r_len {
-            return Err(ProofError::ProofSizeMismatch);
+            return Err(Error::ProofSizeMismatch);
         }
 
         let mut bytes = Vec::new();
@@ -138,7 +138,7 @@ impl<G: Group + GroupEncoding> SigmaProtocol for AndProtocol<G> {
     fn deserialize_batchable(
         &self,
         data: &[u8],
-    ) -> Result<(Self::Commitment, Self::Response), ProofError> {
+    ) -> Result<(Self::Commitment, Self::Response), Error> {
         let point_size = G::generator().to_bytes().as_ref().len();
         let scalar_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
             .as_ref()
@@ -150,7 +150,7 @@ impl<G: Group + GroupEncoding> SigmaProtocol for AndProtocol<G> {
             .map(|p| p.scalars_nb() * scalar_size + p.statements_nb() * point_size)
             .sum();
         if data.len() != expected_d_len {
-            return Err(ProofError::ProofSizeMismatch);
+            return Err(Error::ProofSizeMismatch);
         }
 
         let mut cursor = 0;
@@ -176,10 +176,10 @@ impl<G: Group + GroupEncoding> CompactProtocol for AndProtocol<G> {
         &self,
         challenge: &Self::Challenge,
         response: &Self::Response,
-    ) -> Result<Self::Commitment, ProofError> {
+    ) -> Result<Self::Commitment, Error> {
         let expected_r_len: usize = self.0.iter().map(|p| p.scalars_nb()).sum();
         if response.len() != expected_r_len {
-            return Err(ProofError::ProofSizeMismatch);
+            return Err(Error::ProofSizeMismatch);
         }
 
         let mut commitment = Vec::with_capacity(self.0.iter().map(|p| p.statements_nb()).sum());
@@ -199,11 +199,11 @@ impl<G: Group + GroupEncoding> CompactProtocol for AndProtocol<G> {
         commitment: &Self::Commitment,
         challenge: &Self::Challenge,
         response: &Self::Response,
-    ) -> Result<Vec<u8>, ProofError> {
+    ) -> Result<Vec<u8>, Error> {
         let expected_c_len: usize = self.0.iter().map(|p| p.statements_nb()).sum();
         let expected_r_len: usize = self.0.iter().map(|p| p.scalars_nb()).sum();
         if commitment.len() != expected_c_len || response.len() != expected_r_len {
-            return Err(ProofError::ProofSizeMismatch);
+            return Err(Error::ProofSizeMismatch);
         }
 
         let mut bytes = Vec::new();
@@ -214,17 +214,14 @@ impl<G: Group + GroupEncoding> CompactProtocol for AndProtocol<G> {
         Ok(bytes)
     }
 
-    fn deserialize_compact(
-        &self,
-        data: &[u8],
-    ) -> Result<(Self::Challenge, Self::Response), ProofError> {
+    fn deserialize_compact(&self, data: &[u8]) -> Result<(Self::Challenge, Self::Response), Error> {
         let scalar_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
             .as_ref()
             .len();
 
         let expected_d_len: usize = self.0.iter().map(|p| (p.scalars_nb()) * scalar_size).sum();
         if data.len() != expected_d_len + scalar_size {
-            return Err(ProofError::ProofSizeMismatch);
+            return Err(Error::ProofSizeMismatch);
         }
 
         let challenge = deserialize_scalar::<G>(&data[..scalar_size])?;
@@ -285,11 +282,11 @@ impl<G: Group + GroupEncoding> SigmaProtocol for OrProtocol<G> {
         &self,
         witness: &Self::Witness,
         rng: &mut (impl rand::Rng + rand::CryptoRng),
-    ) -> Result<(Self::Commitment, Self::ProverState), ProofError> {
+    ) -> Result<(Self::Commitment, Self::ProverState), Error> {
         let real_index = witness.0;
         let expected_w_len = self.0[real_index].scalars_nb();
         if real_index >= self.len() || witness.1.len() != expected_w_len {
-            return Err(ProofError::ProofSizeMismatch);
+            return Err(Error::ProofSizeMismatch);
         }
 
         let mut fake_transcripts = Vec::with_capacity(self.len() - 1);
@@ -314,7 +311,7 @@ impl<G: Group + GroupEncoding> SigmaProtocol for OrProtocol<G> {
         &self,
         state: Self::ProverState,
         challenge: &Self::Challenge,
-    ) -> Result<Self::Response, ProofError> {
+    ) -> Result<Self::Response, Error> {
         let (real_index, real_state, fake_transcripts) = state;
         let mut response = (
             Vec::with_capacity(self.len()),
@@ -346,7 +343,7 @@ impl<G: Group + GroupEncoding> SigmaProtocol for OrProtocol<G> {
         commitment: &Self::Commitment,
         challenge: &Self::Challenge,
         response: &Self::Response,
-    ) -> Result<(), ProofError> {
+    ) -> Result<(), Error> {
         let expected_c_len: usize = self.0.iter().map(|p| p.statements_nb()).sum();
         let expected_ch_nb = self.len();
         let expected_r_len: usize = self.0.iter().map(|p| p.scalars_nb()).sum();
@@ -354,7 +351,7 @@ impl<G: Group + GroupEncoding> SigmaProtocol for OrProtocol<G> {
             || response.0.len() != expected_ch_nb
             || response.1.len() != expected_r_len
         {
-            return Err(ProofError::ProofSizeMismatch);
+            return Err(Error::ProofSizeMismatch);
         }
 
         let mut expected_difference = *challenge;
@@ -373,7 +370,7 @@ impl<G: Group + GroupEncoding> SigmaProtocol for OrProtocol<G> {
         }
         match expected_difference.is_zero_vartime() {
             true => Ok(()),
-            false => Err(ProofError::VerificationFailure),
+            false => Err(Error::VerificationFailure),
         }
     }
 
@@ -382,7 +379,7 @@ impl<G: Group + GroupEncoding> SigmaProtocol for OrProtocol<G> {
         commitment: &Self::Commitment,
         _challenge: &Self::Challenge,
         response: &Self::Response,
-    ) -> Result<Vec<u8>, ProofError> {
+    ) -> Result<Vec<u8>, Error> {
         let expected_c_len: usize = self.0.iter().map(|p| p.statements_nb()).sum();
         let expected_ch_nb = self.len();
         let expected_r_len: usize = self.0.iter().map(|p| p.scalars_nb()).sum();
@@ -390,7 +387,7 @@ impl<G: Group + GroupEncoding> SigmaProtocol for OrProtocol<G> {
             || response.0.len() != expected_ch_nb
             || response.1.len() != expected_r_len
         {
-            return Err(ProofError::ProofSizeMismatch);
+            return Err(Error::ProofSizeMismatch);
         }
 
         let mut bytes = Vec::new();
@@ -414,7 +411,7 @@ impl<G: Group + GroupEncoding> SigmaProtocol for OrProtocol<G> {
     fn deserialize_batchable(
         &self,
         data: &[u8],
-    ) -> Result<(Self::Commitment, Self::Response), ProofError> {
+    ) -> Result<(Self::Commitment, Self::Response), Error> {
         let point_size = G::generator().to_bytes().as_ref().len();
         let scalar_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
             .as_ref()
@@ -426,7 +423,7 @@ impl<G: Group + GroupEncoding> SigmaProtocol for OrProtocol<G> {
             .map(|p| (p.scalars_nb() + 1) * scalar_size + p.statements_nb() * point_size)
             .sum();
         if data.len() != expected_d_len {
-            return Err(ProofError::ProofSizeMismatch);
+            return Err(Error::ProofSizeMismatch);
         }
 
         let mut cursor = 0;
@@ -461,11 +458,11 @@ impl<G: Group + GroupEncoding> CompactProtocol for OrProtocol<G> {
         &self,
         _challenge: &Self::Challenge,
         response: &Self::Response,
-    ) -> Result<Self::Commitment, ProofError> {
+    ) -> Result<Self::Commitment, Error> {
         let expected_ch_nb = self.len();
         let expected_r_len: usize = self.0.iter().map(|p| p.scalars_nb()).sum();
         if response.0.len() != expected_ch_nb || response.1.len() != expected_r_len {
-            return Err(ProofError::ProofSizeMismatch);
+            return Err(Error::ProofSizeMismatch);
         }
 
         let mut commitment = Vec::with_capacity(self.0.iter().map(|p| p.statements_nb()).sum());
@@ -485,7 +482,7 @@ impl<G: Group + GroupEncoding> CompactProtocol for OrProtocol<G> {
         commitment: &Self::Commitment,
         challenge: &Self::Challenge,
         response: &Self::Response,
-    ) -> Result<Vec<u8>, ProofError> {
+    ) -> Result<Vec<u8>, Error> {
         let expected_c_len: usize = self.0.iter().map(|p| p.statements_nb()).sum();
         let expected_ch_nb = self.len();
         let expected_r_len: usize = self.0.iter().map(|p| p.scalars_nb()).sum();
@@ -493,7 +490,7 @@ impl<G: Group + GroupEncoding> CompactProtocol for OrProtocol<G> {
             || response.0.len() != expected_ch_nb
             || response.1.len() != expected_r_len
         {
-            return Err(ProofError::ProofSizeMismatch);
+            return Err(Error::ProofSizeMismatch);
         }
 
         let mut bytes = Vec::new();
@@ -507,10 +504,7 @@ impl<G: Group + GroupEncoding> CompactProtocol for OrProtocol<G> {
         Ok(bytes)
     }
 
-    fn deserialize_compact(
-        &self,
-        data: &[u8],
-    ) -> Result<(Self::Challenge, Self::Response), ProofError> {
+    fn deserialize_compact(&self, data: &[u8]) -> Result<(Self::Challenge, Self::Response), Error> {
         let scalar_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
             .as_ref()
             .len();
@@ -521,7 +515,7 @@ impl<G: Group + GroupEncoding> CompactProtocol for OrProtocol<G> {
             .map(|p| (p.scalars_nb() + 1) * scalar_size)
             .sum();
         if data.len() != expected_d_len + scalar_size {
-            return Err(ProofError::ProofSizeMismatch);
+            return Err(Error::ProofSizeMismatch);
         }
 
         let challenge = deserialize_scalar::<G>(&data[..scalar_size])?;
