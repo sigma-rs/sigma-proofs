@@ -24,7 +24,7 @@ fn DL_protocol<G: Group + GroupEncoding>(
     let var_x = preimage.allocate_scalar();
     let [var_G, var_xG] = preimage.allocate_elements();
 
-    preimage.append_equation(var_xG, &[(var_x, var_G)]);
+    preimage.append_equation(var_xG, [(var_x, var_G)]);
     preimage.assign_element(var_G, G);
     preimage.assign_element(var_xG, G * x);
 
@@ -52,7 +52,7 @@ fn pedersen_protocol<G: Group + GroupEncoding>(
     preimage.assign_elements([(points[1], H), (points[0], G), (points[2], C)]);
     preimage.append_equation(
         points[2],
-        &[(scalars[0], points[0]), (scalars[1], points[1])],
+        [(scalars[0], points[0]), (scalars[1], points[1])],
     );
 
     assert!(vec![C] == preimage.morphism.evaluate(&witness).unwrap());

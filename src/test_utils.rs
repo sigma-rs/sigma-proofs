@@ -14,7 +14,7 @@ pub fn discrete_logarithm<G: Group + GroupEncoding>(
     let var_x = morphismp.allocate_scalar();
     let [var_G, var_X] = morphismp.allocate_elements();
 
-    morphismp.append_equation(var_X, &[(var_x, var_G)]);
+    morphismp.append_equation(var_X, [(var_x, var_G)]);
 
     morphismp.assign_element(var_G, G::generator());
 
@@ -40,8 +40,8 @@ pub fn dleq<G: Group + GroupEncoding>(
     let [var_G, var_H, var_X, var_Y] = morphismp.allocate_elements();
 
     morphismp.assign_elements([(var_G, G::generator()), (var_H, H), (var_X, X), (var_Y, Y)]);
-    morphismp.append_equation(var_X, &[(var_x, var_G)]);
-    morphismp.append_equation(var_Y, &[(var_x, var_H)]);
+    morphismp.append_equation(var_X, [(var_x, var_G)]);
+    morphismp.append_equation(var_Y, [(var_x, var_H)]);
 
     assert!(vec![X, Y] == morphismp.morphism.evaluate(&[x]).unwrap());
     (morphismp, vec![x])
@@ -62,7 +62,7 @@ pub fn pedersen_commitment<G: Group + GroupEncoding>(
     let [var_G, var_H, var_C] = cs.allocate_elements();
 
     cs.assign_elements([(var_H, H), (var_G, G::generator()), (var_C, C)]);
-    cs.append_equation(var_C, &[(var_x, var_G), (var_r, var_H)]);
+    cs.append_equation(var_C, [(var_x, var_G), (var_r, var_H)]);
 
     let witness = vec![x, r];
     assert!(vec![C] == cs.morphism.evaluate(&witness).unwrap());
@@ -93,8 +93,8 @@ pub fn pedersen_commitment_dleq<G: Group + GroupEncoding>(
     ]);
     morphismp.assign_elements([(var_X, X), (var_Y, Y)]);
 
-    morphismp.append_equation(var_X, &[(var_x, var_Gs[0]), (var_r, var_Gs[1])]);
-    morphismp.append_equation(var_Y, &[(var_x, var_Gs[2]), (var_r, var_Gs[3])]);
+    morphismp.append_equation(var_X, [(var_x, var_Gs[0]), (var_r, var_Gs[1])]);
+    morphismp.append_equation(var_Y, [(var_x, var_Gs[2]), (var_r, var_Gs[3])]);
 
     assert!(vec![X, Y] == morphismp.morphism.evaluate(&witness).unwrap());
     (morphismp, witness.to_vec())
@@ -133,7 +133,7 @@ pub fn bbs_blind_commitment_computation<G: Group + GroupEncoding>(
 
     morphismp.append_equation(
         var_C,
-        &[
+        [
             (var_secret_prover_blind, var_Q_2),
             (var_msg_1, var_J_1),
             (var_msg_2, var_J_2),

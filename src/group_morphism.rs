@@ -11,6 +11,7 @@
 use std::iter;
 
 use crate::errors::Error;
+use ff::Field;
 use group::{Group, GroupEncoding};
 
 /// A wrapper representing an index for a scalar variable.
@@ -37,6 +38,24 @@ impl PointVar {
     }
 }
 
+/// A term in a linear combination, representing `scalar * elem * weight`.
+struct Term<G: Group> {
+    scalar: ScalarVar,
+    elem: PointVar,
+    /// A public constanat weight applied to the point as part of the morphism.
+    weight: G::Scalar,
+}
+
+impl<G: Group> From<(ScalarVar, PointVar)> for Term<G> {
+    fn from((scalar, elem): (ScalarVar, PointVar)) -> Self {
+        Self {
+            scalar,
+            elem,
+            weight: G::Scalar::ONE,
+        }
+    }
+}
+
 /// Represents a sparse linear combination of scalars and group elements.
 ///
 /// For example, it can represent an equation like:
@@ -45,9 +64,30 @@ impl PointVar {
 /// where `s_i` are scalars (referenced by `scalar_vars`) and `P_i` are group elements (referenced by `element_vars`).
 ///
 /// The indices refer to external lists managed by the containing Morphism.
-pub struct LinearCombination {
-    pub scalar_vars: Vec<ScalarVar>,
-    pub element_vars: Vec<PointVar>,
+pub struct LinearCombination<G: Group>(Vec<Term<G>>);
+
+impl<G: Group, T: Into<Term<G>>> From<T> for LinearCombination<G> {
+    fn from(term: T) -> Self {
+        Self(vec![term.into()])
+    }
+}
+
+impl<G: Group, T: Into<Term<G>>> From<Vec<T>> for LinearCombination<G> {
+    fn from(terms: Vec<T>) -> Self {
+        Self(terms.into_iter().map(|x| x.into()).collect())
+    }
+}
+
+impl<G: Group, T: Into<Term<G>>, const N: usize> From<[T; N]> for LinearCombination<G> {
+    fn from(terms: [T; N]) -> Self {
+        Self(terms.into_iter().map(|x| x.into()).collect())
+    }
+}
+
+impl<G: Group, T: Into<Term<G>>> FromIterator<T> for LinearCombination<G> {
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+        Self(iter.into_iter().map(|x| x.into()).collect())
+    }
 }
 
 /// Instance of a relation (i.e. morphism) containing assignments of [PointVar] to group elements.
@@ -129,7 +169,7 @@ impl<G> Default for Instance<G> {
 #[derive(Default)]
 pub struct Morphism<G: Group> {
     /// The set of linear combination constraints (equations).
-    pub constraints: Vec<LinearCombination>,
+    pub constraints: Vec<LinearCombination<G>>,
     /// The list of group elements referenced in the morphism.
     ///
     /// Uninitialized group elements are presented with `None`.
@@ -179,7 +219,7 @@ impl<G: Group> Morphism<G> {
     ///
     /// # Parameters
     /// - `lc`: The [`LinearCombination`] to add.
-    pub fn append(&mut self, lc: LinearCombination) {
+    pub fn append(&mut self, lc: LinearCombination<G>) {
         self.constraints.push(lc);
     }
 
@@ -195,16 +235,14 @@ impl<G: Group> Morphism<G> {
         self.constraints
             .iter()
             .map(|lc| {
-                let coefficients = lc
-                    .scalar_vars
-                    .iter()
-                    .map(|&i| scalars[i.0])
-                    .collect::<Vec<_>>();
-                let elements = lc
-                    .element_vars
-                    .iter()
-                    .map(|&i| self.instance.get(i))
-                    .collect::<Result<Vec<_>, Error>>()?;
+                let coefficients =
+                    lc.0.iter()
+                        .map(|term| scalars[term.scalar.0] * term.weight)
+                        .collect::<Vec<_>>();
+                let elements =
+                    lc.0.iter()
+                        .map(|term| self.instance.get(term.elem))
+                        .collect::<Result<Vec<_>, Error>>()?;
                 Ok(msm_pr(&coefficients, &elements))
             })
             .collect()
@@ -254,12 +292,8 @@ where
     /// # Parameters
     /// - `lhs`: The image group element variable (left-hand side of the equation).
     /// - `rhs`: A slice of `(ScalarVar, PointVar)` pairs representing the linear combination on the right-hand side.
-    pub fn append_equation(&mut self, lhs: PointVar, rhs: &[(ScalarVar, PointVar)]) {
-        let lc = LinearCombination {
-            scalar_vars: rhs.iter().map(|&(s, _)| s).collect(),
-            element_vars: rhs.iter().map(|&(_, e)| e).collect(),
-        };
-        self.morphism.append(lc);
+    pub fn append_equation(&mut self, lhs: PointVar, rhs: impl Into<LinearCombination<G>>) {
+        self.morphism.append(rhs.into());
         self.image.push(lhs);
     }
 
@@ -365,16 +399,14 @@ where
         }
 
         for (lc, lhs) in iter::zip(self.morphism.constraints.as_slice(), self.image.as_slice()) {
-            let coefficients = lc
-                .scalar_vars
-                .iter()
-                .map(|&i| scalars[i.0])
-                .collect::<Vec<_>>();
-            let elements = lc
-                .element_vars
-                .iter()
-                .map(|&i| self.morphism.instance.get(i))
-                .collect::<Result<Vec<_>, Error>>()?;
+            let coefficients =
+                lc.0.iter()
+                    .map(|term| scalars[term.scalar.0] * term.weight)
+                    .collect::<Vec<_>>();
+            let elements =
+                lc.0.iter()
+                    .map(|term| self.morphism.instance.get(term.elem))
+                    .collect::<Result<Vec<_>, Error>>()?;
             self.morphism
                 .instance
                 .assign_element(*lhs, msm_pr(&coefficients, &elements))
