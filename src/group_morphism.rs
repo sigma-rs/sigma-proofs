@@ -213,6 +213,7 @@ impl<G: Group> Morphism<G> {
             constraints: Vec::new(),
             group_elements: GroupMap::default(),
             num_scalars: 0,
+            num_elements: 0,
         }
     }
 
