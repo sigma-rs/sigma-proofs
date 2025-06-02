@@ -170,13 +170,6 @@ where
         witness: &P::Witness,
         rng: &mut (impl RngCore + CryptoRng),
     ) -> Result<Vec<u8>, Error> {
-        // NOTE: Returning the commitments as part of a serialized proof might be a barrier in that
-        // the commitment is often provided by the verifier, linked to some external message. E.g.
-        // it might be a commitment that to a prior state (e.g. balance of a wallet prior to a
-        // transaction) for which the prover is showing knowledge of an opening, or it might be
-        // calculated as a linear function of other commitments (e.g. subtracting the current
-        // timestamp from an issuance timestamp to compute a commitment to the age of a
-        // credential).
         let (commitment, challenge, response) = self.prove(witness, rng)?;
         Ok(self
             .sigmap

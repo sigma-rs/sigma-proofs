@@ -76,7 +76,7 @@ where
         {
             rhs.push({
                 let image_var = self.0.image[i];
-                *g + self.0.morphism.instance.get(image_var)? * *challenge
+                *g + self.0.morphism.group_elements.get(image_var)? * *challenge
             });
         }
 

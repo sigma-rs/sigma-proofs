@@ -2,7 +2,7 @@
 
 use group::{Group, GroupEncoding};
 
-use crate::group_morphism::{GroupMorphismPreimage, msm_pr};
+use crate::group_morphism::{msm_pr, GroupMorphismPreimage};
 
 /// Morphism for knowledge of a discrete logarithm relative to a fixed basepoint.
 #[allow(non_snake_case)]
@@ -19,7 +19,7 @@ pub fn discrete_logarithm<G: Group + GroupEncoding>(
     morphismp.assign_element(var_G, G::generator());
     morphismp.compute_image(&[x]).unwrap();
 
-    let X = morphismp.morphism.instance.get(var_X).unwrap();
+    let X = morphismp.morphism.group_elements.get(var_X).unwrap();
 
     assert_eq!(X, G::generator() * x);
     (morphismp, vec![x])
@@ -42,8 +42,8 @@ pub fn dleq<G: Group + GroupEncoding>(
     morphismp.assign_elements([(var_G, G::generator()), (var_H, H)]);
     morphismp.compute_image(&[x]).unwrap();
 
-    let X = morphismp.morphism.instance.get(var_X).unwrap();
-    let Y = morphismp.morphism.instance.get(var_Y).unwrap();
+    let X = morphismp.morphism.group_elements.get(var_X).unwrap();
+    let Y = morphismp.morphism.group_elements.get(var_Y).unwrap();
 
     assert_eq!(X, G::generator() * x);
     assert_eq!(Y, H * x);
@@ -67,7 +67,7 @@ pub fn pedersen_commitment<G: Group + GroupEncoding>(
     cs.assign_elements([(var_H, H), (var_G, G::generator())]);
     cs.compute_image(&[x, r]).unwrap();
 
-    let C = cs.morphism.instance.get(var_C).unwrap();
+    let C = cs.morphism.group_elements.get(var_C).unwrap();
 
     let witness = vec![x, r];
     assert_eq!(C, G::generator() * x + H * r);

@@ -1,138 +1,56 @@
-use core::ops::{Add, Mul, Neg, Sub};
+use core::ops::{Add, Mul};
 
-use ff::Field;
-use group::Group;
+use super::{GroupVar, LinearCombination, ScalarVar, Term};
 
-use super::{LinearCombination, PointVar, ScalarVar, Term};
-
-impl<G: Group> Neg for Term<G> {
+impl Add<LinearCombination> for LinearCombination {
     type Output = Self;
 
-    fn neg(self) -> Self {
-        Self {
-            weight: -self.weight,
-            ..self
-        }
-    }
-}
-
-impl<G: Group> Neg for LinearCombination<G> {
-    type Output = LinearCombination<G>;
-
-    fn neg(mut self) -> Self::Output {
-        for term in self.0.iter_mut() {
-            *term = -*term
-        }
-        self
-    }
-}
-
-impl<G: Group> Add<LinearCombination<G>> for LinearCombination<G> {
-    type Output = Self;
-
-    fn add(mut self, mut rhs: LinearCombination<G>) -> Self {
+    fn add(mut self, mut rhs: LinearCombination) -> Self {
         self.0.append(&mut rhs.0);
         self
     }
 }
 
-impl<G: Group> Add<Term<G>> for LinearCombination<G> {
-    type Output = LinearCombination<G>;
+impl Add<Term> for LinearCombination {
+    type Output = LinearCombination;
 
-    fn add(mut self, rhs: Term<G>) -> LinearCombination<G> {
+    fn add(mut self, rhs: Term) -> LinearCombination {
         self.0.push(rhs);
         self
     }
 }
 
-impl<G: Group> Add<LinearCombination<G>> for Term<G> {
-    type Output = LinearCombination<G>;
+impl Add<LinearCombination> for Term {
+    type Output = LinearCombination;
 
-    fn add(self, rhs: LinearCombination<G>) -> LinearCombination<G> {
+    fn add(self, rhs: LinearCombination) -> LinearCombination {
         rhs + self
     }
 }
 
-impl<G: Group> Add<Term<G>> for Term<G> {
-    type Output = LinearCombination<G>;
+impl Add<Term> for Term {
+    type Output = LinearCombination;
 
-    fn add(self, rhs: Term<G>) -> LinearCombination<G> {
-        LinearCombination::<G>::from(self) + rhs
+    fn add(self, rhs: Term) -> LinearCombination {
+        LinearCombination::from(self) + rhs
     }
 }
 
-impl<G: Group> Sub<LinearCombination<G>> for LinearCombination<G> {
-    type Output = Self;
+impl Mul<ScalarVar> for GroupVar {
+    type Output = Term;
 
-    fn sub(self, rhs: LinearCombination<G>) -> Self {
-        self + (-rhs)
-    }
-}
-
-impl<G: Group> Sub<Term<G>> for Term<G> {
-    type Output = LinearCombination<G>;
-
-    fn sub(self, rhs: Term<G>) -> LinearCombination<G> {
-        self + (-rhs)
-    }
-}
-
-impl<G: Group> Sub<Term<G>> for LinearCombination<G> {
-    type Output = LinearCombination<G>;
-
-    fn sub(self, rhs: Term<G>) -> LinearCombination<G> {
-        self + (-rhs)
-    }
-}
-
-impl<G: Group> Sub<LinearCombination<G>> for Term<G> {
-    type Output = LinearCombination<G>;
-
-    fn sub(self, rhs: LinearCombination<G>) -> LinearCombination<G> {
-        self + (-rhs)
-    }
-}
-
-// TODO: Find a way to get right-multiplication by a scalar working.
-impl<G: Group> Mul<G::Scalar> for Term<G> {
-    type Output = Self;
-
-    fn mul(self, rhs: G::Scalar) -> Self {
-        Self {
-            weight: self.weight * rhs,
-            ..self
-        }
-    }
-}
-
-// TODO: Find a way to get right-multiplication by a scalar working.
-impl<G: Group> Mul<G::Scalar> for LinearCombination<G> {
-    type Output = Self;
-
-    fn mul(mut self, rhs: G::Scalar) -> Self {
-        for term in self.0.iter_mut() {
-            *term = *term * rhs;
-        }
-        self
-    }
-}
-
-impl<G: Group> Mul<ScalarVar> for PointVar<G> {
-    type Output = Term<G>;
-
-    fn mul(self, rhs: ScalarVar) -> Term<G> {
+    fn mul(self, rhs: ScalarVar) -> Term {
         Term {
-            scalar: rhs,
             elem: self,
-            weight: G::Scalar::ONE,
+            scalar: rhs,
         }
     }
 }
 
-impl<G: Group> Mul<PointVar<G>> for ScalarVar {
-    type Output = Term<G>;
+impl Mul<GroupVar> for ScalarVar {
+    type Output = Term;
 
-    fn mul(self, rhs: PointVar<G>) -> Term<G> {
+    fn mul(self, rhs: GroupVar) -> Term {
         rhs * self
     }
 }

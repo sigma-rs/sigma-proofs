@@ -9,7 +9,7 @@
 //! - Unimplemented methods.
 //! - Group element or scalar serialization failures.
 
-use crate::group_morphism::PointVar;
+use crate::group_morphism::GroupVar;
 
 /// An error during proving or verification, such as a verification failure.
 #[non_exhaustive]
@@ -26,5 +26,5 @@ pub enum Error {
     GroupSerializationFailure,
     /// Uninitialized group element variable.
     #[error("Uninitialized group element variable {var:?}")]
-    UnassignedPointVar { var: PointVar<()> },
+    UnassignedGroupVar { var: GroupVar },
 }

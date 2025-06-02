@@ -141,7 +141,7 @@ where
         for (i, g) in commitment.iter().enumerate().take(self.statements_nb()) {
             rhs.push({
                 let image_var = self.0.image[i];
-                self.0.morphism.instance.get(image_var)? * challenge + g
+                self.0.morphism.group_elements.get(image_var)? * challenge + g
             });
         }
         match lhs == rhs {
