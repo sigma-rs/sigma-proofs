@@ -42,6 +42,6 @@ subtle = "2.6.1"
 # Makes tests run much faster at the cost of slightly longer builds and worse debug info.
 opt-level = 1
 
-# QUESTION: Would we prefer to have this as a seperate crate in the workspace instead?
 [features]
+# TODO: Remove this feature, and either move tests into `src` or the morphism definitions into a separate crate.
 test-utils = []

@@ -136,7 +136,7 @@ impl<G: Group> GroupMap<G> {
         self.0[var.0].ok_or(Error::UnassignedGroupVar { var })
     }
 
-    /// Iterate over the assigned variables in this mapping.
+    /// Iterate over the assigned variable and group element pairs in this mapping.
     // NOTE: Not implemented as `IntoIterator` for now because doing so requires explicitly
     // defining an iterator type, See https://github.com/rust-lang/rust/issues/63063
     #[allow(clippy::should_implement_trait)]
@@ -151,6 +151,16 @@ impl<G: Group> GroupMap<G> {
 impl<G> Default for GroupMap<G> {
     fn default() -> Self {
         Self(Vec::default())
+    }
+}
+
+impl<G: Group> FromIterator<(GroupVar, G)> for GroupMap<G> {
+    fn from_iter<T: IntoIterator<Item = (GroupVar, G)>>(iter: T) -> Self {
+        iter.into_iter()
+            .fold(Self::default(), |mut instance, (var, val)| {
+                instance.assign_element(var, val);
+                instance
+            })
     }
 }
 
