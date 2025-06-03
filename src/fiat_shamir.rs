@@ -15,6 +15,7 @@
 
 use crate::codec::Codec;
 use crate::errors::Error;
+use crate::group_morphism::HasGroupMorphism;
 use crate::traits::{CompactProtocol, SigmaProtocol};
 
 use group::{Group, GroupEncoding};
@@ -38,6 +39,7 @@ type Transcript<P> = (
 /// - `P`: the Sigma protocol implementation.
 /// - `C`: the codec used for Fiat-Shamir.
 /// - `G`: the group on which the protocol operates.
+#[derive(Debug)]
 pub struct NISigmaProtocol<P, C, G>
 where
     G: Group + GroupEncoding,
@@ -253,5 +255,17 @@ where
         let commitment = self.sigmap.get_commitment(&challenge, &response)?;
         // Verify the proof
         self.verify(&commitment, &challenge, &response)
+    }
+}
+
+impl<P, C, G> NISigmaProtocol<P, C, G>
+where
+    G: Group + GroupEncoding,
+    P: SigmaProtocol<Commitment = Vec<G>, Challenge = G::Scalar> + HasGroupMorphism<G>,
+    C: Codec<Challenge = G::Scalar> + Clone,
+{
+    /// Absorbs the morphism structure into the transcript codec.
+    pub fn absorb_morphism(&self, codec: &mut C) -> Result<(), Error> {
+        self.sigmap.absorb_morphism_structure(codec)
     }
 }

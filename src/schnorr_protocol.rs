@@ -5,7 +5,7 @@
 //! through a group morphism abstraction (see Maurer09).
 
 use crate::errors::Error;
-use crate::group_morphism::GroupMorphismPreimage;
+use crate::group_morphism::{GroupMorphismPreimage, HasGroupMorphism};
 use crate::{
     group_serialization::*,
     traits::{CompactProtocol, SigmaProtocol, SigmaProtocolSimulator},
@@ -22,7 +22,7 @@ use rand::{CryptoRng, RngCore};
 ///
 /// # Type Parameters
 /// - `G`: A cryptographic group implementing [`Group`] and [`GroupEncoding`].
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct SchnorrProtocol<G: Group + GroupEncoding>(GroupMorphismPreimage<G>);
 
 impl<G: Group + GroupEncoding> SchnorrProtocol<G> {
@@ -394,5 +394,11 @@ where
         let challenge = G::Scalar::random(&mut *rng);
         let (commitment, response) = self.simulate_proof(&challenge, rng);
         (commitment, challenge, response)
+    }
+}
+
+impl<G: Group + GroupEncoding> HasGroupMorphism<G> for SchnorrProtocol<G> {
+    fn group_morphism(&self) -> &GroupMorphismPreimage<G> {
+        &self.0
     }
 }

@@ -10,6 +10,7 @@
 
 use std::iter;
 
+use crate::codec::Codec;
 use crate::errors::Error;
 use group::{Group, GroupEncoding};
 
@@ -47,6 +48,15 @@ pub struct Term {
     elem: GroupVar,
 }
 
+impl Term {
+    pub fn scalar(&self) -> ScalarVar {
+        self.scalar
+    }
+    pub fn elem(&self) -> GroupVar {
+        self.elem
+    }
+}
+
 impl From<(ScalarVar, GroupVar)> for Term {
     fn from((scalar, elem): (ScalarVar, GroupVar)) -> Self {
         Self { scalar, elem }
@@ -61,7 +71,14 @@ impl From<(ScalarVar, GroupVar)> for Term {
 /// where `s_i` are scalars (referenced by `scalar_vars`) and `P_i` are group elements (referenced by `element_vars`).
 ///
 /// The indices refer to external lists managed by the containing Morphism.
+#[derive(Debug)]
 pub struct LinearCombination(Vec<Term>);
+
+impl LinearCombination {
+    pub fn terms(&self) -> &[Term] {
+        &self.0
+    }
+}
 
 impl<T: Into<Term>> From<T> for LinearCombination {
     fn from(term: T) -> Self {
@@ -168,7 +185,7 @@ impl<G: Group> FromIterator<(GroupVar, G)> for GroupMap<G> {
 ///
 /// It supports dynamic allocation of scalars and elements,
 /// and evaluates by performing multi-scalar multiplications.
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Morphism<G: Group> {
     /// The set of linear combination constraints (equations).
     pub constraints: Vec<LinearCombination>,
@@ -259,7 +276,7 @@ impl<G: Group> Morphism<G> {
 /// Internally, the constraint system is defined through:
 /// - A list of group elements and linear equations (held in the [`Morphism`] field),
 /// - A list of [`GroupVar`] indices (`image`) that specify the expected output for each constraint.
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct GroupMorphismPreimage<G>
 where
     G: Group + GroupEncoding,
@@ -441,5 +458,25 @@ where
             .iter()
             .map(|&var| self.morphism.group_elements.get(var))
             .collect()
+    }
+}
+
+/// Trait for accessing the underlying group morphism in a Sigma protocol.
+pub trait HasGroupMorphism<G: Group + GroupEncoding> {
+    fn group_morphism(&self) -> &GroupMorphismPreimage<G>;
+
+    /// Absorbs the morphism structure into a codec.
+    /// Only compatible with 64-bit platforms
+    fn absorb_morphism_structure<C: Codec>(&self, codec: &mut C) -> Result<(), Error> {
+        let morphism = self.group_morphism();
+        for lc in &morphism.morphism.constraints {
+            for term in lc.terms() {
+                let mut buf = [0u8; 16];
+                buf[..8].copy_from_slice(&(term.scalar().index() as u64).to_le_bytes());
+                buf[8..].copy_from_slice(&(term.elem().index() as u64).to_le_bytes());
+                codec.prover_message(&buf);
+            }
+        }
+        Ok(())
     }
 }
