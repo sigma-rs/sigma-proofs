@@ -11,15 +11,16 @@
 //! - Allocates scalar and point variables for constructing group equations.
 //! - Appends equations representing statements to be proven.
 //! - Supports element assignment to statement variables.
+//! - Composes multiple protocols via AND and OR connections
 //! - Offers one-shot `prove` and `verify` methods.
 
-use crate::{codec::ShakeCodec, fiat_shamir::NISigmaProtocol, schnorr_protocol::SchnorrProtocol};
+use crate::{codec::ShakeCodec, fiat_shamir::NISigmaProtocol, protocol::Protocol};
 
-/// An alias for a [`SchnorrProtocol`] over a [`GroupMorphismPreimage`] and applies
+/// An alias for a [`Protocol`] on [`GroupMorphismPreimage`] and applies
 /// the Fiat-Shamir transform via [`NISigmaProtocol`].
 ///
 /// # Type Parameters
 /// - `G`: A group that implements both [`Group`] and [`GroupEncoding`].
 ///
 /// [`GroupMorphismPreimage`]: crate::GroupMorphismPreimage
-pub type NISchnorr<G> = NISigmaProtocol<SchnorrProtocol<G>, ShakeCodec<G>>;
+pub type NIProtocol<G> = NISigmaProtocol<Protocol<G>, ShakeCodec<G>>;

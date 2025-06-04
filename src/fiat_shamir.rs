@@ -18,16 +18,25 @@ use crate::traits::{CompactProtocol, SigmaProtocol};
 
 use rand::{CryptoRng, RngCore};
 
+/// A trait that allows sigma protocols to have a Fiat-Shamir transform to have a
+/// deterministic challenge generation function.
+///
+/// Challenge generation occurs in two stages:
+/// - `push_commitment`: absorbs commitments to feed the codec
+/// - `get_challenge`: extracts the challenge from the codec
+///
+/// # Type Parameters
+/// - `C`: the codec used for the underlying determenitis function.
 pub trait FiatShamir<C: Codec>: SigmaProtocol {
     fn push_commitment(&self, codec: &mut C, commitment: &Self::Commitment);
 
     fn get_challenge(&self, codec: &mut C) -> Result<Self::Challenge, Error>;
 }
 
-/// Trait for accessing the underlying group morphism in a Sigma protocol.
+/// Structures implementing this trait must implicitly have one or more underlying [`GroupMorphism`] elements.
+///
+/// This trait allows the data of the morphisms underlying the structure to be absorbed into a codec.
 pub trait HasGroupMorphism {
-    /// Absorbs the morphism structure into a codec.
-    /// Only compatible with 64-bit platforms
     fn absorb_morphism_structure<C: Codec>(&self, codec: &mut C) -> Result<(), Error>;
 }
 
@@ -60,7 +69,6 @@ where
     pub sigmap: P,
 }
 
-// TODO: Write a serialization of the morphism to the transcript.
 impl<P, C> NISigmaProtocol<P, C>
 where
     P: SigmaProtocol<Challenge: PartialEq> + FiatShamir<C>,

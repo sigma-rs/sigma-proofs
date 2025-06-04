@@ -417,6 +417,11 @@ where
     C: Codec<Challenge = <G as Group>::Scalar>,
     G: Group + GroupEncoding,
 {
+    /// Absorbs commitments into the codec for future use of the codec
+    ///
+    /// # Parameters
+    /// - `codec`: the Codec that absorbs commitments
+    /// - `commitment`: a commitment of SchnorrProtocol
     fn push_commitment(&self, codec: &mut C, commitment: &Self::Commitment) {
         let mut data = Vec::new();
         for commit in commitment {
@@ -425,6 +430,13 @@ where
         codec.prover_message(&data);
     }
 
+    /// Generates a challenge from the codec that absorbed the commitments
+    ///
+    /// # Parameters
+    /// - `codec`: the Codec from which the challenge is generated
+    ///
+    /// # Returns
+    /// - A `challenge`` that can be used during a non-interactive protocol
     fn get_challenge(&self, codec: &mut C) -> Result<Self::Challenge, Error> {
         Ok(codec.verifier_challenge())
     }
