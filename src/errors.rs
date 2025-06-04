@@ -27,6 +27,6 @@ pub enum Error {
     /// Uninitialized group element variable.
     #[error("Uninitialized group element variable {var:?}")]
     UnassignedGroupVar { var: GroupVar },
-    #[error("Morphism absorbtion failed")]
-    MorphismAbsorbtionFailure,
+    #[error("Morphism absorption failed")]
+    MorphismAbsorptionFailure,
 }

@@ -102,7 +102,7 @@ fn composition_proof_correct() {
 
 #[allow(non_snake_case)]
 #[test]
-fn composition_proof_correct_with_morphism_absorbtion() {
+fn composition_proof_correct_with_morphism_absorption() {
     // Composition and verification of proof for the following protocol :
     //
     // protocol = And(
@@ -174,7 +174,7 @@ fn composition_proof_correct_with_morphism_absorbtion() {
     let mut nizk =
         NISigmaProtocol::<Protocol<RistrettoPoint>, ShakeCodec<G>>::new(domain_sep, protocol);
 
-    // Morphism absorbtion
+    // Morphism absorption
     nizk.sigmap
         .absorb_morphism_structure(&mut nizk.hash_state)
         .unwrap();

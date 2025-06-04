@@ -630,7 +630,7 @@ impl<G: Group + GroupEncoding> HasGroupMorphism for Protocol<G> {
     fn group_morphism(&self) -> Result<&GroupMorphismPreimage<G>, Error> {
         match self {
             Protocol::Simple(p) => p.group_morphism(),
-            Protocol::And(_) | Protocol::Or(_) => Err(Error::MorphismAbsorbtionFailure),
+            Protocol::And(_) | Protocol::Or(_) => Err(Error::MorphismAbsorptionFailure),
         }
     }
 
