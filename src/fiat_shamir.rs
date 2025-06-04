@@ -19,16 +19,9 @@ use crate::traits::{CompactProtocol, SigmaProtocol};
 use rand::{CryptoRng, RngCore};
 
 pub trait FiatShamir<C: Codec>: SigmaProtocol {
-    fn push_commitment(
-        &self,
-        codec: &mut C,
-        commitment: &Self::Commitment
-    ) -> Result<(), ()>;
+    fn push_commitment(&self, codec: &mut C, commitment: &Self::Commitment) -> Result<(), ()>;
 
-    fn get_challenge(
-        &self,
-        codec: &mut C
-    ) -> Result<Self::Challenge, Error>;
+    fn get_challenge(&self, codec: &mut C) -> Result<Self::Challenge, Error>;
 }
 
 type Transcript<P> = (
@@ -107,7 +100,7 @@ where
 
         let (commitment, prover_state) = self.sigmap.prover_commit(witness, rng)?;
         // Fiat Shamir challenge
-        self.sigmap.push_commitment(&mut codec, &commitment);
+        let _push_result = self.sigmap.push_commitment(&mut codec, &commitment);
         let challenge = self.sigmap.get_challenge(&mut codec)?;
         // Prover's response
         let response = self.sigmap.prover_response(prover_state, &challenge)?;
@@ -140,7 +133,7 @@ where
         let mut codec = self.hash_state.clone();
 
         // Recompute the challenge
-        self.sigmap.push_commitment(&mut codec, &commitment);
+        let _push_result = self.sigmap.push_commitment(&mut codec, &commitment);
         let expected_challenge = self.sigmap.get_challenge(&mut codec)?;
         // Verification of the proof
         match *challenge == expected_challenge {
@@ -190,7 +183,7 @@ where
         let mut codec = self.hash_state.clone();
 
         // Recompute the challenge
-        self.sigmap.push_commitment(&mut codec, &commitment);
+        let _push_result = self.sigmap.push_commitment(&mut codec, &commitment);
         let challenge = self.sigmap.get_challenge(&mut codec)?;
         // Verification of the proof
         self.sigmap.verifier(&commitment, &challenge, &response)

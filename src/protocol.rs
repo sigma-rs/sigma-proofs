@@ -3,7 +3,11 @@ use group::{Group, GroupEncoding};
 
 use crate::codec::Codec;
 use crate::{
-    errors::Error, fiat_shamir::FiatShamir, group_serialization::{deserialize_scalar, serialize_scalar}, schnorr_protocol::SchnorrProtocol, traits::{SigmaProtocol, SigmaProtocolSimulator}
+    errors::Error,
+    fiat_shamir::FiatShamir,
+    group_serialization::{deserialize_scalar, serialize_scalar},
+    schnorr_protocol::SchnorrProtocol,
+    traits::{SigmaProtocol, SigmaProtocolSimulator},
 };
 
 #[derive(Clone)]
@@ -424,20 +428,14 @@ impl<G: Group + GroupEncoding> SigmaProtocolSimulator for Protocol<G> {
     }
 }
 
-impl<G, C> FiatShamir<C> for Protocol<G> 
-where 
+impl<G, C> FiatShamir<C> for Protocol<G>
+where
     G: Group + GroupEncoding,
-    C: Codec<Challenge = ProtocolChallenge<G>>
+    C: Codec<Challenge = ProtocolChallenge<G>>,
 {
-    fn push_commitment(
-        &self,
-        codec: &mut C,
-        commitment: &Self::Commitment
-    ) -> Result<(), ()> {
+    fn push_commitment(&self, codec: &mut C, commitment: &Self::Commitment) -> Result<(), ()> {
         match (self, commitment) {
-            (Protocol::Simple(p), ProtocolCommitment::Simple(c)) => {
-                p.push_commitment(codec, c)
-            },
+            (Protocol::Simple(p), ProtocolCommitment::Simple(c)) => p.push_commitment(codec, c),
             (Protocol::And(ps), ProtocolCommitment::And(cs)) => {
                 for (i, p) in ps.iter().enumerate() {
                     p.push_commitment(codec, &cs[i])?;
@@ -450,14 +448,11 @@ where
                 }
                 Ok(())
             }
-            _ => panic!()
+            _ => panic!(),
         }
     }
-    
-    fn get_challenge(
-        &self,
-        codec: &mut C
-    ) -> Result<Self::Challenge, Error> {
+
+    fn get_challenge(&self, codec: &mut C) -> Result<Self::Challenge, Error> {
         Ok(codec.verifier_challenge())
     }
 }

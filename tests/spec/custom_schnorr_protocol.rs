@@ -154,13 +154,9 @@ where
 impl<G, C> FiatShamir<C> for SchnorrProtocolCustom<G>
 where
     C: Codec<Challenge = <G as Group>::Scalar>,
-    G: SRandom + GroupEncoding ,
+    G: SRandom + GroupEncoding,
 {
-    fn push_commitment(
-        &self,
-        codec: &mut C,
-        commitment: &Self::Commitment
-    ) -> Result<(), ()> {
+    fn push_commitment(&self, codec: &mut C, commitment: &Self::Commitment) -> Result<(), ()> {
         let mut data = Vec::new();
         for commit in commitment {
             data.extend_from_slice(commit.to_bytes().as_ref());
@@ -169,10 +165,7 @@ where
         Ok(())
     }
 
-    fn get_challenge(
-        &self,
-        codec: &mut C
-    ) -> Result<Self::Challenge, Error> {
+    fn get_challenge(&self, codec: &mut C) -> Result<Self::Challenge, Error> {
         Ok(codec.verifier_challenge())
     }
 }
