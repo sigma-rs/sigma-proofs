@@ -464,12 +464,12 @@ where
 /// Trait for accessing the underlying group morphism in a Sigma protocol.
 pub trait HasGroupMorphism {
     type Group: Group + GroupEncoding;
-    fn group_morphism(&self) -> &GroupMorphismPreimage<Self::Group>;
+    fn group_morphism(&self) -> Result<&GroupMorphismPreimage<Self::Group>, Error>;
 
     /// Absorbs the morphism structure into a codec.
     /// Only compatible with 64-bit platforms
     fn absorb_morphism_structure<C: Codec>(&self, codec: &mut C) -> Result<(), Error> {
-        let morphism = self.group_morphism();
+        let morphism = self.group_morphism()?;
         for lc in &morphism.morphism.constraints {
             for term in lc.terms() {
                 let mut buf = [0u8; 16];

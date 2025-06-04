@@ -432,7 +432,7 @@ where
 
 impl<G: Group + GroupEncoding> HasGroupMorphism for SchnorrProtocol<G> {
     type Group = G;
-    fn group_morphism(&self) -> &GroupMorphismPreimage<G> {
-        &self.0
+    fn group_morphism(&self) -> Result<&GroupMorphismPreimage<G>, Error> {
+        Ok(&self.0)
     }
 }

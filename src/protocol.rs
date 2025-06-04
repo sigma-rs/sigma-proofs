@@ -2,6 +2,7 @@ use ff::{Field, PrimeField};
 use group::{Group, GroupEncoding};
 
 use crate::codec::Codec;
+use crate::group_morphism::{GroupMorphismPreimage, HasGroupMorphism};
 use crate::traits::CompactProtocol;
 use crate::{
     errors::Error,
@@ -620,5 +621,29 @@ where
 
     fn get_challenge(&self, codec: &mut C) -> Result<Self::Challenge, Error> {
         Ok(codec.verifier_challenge())
+    }
+}
+
+impl<G: Group + GroupEncoding> HasGroupMorphism for Protocol<G> {
+    type Group = G;
+
+    fn group_morphism(&self) -> Result<&GroupMorphismPreimage<G>, Error> {
+        match self {
+            Protocol::Simple(p) => p.group_morphism(),
+            Protocol::And(_) | Protocol::Or(_) => Err(Error::MorphismAbsorbtionFailure),
+        }
+    }
+
+    fn absorb_morphism_structure<C: Codec>(&self, codec: &mut C) -> Result<(), Error> {
+        match self {
+            Protocol::Simple(p) => p.absorb_morphism_structure(codec),
+            Protocol::And(protocols) | Protocol::Or(protocols) => {
+                for (i, p) in protocols.iter().enumerate() {
+                    codec.prover_message(&[i as u8]);
+                    p.absorb_morphism_structure(codec)?;
+                }
+                Ok(())
+            }
+        }
     }
 }
