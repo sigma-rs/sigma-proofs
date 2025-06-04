@@ -111,10 +111,13 @@ fn noninteractive_discrete_logarithm_with_morphism_transcript() {
 
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-schnorr";
-    let mut nizk = NISigmaProtocol::<SchnorrProtocol<G>, ShakeCodec<G>, G>::new(domain_sep, protocol);
+    let mut nizk =
+        NISigmaProtocol::<SchnorrProtocol<G>, ShakeCodec<G>, G>::new(domain_sep, protocol);
 
     // Morphism absorption
-    nizk.sigmap.absorb_morphism_structure(&mut nizk.hash_state).unwrap();
+    nizk.sigmap
+        .absorb_morphism_structure(&mut nizk.hash_state)
+        .unwrap();
 
     // Generate and verify proofs
     let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
@@ -132,7 +135,6 @@ fn noninteractive_discrete_logarithm_with_morphism_transcript() {
         "Fiat-Shamir Schnorr proof with morphism absorption failed (compact)"
     );
 }
-
 
 #[test]
 fn noninteractive_dleq() {
