@@ -1,3 +1,13 @@
+//! Implementation of a structure [`Protocol`] aimed at generalizing the SchnorrProtocol 
+//! using the compositions of the latter via AND and OR links
+//!
+//! This structure allows, for example, the construction of protocols of the form:
+//! And(
+//!    Or( dleq, pedersen_commitment ),
+//!    Simple( discrete_logarithm ),
+//!    And( pedersen_commitment_dleq, bbs_blind_commitment_computation )
+//! )
+
 use ff::{Field, PrimeField};
 use group::{Group, GroupEncoding};
 
@@ -6,6 +16,7 @@ use crate::traits::CompactProtocol;
 use crate::{
     errors::Error,
     fiat_shamir::{FiatShamir, HasGroupMorphism},
+    group_morphism::GroupMorphismPreimage,
     group_serialization::{deserialize_scalar, serialize_scalar},
     schnorr_protocol::SchnorrProtocol,
     traits::{SigmaProtocol, SigmaProtocolSimulator},
@@ -18,7 +29,23 @@ pub enum Protocol<G: Group + GroupEncoding> {
     Or(Vec<Protocol<G>>),
 }
 
-/// Types associated
+impl<G> From<SchnorrProtocol<G>> for Protocol<G>
+where
+    G: Group + GroupEncoding,
+{
+    fn from(value: SchnorrProtocol<G>) -> Self {
+        Protocol::Simple(value)
+    }
+}
+
+impl<G> From<GroupMorphismPreimage<G>> for Protocol<G>
+where
+    G: Group + GroupEncoding,
+{
+    fn from(value: GroupMorphismPreimage<G>) -> Self {
+        Self::from(SchnorrProtocol::from(value))
+    }
+}
 
 #[derive(Clone)]
 pub enum ProtocolCommitment<G: Group + GroupEncoding> {

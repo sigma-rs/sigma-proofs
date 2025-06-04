@@ -68,7 +68,7 @@ fn composition_proof_correct() {
     let or_witness1 =
         sigma_rs::protocol::ProtocolWitness::Or(0, vec![ProtocolWitness::Simple(witness1)]);
 
-    let simple_protocol1 = Protocol::Simple(SchnorrProtocol::from(morph3));
+    let simple_protocol1 = Protocol::from(morph3);
     let simple_witness1 = ProtocolWitness::Simple(witness3);
 
     let and_protocol1 = Protocol::And(vec![
