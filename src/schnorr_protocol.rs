@@ -4,7 +4,9 @@
 //! a Sigma protocol proving different types of discrete logarithm relations (eg. Schnorr, Pedersen's commitments)
 //! through a group morphism abstraction (see Maurer09).
 
+use crate::codec::Codec;
 use crate::errors::Error;
+use crate::fiat_shamir::FiatShamir;
 use crate::group_morphism::GroupMorphismPreimage;
 use crate::{
     group_serialization::*,
@@ -22,7 +24,7 @@ use rand::{CryptoRng, RngCore};
 ///
 /// # Type Parameters
 /// - `G`: A cryptographic group implementing [`Group`] and [`GroupEncoding`].
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct SchnorrProtocol<G: Group + GroupEncoding>(GroupMorphismPreimage<G>);
 
 impl<G: Group + GroupEncoding> SchnorrProtocol<G> {
@@ -215,7 +217,7 @@ where
             .len();
 
         let expected_len = response_nb * response_size + commit_nb * commit_size;
-        if data.len() != expected_len {
+        if data.len() < expected_len {
             return Err(Error::ProofSizeMismatch);
         }
 
@@ -278,6 +280,42 @@ where
         Ok(commitment)
     }
 
+    fn serialize_response(&self, response: &Self::Response) -> Result<Vec<u8>, Error> {
+        let mut bytes = Vec::new();
+        let response_nb = self.scalars_nb();
+        if response.len() != response_nb {
+            return Err(Error::ProofSizeMismatch);
+        }
+
+        // Serialize responses
+        for response in response.iter().take(response_nb) {
+            bytes.extend_from_slice(&serialize_scalar::<G>(response));
+        }
+        Ok(bytes)
+    }
+
+    fn deserialize_response(&self, data: &[u8]) -> Result<(Self::Response, usize), Error> {
+        let response_nb = self.scalars_nb();
+        let response_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
+            .as_ref()
+            .len();
+        let expected_size = response_nb * response_size;
+        if data.len() < expected_size {
+            return Err(Error::ProofSizeMismatch);
+        }
+
+        let mut responses: Self::Response = Vec::new();
+        for i in 0..response_nb {
+            let start = i * response_size;
+            let end = start + response_size;
+
+            let slice = &data[start..end];
+            let scalar = deserialize_scalar::<G>(slice)?;
+            responses.push(scalar);
+        }
+        Ok((responses, expected_size))
+    }
+
     /// Serializes a compact transcript: challenge followed by responses.
     /// # Parameters
     /// - `_commitment`: Omitted in compact format (reconstructed during verification).
@@ -296,18 +334,12 @@ where
         response: &Self::Response,
     ) -> Result<Vec<u8>, Error> {
         let mut bytes = Vec::new();
-        let response_nb = self.scalars_nb();
-        if response.len() != response_nb {
-            return Err(Error::ProofSizeMismatch);
-        }
 
         // Serialize challenge
         bytes.extend_from_slice(&serialize_scalar::<G>(challenge));
 
         // Serialize responses
-        for response in response.iter().take(response_nb) {
-            bytes.extend_from_slice(&serialize_scalar::<G>(response));
-        }
+        bytes.extend_from_slice(&self.serialize_response(response)?);
         Ok(bytes)
     }
 
@@ -323,30 +355,13 @@ where
     /// - `ProofError::ProofSizeMismatch` if the input data length does not match the expected size.
     /// - `ProofError::GroupSerializationFailure` if scalar deserialization fails.
     fn deserialize_compact(&self, data: &[u8]) -> Result<(Self::Challenge, Self::Response), Error> {
-        let response_nb = self.scalars_nb();
-        let response_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
+        let scalar_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
             .as_ref()
             .len();
 
-        let expected_len = (response_nb + 1) * response_size;
-
-        if data.len() != expected_len {
-            return Err(Error::ProofSizeMismatch);
-        }
-
-        let mut responses: Self::Response = Vec::new();
-
-        let slice = &data[0..response_size];
+        let slice = &data[0..scalar_size];
         let challenge = deserialize_scalar::<G>(slice)?;
-
-        for i in 0..response_nb {
-            let start = (i + 1) * response_size;
-            let end = start + response_size;
-
-            let slice = &data[start..end];
-            let scalar = deserialize_scalar::<G>(slice)?;
-            responses.push(scalar);
-        }
+        let (responses, _) = self.deserialize_response(&data[scalar_size..])?;
 
         Ok((challenge, responses))
     }
@@ -394,5 +409,23 @@ where
         let challenge = G::Scalar::random(&mut *rng);
         let (commitment, response) = self.simulate_proof(&challenge, rng);
         (commitment, challenge, response)
+    }
+}
+
+impl<G, C> FiatShamir<C> for SchnorrProtocol<G>
+where
+    C: Codec<Challenge = <G as Group>::Scalar>,
+    G: Group + GroupEncoding,
+{
+    fn push_commitment(&self, codec: &mut C, commitment: &Self::Commitment) {
+        let mut data = Vec::new();
+        for commit in commitment {
+            data.extend_from_slice(commit.to_bytes().as_ref());
+        }
+        codec.prover_message(&data);
+    }
+
+    fn get_challenge(&self, codec: &mut C) -> Result<Self::Challenge, Error> {
+        Ok(codec.verifier_challenge())
     }
 }

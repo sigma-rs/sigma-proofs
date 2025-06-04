@@ -11,14 +11,18 @@
 //! This struct is generic over:
 //! - `P`: the underlying Sigma protocol ([`SigmaProtocol`] trait).
 //! - `C`: the codec ([`Codec`] trait).
-//! - `G`: the group used for commitments and operations ([`Group`] trait).
 
 use crate::codec::Codec;
 use crate::errors::Error;
 use crate::traits::{CompactProtocol, SigmaProtocol};
 
-use group::{Group, GroupEncoding};
 use rand::{CryptoRng, RngCore};
+
+pub trait FiatShamir<C: Codec>: SigmaProtocol {
+    fn push_commitment(&self, codec: &mut C, commitment: &Self::Commitment);
+
+    fn get_challenge(&self, codec: &mut C) -> Result<Self::Challenge, Error>;
+}
 
 type Transcript<P> = (
     <P as SigmaProtocol>::Commitment,
@@ -37,12 +41,10 @@ type Transcript<P> = (
 /// # Type Parameters
 /// - `P`: the Sigma protocol implementation.
 /// - `C`: the codec used for Fiat-Shamir.
-/// - `G`: the group on which the protocol operates.
-pub struct NISigmaProtocol<P, C, G>
+pub struct NISigmaProtocol<P, C>
 where
-    G: Group + GroupEncoding,
-    P: SigmaProtocol<Commitment = Vec<G>, Challenge = <G as Group>::Scalar>,
-    C: Codec<Challenge = <G as Group>::Scalar>,
+    P: SigmaProtocol<Challenge: PartialEq> + FiatShamir<C>,
+    C: Codec<Challenge = P::Challenge>,
 {
     /// Current codec state.
     pub hash_state: C,
@@ -51,11 +53,10 @@ where
 }
 
 // TODO: Write a serialization of the morphism to the transcript.
-impl<P, C, G> NISigmaProtocol<P, C, G>
+impl<P, C> NISigmaProtocol<P, C>
 where
-    G: Group + GroupEncoding,
-    P: SigmaProtocol<Commitment = Vec<G>, Challenge = <G as Group>::Scalar>,
-    C: Codec<Challenge = <G as Group>::Scalar> + Clone,
+    P: SigmaProtocol<Challenge: PartialEq> + FiatShamir<C>,
+    C: Codec<Challenge = P::Challenge> + Clone,
 {
     /// Constructs a new [`NISigmaProtocol`] instance.
     ///
@@ -98,13 +99,9 @@ where
         let mut codec = self.hash_state.clone();
 
         let (commitment, prover_state) = self.sigmap.prover_commit(witness, rng)?;
-        // Commitment data for challenge generation
-        let mut data = Vec::new();
-        for commit in &commitment {
-            data.extend_from_slice(commit.to_bytes().as_ref());
-        }
         // Fiat Shamir challenge
-        let challenge = codec.prover_message(&data).verifier_challenge();
+        self.sigmap.push_commitment(&mut codec, &commitment);
+        let challenge = self.sigmap.get_challenge(&mut codec)?;
         // Prover's response
         let response = self.sigmap.prover_response(prover_state, &challenge)?;
         // Local verification of the proof
@@ -135,13 +132,9 @@ where
     ) -> Result<(), Error> {
         let mut codec = self.hash_state.clone();
 
-        // Commitment data for expected challenge generation
-        let mut data = Vec::new();
-        for commit in commitment {
-            data.extend_from_slice(commit.to_bytes().as_ref());
-        }
         // Recompute the challenge
-        let expected_challenge = codec.prover_message(&data).verifier_challenge();
+        self.sigmap.push_commitment(&mut codec, commitment);
+        let expected_challenge = self.sigmap.get_challenge(&mut codec)?;
         // Verification of the proof
         match *challenge == expected_challenge {
             true => self.sigmap.verifier(commitment, challenge, response),
@@ -189,23 +182,18 @@ where
 
         let mut codec = self.hash_state.clone();
 
-        // Commitment data for expected challenge generation
-        let mut data = Vec::new();
-        for commit in &commitment {
-            data.extend_from_slice(commit.to_bytes().as_ref());
-        }
         // Recompute the challenge
-        let challenge = codec.prover_message(&data).verifier_challenge();
+        self.sigmap.push_commitment(&mut codec, &commitment);
+        let challenge = self.sigmap.get_challenge(&mut codec)?;
         // Verification of the proof
         self.sigmap.verifier(&commitment, &challenge, &response)
     }
 }
 
-impl<P, C, G> NISigmaProtocol<P, C, G>
+impl<P, C> NISigmaProtocol<P, C>
 where
-    G: Group + GroupEncoding,
-    P: SigmaProtocol<Commitment = Vec<G>, Challenge = <G as Group>::Scalar> + CompactProtocol,
-    C: Codec<Challenge = <G as Group>::Scalar> + Clone,
+    P: SigmaProtocol<Challenge: PartialEq> + CompactProtocol + FiatShamir<C>,
+    C: Codec<Challenge = P::Challenge> + Clone,
 {
     /// Generates a compact serialized proof.
     ///

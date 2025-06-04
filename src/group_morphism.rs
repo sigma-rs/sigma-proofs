@@ -61,6 +61,7 @@ impl From<(ScalarVar, GroupVar)> for Term {
 /// where `s_i` are scalars (referenced by `scalar_vars`) and `P_i` are group elements (referenced by `element_vars`).
 ///
 /// The indices refer to external lists managed by the containing Morphism.
+#[derive(Clone)]
 pub struct LinearCombination(Vec<Term>);
 
 impl<T: Into<Term>> From<T> for LinearCombination {
@@ -168,7 +169,7 @@ impl<G: Group> FromIterator<(GroupVar, G)> for GroupMap<G> {
 ///
 /// It supports dynamic allocation of scalars and elements,
 /// and evaluates by performing multi-scalar multiplications.
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct Morphism<G: Group> {
     /// The set of linear combination constraints (equations).
     pub constraints: Vec<LinearCombination>,
@@ -259,7 +260,7 @@ impl<G: Group> Morphism<G> {
 /// Internally, the constraint system is defined through:
 /// - A list of group elements and linear equations (held in the [`Morphism`] field),
 /// - A list of [`GroupVar`] indices (`image`) that specify the expected output for each constraint.
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct GroupMorphismPreimage<G>
 where
     G: Group + GroupEncoding,
