@@ -404,15 +404,23 @@ where
     C: Codec<Challenge = <G as Group>::Scalar>,
     G: Group + GroupEncoding,
 {
-    fn get_challenge(
+    fn push_commitment(
         &self,
         codec: &mut C,
-        commitment: &Self::Commitment,
-    ) -> Result<Self::Challenge, Error> {
+        commitment: &Self::Commitment
+    ) -> Result<(), ()> {
         let mut data = Vec::new();
         for commit in commitment {
             data.extend_from_slice(commit.to_bytes().as_ref());
         }
-        Ok(codec.prover_message(&data).verifier_challenge())
+        codec.prover_message(&data);
+        Ok(())
+    }
+
+    fn get_challenge(
+        &self,
+        codec: &mut C
+    ) -> Result<Self::Challenge, Error> {
+        Ok(codec.verifier_challenge())
     }
 }

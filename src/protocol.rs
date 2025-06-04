@@ -1,15 +1,13 @@
 use ff::{Field, PrimeField};
 use group::{Group, GroupEncoding};
 
+use crate::codec::Codec;
 use crate::{
-    errors::Error,
-    group_serialization::{deserialize_scalar, serialize_scalar},
-    schnorr_protocol::SchnorrProtocol,
-    traits::{SigmaProtocol, SigmaProtocolSimulator},
+    errors::Error, fiat_shamir::FiatShamir, group_serialization::{deserialize_scalar, serialize_scalar}, schnorr_protocol::SchnorrProtocol, traits::{SigmaProtocol, SigmaProtocolSimulator}
 };
 
 #[derive(Clone)]
-enum Protocol<G: Group + GroupEncoding> {
+pub enum Protocol<G: Group + GroupEncoding> {
     Simple(SchnorrProtocol<G>),
     And(Vec<Protocol<G>>),
     Or(Vec<Protocol<G>>),
@@ -18,14 +16,14 @@ enum Protocol<G: Group + GroupEncoding> {
 /// Types associated
 
 #[derive(Clone)]
-enum ProtocolCommitment<G: Group + GroupEncoding> {
+pub enum ProtocolCommitment<G: Group + GroupEncoding> {
     Simple(<SchnorrProtocol<G> as SigmaProtocol>::Commitment),
     And(Vec<ProtocolCommitment<G>>),
     Or(Vec<ProtocolCommitment<G>>),
 }
 
 #[derive(Clone)]
-enum ProtocolProverState<G: Group + GroupEncoding> {
+pub enum ProtocolProverState<G: Group + GroupEncoding> {
     Simple(<SchnorrProtocol<G> as SigmaProtocol>::ProverState),
     And(Vec<ProtocolProverState<G>>),
     Or(
@@ -36,13 +34,13 @@ enum ProtocolProverState<G: Group + GroupEncoding> {
 }
 
 #[derive(Clone)]
-enum ProtocolResponse<G: Group + GroupEncoding> {
+pub enum ProtocolResponse<G: Group + GroupEncoding> {
     Simple(<SchnorrProtocol<G> as SigmaProtocol>::Response),
     And(Vec<ProtocolResponse<G>>),
     Or(Vec<ProtocolChallenge<G>>, Vec<ProtocolResponse<G>>),
 }
 
-enum ProtocolWitness<G: Group + GroupEncoding> {
+pub enum ProtocolWitness<G: Group + GroupEncoding> {
     Simple(<SchnorrProtocol<G> as SigmaProtocol>::Witness),
     And(Vec<ProtocolWitness<G>>),
     Or(usize, Vec<ProtocolWitness<G>>),
@@ -423,5 +421,43 @@ impl<G: Group + GroupEncoding> SigmaProtocolSimulator for Protocol<G> {
                 )
             }
         }
+    }
+}
+
+impl<G, C> FiatShamir<C> for Protocol<G> 
+where 
+    G: Group + GroupEncoding,
+    C: Codec<Challenge = ProtocolChallenge<G>>
+{
+    fn push_commitment(
+        &self,
+        codec: &mut C,
+        commitment: &Self::Commitment
+    ) -> Result<(), ()> {
+        match (self, commitment) {
+            (Protocol::Simple(p), ProtocolCommitment::Simple(c)) => {
+                p.push_commitment(codec, c)
+            },
+            (Protocol::And(ps), ProtocolCommitment::And(cs)) => {
+                for (i, p) in ps.iter().enumerate() {
+                    p.push_commitment(codec, &cs[i])?;
+                }
+                Ok(())
+            }
+            (Protocol::Or(ps), ProtocolCommitment::Or(cs)) => {
+                for (i, p) in ps.iter().enumerate() {
+                    p.push_commitment(codec, &cs[i])?;
+                }
+                Ok(())
+            }
+            _ => panic!()
+        }
+    }
+    
+    fn get_challenge(
+        &self,
+        codec: &mut C
+    ) -> Result<Self::Challenge, Error> {
+        Ok(codec.verifier_challenge())
     }
 }
