@@ -19,6 +19,7 @@ pub mod group_morphism;
 pub mod group_serialization;
 pub mod proof_builder;
 pub mod proof_composition;
+pub mod protocol;
 pub mod schnorr_protocol;
 pub mod traits;
 

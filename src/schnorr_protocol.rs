@@ -22,7 +22,7 @@ use rand::{CryptoRng, RngCore};
 ///
 /// # Type Parameters
 /// - `G`: A cryptographic group implementing [`Group`] and [`GroupEncoding`].
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct SchnorrProtocol<G: Group + GroupEncoding>(GroupMorphismPreimage<G>);
 
 impl<G: Group + GroupEncoding> SchnorrProtocol<G> {
