@@ -16,13 +16,13 @@ type G = RistrettoPoint;
 #[allow(non_snake_case)]
 #[test]
 fn composition_proof_correct() {
-    /// Composition and verification of proof for the following protocol :
-    ///
-    /// protocol = And{
-    ///     Or{ dleq, pedersen_commitment },
-    ///     Simple{ discrete_logarithm },
-    ///     And{ pedersen_commitment_dleq, bbs_blind_commitment_computation }
-    /// }
+    // Composition and verification of proof for the following protocol :
+    //
+    // protocol = And(
+    //     Or( dleq, pedersen_commitment ),
+    //     Simple( discrete_logarithm ),
+    //     And( pedersen_commitment_dleq, bbs_blind_commitment_computation )
+    // )
     let mut rng = OsRng;
     let domain_sep = b"hello world";
 
@@ -89,12 +89,12 @@ fn composition_proof_correct() {
 
     // Batchable and compact proofs
     let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
-    // let proof_compact_bytes = nizk.prove_compact(&witness, &mut rng).unwrap();
+    let proof_compact_bytes = nizk.prove_compact(&witness, &mut rng).unwrap();
     // Verify proofs
     let verified_batchable = nizk.verify_batchable(&proof_batchable_bytes).is_ok();
-    // let verified_compact = nizk.verify_compact(&proof_compact_bytes).is_ok();
+    let verified_compact = nizk.verify_compact(&proof_compact_bytes).is_ok();
     assert!(
-        verified_batchable, /* & verified_compact */
+        verified_batchable & verified_compact,
         "Fiat-Shamir Schnorr proof verification failed"
     );
 }

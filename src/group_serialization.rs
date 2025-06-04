@@ -30,12 +30,12 @@ pub fn serialize_element<G: Group + GroupEncoding>(element: &G) -> Vec<u8> {
 ///   does not represent a valid group element.
 pub fn deserialize_element<G: Group + GroupEncoding>(data: &[u8]) -> Result<G, Error> {
     let element_len = G::Repr::default().as_ref().len();
-    if data.len() != element_len {
+    if data.len() < element_len {
         return Err(Error::GroupSerializationFailure);
     }
 
     let mut repr = G::Repr::default();
-    repr.as_mut().copy_from_slice(data);
+    repr.as_mut().copy_from_slice(&data[..element_len]);
     let ct_point = G::from_bytes(&repr);
     if ct_point.is_some().into() {
         let point = ct_point.unwrap();
@@ -70,13 +70,13 @@ pub fn deserialize_scalar<G: Group>(data: &[u8]) -> Result<G::Scalar, Error> {
     let scalar_len = <<G as Group>::Scalar as PrimeField>::Repr::default()
         .as_ref()
         .len();
-    if data.len() != scalar_len {
+    if data.len() < scalar_len {
         return Err(Error::GroupSerializationFailure);
     }
 
     let mut repr = <<G as Group>::Scalar as PrimeField>::Repr::default();
     repr.as_mut().copy_from_slice(&{
-        let mut tmp = data.to_vec();
+        let mut tmp = data[..scalar_len].to_vec();
         tmp.reverse();
         tmp
     });

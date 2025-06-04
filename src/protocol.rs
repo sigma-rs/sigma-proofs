@@ -2,6 +2,7 @@ use ff::{Field, PrimeField};
 use group::{Group, GroupEncoding};
 
 use crate::codec::Codec;
+use crate::traits::CompactProtocol;
 use crate::{
     errors::Error,
     fiat_shamir::FiatShamir,
@@ -423,6 +424,173 @@ impl<G: Group + GroupEncoding> SigmaProtocolSimulator for Protocol<G> {
                     challenge,
                     ProtocolResponse::Or(challenges, responses),
                 )
+            }
+        }
+    }
+}
+
+impl<G: Group + GroupEncoding> CompactProtocol for Protocol<G> {
+    fn get_commitment(
+        &self,
+        challenge: &Self::Challenge,
+        response: &Self::Response,
+    ) -> Result<Self::Commitment, Error> {
+        match (self, response) {
+            (Protocol::Simple(p), ProtocolResponse::Simple(r)) => {
+                Ok(ProtocolCommitment::Simple(p.get_commitment(challenge, r)?))
+            }
+            (Protocol::And(ps), ProtocolResponse::And(rs)) => {
+                let mut commitments = Vec::with_capacity(ps.len());
+                for (i, p) in ps.iter().enumerate() {
+                    commitments.push(p.get_commitment(challenge, &rs[i])?);
+                }
+                Ok(ProtocolCommitment::And(commitments))
+            }
+            (Protocol::Or(ps), ProtocolResponse::Or(ch, rs)) => {
+                let mut commitments = Vec::with_capacity(ps.len());
+                for (i, p) in ps.iter().enumerate() {
+                    commitments.push(p.get_commitment(&ch[i], &rs[i])?);
+                }
+                Ok(ProtocolCommitment::Or(commitments))
+            }
+            _ => panic!(),
+        }
+    }
+
+    fn serialize_response(&self, response: &Self::Response) -> Result<Vec<u8>, Error> {
+        match (self, response) {
+            (Protocol::Simple(p), ProtocolResponse::Simple(r)) => p.serialize_response(r),
+            (Protocol::And(ps), ProtocolResponse::And(responses)) => {
+                let mut bytes = Vec::new();
+                for (i, p) in ps.iter().enumerate() {
+                    bytes.extend_from_slice(&p.serialize_response(&responses[i])?);
+                }
+                Ok(bytes)
+            }
+            (Protocol::Or(ps), ProtocolResponse::Or(challenges, responses)) => {
+                let mut bytes = Vec::new();
+                for (i, p) in ps.iter().enumerate() {
+                    bytes.extend_from_slice(&serialize_scalar::<G>(&challenges[i]));
+                    bytes.extend_from_slice(&p.serialize_response(&responses[i])?);
+                }
+                Ok(bytes)
+            }
+            _ => panic!(),
+        }
+    }
+
+    fn deserialize_response(&self, data: &[u8]) -> Result<(Self::Response, usize), Error> {
+        match self {
+            Protocol::Simple(p) => {
+                let (response, size) = p.deserialize_response(data)?;
+                Ok((ProtocolResponse::Simple(response), size))
+            }
+            Protocol::And(ps) => {
+                let mut cursor = 0;
+                let mut responses = Vec::with_capacity(ps.len());
+                for p in ps {
+                    let (r, r_size) = p.deserialize_response(&data[cursor..])?;
+                    cursor += r_size;
+                    responses.push(r);
+                }
+                Ok((ProtocolResponse::And(responses), cursor))
+            }
+            Protocol::Or(ps) => {
+                let challenge_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
+                    .as_ref()
+                    .len();
+                let mut cursor = 0;
+                let mut challenges = Vec::with_capacity(ps.len());
+                let mut responses = Vec::with_capacity(ps.len());
+                for p in ps {
+                    let challenge = deserialize_scalar::<G>(&data[cursor..])?;
+                    cursor += challenge_size;
+                    let (response, response_size) = p.deserialize_response(&data[cursor..])?;
+                    cursor += response_size;
+                    challenges.push(challenge);
+                    responses.push(response);
+                }
+                Ok((ProtocolResponse::Or(challenges, responses), cursor))
+            }
+        }
+    }
+
+    fn serialize_compact(
+        &self,
+        commitment: &Self::Commitment,
+        challenge: &Self::Challenge,
+        response: &Self::Response,
+    ) -> Result<Vec<u8>, Error> {
+        match (self, commitment, response) {
+            (Protocol::Simple(p), ProtocolCommitment::Simple(c), ProtocolResponse::Simple(r)) => {
+                p.serialize_compact(c, challenge, r)
+            }
+            (Protocol::And(ps), ProtocolCommitment::And(_), ProtocolResponse::And(responses)) => {
+                let mut bytes = Vec::new();
+                bytes.extend(serialize_scalar::<G>(challenge));
+                for (i, p) in ps.iter().enumerate() {
+                    bytes.extend(p.serialize_response(&responses[i])?);
+                }
+                Ok(bytes)
+            }
+            (
+                Protocol::Or(ps),
+                ProtocolCommitment::Or(_),
+                ProtocolResponse::Or(challenges, responses),
+            ) => {
+                let mut bytes = Vec::new();
+                bytes.extend(serialize_scalar::<G>(challenge));
+                for (i, p) in ps.iter().enumerate() {
+                    bytes.extend(serialize_scalar::<G>(&challenges[i]));
+                    bytes.extend(p.serialize_response(&responses[i])?);
+                }
+                Ok(bytes)
+            }
+            _ => panic!(),
+        }
+    }
+
+    fn deserialize_compact(&self, data: &[u8]) -> Result<(Self::Challenge, Self::Response), Error> {
+        match self {
+            Protocol::Simple(p) => {
+                let (challenge, response) = p.deserialize_compact(data)?;
+                Ok((challenge, ProtocolResponse::Simple(response)))
+            }
+            Protocol::And(ps) => {
+                let challenge_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
+                    .as_ref()
+                    .len();
+                let challenge = deserialize_scalar::<G>(data)?;
+
+                let mut cursor = challenge_size;
+                let mut responses = Vec::with_capacity(ps.len());
+                for p in ps {
+                    let (response, size) = p.deserialize_response(&data[cursor..])?;
+                    cursor += size;
+                    responses.push(response);
+                }
+                Ok((challenge, ProtocolResponse::And(responses)))
+            }
+            Protocol::Or(ps) => {
+                let challenge_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
+                    .as_ref()
+                    .len();
+                let challenge = deserialize_scalar::<G>(data)?;
+
+                let mut cursor = challenge_size;
+                let mut challenges = Vec::with_capacity(ps.len());
+                let mut responses = Vec::with_capacity(ps.len());
+                for p in ps {
+                    let ch = deserialize_scalar::<G>(&data[cursor..])?;
+                    cursor += challenge_size;
+
+                    let (resp, resp_size) = p.deserialize_response(&data[cursor..])?;
+                    cursor += resp_size;
+
+                    challenges.push(ch);
+                    responses.push(resp);
+                }
+                Ok((challenge, ProtocolResponse::Or(challenges, responses)))
             }
         }
     }
