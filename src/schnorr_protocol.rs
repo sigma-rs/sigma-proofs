@@ -25,7 +25,7 @@ use rand::{CryptoRng, RngCore};
 /// # Type Parameters
 /// - `G`: A cryptographic group implementing [`Group`] and [`GroupEncoding`].
 #[derive(Clone, Default)]
-pub struct SchnorrProtocol<G: Group + GroupEncoding>(GroupMorphismPreimage<G>);
+pub struct SchnorrProtocol<G: Group + GroupEncoding>(pub GroupMorphismPreimage<G>);
 
 impl<G: Group + GroupEncoding> SchnorrProtocol<G> {
     pub fn scalars_nb(&self) -> usize {
