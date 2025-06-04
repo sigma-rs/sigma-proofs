@@ -2,8 +2,7 @@ use bls12_381::{G1Projective as G, Scalar};
 use group::{Group, ff::Field};
 use rand::rngs::OsRng;
 
-use sigma_rs::fiat_shamir::NISigmaProtocol;
-use sigma_rs::group_morphism::HasGroupMorphism;
+use sigma_rs::fiat_shamir::{HasGroupMorphism, NISigmaProtocol};
 use sigma_rs::test_utils::{
     bbs_blind_commitment_computation, discrete_logarithm, dleq, pedersen_commitment,
     pedersen_commitment_dleq,

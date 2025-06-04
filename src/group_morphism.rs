@@ -8,11 +8,9 @@
 //! - [`Morphism`]: a collection of linear combinations acting on group elements
 //! - [`GroupMorphismPreimage`]: a higher-level structure managing morphisms and their associated images
 
-use std::iter;
-
-use crate::codec::Codec;
 use crate::errors::Error;
 use group::{Group, GroupEncoding};
+use std::iter;
 
 /// Implementations of core ops for the linear combination types.
 mod ops;
@@ -458,26 +456,5 @@ where
             .iter()
             .map(|&var| self.morphism.group_elements.get(var))
             .collect()
-    }
-}
-
-/// Trait for accessing the underlying group morphism in a Sigma protocol.
-pub trait HasGroupMorphism {
-    type Group: Group + GroupEncoding;
-    fn group_morphism(&self) -> &GroupMorphismPreimage<Self::Group>;
-
-    /// Absorbs the morphism structure into a codec.
-    /// Only compatible with 64-bit platforms
-    fn absorb_morphism_structure<C: Codec>(&self, codec: &mut C) -> Result<(), Error> {
-        let morphism = self.group_morphism();
-        for lc in &morphism.morphism.constraints {
-            for term in lc.terms() {
-                let mut buf = [0u8; 16];
-                buf[..8].copy_from_slice(&(term.scalar().index() as u64).to_le_bytes());
-                buf[8..].copy_from_slice(&(term.elem().index() as u64).to_le_bytes());
-                codec.prover_message(&buf);
-            }
-        }
-        Ok(())
     }
 }

@@ -14,16 +14,21 @@
 
 use crate::codec::Codec;
 use crate::errors::Error;
-use crate::group_morphism::HasGroupMorphism;
 use crate::traits::{CompactProtocol, SigmaProtocol};
 
-use group::{Group, GroupEncoding};
 use rand::{CryptoRng, RngCore};
 
 pub trait FiatShamir<C: Codec>: SigmaProtocol {
     fn push_commitment(&self, codec: &mut C, commitment: &Self::Commitment);
 
     fn get_challenge(&self, codec: &mut C) -> Result<Self::Challenge, Error>;
+}
+
+/// Trait for accessing the underlying group morphism in a Sigma protocol.
+pub trait HasGroupMorphism {
+    /// Absorbs the morphism structure into a codec.
+    /// Only compatible with 64-bit platforms
+    fn absorb_morphism_structure<C: Codec>(&self, codec: &mut C) -> Result<(), Error>;
 }
 
 type Transcript<P> = (
@@ -249,13 +254,12 @@ where
 
 impl<P, C> NISigmaProtocol<P, C>
 where
-    P: SigmaProtocol<Challenge = <P::Group as Group>::Scalar> + HasGroupMorphism + FiatShamir<C>,
+    P: SigmaProtocol + HasGroupMorphism + FiatShamir<C>,
     P::Challenge: PartialEq,
-    P::Group: Group + GroupEncoding,
     C: Codec<Challenge = P::Challenge> + Clone,
 {
     /// Absorbs the morphism structure into the transcript codec.
     pub fn absorb_morphism(&self, codec: &mut C) -> Result<(), Error> {
-        self.sigmap.absorb_morphism_structure(codec)
+        self.sigmap.absorb_morphism_structure::<C>(codec)
     }
 }
