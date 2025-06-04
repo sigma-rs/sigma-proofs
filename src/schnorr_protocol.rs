@@ -7,7 +7,7 @@
 use crate::codec::Codec;
 use crate::errors::Error;
 use crate::fiat_shamir::FiatShamir;
-use crate::group_morphism::GroupMorphismPreimage;
+use crate::group_morphism::{GroupMorphismPreimage, HasGroupMorphism};
 use crate::{
     group_serialization::*,
     traits::{CompactProtocol, SigmaProtocol, SigmaProtocolSimulator},
@@ -24,7 +24,7 @@ use rand::{CryptoRng, RngCore};
 ///
 /// # Type Parameters
 /// - `G`: A cryptographic group implementing [`Group`] and [`GroupEncoding`].
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct SchnorrProtocol<G: Group + GroupEncoding>(pub GroupMorphismPreimage<G>);
 
 impl<G: Group + GroupEncoding> SchnorrProtocol<G> {
@@ -427,5 +427,12 @@ where
 
     fn get_challenge(&self, codec: &mut C) -> Result<Self::Challenge, Error> {
         Ok(codec.verifier_challenge())
+    }
+}
+
+impl<G: Group + GroupEncoding> HasGroupMorphism for SchnorrProtocol<G> {
+    type Group = G;
+    fn group_morphism(&self) -> &GroupMorphismPreimage<G> {
+        &self.0
     }
 }

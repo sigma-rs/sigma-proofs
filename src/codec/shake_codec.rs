@@ -27,7 +27,7 @@ use crate::codec::r#trait::Codec;
 ///
 /// The codec is initialized with a domain separator and absorbs serialized
 /// group elements. It outputs challenges compatible with the group’s scalar field.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ShakeCodec<G: Group> {
     /// Internal SHAKE128 hasher state.
     hasher: Shake128,
