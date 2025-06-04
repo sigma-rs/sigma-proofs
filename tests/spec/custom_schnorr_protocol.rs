@@ -3,7 +3,9 @@ use group::{Group, GroupEncoding};
 use rand::{CryptoRng, Rng};
 
 use crate::random::SRandom;
+use sigma_rs::codec::Codec;
 use sigma_rs::errors::Error;
+use sigma_rs::fiat_shamir::FiatShamir;
 use sigma_rs::group_morphism::GroupMorphismPreimage;
 use sigma_rs::group_serialization::*;
 use sigma_rs::traits::SigmaProtocol;
@@ -146,5 +148,23 @@ where
         }
 
         Ok((commitments, responses))
+    }
+}
+
+impl<G, C> FiatShamir<C> for SchnorrProtocolCustom<G>
+where
+    C: Codec<Challenge = <G as Group>::Scalar>,
+    G: SRandom + GroupEncoding ,
+{
+    fn get_challenge(
+        &self,
+        codec: &mut C,
+        commitment: &Self::Commitment,
+    ) -> Result<Self::Challenge, Error> {
+        let mut data = Vec::new();
+        for commit in commitment {
+            data.extend_from_slice(commit.to_bytes().as_ref());
+        }
+        Ok(codec.prover_message(&data).verifier_challenge())
     }
 }

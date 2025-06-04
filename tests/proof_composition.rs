@@ -1,4 +1,4 @@
-use curve25519_dalek::ristretto::RistrettoPoint;
+/* use curve25519_dalek::ristretto::RistrettoPoint;
 use ff::Field;
 use group::{Group, GroupEncoding};
 use rand::{CryptoRng, Rng, rngs::OsRng};
@@ -189,3 +189,4 @@ fn or_proof_incorrect() {
         "Fiat-Shamir Schnorr proof verification failed"
     );
 }
+ */

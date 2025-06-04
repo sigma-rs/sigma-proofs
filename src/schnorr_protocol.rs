@@ -4,7 +4,9 @@
 //! a Sigma protocol proving different types of discrete logarithm relations (eg. Schnorr, Pedersen's commitments)
 //! through a group morphism abstraction (see Maurer09).
 
+use crate::codec::Codec;
 use crate::errors::Error;
+use crate::fiat_shamir::FiatShamir;
 use crate::group_morphism::GroupMorphismPreimage;
 use crate::{
     group_serialization::*,
@@ -394,5 +396,23 @@ where
         let challenge = G::Scalar::random(&mut *rng);
         let (commitment, response) = self.simulate_proof(&challenge, rng);
         (commitment, challenge, response)
+    }
+}
+
+impl<G, C> FiatShamir<C> for SchnorrProtocol<G>
+where
+    C: Codec<Challenge = <G as Group>::Scalar>,
+    G: Group + GroupEncoding,
+{
+    fn get_challenge(
+        &self,
+        codec: &mut C,
+        commitment: &Self::Commitment,
+    ) -> Result<Self::Challenge, Error> {
+        let mut data = Vec::new();
+        for commit in commitment {
+            data.extend_from_slice(commit.to_bytes().as_ref());
+        }
+        Ok(codec.prover_message(&data).verifier_challenge())
     }
 }
