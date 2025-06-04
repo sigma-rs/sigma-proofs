@@ -15,7 +15,7 @@ use crate::{custom_schnorr_protocol::SchnorrProtocolCustom, random::SRandom, tes
 
 type Codec = ByteSchnorrCodec<G, KeccakDuplexSponge>;
 type SigmaP = SchnorrProtocolCustom<G>;
-type NISigmaP = NISigmaProtocol<SigmaP, Codec, G>;
+type NISigmaP = NISigmaProtocol<SigmaP, Codec>;
 
 #[allow(clippy::type_complexity)]
 #[allow(non_snake_case)]

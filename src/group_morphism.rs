@@ -71,7 +71,7 @@ impl From<(ScalarVar, GroupVar)> for Term {
 /// where `s_i` are scalars (referenced by `scalar_vars`) and `P_i` are group elements (referenced by `element_vars`).
 ///
 /// The indices refer to external lists managed by the containing Morphism.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct LinearCombination(Vec<Term>);
 
 impl LinearCombination {
@@ -185,7 +185,7 @@ impl<G: Group> FromIterator<(GroupVar, G)> for GroupMap<G> {
 ///
 /// It supports dynamic allocation of scalars and elements,
 /// and evaluates by performing multi-scalar multiplications.
-#[derive(Default, Debug)]
+#[derive(Clone, Default, Debug)]
 pub struct Morphism<G: Group> {
     /// The set of linear combination constraints (equations).
     pub constraints: Vec<LinearCombination>,
@@ -276,7 +276,7 @@ impl<G: Group> Morphism<G> {
 /// Internally, the constraint system is defined through:
 /// - A list of group elements and linear equations (held in the [`Morphism`] field),
 /// - A list of [`GroupVar`] indices (`image`) that specify the expected output for each constraint.
-#[derive(Default, Debug)]
+#[derive(Clone, Default, Debug)]
 pub struct GroupMorphismPreimage<G>
 where
     G: Group + GroupEncoding,
@@ -462,8 +462,9 @@ where
 }
 
 /// Trait for accessing the underlying group morphism in a Sigma protocol.
-pub trait HasGroupMorphism<G: Group + GroupEncoding> {
-    fn group_morphism(&self) -> &GroupMorphismPreimage<G>;
+pub trait HasGroupMorphism {
+    type Group: Group + GroupEncoding;
+    fn group_morphism(&self) -> &GroupMorphismPreimage<Self::Group>;
 
     /// Absorbs the morphism structure into a codec.
     /// Only compatible with 64-bit platforms

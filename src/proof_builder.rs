@@ -22,4 +22,4 @@ use crate::{codec::ShakeCodec, fiat_shamir::NISigmaProtocol, schnorr_protocol::S
 /// - `G`: A group that implements both [`Group`] and [`GroupEncoding`].
 ///
 /// [`GroupMorphismPreimage`]: crate::GroupMorphismPreimage
-pub type NISchnorr<G> = NISigmaProtocol<SchnorrProtocol<G>, ShakeCodec<G>, G>;
+pub type NISchnorr<G> = NISigmaProtocol<SchnorrProtocol<G>, ShakeCodec<G>>;

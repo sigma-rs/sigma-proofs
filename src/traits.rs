@@ -95,12 +95,18 @@ pub trait CompactProtocol: SigmaProtocol {
         response: &Self::Response,
     ) -> Result<Self::Commitment, Error>;
 
+    /// Serializes a proof response to bytes.
+    fn serialize_response(&self, response: &Self::Response) -> Result<Vec<u8>, Error>;
+
+    /// Deserializes a proof response from bytes.
+    fn deserialize_response(&self, _data: &[u8]) -> Result<(Self::Response, usize), Error>;
+
     /// Serializes a proof transcript (commitment, challenge, response) to bytes compact proof.
     fn serialize_compact(
         &self,
-        _commitment: &Self::Commitment,
-        _challenge: &Self::Challenge,
-        _response: &Self::Response,
+        commitment: &Self::Commitment,
+        challenge: &Self::Challenge,
+        response: &Self::Response,
     ) -> Result<Vec<u8>, Error>;
 
     /// Deserializes a compact proof from bytes.
