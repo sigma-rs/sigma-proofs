@@ -16,20 +16,24 @@ type G = RistrettoPoint;
 #[allow(non_snake_case)]
 #[test]
 fn composition_proof_correct() {
+    /// Composition and verification of proof for the following protocol :
+    ///
+    /// protocol = And{
+    ///     Or{ dleq, pedersen_commitment },
+    ///     Simple{ discrete_logarithm },
+    ///     And{ pedersen_commitment_dleq, bbs_blind_commitment_computation }
+    /// }
     let mut rng = OsRng;
     let domain_sep = b"hello world";
 
-    // Protocol's definition
+    // definitions of the underlying protocols
     let (morph1, witness1) = dleq(<G as Group>::Scalar::random(&mut rng), G::random(&mut rng));
-
     let (morph2, _) = pedersen_commitment(
         G::random(&mut rng),
         <G as Group>::Scalar::random(&mut rng),
         <G as Group>::Scalar::random(&mut rng),
     );
-
     let (morph3, witness3) = discrete_logarithm(<G as Group>::Scalar::random(&mut rng));
-
     let (morph4, witness4) = pedersen_commitment_dleq(
         (0..4)
             .map(|_| G::random(&mut rng))
@@ -42,7 +46,6 @@ fn composition_proof_correct() {
             .try_into()
             .unwrap(),
     );
-
     let (morph5, witness5) = bbs_blind_commitment_computation(
         (0..4)
             .map(|_| G::random(&mut rng))
@@ -57,6 +60,7 @@ fn composition_proof_correct() {
         <G as Group>::Scalar::random(&mut rng),
     );
 
+    // second layer protocol definitions
     let or_protocol1 = Protocol::Or(vec![
         Protocol::Simple(SchnorrProtocol::from(morph1)),
         Protocol::Simple(SchnorrProtocol::from(morph2)),
@@ -76,14 +80,15 @@ fn composition_proof_correct() {
         ProtocolWitness::Simple(witness5),
     ]);
 
-    let final_protocol = Protocol::And(vec![or_protocol1, simple_protocol1, and_protocol1]);
-    let final_witness = ProtocolWitness::And(vec![or_witness1, simple_witness1, and_witness1]);
+    // definition of the final protocol
+    let protocol = Protocol::And(vec![or_protocol1, simple_protocol1, and_protocol1]);
+    let witness = ProtocolWitness::And(vec![or_witness1, simple_witness1, and_witness1]);
 
     let nizk =
-        NISigmaProtocol::<Protocol<RistrettoPoint>, ShakeCodec<G>>::new(domain_sep, final_protocol);
+        NISigmaProtocol::<Protocol<RistrettoPoint>, ShakeCodec<G>>::new(domain_sep, protocol);
 
     // Batchable and compact proofs
-    let proof_batchable_bytes = nizk.prove_batchable(&final_witness, &mut rng).unwrap();
+    let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
     // let proof_compact_bytes = nizk.prove_compact(&witness, &mut rng).unwrap();
     // Verify proofs
     let verified_batchable = nizk.verify_batchable(&proof_batchable_bytes).is_ok();

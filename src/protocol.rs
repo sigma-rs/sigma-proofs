@@ -95,7 +95,7 @@ impl<G: Group + GroupEncoding> SigmaProtocol for Protocol<G> {
                 let mut fake_challenges = Vec::new();
                 let mut fake_responses = Vec::new();
                 let (real_commit, real_state) = ps[*w_index].prover_commit(&w[0], rng)?;
-                for i in 0..ps.len() {
+                for (i, _) in ps.iter().enumerate() {
                     if i != *w_index {
                         let (c, ch, r) = ps[i].simulate_transcript(rng);
                         commitments.push(c);
@@ -354,13 +354,13 @@ impl<G: Group + GroupEncoding> SigmaProtocolSimulator for Protocol<G> {
                 let mut challenges = Vec::new();
                 let mut responses = Vec::with_capacity(ps.len());
 
-                for i in 0..(ps.len() - 1) {
-                    let (c, ch, r) = ps[i].simulate_transcript(rng);
+                for p in ps.iter().take(ps.len() - 1) {
+                    let (c, ch, r) = p.simulate_transcript(rng);
                     commitments.push(c);
                     challenges.push(ch);
                     responses.push(r);
                 }
-                let last_ch: <G as Group>::Scalar = challenges.iter().map(|sc| sc).sum();
+                let last_ch: <G as Group>::Scalar = challenges.iter().sum();
                 let (last_c, last_r) = ps[ps.len() - 1].simulate_proof(&last_ch, rng);
                 commitments.push(last_c);
                 challenges.push(last_ch);
@@ -395,8 +395,8 @@ impl<G: Group + GroupEncoding> SigmaProtocolSimulator for Protocol<G> {
                 commitments.push(c);
                 responses.push(r);
 
-                for i in 1..ps.len() {
-                    let (c, r) = ps[i].simulate_proof(&challenge, rng);
+                for p in ps.iter().skip(1) {
+                    let (c, r) = p.simulate_proof(&challenge, rng);
                     commitments.push(c);
                     responses.push(r);
                 }
@@ -417,7 +417,7 @@ impl<G: Group + GroupEncoding> SigmaProtocolSimulator for Protocol<G> {
                     challenges.push(ch);
                     responses.push(r);
                 }
-                let challenge = challenges.iter().map(|sc| sc).sum();
+                let challenge = challenges.iter().sum();
                 (
                     ProtocolCommitment::Or(commitments),
                     challenge,
@@ -433,20 +433,18 @@ where
     G: Group + GroupEncoding,
     C: Codec<Challenge = ProtocolChallenge<G>>,
 {
-    fn push_commitment(&self, codec: &mut C, commitment: &Self::Commitment) -> Result<(), ()> {
+    fn push_commitment(&self, codec: &mut C, commitment: &Self::Commitment) {
         match (self, commitment) {
             (Protocol::Simple(p), ProtocolCommitment::Simple(c)) => p.push_commitment(codec, c),
             (Protocol::And(ps), ProtocolCommitment::And(cs)) => {
                 for (i, p) in ps.iter().enumerate() {
-                    p.push_commitment(codec, &cs[i])?;
+                    p.push_commitment(codec, &cs[i]);
                 }
-                Ok(())
             }
             (Protocol::Or(ps), ProtocolCommitment::Or(cs)) => {
                 for (i, p) in ps.iter().enumerate() {
-                    p.push_commitment(codec, &cs[i])?;
+                    p.push_commitment(codec, &cs[i]);
                 }
-                Ok(())
             }
             _ => panic!(),
         }
