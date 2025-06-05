@@ -5,6 +5,7 @@
 use crate::errors::Error;
 use rand::{CryptoRng, Rng};
 
+type BatchableProofResult<C, R> = Result<((C, R), usize), Error>;
 /// A trait defining the behavior of a generic Sigma protocol.
 ///
 /// A Sigma protocol is a 3-message proof protocol where a prover can convince
@@ -74,7 +75,7 @@ pub trait SigmaProtocol {
     fn deserialize_batchable(
         &self,
         _data: &[u8],
-    ) -> Result<((Self::Commitment, Self::Response), usize), Error>;
+    ) -> BatchableProofResult<Self::Commitment, Self::Response>;
 }
 
 /// A feature defining the behavior of a protocol for which it is possible to compact the proofs by omitting the commitments.
