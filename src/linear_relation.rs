@@ -161,6 +161,13 @@ impl<G: Group> GroupMap<G> {
             .enumerate()
             .filter_map(|(i, x)| x.map(|x| (GroupVar(i), x)))
     }
+
+    pub fn iter(&self) -> impl Iterator<Item = (GroupVar, &G)> {
+        self.0
+            .iter()
+            .enumerate()
+            .filter_map(|(i, opt)| opt.as_ref().map(|g| (GroupVar(i), g)))
+    }
 }
 
 impl<G> Default for GroupMap<G> {

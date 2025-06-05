@@ -15,7 +15,7 @@ use crate::codec::Codec;
 use crate::traits::CompactProtocol;
 use crate::{
     errors::Error,
-    fiat_shamir::{FiatShamir, HasGroupMorphism},
+    fiat_shamir::FiatShamir,
     linear_relation::LinearRelation,
     group_serialization::{deserialize_scalar, serialize_scalar},
     schnorr_protocol::SchnorrProtocol,
@@ -637,17 +637,19 @@ where
     G: Group + GroupEncoding,
     C: Codec<Challenge = ProtocolChallenge<G>>,
 {
-    fn push_commitment(&self, codec: &mut C, commitment: &Self::Commitment) {
+    fn absorb_statement_and_commitment(&self, codec: &mut C, commitment: &Self::Commitment) {
         match (self, commitment) {
-            (Protocol::Simple(p), ProtocolCommitment::Simple(c)) => p.push_commitment(codec, c),
+            (Protocol::Simple(p), ProtocolCommitment::Simple(c)) => {
+                p.absorb_statement_and_commitment(codec, c)
+            }
             (Protocol::And(ps), ProtocolCommitment::And(cs)) => {
                 for (i, p) in ps.iter().enumerate() {
-                    p.push_commitment(codec, &cs[i]);
+                    p.absorb_statement_and_commitment(codec, &cs[i]);
                 }
             }
             (Protocol::Or(ps), ProtocolCommitment::Or(cs)) => {
                 for (i, p) in ps.iter().enumerate() {
-                    p.push_commitment(codec, &cs[i]);
+                    p.absorb_statement_and_commitment(codec, &cs[i]);
                 }
             }
             _ => panic!(),
@@ -656,19 +658,5 @@ where
 
     fn get_challenge(&self, codec: &mut C) -> Result<Self::Challenge, Error> {
         Ok(codec.verifier_challenge())
-    }
-}
-
-impl<G: Group + GroupEncoding> HasGroupMorphism for Protocol<G> {
-    fn absorb_morphism_structure<C: Codec>(&self, codec: &mut C) -> Result<(), Error> {
-        match self {
-            Protocol::Simple(p) => p.absorb_morphism_structure(codec),
-            Protocol::And(ps) | Protocol::Or(ps) => {
-                for p in ps {
-                    p.absorb_morphism_structure(codec)?
-                }
-                Ok(())
-            }
-        }
     }
 }

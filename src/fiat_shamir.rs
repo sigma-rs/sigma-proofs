@@ -22,22 +22,15 @@ use rand::{CryptoRng, RngCore};
 /// deterministic challenge generation function.
 ///
 /// Challenge generation occurs in two stages:
-/// - `push_commitment`: absorbs commitments to feed the codec
+/// - `absorb_statement_and_commitment`: absorbs commitments to feed the codec
 /// - `get_challenge`: extracts the challenge from the codec
 ///
 /// # Type Parameters
 /// - `C`: the codec used for encoding/decoding messages to/from the IP space.
 pub trait FiatShamir<C: Codec>: SigmaProtocol {
-    fn push_commitment(&self, codec: &mut C, commitment: &Self::Commitment);
+    fn absorb_statement_and_commitment(&self, codec: &mut C, commitment: &Self::Commitment);
 
     fn get_challenge(&self, codec: &mut C) -> Result<Self::Challenge, Error>;
-}
-
-/// Structures implementing this trait must implicitly have an associated linear relation.
-///
-/// This trait allows the data of the morphisms underlying the structure to be absorbed into a codec.
-pub trait HasGroupMorphism {
-    fn absorb_morphism_structure<C: Codec>(&self, codec: &mut C) -> Result<(), Error>;
 }
 
 type Transcript<P> = (
@@ -116,7 +109,8 @@ where
 
         let (commitment, prover_state) = self.sigmap.prover_commit(witness, rng)?;
         // Fiat Shamir challenge
-        self.sigmap.push_commitment(&mut codec, &commitment);
+        self.sigmap
+            .absorb_statement_and_commitment(&mut codec, &commitment);
         let challenge = self.sigmap.get_challenge(&mut codec)?;
         // Prover's response
         let response = self.sigmap.prover_response(prover_state, &challenge)?;
@@ -149,7 +143,8 @@ where
         let mut codec = self.hash_state.clone();
 
         // Recompute the challenge
-        self.sigmap.push_commitment(&mut codec, commitment);
+        self.sigmap
+            .absorb_statement_and_commitment(&mut codec, commitment);
         let expected_challenge = self.sigmap.get_challenge(&mut codec)?;
         // Verification of the proof
         match *challenge == expected_challenge {
@@ -199,7 +194,8 @@ where
         let mut codec = self.hash_state.clone();
 
         // Recompute the challenge
-        self.sigmap.push_commitment(&mut codec, &commitment);
+        self.sigmap
+            .absorb_statement_and_commitment(&mut codec, &commitment);
         let challenge = self.sigmap.get_challenge(&mut codec)?;
         // Verification of the proof
         self.sigmap.verifier(&commitment, &challenge, &response)
@@ -257,17 +253,5 @@ where
         let commitment = self.sigmap.get_commitment(&challenge, &response)?;
         // Verify the proof
         self.verify(&commitment, &challenge, &response)
-    }
-}
-
-impl<P, C> NISigmaProtocol<P, C>
-where
-    P: SigmaProtocol + HasGroupMorphism + FiatShamir<C>,
-    P::Challenge: PartialEq,
-    C: Codec<Challenge = P::Challenge> + Clone,
-{
-    /// Absorbs the morphism structure into the transcript codec.
-    pub fn absorb_morphism(&self, codec: &mut C) -> Result<(), Error> {
-        self.sigmap.absorb_morphism_structure::<C>(codec)
     }
 }
