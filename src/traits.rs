@@ -70,11 +70,11 @@ pub trait SigmaProtocol {
 
     /// Deserializes a batchable proof from bytes.
     ///
-    /// Returns `Some((commitment, response))` if parsing is successful, otherwise `None`.
+    /// Returns `Ok(((commitment, response), proof_size))` if parsing is successful, otherwise `Err(Error)`.
     fn deserialize_batchable(
         &self,
         _data: &[u8],
-    ) -> Result<(Self::Commitment, Self::Response), Error>;
+    ) -> Result<((Self::Commitment, Self::Response), usize), Error>;
 }
 
 /// A feature defining the behavior of a protocol for which it is possible to compact the proofs by omitting the commitments.
@@ -111,7 +111,7 @@ pub trait CompactProtocol: SigmaProtocol {
 
     /// Deserializes a compact proof from bytes.
     ///
-    /// Returns `Some((challenge, response))` if parsing is successful, otherwise `None`.
+    /// Returns `Ok((challenge, response))` if parsing is successful, otherwise `Err(Error)`.
     fn deserialize_compact(&self, _data: &[u8])
     -> Result<(Self::Challenge, Self::Response), Error>;
 }

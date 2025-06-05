@@ -3,7 +3,7 @@ use group::Group;
 use rand::rngs::OsRng;
 
 use sigma_rs::codec::ShakeCodec;
-use sigma_rs::fiat_shamir::NISigmaProtocol;
+use sigma_rs::fiat_shamir::{HasGroupMorphism, NISigmaProtocol};
 use sigma_rs::protocol::{Protocol, ProtocolWitness};
 use sigma_rs::schnorr_protocol::SchnorrProtocol;
 use sigma_rs::test_utils::{
@@ -84,8 +84,12 @@ fn composition_proof_correct() {
     let protocol = Protocol::And(vec![or_protocol1, simple_protocol1, and_protocol1]);
     let witness = ProtocolWitness::And(vec![or_witness1, simple_witness1, and_witness1]);
 
-    let nizk =
+    let mut nizk =
         NISigmaProtocol::<Protocol<RistrettoPoint>, ShakeCodec<G>>::new(domain_sep, protocol);
+
+    nizk.sigmap
+        .absorb_morphism_structure(&mut nizk.hash_state)
+        .unwrap();
 
     // Batchable and compact proofs
     let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();

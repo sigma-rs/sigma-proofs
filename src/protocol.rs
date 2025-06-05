@@ -295,31 +295,32 @@ impl<G: Group + GroupEncoding> SigmaProtocol for Protocol<G> {
     fn deserialize_batchable(
         &self,
         data: &[u8],
-    ) -> Result<(Self::Commitment, Self::Response), Error> {
+    ) -> Result<((Self::Commitment, Self::Response), usize), Error> {
         match self {
             Protocol::Simple(p) => {
-                let (c, r) = p.deserialize_batchable(data)?;
-                Ok((ProtocolCommitment::Simple(c), ProtocolResponse::Simple(r)))
+                let ((c, r), size) = p.deserialize_batchable(data)?;
+                Ok((
+                    (ProtocolCommitment::Simple(c), ProtocolResponse::Simple(r)),
+                    size,
+                ))
             }
             Protocol::And(ps) => {
                 let mut cursor = 0;
                 let mut commitments = Vec::with_capacity(ps.len());
                 let mut responses = Vec::with_capacity(ps.len());
                 for p in ps {
-                    let (p_commit, p_resp) = p.deserialize_batchable(&data[cursor..])?;
-                    let serialized = p.serialize_batchable(
-                        &p_commit,
-                        &p.simulate_transcript(&mut rand::thread_rng()).1,
-                        &p_resp,
-                    )?;
-                    cursor += serialized.len();
+                    let ((p_commit, p_resp), size) = p.deserialize_batchable(&data[cursor..])?;
+                    cursor += size;
 
                     commitments.push(p_commit);
                     responses.push(p_resp);
                 }
                 Ok((
-                    ProtocolCommitment::And(commitments),
-                    ProtocolResponse::And(responses),
+                    (
+                        ProtocolCommitment::And(commitments),
+                        ProtocolResponse::And(responses),
+                    ),
+                    cursor,
                 ))
             }
             Protocol::Or(ps) => {
@@ -333,14 +334,8 @@ impl<G: Group + GroupEncoding> SigmaProtocol for Protocol<G> {
                     .len();
 
                 for p in ps.iter() {
-                    let (c, r) = p.deserialize_batchable(&data[cursor..])?;
-
-                    let serialized_cr = p.serialize_batchable(
-                        &c,
-                        &p.simulate_transcript(&mut rand::thread_rng()).1,
-                        &r,
-                    )?;
-                    cursor += serialized_cr.len();
+                    let ((c, r), size) = p.deserialize_batchable(&data[cursor..])?;
+                    cursor += size;
 
                     if data.len() < cursor + ch_bytes_len {
                         return Err(Error::ProofSizeMismatch);
@@ -355,8 +350,11 @@ impl<G: Group + GroupEncoding> SigmaProtocol for Protocol<G> {
                 }
 
                 Ok((
-                    ProtocolCommitment::Or(commitments),
-                    ProtocolResponse::Or(challenges, responses),
+                    (
+                        ProtocolCommitment::Or(commitments),
+                        ProtocolResponse::Or(challenges, responses),
+                    ),
+                    cursor,
                 ))
             }
         }

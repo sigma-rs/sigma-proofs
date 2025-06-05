@@ -207,7 +207,7 @@ where
     fn deserialize_batchable(
         &self,
         data: &[u8],
-    ) -> Result<(Self::Commitment, Self::Response), Error> {
+    ) -> Result<((Self::Commitment, Self::Response), usize), Error> {
         let commit_nb = self.statements_nb();
         let response_nb = self.scalars_nb();
 
@@ -242,7 +242,7 @@ where
             responses.push(scalar);
         }
 
-        Ok((commitments, responses))
+        Ok(((commitments, responses), expected_len))
     }
 }
 

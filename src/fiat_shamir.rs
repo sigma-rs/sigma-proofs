@@ -194,7 +194,7 @@ where
     ///   - The challenge doesn't match the recomputed one from the commitment.
     ///   - The response fails verification under the Sigma protocol.
     pub fn verify_batchable(&self, proof: &[u8]) -> Result<(), Error> {
-        let (commitment, response) = self.sigmap.deserialize_batchable(proof).unwrap();
+        let ((commitment, response), _) = self.sigmap.deserialize_batchable(proof).unwrap();
 
         let mut codec = self.hash_state.clone();
 

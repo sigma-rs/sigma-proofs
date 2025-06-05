@@ -112,7 +112,7 @@ where
     fn deserialize_batchable(
         &self,
         data: &[u8],
-    ) -> Result<(Self::Commitment, Self::Response), Error> {
+    ) -> Result<((Self::Commitment, Self::Response), usize), Error> {
         let scalar_nb = self.0.morphism.num_scalars;
         let point_nb = self.0.morphism.constraints.len();
 
@@ -147,7 +147,7 @@ where
             responses.push(scalar);
         }
 
-        Ok((commitments, responses))
+        Ok(((commitments, responses), expected_len))
     }
 }
 
