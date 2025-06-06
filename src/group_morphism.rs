@@ -146,7 +146,7 @@ impl<G: Group> GroupMap<G> {
 
     /// Get the element value assigned to the given point var.
     ///
-    /// Returns [Error::UninitializedGroupVar] if a value is not assigned.
+    /// Returns [`Error::UnassignedGroupVar`] if a value is not assigned.
     pub fn get(&self, var: GroupVar) -> Result<G, Error> {
         self.0[var.0].ok_or(Error::UnassignedGroupVar { var })
     }

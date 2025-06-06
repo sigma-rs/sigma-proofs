@@ -1,6 +1,6 @@
 //! # ProofError: Error Types for Zero-Knowledge Proofs
 //!
-//! This module defines the [`ProofError`] enum, which encapsulates possible errors that may occur
+//! This module defines the [`Error`] enum, which encapsulates possible errors that may occur
 //! during the execution of Sigma protocols or their non-interactive variants.
 //!
 //! These errors include:

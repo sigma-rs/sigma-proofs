@@ -26,14 +26,14 @@ use rand::{CryptoRng, RngCore};
 /// - `get_challenge`: extracts the challenge from the codec
 ///
 /// # Type Parameters
-/// - `C`: the codec used for the underlying determenitis function.
+/// - `C`: the codec used for encoding/decoding messages to/from the IP space.
 pub trait FiatShamir<C: Codec>: SigmaProtocol {
     fn push_commitment(&self, codec: &mut C, commitment: &Self::Commitment);
 
     fn get_challenge(&self, codec: &mut C) -> Result<Self::Challenge, Error>;
 }
 
-/// Structures implementing this trait must implicitly have one or more underlying [`GroupMorphism`] elements.
+/// Structures implementing this trait must implicitly have an associated linear relation.
 ///
 /// This trait allows the data of the morphisms underlying the structure to be absorbed into a codec.
 pub trait HasGroupMorphism {
