@@ -18,7 +18,7 @@ use sha3::{
     digest::{ExtendableOutput, Update, XofReader},
 };
 
-use crate::codec::r#trait::Codec;
+use crate::codec::traits::Codec;
 
 /// A Fiat-Shamir codec over a group `G`, using SHAKE128.
 ///

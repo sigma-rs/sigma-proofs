@@ -22,6 +22,5 @@ pub mod traits;
 
 pub mod codec;
 
-
 #[cfg(test)]
 pub mod tests;

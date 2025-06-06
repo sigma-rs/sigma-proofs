@@ -11,7 +11,9 @@ use crate::tests::test_utils::{
     pedersen_commitment_dleq,
 };
 
-use crate::tests::spec::{custom_schnorr_protocol::SchnorrProtocolCustom, random::SRandom, test_drng::TestDRNG};
+use crate::tests::spec::{
+    custom_schnorr_protocol::SchnorrProtocolCustom, random::SRandom, test_drng::TestDRNG,
+};
 
 type Codec = ByteSchnorrCodec<G, KeccakDuplexSponge>;
 type SigmaP = SchnorrProtocolCustom<G>;

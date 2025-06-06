@@ -2,12 +2,12 @@ use ff::PrimeField;
 use group::{Group, GroupEncoding};
 use rand::{CryptoRng, Rng};
 
-use crate::tests::spec::random::SRandom;
 use crate::codec::Codec;
 use crate::errors::Error;
 use crate::fiat_shamir::FiatShamir;
 use crate::group_morphism::GroupMorphismPreimage;
 use crate::group_serialization::*;
+use crate::tests::spec::random::SRandom;
 use crate::traits::SigmaProtocol;
 
 pub struct SchnorrProtocolCustom<G: SRandom + GroupEncoding>(pub GroupMorphismPreimage<G>);

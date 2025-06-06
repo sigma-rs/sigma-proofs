@@ -20,7 +20,7 @@
 //! - `KeccakPermutationState`: Low-level Keccak-f\[1600\] state representation
 //! - `KeccakDuplexSponge`: Duplex sponge over 200-byte state buffer
 //! - `ByteSchnorrCodec`: Fiat-Shamir codec compatible with Sage Schnorr proofs
-use crate::codec::r#trait::{Codec, DuplexSpongeInterface};
+use crate::codec::traits::{Codec, DuplexSpongeInterface};
 use ff::PrimeField;
 use group::{Group, GroupEncoding};
 use num_bigint::BigUint;
