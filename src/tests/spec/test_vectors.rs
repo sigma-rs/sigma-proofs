@@ -12,7 +12,7 @@ use crate::tests::test_utils::{
 };
 
 use crate::tests::spec::{
-    custom_schnorr_protocol::SchnorrProtocolCustom, random::SRandom, test_drng::TestDRNG,
+    custom_schnorr_protocol::SchnorrProtocolCustom, random::SRandom, rng::TestDRNG,
 };
 
 type Codec = ByteSchnorrCodec<G, KeccakDuplexSponge>;
