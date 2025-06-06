@@ -1,5 +1,3 @@
-use num_bigint::BigUint;
-use num_traits::One;
 use rand::{CryptoRng, Error, RngCore};
 use sha2::{Digest, Sha256};
 
@@ -15,41 +13,6 @@ impl TestDRNG {
         let mut seed_bytes = [0u8; 32];
         seed_bytes.copy_from_slice(&result);
         Self { seed: seed_bytes }
-    }
-
-    pub fn _randint(&mut self, l: u64, h: u64) -> u64 {
-        assert!(l <= h);
-        let range = h - l + 1;
-        let bits = 64 - range.leading_zeros();
-        let bytes_needed = bits.div_ceil(8) as usize;
-
-        loop {
-            let mut buf = vec![0u8; bytes_needed];
-            self.fill_bytes(&mut buf);
-            let mut val = 0u64;
-            for b in buf {
-                val = (val << 8) | b as u64;
-            }
-            if val < (1u64 << bits) {
-                return l + (val % range);
-            }
-        }
-    }
-
-    pub fn _randint_big(&mut self, l: &BigUint, h: &BigUint) -> BigUint {
-        assert!(l <= h);
-        let range = h - l + BigUint::one();
-        let bits = range.bits();
-        let bytes_needed = bits.div_ceil(8) as usize;
-
-        loop {
-            let mut buf = vec![0u8; bytes_needed];
-            self.fill_bytes(&mut buf);
-            let val = BigUint::from_bytes_be(&buf);
-            if val.bits() <= bits {
-                return l + (val % &range);
-            }
-        }
     }
 }
 
