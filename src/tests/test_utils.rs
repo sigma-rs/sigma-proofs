@@ -2,7 +2,7 @@
 
 use group::{Group, GroupEncoding};
 
-use crate::group_morphism::{LinearRelation, msm_pr};
+use crate::linear_relation::{LinearRelation, msm_pr};
 
 /// Morphism for knowledge of a discrete logarithm relative to a fixed basepoint.
 #[allow(non_snake_case)]

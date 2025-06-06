@@ -339,7 +339,7 @@ where
     ///
     /// # Example
     /// ```
-    /// # use sigma_rs::group_morphism::LinearRelation;
+    /// # use sigma_rs::LinearRelation;
     /// use curve25519_dalek::RistrettoPoint as G;
     ///
     /// let mut morphism = LinearRelation::<G>::new();
@@ -367,7 +367,7 @@ where
     ///
     /// # Example
     /// ```
-    /// # use sigma_rs::group_morphism::LinearRelation;
+    /// # use sigma_rs::LinearRelation;
     /// use curve25519_dalek::RistrettoPoint as G;
     ///
     /// let mut morphism = LinearRelation::<G>::new();

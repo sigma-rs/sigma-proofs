@@ -16,7 +16,7 @@ use crate::traits::CompactProtocol;
 use crate::{
     errors::Error,
     fiat_shamir::{FiatShamir, HasGroupMorphism},
-    group_morphism::LinearRelation,
+    linear_relation::LinearRelation,
     group_serialization::{deserialize_scalar, serialize_scalar},
     schnorr_protocol::SchnorrProtocol,
     traits::{SigmaProtocol, SigmaProtocolSimulator},

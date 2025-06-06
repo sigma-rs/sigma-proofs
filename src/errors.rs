@@ -9,7 +9,7 @@
 //! - Unimplemented methods.
 //! - Group element or scalar serialization failures.
 
-use crate::group_morphism::GroupVar;
+use crate::linear_relation::GroupVar;
 
 /// An error during proving or verification, such as a verification failure.
 #[non_exhaustive]

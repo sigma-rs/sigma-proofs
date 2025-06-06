@@ -7,7 +7,7 @@
 use crate::codec::Codec;
 use crate::errors::Error;
 use crate::fiat_shamir::{FiatShamir, HasGroupMorphism};
-use crate::group_morphism::LinearRelation;
+use crate::linear_relation::LinearRelation;
 use crate::{
     group_serialization::*,
     traits::{CompactProtocol, SigmaProtocol, SigmaProtocolSimulator},
