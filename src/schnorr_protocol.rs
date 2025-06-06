@@ -382,15 +382,9 @@ where
     fn simulate_proof(
         &self,
         challenge: &Self::Challenge,
-        rng: &mut (impl RngCore + CryptoRng),
+        mut rng: &mut (impl RngCore + CryptoRng),
     ) -> (Self::Commitment, Self::Response) {
-        let mut response = Vec::new();
-        // FIXME: This repeats the same element over and over, which was probably not the
-        // intention.
-        response.extend(std::iter::repeat_n(
-            G::Scalar::random(rng),
-            self.scalars_nb(),
-        ));
+        let response = (0..self.scalars_nb()).map(|_| G::Scalar::random(&mut rng)).collect();
         let commitment = self.get_commitment(challenge, &response).unwrap();
         (commitment, response)
     }
@@ -404,9 +398,9 @@ where
     /// - A tuple `(commitment, challenge, response)` forming a valid proof.
     fn simulate_transcript(
         &self,
-        rng: &mut (impl RngCore + CryptoRng),
+        mut rng: &mut (impl RngCore + CryptoRng),
     ) -> (Self::Commitment, Self::Challenge, Self::Response) {
-        let challenge = G::Scalar::random(&mut *rng);
+        let challenge = G::Scalar::random(&mut rng);
         let (commitment, response) = self.simulate_proof(&challenge, rng);
         (commitment, challenge, response)
     }
