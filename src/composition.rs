@@ -16,7 +16,7 @@ use crate::traits::CompactProtocol;
 use crate::{
     errors::Error,
     fiat_shamir::{FiatShamir, HasGroupMorphism},
-    group_morphism::GroupMorphismPreimage,
+    group_morphism::LinearRelation,
     group_serialization::{deserialize_scalar, serialize_scalar},
     schnorr_protocol::SchnorrProtocol,
     traits::{SigmaProtocol, SigmaProtocolSimulator},
@@ -44,11 +44,11 @@ where
     }
 }
 
-impl<G> From<GroupMorphismPreimage<G>> for Protocol<G>
+impl<G> From<LinearRelation<G>> for Protocol<G>
 where
     G: Group + GroupEncoding,
 {
-    fn from(value: GroupMorphismPreimage<G>) -> Self {
+    fn from(value: LinearRelation<G>) -> Self {
         Self::from(SchnorrProtocol::from(value))
     }
 }

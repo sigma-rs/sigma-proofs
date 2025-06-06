@@ -1,4 +1,4 @@
-mod composition_protocol;
-mod morphism_preimage;
+mod composition;
+mod relations;
 mod spec;
 pub mod test_utils;

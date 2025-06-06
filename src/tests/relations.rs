@@ -10,7 +10,7 @@ use crate::tests::test_utils::{
 use crate::{codec::ShakeCodec, schnorr_protocol::SchnorrProtocol};
 
 /// This part tests the functioning of morphisms
-/// as well as the implementation of GroupMorphismPreimage
+/// as well as the implementation of LinearRelation
 #[test]
 fn test_discrete_logarithm() {
     let mut rng = OsRng;

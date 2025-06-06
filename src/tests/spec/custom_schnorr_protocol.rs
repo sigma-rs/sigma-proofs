@@ -5,12 +5,12 @@ use rand::{CryptoRng, Rng};
 use crate::codec::Codec;
 use crate::errors::Error;
 use crate::fiat_shamir::FiatShamir;
-use crate::group_morphism::GroupMorphismPreimage;
+use crate::group_morphism::LinearRelation;
 use crate::group_serialization::*;
 use crate::tests::spec::random::SRandom;
 use crate::traits::SigmaProtocol;
 
-pub struct SchnorrProtocolCustom<G: SRandom + GroupEncoding>(pub GroupMorphismPreimage<G>);
+pub struct SchnorrProtocolCustom<G: SRandom + GroupEncoding>(pub LinearRelation<G>);
 
 impl<G: SRandom + GroupEncoding> SchnorrProtocolCustom<G> {
     pub fn witness_len(&self) -> usize {

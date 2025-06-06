@@ -6,7 +6,7 @@
 //! It includes:
 //! - [`LinearCombination`]: a sparse representation of scalar multiplication relations
 //! - [`Morphism`]: a collection of linear combinations acting on group elements
-//! - [`GroupMorphismPreimage`]: a higher-level structure managing morphisms and their associated images
+//! - [`LinearRelation`]: a higher-level structure managing morphisms and their associated images
 
 use crate::errors::Error;
 use group::{Group, GroupEncoding};
@@ -275,7 +275,7 @@ impl<G: Group> Morphism<G> {
 /// - A list of group elements and linear equations (held in the [`Morphism`] field),
 /// - A list of [`GroupVar`] indices (`image`) that specify the expected output for each constraint.
 #[derive(Clone, Default, Debug)]
-pub struct GroupMorphismPreimage<G>
+pub struct LinearRelation<G>
 where
     G: Group + GroupEncoding,
 {
@@ -285,11 +285,11 @@ where
     pub image: Vec<GroupVar>,
 }
 
-impl<G> GroupMorphismPreimage<G>
+impl<G> LinearRelation<G>
 where
     G: Group + GroupEncoding,
 {
-    /// Create a new empty GroupMorphismPreimage.
+    /// Create a new empty [`LinearRelation`].
     pub fn new() -> Self {
         Self {
             morphism: Morphism::new(),
@@ -339,10 +339,10 @@ where
     ///
     /// # Example
     /// ```
-    /// # use sigma_rs::group_morphism::GroupMorphismPreimage;
+    /// # use sigma_rs::group_morphism::LinearRelation;
     /// use curve25519_dalek::RistrettoPoint as G;
     ///
-    /// let mut morphism = GroupMorphismPreimage::<G>::new();
+    /// let mut morphism = LinearRelation::<G>::new();
     /// let [var_x, var_y] = morphism.allocate_scalars();
     /// let vars = morphism.allocate_scalars::<10>();
     /// ```
@@ -367,10 +367,10 @@ where
     ///
     /// # Example
     /// ```
-    /// # use sigma_rs::group_morphism::GroupMorphismPreimage;
+    /// # use sigma_rs::group_morphism::LinearRelation;
     /// use curve25519_dalek::RistrettoPoint as G;
     ///
-    /// let mut morphism = GroupMorphismPreimage::<G>::new();
+    /// let mut morphism = LinearRelation::<G>::new();
     /// let [var_g, var_h] = morphism.allocate_elements();
     /// let vars = morphism.allocate_elements::<10>();
     /// ```
@@ -421,12 +421,10 @@ where
     /// # Returns
     ///
     /// Return `Ok` on success, and an error if unassigned elements prevent the image from being
-    /// computed. Modifies the group elements assigned in the [GroupMorphismPreimage].
+    /// computed. Modifies the group elements assigned in the [LinearRelation].
     pub fn compute_image(&mut self, scalars: &[<G as Group>::Scalar]) -> Result<(), Error> {
         if self.morphism.constraints.len() != self.image.len() {
-            panic!(
-                "invalid GroupMorphismPreimage: different number of constraints and image variables"
-            );
+            panic!("invalid LinearRelation: different number of constraints and image variables");
         }
 
         for (lc, lhs) in iter::zip(self.morphism.constraints.as_slice(), self.image.as_slice()) {

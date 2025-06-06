@@ -7,7 +7,7 @@
 use crate::codec::Codec;
 use crate::errors::Error;
 use crate::fiat_shamir::{FiatShamir, HasGroupMorphism};
-use crate::group_morphism::GroupMorphismPreimage;
+use crate::group_morphism::LinearRelation;
 use crate::{
     group_serialization::*,
     traits::{CompactProtocol, SigmaProtocol, SigmaProtocolSimulator},
@@ -20,12 +20,12 @@ use rand::{CryptoRng, RngCore};
 /// A Schnorr protocol proving knowledge of a witness for a linear group relation.
 ///
 /// This implementation generalizes Schnorr’s discrete logarithm proof by using
-/// a [`GroupMorphismPreimage`], representing an abstract linear relation over the group.
+/// a [`LinearRelation`], representing an abstract linear relation over the group.
 ///
 /// # Type Parameters
 /// - `G`: A cryptographic group implementing [`Group`] and [`GroupEncoding`].
 #[derive(Clone, Default, Debug)]
-pub struct SchnorrProtocol<G: Group + GroupEncoding>(pub GroupMorphismPreimage<G>);
+pub struct SchnorrProtocol<G: Group + GroupEncoding>(pub LinearRelation<G>);
 
 impl<G: Group + GroupEncoding> SchnorrProtocol<G> {
     pub fn scalars_nb(&self) -> usize {
@@ -37,11 +37,11 @@ impl<G: Group + GroupEncoding> SchnorrProtocol<G> {
     }
 }
 
-impl<G> From<GroupMorphismPreimage<G>> for SchnorrProtocol<G>
+impl<G> From<LinearRelation<G>> for SchnorrProtocol<G>
 where
     G: Group + GroupEncoding,
 {
-    fn from(value: GroupMorphismPreimage<G>) -> Self {
+    fn from(value: LinearRelation<G>) -> Self {
         Self(value)
     }
 }
