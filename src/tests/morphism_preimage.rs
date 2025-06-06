@@ -2,12 +2,12 @@ use bls12_381::{G1Projective as G, Scalar};
 use group::{Group, ff::Field};
 use rand::rngs::OsRng;
 
-use sigma_rs::fiat_shamir::{HasGroupMorphism, NISigmaProtocol};
-use sigma_rs::test_utils::{
+use crate::fiat_shamir::{HasGroupMorphism, NISigmaProtocol};
+use crate::tests::test_utils::{
     bbs_blind_commitment_computation, discrete_logarithm, dleq, pedersen_commitment,
     pedersen_commitment_dleq,
 };
-use sigma_rs::{codec::ShakeCodec, schnorr_protocol::SchnorrProtocol};
+use crate::{codec::ShakeCodec, schnorr_protocol::SchnorrProtocol};
 
 /// This part tests the functioning of morphisms
 /// as well as the implementation of GroupMorphismPreimage

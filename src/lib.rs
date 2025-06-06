@@ -22,5 +22,6 @@ pub mod traits;
 
 pub mod codec;
 
-#[cfg(feature = "test-utils")]
-pub mod test_utils;
+
+#[cfg(test)]
+pub mod tests;

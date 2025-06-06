@@ -7,7 +7,7 @@ use num_traits::One;
 use rand::{CryptoRng, Rng};
 use subtle::CtOption;
 
-use crate::random::{SInput, SRandom};
+use crate::tests::spec::random::{SInput, SRandom};
 
 impl SInput for G1Projective {
     fn scalar_from_hex_be(hex_str: &str) -> Option<Self::Scalar> {
