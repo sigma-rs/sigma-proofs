@@ -14,10 +14,10 @@
 //! - Composes multiple protocols via AND and OR connections
 //! - Offers one-shot `prove` and `verify` methods.
 
-use crate::{codec::ShakeCodec, fiat_shamir::NISigmaProtocol, protocol::Protocol};
+use crate::{codec::ShakeCodec, composition::Protocol, fiat_shamir::NISigmaProtocol};
 
 /// An alias for a [`Protocol`] on [`GroupMorphismPreimage`] and applies
-/// the Fiat-Shamir transform via [`NISigmaProtocol`].
+/// the Fiat-Shamir transform via [`NISigmaProtocol`].composition
 ///
 /// # Type Parameters
 /// - `G`: A group that implements both [`Group`] and [`GroupEncoding`].

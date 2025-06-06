@@ -1,4 +1,3 @@
-// -*- coding: utf-8; mode: rust; -*-
 //
 // Authors:
 // - Nugzari Uzoevi <nougzarm@icloud.com>
@@ -13,12 +12,12 @@
 #![deny(unused_variables)]
 #![deny(unused_mut)]
 
+pub mod composition;
 pub mod errors;
 pub mod fiat_shamir;
 pub mod group_morphism;
 pub mod group_serialization;
 pub mod proof_builder;
-pub mod protocol;
 pub mod schnorr_protocol;
 pub mod traits;
 

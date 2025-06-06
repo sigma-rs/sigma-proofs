@@ -384,7 +384,9 @@ where
         challenge: &Self::Challenge,
         mut rng: &mut (impl RngCore + CryptoRng),
     ) -> (Self::Commitment, Self::Response) {
-        let response = (0..self.scalars_nb()).map(|_| G::Scalar::random(&mut rng)).collect();
+        let response = (0..self.scalars_nb())
+            .map(|_| G::Scalar::random(&mut rng))
+            .collect();
         let commitment = self.get_commitment(challenge, &response).unwrap();
         (commitment, response)
     }

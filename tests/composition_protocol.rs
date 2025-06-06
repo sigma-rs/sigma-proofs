@@ -3,8 +3,8 @@ use group::Group;
 use rand::rngs::OsRng;
 
 use sigma_rs::codec::ShakeCodec;
+use sigma_rs::composition::{Protocol, ProtocolWitness};
 use sigma_rs::fiat_shamir::{HasGroupMorphism, NISigmaProtocol};
-use sigma_rs::protocol::{Protocol, ProtocolWitness};
 use sigma_rs::schnorr_protocol::SchnorrProtocol;
 use sigma_rs::test_utils::{
     bbs_blind_commitment_computation, discrete_logarithm, dleq, pedersen_commitment,
@@ -66,7 +66,7 @@ fn composition_proof_correct() {
         Protocol::Simple(SchnorrProtocol::from(morph2)),
     ]);
     let or_witness1 =
-        sigma_rs::protocol::ProtocolWitness::Or(0, vec![ProtocolWitness::Simple(witness1)]);
+        sigma_rs::composition::ProtocolWitness::Or(0, vec![ProtocolWitness::Simple(witness1)]);
 
     let simple_protocol1 = Protocol::from(morph3);
     let simple_witness1 = ProtocolWitness::Simple(witness3);
