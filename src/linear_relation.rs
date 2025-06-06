@@ -10,7 +10,7 @@
 
 use crate::errors::Error;
 use group::{Group, GroupEncoding};
-use std::iter;
+use std::{io::Write, iter};
 
 /// Implementations of core ops for the linear combination types.
 mod ops;
@@ -461,5 +461,48 @@ where
             .iter()
             .map(|&var| self.morphism.group_elements.get(var))
             .collect()
+    }
+
+    /// Returns a binary label describing the morphism structure, following the Signal POKSHO format.
+    ///
+    /// The format is:
+    /// - [Ne: u8] number of equations
+    /// - For each equation:
+    ///   - [output_point_index: u8]
+    ///   - [Nt: u8] number of terms
+    ///   - Nt × [scalar_index: u8, point_index: u8] term entries
+    pub fn label(&self) -> Vec<u8> {
+        let mut out = Vec::new();
+
+        // 1. Number of equations (must match image vector length)
+        let ne = self.image.len();
+        assert_eq!(
+            ne,
+            self.morphism.constraints.len(),
+            "Number of equations and image variables must match"
+        );
+        out.write_all(&[ne as u8]).unwrap();
+
+        // 2. Encode each equation with its LHS and terms
+        for (constraint, output_var) in self
+            .morphism
+            .constraints
+            .iter()
+            .zip(self.image.iter())
+        {
+            // a. Output point index (LHS)
+            out.write_all(&[output_var.index() as u8]).unwrap();
+
+            // b. Number of terms in the linear combination
+            let terms = constraint.terms();
+            out.write_all(&[terms.len() as u8]).unwrap();
+
+            // c. Each term: (scalar_index, point_index)
+            for term in terms {
+                out.write_all(&[term.scalar().index() as u8]).unwrap();
+                out.write_all(&[term.elem().index() as u8]).unwrap();
+            }
+        }
+        out
     }
 }

@@ -418,50 +418,14 @@ where
     /// # Parameters
     /// - `codec`: the Codec that absorbs commitments
     /// - `commitment`: a commitment of SchnorrProtocol
-    ///
-    /// # Source
-    /// The structure is Taken from the Signal implementation
-    /// https://github.com/signalapp/libsignal/blob/427722720357ef8c909a2b276a68205a160c5ea6/rust/poksho/src/statement.rs#L12-L91
     fn absorb_statement_and_commitment(&self, codec: &mut C, commitment: &Self::Commitment) {
-        let morphism = &self.0.morphism;
+        let mut data = self.0.label();
 
-        // Step 1: Absorb protocol label (L)
-        codec.prover_message(b"label:SIGMA_RS_SCHNORR");
-
-        // Step 2: Absorb description (D) of the homomorphism
-        let ne = morphism.constraints.len();
-        codec.prover_message(b"desc:eq_count:");
-        codec.prover_message(&[ne as u8]);
-
-        for (i, constraint) in morphism.constraints.iter().enumerate() {
-            let lhs = i as u8;
-            let nt = constraint.terms().len() as u8;
-
-            codec.prover_message(format!("desc:eq:{}:lhs:", i).as_bytes());
-            codec.prover_message(&[lhs]);
-
-            codec.prover_message(format!("desc:eq:{}:nt:", i).as_bytes());
-            codec.prover_message(&[nt]);
-
-            for (j, term) in constraint.terms().iter().enumerate() {
-                let scalar = term.scalar().index() as u8;
-                let point = term.elem().index() as u8;
-                codec.prover_message(format!("desc:eq:{}:term:{}:", i, j).as_bytes());
-                codec.prover_message(&[scalar, point]);
-            }
+        for commit in commitment {
+            data.extend_from_slice(commit.to_bytes().as_ref());
         }
 
-        // Step 3: Absorb point values for statement (A)
-        for (i, point) in morphism.group_elements.iter() {
-            codec.prover_message(format!("point:{}:", i.index()).as_bytes());
-            codec.prover_message(point.to_bytes().as_ref());
-        }
-
-        // Step 4: Absorb commitment (R)
-        for (i, commit) in commitment.iter().enumerate() {
-            codec.prover_message(format!("commitment:{}:", i).as_bytes());
-            codec.prover_message(commit.to_bytes().as_ref());
-        }
+        codec.prover_message(&data);
     }
 
     /// Generates a challenge from the codec that absorbed the commitments
