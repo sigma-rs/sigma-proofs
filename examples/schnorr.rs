@@ -35,19 +35,23 @@ pub fn discrete_logarithm<G: Group + GroupEncoding>(
 
 #[allow(non_snake_case)]
 fn main() {
-    // === Setup: define witness and statement ===
+    // === Step 1: Setup relation and witness ===
+
+    // Prover's secret: x such that x·G = P
     let x = Scalar::random(&mut OsRng); // Prover's secret
     let (relation, _) = discrete_logarithm(x);
 
-    // === Create Schnorr protocol and wrap with Fiat-Shamir ===
+    // === Step 2: Wrap relation in a non-interactive Schnorr protocol ===
+
     let schnorr = SchnorrProtocol::<RistrettoPoint>::from(relation);
     let ni = NISigmaProtocol::<_, ShakeCodec<RistrettoPoint>>::new(b"schnorr-example", schnorr);
-
-    // === Prove ===
     let witness = vec![x];
+
+    // === Step 3: Prove ===
+
     let proof = ni.prove(&witness, &mut OsRng).unwrap();
 
-    // === Verify ===
+    // === Step 4: Verify ===
     let verified = ni.verify(&proof.0, &proof.1, &proof.2).is_ok();
     println!("Schnorr NIZK proof verified: {verified}");
 }
