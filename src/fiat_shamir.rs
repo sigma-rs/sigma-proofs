@@ -28,7 +28,7 @@ use rand::{CryptoRng, RngCore};
 /// # Type Parameters
 /// - `C`: the codec used for encoding/decoding messages to/from the IP space.
 pub trait FiatShamir<C: Codec>: SigmaProtocol {
-    fn absorb_statement_and_commitment(&self, codec: &mut C, commitment: &Self::Commitment);
+    fn push_commitment(&self, codec: &mut C, commitment: &Self::Commitment);
 
     fn get_challenge(&self, codec: &mut C) -> Result<Self::Challenge, Error>;
 }
@@ -109,8 +109,7 @@ where
 
         let (commitment, prover_state) = self.sigmap.prover_commit(witness, rng)?;
         // Fiat Shamir challenge
-        self.sigmap
-            .absorb_statement_and_commitment(&mut codec, &commitment);
+        self.sigmap.push_commitment(&mut codec, &commitment);
         let challenge = self.sigmap.get_challenge(&mut codec)?;
         // Prover's response
         let response = self.sigmap.prover_response(prover_state, &challenge)?;
@@ -144,7 +143,7 @@ where
 
         // Recompute the challenge
         self.sigmap
-            .absorb_statement_and_commitment(&mut codec, commitment);
+            .push_commitment(&mut codec, commitment);
         let expected_challenge = self.sigmap.get_challenge(&mut codec)?;
         // Verification of the proof
         match *challenge == expected_challenge {
@@ -195,7 +194,7 @@ where
 
         // Recompute the challenge
         self.sigmap
-            .absorb_statement_and_commitment(&mut codec, &commitment);
+            .push_commitment(&mut codec, &commitment);
         let challenge = self.sigmap.get_challenge(&mut codec)?;
         // Verification of the proof
         self.sigmap.verifier(&commitment, &challenge, &response)
