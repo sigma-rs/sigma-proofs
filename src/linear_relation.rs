@@ -484,12 +484,7 @@ where
         out.write_all(&[ne as u8]).unwrap();
 
         // 2. Encode each equation with its LHS and terms
-        for (constraint, output_var) in self
-            .morphism
-            .constraints
-            .iter()
-            .zip(self.image.iter())
-        {
+        for (constraint, output_var) in self.morphism.constraints.iter().zip(self.image.iter()) {
             // a. Output point index (LHS)
             out.write_all(&[output_var.index() as u8]).unwrap();
 

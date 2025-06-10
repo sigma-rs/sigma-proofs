@@ -5,8 +5,8 @@ use rand::{CryptoRng, Rng};
 use crate::codec::Codec;
 use crate::errors::Error;
 use crate::fiat_shamir::FiatShamir;
-use crate::linear_relation::LinearRelation;
 use crate::group_serialization::*;
+use crate::linear_relation::LinearRelation;
 use crate::tests::spec::random::SRandom;
 use crate::traits::SigmaProtocol;
 
