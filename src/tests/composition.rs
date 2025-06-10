@@ -8,7 +8,7 @@ use super::test_utils::{
 };
 use crate::codec::ShakeCodec;
 use crate::composition::{Protocol, ProtocolWitness};
-use crate::fiat_shamir::{HasGroupMorphism, NISigmaProtocol};
+use crate::fiat_shamir::NISigmaProtocol;
 use crate::schnorr_protocol::SchnorrProtocol;
 
 type G = RistrettoPoint;
@@ -83,12 +83,8 @@ fn composition_proof_correct() {
     let protocol = Protocol::And(vec![or_protocol1, simple_protocol1, and_protocol1]);
     let witness = ProtocolWitness::And(vec![or_witness1, simple_witness1, and_witness1]);
 
-    let mut nizk =
+    let nizk =
         NISigmaProtocol::<Protocol<RistrettoPoint>, ShakeCodec<G>>::new(domain_sep, protocol);
-
-    nizk.sigmap
-        .absorb_morphism_structure(&mut nizk.hash_state)
-        .unwrap();
 
     // Batchable and compact proofs
     let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();

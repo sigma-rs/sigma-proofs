@@ -15,8 +15,8 @@
 pub mod composition;
 pub mod errors;
 pub mod fiat_shamir;
-pub mod linear_relation;
 pub mod group_serialization;
+pub mod linear_relation;
 pub mod schnorr_protocol;
 pub mod traits;
 
@@ -24,6 +24,5 @@ pub mod codec;
 
 #[cfg(test)]
 pub mod tests;
-
 
 pub use linear_relation::LinearRelation;

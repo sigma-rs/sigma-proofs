@@ -5,8 +5,8 @@ use rand::{CryptoRng, Rng};
 use crate::codec::Codec;
 use crate::errors::Error;
 use crate::fiat_shamir::FiatShamir;
-use crate::linear_relation::LinearRelation;
 use crate::group_serialization::*;
+use crate::linear_relation::LinearRelation;
 use crate::tests::spec::random::SRandom;
 use crate::traits::SigmaProtocol;
 
@@ -156,7 +156,7 @@ where
     C: Codec<Challenge = <G as Group>::Scalar>,
     G: SRandom + GroupEncoding,
 {
-    fn push_commitment(&self, codec: &mut C, commitment: &Self::Commitment) {
+    fn absorb_statement_and_commitment(&self, codec: &mut C, commitment: &Self::Commitment) {
         let mut data = Vec::new();
         for commit in commitment {
             data.extend_from_slice(commit.to_bytes().as_ref());

@@ -6,7 +6,7 @@
 
 use crate::codec::Codec;
 use crate::errors::Error;
-use crate::fiat_shamir::{FiatShamir, HasGroupMorphism};
+use crate::fiat_shamir::FiatShamir;
 use crate::linear_relation::LinearRelation;
 use crate::{
     group_serialization::*,
@@ -413,16 +413,18 @@ where
     C: Codec<Challenge = <G as Group>::Scalar>,
     G: Group + GroupEncoding,
 {
-    /// Absorbs commitments into the codec for future use of the codec
+    /// Absorbs statement and commitment into the codec
     ///
     /// # Parameters
     /// - `codec`: the Codec that absorbs commitments
     /// - `commitment`: a commitment of SchnorrProtocol
-    fn push_commitment(&self, codec: &mut C, commitment: &Self::Commitment) {
-        let mut data = Vec::new();
+    fn absorb_statement_and_commitment(&self, codec: &mut C, commitment: &Self::Commitment) {
+        let mut data = self.0.label();
+
         for commit in commitment {
             data.extend_from_slice(commit.to_bytes().as_ref());
         }
+
         codec.prover_message(&data);
     }
 
@@ -435,19 +437,5 @@ where
     /// - A `challenge`` that can be used during a non-interactive protocol
     fn get_challenge(&self, codec: &mut C) -> Result<Self::Challenge, Error> {
         Ok(codec.verifier_challenge())
-    }
-}
-
-impl<G: Group + GroupEncoding> HasGroupMorphism for SchnorrProtocol<G> {
-    fn absorb_morphism_structure<C: Codec>(&self, codec: &mut C) -> Result<(), Error> {
-        for lc in &self.0.morphism.constraints {
-            for term in lc.terms() {
-                let mut buf = [0u8; 16];
-                buf[..8].copy_from_slice(&(term.scalar().index() as u64).to_le_bytes());
-                buf[8..].copy_from_slice(&(term.elem().index() as u64).to_le_bytes());
-                codec.prover_message(&buf);
-            }
-        }
-        Ok(())
     }
 }
