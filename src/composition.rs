@@ -638,9 +638,7 @@ where
 {
     fn push_commitment(&self, codec: &mut C, commitment: &Self::Commitment) {
         match (self, commitment) {
-            (Protocol::Simple(p), ProtocolCommitment::Simple(c)) => {
-                p.push_commitment(codec, c)
-            }
+            (Protocol::Simple(p), ProtocolCommitment::Simple(c)) => p.push_commitment(codec, c),
             (Protocol::And(ps), ProtocolCommitment::And(cs)) => {
                 for (i, p) in ps.iter().enumerate() {
                     p.push_commitment(codec, &cs[i]);

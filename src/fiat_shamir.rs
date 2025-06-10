@@ -142,8 +142,7 @@ where
         let mut codec = self.hash_state.clone();
 
         // Recompute the challenge
-        self.sigmap
-            .push_commitment(&mut codec, commitment);
+        self.sigmap.push_commitment(&mut codec, commitment);
         let expected_challenge = self.sigmap.get_challenge(&mut codec)?;
         // Verification of the proof
         match *challenge == expected_challenge {
@@ -193,8 +192,7 @@ where
         let mut codec = self.hash_state.clone();
 
         // Recompute the challenge
-        self.sigmap
-            .push_commitment(&mut codec, &commitment);
+        self.sigmap.push_commitment(&mut codec, &commitment);
         let challenge = self.sigmap.get_challenge(&mut codec)?;
         // Verification of the proof
         self.sigmap.verifier(&commitment, &challenge, &response)
