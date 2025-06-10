@@ -6,11 +6,11 @@
 //! It includes:
 //! - [`LinearCombination`]: a sparse representation of scalar multiplication relations
 //! - [`Morphism`]: a collection of linear combinations acting on group elements
-//! - [`GroupMorphismPreimage`]: a higher-level structure managing morphisms and their associated images
+//! - [`LinearRelation`]: a higher-level structure managing morphisms and their associated images
 
 use crate::errors::Error;
 use group::{Group, GroupEncoding};
-use std::iter;
+use std::{io::Write, iter};
 
 /// Implementations of core ops for the linear combination types.
 mod ops;
@@ -146,7 +146,7 @@ impl<G: Group> GroupMap<G> {
 
     /// Get the element value assigned to the given point var.
     ///
-    /// Returns [Error::UninitializedGroupVar] if a value is not assigned.
+    /// Returns [`Error::UnassignedGroupVar`] if a value is not assigned.
     pub fn get(&self, var: GroupVar) -> Result<G, Error> {
         self.0[var.0].ok_or(Error::UnassignedGroupVar { var })
     }
@@ -160,6 +160,13 @@ impl<G: Group> GroupMap<G> {
             .into_iter()
             .enumerate()
             .filter_map(|(i, x)| x.map(|x| (GroupVar(i), x)))
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (GroupVar, &G)> {
+        self.0
+            .iter()
+            .enumerate()
+            .filter_map(|(i, opt)| opt.as_ref().map(|g| (GroupVar(i), g)))
     }
 }
 
@@ -275,7 +282,7 @@ impl<G: Group> Morphism<G> {
 /// - A list of group elements and linear equations (held in the [`Morphism`] field),
 /// - A list of [`GroupVar`] indices (`image`) that specify the expected output for each constraint.
 #[derive(Clone, Default, Debug)]
-pub struct GroupMorphismPreimage<G>
+pub struct LinearRelation<G>
 where
     G: Group + GroupEncoding,
 {
@@ -285,11 +292,11 @@ where
     pub image: Vec<GroupVar>,
 }
 
-impl<G> GroupMorphismPreimage<G>
+impl<G> LinearRelation<G>
 where
     G: Group + GroupEncoding,
 {
-    /// Create a new empty GroupMorphismPreimage.
+    /// Create a new empty [`LinearRelation`].
     pub fn new() -> Self {
         Self {
             morphism: Morphism::new(),
@@ -339,10 +346,10 @@ where
     ///
     /// # Example
     /// ```
-    /// # use sigma_rs::group_morphism::GroupMorphismPreimage;
+    /// # use sigma_rs::LinearRelation;
     /// use curve25519_dalek::RistrettoPoint as G;
     ///
-    /// let mut morphism = GroupMorphismPreimage::<G>::new();
+    /// let mut morphism = LinearRelation::<G>::new();
     /// let [var_x, var_y] = morphism.allocate_scalars();
     /// let vars = morphism.allocate_scalars::<10>();
     /// ```
@@ -367,10 +374,10 @@ where
     ///
     /// # Example
     /// ```
-    /// # use sigma_rs::group_morphism::GroupMorphismPreimage;
+    /// # use sigma_rs::LinearRelation;
     /// use curve25519_dalek::RistrettoPoint as G;
     ///
-    /// let mut morphism = GroupMorphismPreimage::<G>::new();
+    /// let mut morphism = LinearRelation::<G>::new();
     /// let [var_g, var_h] = morphism.allocate_elements();
     /// let vars = morphism.allocate_elements::<10>();
     /// ```
@@ -421,12 +428,10 @@ where
     /// # Returns
     ///
     /// Return `Ok` on success, and an error if unassigned elements prevent the image from being
-    /// computed. Modifies the group elements assigned in the [GroupMorphismPreimage].
+    /// computed. Modifies the group elements assigned in the [LinearRelation].
     pub fn compute_image(&mut self, scalars: &[<G as Group>::Scalar]) -> Result<(), Error> {
         if self.morphism.constraints.len() != self.image.len() {
-            panic!(
-                "invalid GroupMorphismPreimage: different number of constraints and image variables"
-            );
+            panic!("invalid LinearRelation: different number of constraints and image variables");
         }
 
         for (lc, lhs) in iter::zip(self.morphism.constraints.as_slice(), self.image.as_slice()) {
@@ -456,5 +461,43 @@ where
             .iter()
             .map(|&var| self.morphism.group_elements.get(var))
             .collect()
+    }
+
+    /// Returns a binary label describing the morphism structure, following the Signal POKSHO format.
+    ///
+    /// The format is:
+    /// - [Ne: u8] number of equations
+    /// - For each equation:
+    ///   - [output_point_index: u8]
+    ///   - [Nt: u8] number of terms
+    ///   - Nt × [scalar_index: u8, point_index: u8] term entries
+    pub fn label(&self) -> Vec<u8> {
+        let mut out = Vec::new();
+
+        // 1. Number of equations (must match image vector length)
+        let ne = self.image.len();
+        assert_eq!(
+            ne,
+            self.morphism.constraints.len(),
+            "Number of equations and image variables must match"
+        );
+        out.write_all(&[ne as u8]).unwrap();
+
+        // 2. Encode each equation with its LHS and terms
+        for (constraint, output_var) in self.morphism.constraints.iter().zip(self.image.iter()) {
+            // a. Output point index (LHS)
+            out.write_all(&[output_var.index() as u8]).unwrap();
+
+            // b. Number of terms in the linear combination
+            let terms = constraint.terms();
+            out.write_all(&[terms.len() as u8]).unwrap();
+
+            // c. Each term: (scalar_index, point_index)
+            for term in terms {
+                out.write_all(&[term.scalar().index() as u8]).unwrap();
+                out.write_all(&[term.elem().index() as u8]).unwrap();
+            }
+        }
+        out
     }
 }

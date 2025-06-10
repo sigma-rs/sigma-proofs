@@ -6,8 +6,8 @@
 
 use crate::codec::Codec;
 use crate::errors::Error;
-use crate::fiat_shamir::{FiatShamir, HasGroupMorphism};
-use crate::group_morphism::GroupMorphismPreimage;
+use crate::fiat_shamir::FiatShamir;
+use crate::linear_relation::LinearRelation;
 use crate::{
     group_serialization::*,
     traits::{CompactProtocol, SigmaProtocol, SigmaProtocolSimulator},
@@ -20,12 +20,12 @@ use rand::{CryptoRng, RngCore};
 /// A Schnorr protocol proving knowledge of a witness for a linear group relation.
 ///
 /// This implementation generalizes Schnorr’s discrete logarithm proof by using
-/// a [`GroupMorphismPreimage`], representing an abstract linear relation over the group.
+/// a [`LinearRelation`], representing an abstract linear relation over the group.
 ///
 /// # Type Parameters
 /// - `G`: A cryptographic group implementing [`Group`] and [`GroupEncoding`].
 #[derive(Clone, Default, Debug)]
-pub struct SchnorrProtocol<G: Group + GroupEncoding>(pub GroupMorphismPreimage<G>);
+pub struct SchnorrProtocol<G: Group + GroupEncoding>(pub LinearRelation<G>);
 
 impl<G: Group + GroupEncoding> SchnorrProtocol<G> {
     pub fn scalars_nb(&self) -> usize {
@@ -37,11 +37,11 @@ impl<G: Group + GroupEncoding> SchnorrProtocol<G> {
     }
 }
 
-impl<G> From<GroupMorphismPreimage<G>> for SchnorrProtocol<G>
+impl<G> From<LinearRelation<G>> for SchnorrProtocol<G>
 where
     G: Group + GroupEncoding,
 {
-    fn from(value: GroupMorphismPreimage<G>) -> Self {
+    fn from(value: LinearRelation<G>) -> Self {
         Self(value)
     }
 }
@@ -382,15 +382,11 @@ where
     fn simulate_proof(
         &self,
         challenge: &Self::Challenge,
-        rng: &mut (impl RngCore + CryptoRng),
+        mut rng: &mut (impl RngCore + CryptoRng),
     ) -> (Self::Commitment, Self::Response) {
-        let mut response = Vec::new();
-        // FIXME: This repeats the same element over and over, which was probably not the
-        // intention.
-        response.extend(std::iter::repeat_n(
-            G::Scalar::random(rng),
-            self.scalars_nb(),
-        ));
+        let response = (0..self.scalars_nb())
+            .map(|_| G::Scalar::random(&mut rng))
+            .collect();
         let commitment = self.get_commitment(challenge, &response).unwrap();
         (commitment, response)
     }
@@ -404,9 +400,9 @@ where
     /// - A tuple `(commitment, challenge, response)` forming a valid proof.
     fn simulate_transcript(
         &self,
-        rng: &mut (impl RngCore + CryptoRng),
+        mut rng: &mut (impl RngCore + CryptoRng),
     ) -> (Self::Commitment, Self::Challenge, Self::Response) {
-        let challenge = G::Scalar::random(&mut *rng);
+        let challenge = G::Scalar::random(&mut rng);
         let (commitment, response) = self.simulate_proof(&challenge, rng);
         (commitment, challenge, response)
     }
@@ -417,16 +413,18 @@ where
     C: Codec<Challenge = <G as Group>::Scalar>,
     G: Group + GroupEncoding,
 {
-    /// Absorbs commitments into the codec for future use of the codec
+    /// Absorbs statement and commitment into the codec
     ///
     /// # Parameters
     /// - `codec`: the Codec that absorbs commitments
     /// - `commitment`: a commitment of SchnorrProtocol
-    fn push_commitment(&self, codec: &mut C, commitment: &Self::Commitment) {
-        let mut data = Vec::new();
+    fn absorb_statement_and_commitment(&self, codec: &mut C, commitment: &Self::Commitment) {
+        let mut data = self.0.label();
+
         for commit in commitment {
             data.extend_from_slice(commit.to_bytes().as_ref());
         }
+
         codec.prover_message(&data);
     }
 
@@ -439,19 +437,5 @@ where
     /// - A `challenge`` that can be used during a non-interactive protocol
     fn get_challenge(&self, codec: &mut C) -> Result<Self::Challenge, Error> {
         Ok(codec.verifier_challenge())
-    }
-}
-
-impl<G: Group + GroupEncoding> HasGroupMorphism for SchnorrProtocol<G> {
-    fn absorb_morphism_structure<C: Codec>(&self, codec: &mut C) -> Result<(), Error> {
-        for lc in &self.0.morphism.constraints {
-            for term in lc.terms() {
-                let mut buf = [0u8; 16];
-                buf[..8].copy_from_slice(&(term.scalar().index() as u64).to_le_bytes());
-                buf[8..].copy_from_slice(&(term.elem().index() as u64).to_le_bytes());
-                codec.prover_message(&buf);
-            }
-        }
-        Ok(())
     }
 }

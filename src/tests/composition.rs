@@ -2,14 +2,14 @@ use curve25519_dalek::ristretto::RistrettoPoint;
 use group::Group;
 use rand::rngs::OsRng;
 
-use sigma_rs::codec::ShakeCodec;
-use sigma_rs::fiat_shamir::{HasGroupMorphism, NISigmaProtocol};
-use sigma_rs::protocol::{Protocol, ProtocolWitness};
-use sigma_rs::schnorr_protocol::SchnorrProtocol;
-use sigma_rs::test_utils::{
+use super::test_utils::{
     bbs_blind_commitment_computation, discrete_logarithm, dleq, pedersen_commitment,
     pedersen_commitment_dleq,
 };
+use crate::codec::ShakeCodec;
+use crate::composition::{Protocol, ProtocolWitness};
+use crate::fiat_shamir::NISigmaProtocol;
+use crate::schnorr_protocol::SchnorrProtocol;
 
 type G = RistrettoPoint;
 
@@ -65,8 +65,7 @@ fn composition_proof_correct() {
         Protocol::Simple(SchnorrProtocol::from(morph1)),
         Protocol::Simple(SchnorrProtocol::from(morph2)),
     ]);
-    let or_witness1 =
-        sigma_rs::protocol::ProtocolWitness::Or(0, vec![ProtocolWitness::Simple(witness1)]);
+    let or_witness1 = ProtocolWitness::Or(0, vec![ProtocolWitness::Simple(witness1)]);
 
     let simple_protocol1 = Protocol::from(morph3);
     let simple_witness1 = ProtocolWitness::Simple(witness3);
@@ -84,12 +83,8 @@ fn composition_proof_correct() {
     let protocol = Protocol::And(vec![or_protocol1, simple_protocol1, and_protocol1]);
     let witness = ProtocolWitness::And(vec![or_witness1, simple_witness1, and_witness1]);
 
-    let mut nizk =
+    let nizk =
         NISigmaProtocol::<Protocol<RistrettoPoint>, ShakeCodec<G>>::new(domain_sep, protocol);
-
-    nizk.sigmap
-        .absorb_morphism_structure(&mut nizk.hash_state)
-        .unwrap();
 
     // Batchable and compact proofs
     let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();

@@ -4,14 +4,16 @@ use hex::FromHex;
 use json::JsonValue;
 use std::fs;
 
-use sigma_rs::codec::{ByteSchnorrCodec, KeccakDuplexSponge};
-use sigma_rs::fiat_shamir::NISigmaProtocol;
-use sigma_rs::test_utils::{
+use crate::codec::{ByteSchnorrCodec, KeccakDuplexSponge};
+use crate::fiat_shamir::NISigmaProtocol;
+use crate::tests::test_utils::{
     bbs_blind_commitment_computation, discrete_logarithm, dleq, pedersen_commitment,
     pedersen_commitment_dleq,
 };
 
-use crate::{custom_schnorr_protocol::SchnorrProtocolCustom, random::SRandom, test_drng::TestDRNG};
+use crate::tests::spec::{
+    custom_schnorr_protocol::SchnorrProtocolCustom, random::SRandom, rng::TestDRNG,
+};
 
 type Codec = ByteSchnorrCodec<G, KeccakDuplexSponge>;
 type SigmaP = SchnorrProtocolCustom<G>;
@@ -24,7 +26,7 @@ fn sage_test_vectors() {
     let seed = b"hello world";
     let context = b"yellow submarineyellow submarine";
 
-    let vectors = extract_vectors("tests/spec/allVectors.json").unwrap();
+    let vectors = extract_vectors("src/tests/spec/allVectors.json").unwrap();
 
     let functions: [fn(seed: &[u8], context: &[u8]) -> (Vec<Scalar>, Vec<u8>); 5] = [
         NI_discrete_logarithm,

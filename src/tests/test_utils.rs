@@ -2,14 +2,14 @@
 
 use group::{Group, GroupEncoding};
 
-use crate::group_morphism::{GroupMorphismPreimage, msm_pr};
+use crate::linear_relation::{LinearRelation, msm_pr};
 
 /// Morphism for knowledge of a discrete logarithm relative to a fixed basepoint.
 #[allow(non_snake_case)]
 pub fn discrete_logarithm<G: Group + GroupEncoding>(
     x: G::Scalar,
-) -> (GroupMorphismPreimage<G>, Vec<G::Scalar>) {
-    let mut morphismp: GroupMorphismPreimage<G> = GroupMorphismPreimage::new();
+) -> (LinearRelation<G>, Vec<G::Scalar>) {
+    let mut morphismp: LinearRelation<G> = LinearRelation::new();
 
     let var_x = morphismp.allocate_scalar();
     let var_G = morphismp.allocate_element();
@@ -27,11 +27,8 @@ pub fn discrete_logarithm<G: Group + GroupEncoding>(
 
 /// Morphism for knowledge of a discrete logarithm equality between two pairs.
 #[allow(non_snake_case)]
-pub fn dleq<G: Group + GroupEncoding>(
-    x: G::Scalar,
-    H: G,
-) -> (GroupMorphismPreimage<G>, Vec<G::Scalar>) {
-    let mut morphismp: GroupMorphismPreimage<G> = GroupMorphismPreimage::new();
+pub fn dleq<G: Group + GroupEncoding>(x: G::Scalar, H: G) -> (LinearRelation<G>, Vec<G::Scalar>) {
+    let mut morphismp: LinearRelation<G> = LinearRelation::new();
 
     let var_x = morphismp.allocate_scalar();
     let [var_G, var_H] = morphismp.allocate_elements();
@@ -56,8 +53,8 @@ pub fn pedersen_commitment<G: Group + GroupEncoding>(
     H: G,
     x: G::Scalar,
     r: G::Scalar,
-) -> (GroupMorphismPreimage<G>, Vec<G::Scalar>) {
-    let mut cs: GroupMorphismPreimage<G> = GroupMorphismPreimage::new();
+) -> (LinearRelation<G>, Vec<G::Scalar>) {
+    let mut cs: LinearRelation<G> = LinearRelation::new();
 
     let [var_x, var_r] = cs.allocate_scalars();
     let [var_G, var_H] = cs.allocate_elements();
@@ -79,8 +76,8 @@ pub fn pedersen_commitment<G: Group + GroupEncoding>(
 pub fn pedersen_commitment_dleq<G: Group + GroupEncoding>(
     generators: [G; 4],
     witness: [G::Scalar; 2],
-) -> (GroupMorphismPreimage<G>, Vec<G::Scalar>) {
-    let mut morphismp: GroupMorphismPreimage<G> = GroupMorphismPreimage::new();
+) -> (LinearRelation<G>, Vec<G::Scalar>) {
+    let mut morphismp: LinearRelation<G> = LinearRelation::new();
 
     let X = msm_pr::<G>(&witness, &[generators[0], generators[1]]);
     let Y = msm_pr::<G>(&witness, &[generators[2], generators[3]]);
@@ -112,8 +109,8 @@ pub fn bbs_blind_commitment_computation<G: Group + GroupEncoding>(
     [Q_2, J_1, J_2, J_3]: [G; 4],
     [msg_1, msg_2, msg_3]: [G::Scalar; 3],
     secret_prover_blind: G::Scalar,
-) -> (GroupMorphismPreimage<G>, Vec<G::Scalar>) {
-    let mut morphismp = GroupMorphismPreimage::new();
+) -> (LinearRelation<G>, Vec<G::Scalar>) {
+    let mut morphismp = LinearRelation::new();
 
     // these are computed before the proof in the specification
     let C = Q_2 * secret_prover_blind + J_1 * msg_1 + J_2 * msg_2 + J_3 * msg_3;

@@ -2,15 +2,15 @@ use ff::PrimeField;
 use group::{Group, GroupEncoding};
 use rand::{CryptoRng, Rng};
 
-use crate::random::SRandom;
-use sigma_rs::codec::Codec;
-use sigma_rs::errors::Error;
-use sigma_rs::fiat_shamir::FiatShamir;
-use sigma_rs::group_morphism::GroupMorphismPreimage;
-use sigma_rs::group_serialization::*;
-use sigma_rs::traits::SigmaProtocol;
+use crate::codec::Codec;
+use crate::errors::Error;
+use crate::fiat_shamir::FiatShamir;
+use crate::group_serialization::*;
+use crate::linear_relation::LinearRelation;
+use crate::tests::spec::random::SRandom;
+use crate::traits::SigmaProtocol;
 
-pub struct SchnorrProtocolCustom<G: SRandom + GroupEncoding>(pub GroupMorphismPreimage<G>);
+pub struct SchnorrProtocolCustom<G: SRandom + GroupEncoding>(pub LinearRelation<G>);
 
 impl<G: SRandom + GroupEncoding> SchnorrProtocolCustom<G> {
     pub fn witness_len(&self) -> usize {
@@ -156,7 +156,7 @@ where
     C: Codec<Challenge = <G as Group>::Scalar>,
     G: SRandom + GroupEncoding,
 {
-    fn push_commitment(&self, codec: &mut C, commitment: &Self::Commitment) {
+    fn absorb_statement_and_commitment(&self, codec: &mut C, commitment: &Self::Commitment) {
         let mut data = Vec::new();
         for commit in commitment {
             data.extend_from_slice(commit.to_bytes().as_ref());
