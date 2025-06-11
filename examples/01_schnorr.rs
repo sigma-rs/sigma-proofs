@@ -31,7 +31,6 @@
 //!
 //! This example uses the Ristretto group from `curve25519-dalek`, which provides a prime-order group
 //! suitable for secure zero-knowledge protocols.
-
 use curve25519_dalek::RistrettoPoint;
 use curve25519_dalek::scalar::Scalar;
 use group::{Group, GroupEncoding};
@@ -63,7 +62,7 @@ pub fn discrete_logarithm<G: Group + GroupEncoding>(
 
     // === Constraint phase ===
     // Now that all variables are defined, we describe the relation we want to prove.
-    // The variable `P` is initialized now, as it is the result of the computation to be proven.
+    // The variable `P` is allocated now, as it is the result of the computation to be proven.
 
     // Create the constraint `P = x * G`
     let var_P = morphismp.allocate_eq(var_x * var_G);
