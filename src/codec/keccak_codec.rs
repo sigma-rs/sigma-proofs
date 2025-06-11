@@ -1,11 +1,11 @@
 //! # Keccak-based Fiat-Shamir Codec for vector tests
 //!
 //! This module implements a **Fiat-Shamir codec** using the Keccak-f\[1600\] permutation
-//! in a duplex sponge construction
+//! in a duplex sponge construction.
 //!
 //! It includes:
-//! - A custom `KeccakPermutationState` and `KeccakDuplexSponge`
-//! - A [`ByteSchnorrCodec`] codec based on this sponge
+//! - A custom [`KeccakPermutationState`] and [`KeccakDuplexSponge`].
+//! - A [`ByteSchnorrCodec`] codec based on this sponge.
 //!
 //! ## Purpose
 //! This module exists to **match test vectors** generated in the original Sage implementation
@@ -17,9 +17,9 @@
 //! - The `verifier_challenge` logic performs SHAKE-style domain separation and modulus reduction via `num-bigint`.
 //!
 //! ## Components
-//! - `KeccakPermutationState`: Low-level Keccak-f\[1600\] state representation
-//! - `KeccakDuplexSponge`: Duplex sponge over 200-byte state buffer
-//! - `ByteSchnorrCodec`: Fiat-Shamir codec compatible with Sage Schnorr proofs
+//! - [`KeccakPermutationState`]: Low-level Keccak-f\[1600\] state representation.
+//! - [`KeccakDuplexSponge`]: Duplex sponge over 200-byte state buffer.
+//! - [`ByteSchnorrCodec`]: Fiat-Shamir codec compatible with Sage Schnorr proofs.
 use crate::codec::traits::{Codec, DuplexSpongeInterface};
 use ff::PrimeField;
 use group::{Group, GroupEncoding};

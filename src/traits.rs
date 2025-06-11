@@ -1,4 +1,4 @@
-//! Sigma Protocol Trait
+//! [`SigmaProtocol`] Trait.
 //!
 //! This module defines the [`SigmaProtocol`] trait, a generic interface for 3-message Sigma protocols.
 

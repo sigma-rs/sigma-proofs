@@ -68,7 +68,7 @@ where
     ///     - The prover state (random nonces and witness) used to compute the response.
     ///
     /// # Errors
-    /// -`Error::ProofSizeMismatch` if the witness vector length is incorrect.
+    /// -[`Error::ProofSizeMismatch`] if the witness vector length is incorrect.
     fn prover_commit(
         &self,
         witness: &Self::Witness,
@@ -96,7 +96,7 @@ where
     /// - A vector of scalars forming the prover's response.
     ///
     /// # Errors
-    /// - Returns `Error::ProofSizeMismatch` if the prover state vectors have incorrect lengths.
+    /// - Returns [`Error::ProofSizeMismatch`] if the prover state vectors have incorrect lengths.
     fn prover_response(
         &self,
         state: Self::ProverState,
@@ -125,9 +125,9 @@ where
     /// - `Err(Error::ProofSizeMismatch)` if the lengths of commitment or response do not match the expected counts.
     ///
     /// # Errors
-    /// -`Err(Error::VerificationFailure)` if the computed relation
+    /// -[`Error::VerificationFailure`] if the computed relation
     /// does not hold for the provided challenge and response, indicating proof invalidity.
-    /// -`Err(Error::ProofSizeMismatch)` if the commitment or response length is incorrect.
+    /// -[`Error::ProofSizeMismatch`] if the commitment or response length is incorrect.
     fn verifier(
         &self,
         commitment: &Self::Commitment,
@@ -163,7 +163,7 @@ where
     /// - A byte vector representing the serialized batchable proof.
     ///
     /// # Errors
-    /// - `Error::ProofSizeMismatch` if the commitment or response length is incorrect.
+    /// - [`Error::ProofSizeMismatch`] if the commitment or response length is incorrect.
     fn serialize_batchable(
         &self,
         commitment: &Self::Commitment,
@@ -200,9 +200,9 @@ where
     ///   * `response` is a vector of scalars.
     ///
     /// # Errors
-    /// - `Error::ProofSizeMismatch` if the input length is not the exact number of bytes
+    /// - [`Error::ProofSizeMismatch`] if the input length is not the exact number of bytes
     ///   expected for `commit_nb` commitments plus `response_nb` responses.
-    /// - `Error::GroupSerializationFailure` if any group element or scalar fails to
+    /// - [`Error::GroupSerializationFailure`] if any group element or scalar fails to
     ///   deserialize (propagated from `deserialize_element` or `deserialize_scalar`).
     fn deserialize_batchable(
         &self,
@@ -260,7 +260,7 @@ where
     /// - A vector of group elements representing the recomputed commitment (one per linear constraint).
     ///
     /// # Errors
-    /// - `Error::ProofSizeMismatch` if the response length does not match the expected number of scalars.
+    /// - [`Error::ProofSizeMismatch`] if the response length does not match the expected number of scalars.
     fn get_commitment(
         &self,
         challenge: &Self::Challenge,
@@ -290,7 +290,7 @@ where
     /// - A byte vector representing the compact proof.
     ///
     /// # Errors
-    /// - `Error::ProofSizeMismatch` if the response length does not match the expected number of scalars.
+    /// - [`Error::ProofSizeMismatch`] if the response length does not match the expected number of scalars.
     fn serialize_response(&self, response: &Self::Response) -> Result<Vec<u8>, Error> {
         let mut bytes = Vec::new();
         let response_nb = self.scalars_nb();
@@ -314,8 +314,8 @@ where
     /// - A tuple `(challenge, response)`.
     ///
     /// # Errors
-    /// - `Error::ProofSizeMismatch` if the input data length does not match the expected size.
-    /// - `Error::GroupSerializationFailure` if scalar deserialization fails.
+    /// - [`Error::ProofSizeMismatch`] if the input data length does not match the expected size.
+    /// - [`Error::GroupSerializationFailure`] if scalar deserialization fails.
     fn deserialize_response(&self, data: &[u8]) -> Result<(Self::Response, usize), Error> {
         let response_nb = self.scalars_nb();
         let response_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
@@ -348,7 +348,7 @@ where
     /// - A byte vector representing the compact proof.
     ///
     /// # Errors
-    /// - `Error::ProofSizeMismatch` if the response length does not match the expected number of scalars.
+    /// - [`Error::ProofSizeMismatch`] if the response length does not match the expected number of scalars.
     fn serialize_compact(
         &self,
         _commitment: &Self::Commitment,
@@ -374,8 +374,8 @@ where
     /// - A tuple `(challenge, response)`.
     ///
     /// # Errors
-    /// - `Error::ProofSizeMismatch` if the input data length does not match the expected size.
-    /// - `Error::GroupSerializationFailure` if scalar deserialization fails.
+    /// - [`Error::ProofSizeMismatch`] if the input data length does not match the expected size.
+    /// - [`Error::GroupSerializationFailure`] if scalar deserialization fails.
     fn deserialize_compact(&self, data: &[u8]) -> Result<(Self::Challenge, Self::Response), Error> {
         let scalar_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
             .as_ref()
@@ -435,11 +435,11 @@ where
     C: Codec<Challenge = <G as Group>::Scalar>,
     G: Group + GroupEncoding,
 {
-    /// Absorbs statement and commitment into the codec
+    /// Absorbs statement and commitment into the codec.
     ///
     /// # Parameters
-    /// - `codec`: the Codec that absorbs commitments
-    /// - `commitment`: a commitment of SchnorrProtocol
+    /// - `codec`: the Codec that absorbs commitments.
+    /// - `commitment`: a commitment of [`SchnorrProtocol`].
     fn absorb_statement_and_commitment(&self, codec: &mut C, commitment: &Self::Commitment) {
         let mut data = self.0.label();
 
@@ -450,13 +450,13 @@ where
         codec.prover_message(&data);
     }
 
-    /// Generates a challenge from the codec that absorbed the commitments
+    /// Generates a challenge from the [`Codec`] that absorbed the commitments.
     ///
     /// # Parameters
-    /// - `codec`: the Codec from which the challenge is generated
+    /// - `codec`: the [`Codec`] from which the challenge is generated.
     ///
     /// # Returns
-    /// - A `challenge`` that can be used during a non-interactive protocol
+    /// - A `challenge` that can be used during a non-interactive protocol.
     fn get_challenge(&self, codec: &mut C) -> Result<Self::Challenge, Error> {
         Ok(codec.verifier_challenge())
     }
