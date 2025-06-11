@@ -17,11 +17,11 @@
 //!     $$X_2 = x_2 \cdot G \quad \text{and} \quad Y_2 = x_2 \cdot H$$
 //!
 //! For these statements, the elements $G, H, X_1, X_2, Y2$ are all publicly available to any verifier.
-//! 
-//! In our specific case, we will consider that the prover only knows a witness for the second statement. However, 
-//! he will prove *the disjunction* of the two statements, using an OR-composition of Sigma protocols. 
+//!
+//! In our specific case, we will consider that the prover only knows a witness for the second statement. However,
+//! he will prove *the disjunction* of the two statements, using an OR-composition of Sigma protocols.
 //! This proof reveals nothing about *which* statement and witness has been used by the prover.
-//! 
+//!
 //! ---
 //!
 //! In `sigma-rs`, this is implemented using three core abstractions:
@@ -50,10 +50,10 @@ use curve25519_dalek::scalar::Scalar;
 use group::{Group, GroupEncoding};
 use rand::rngs::OsRng;
 use sigma_rs::{
+    LinearRelation,
     codec::ShakeCodec,
     composition::{Protocol, ProtocolWitness},
     fiat_shamir::NISigmaProtocol,
-    LinearRelation,
 };
 
 type G = RistrettoPoint;
@@ -87,7 +87,7 @@ pub fn discrete_logarithm<G: Group + GroupEncoding>(
     // === Assignation phase ===
     // We now assign real values to the variables we have defined for our relation above.
     // Since the witness is provided to the function, we only need to assign the group points.
-    
+
     // Assign the group generator to the corresponding variable `G`
     morphismp.assign_element(var_G, G::generator());
 
@@ -110,10 +110,7 @@ pub fn discrete_logarithm<G: Group + GroupEncoding>(
 /// - `x` is a secret scalar in $\mathbb{Z}_p$.
 /// - `G`, `H`, `X`, `Y` are elements in a prime-order group $\mathbb{G}$. `G` in particular is a fixed generator.
 #[allow(non_snake_case)]
-pub fn dleq<G: Group + GroupEncoding>(
-    x: G::Scalar,
-    H: G,
-) -> (LinearRelation<G>, Vec<G::Scalar>) {
+pub fn dleq<G: Group + GroupEncoding>(x: G::Scalar, H: G) -> (LinearRelation<G>, Vec<G::Scalar>) {
     let mut morphismp = LinearRelation::<G>::new();
 
     // === Allocation phase ===
@@ -200,7 +197,8 @@ fn main() {
     // Generate a non-interactive proof using the known witness
     // The `.prove_batchable` method produces a serialized proof that includes the commitment, challenge, and response,
     // suitable for verification *without unpacking* and optimized for use in batch-verification settings.
-    let proof = nizk.prove_batchable(&witness, &mut rng)
+    let proof = nizk
+        .prove_batchable(&witness, &mut rng)
         .expect("Proof generation should succeed");
 
     // === Step 5: Verify the proof ===
