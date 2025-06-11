@@ -311,7 +311,7 @@ where
     }
 
     /// Adds a new equation to the statement of the form:
-    /// `lhs = Σ (scalar_i * point_i)` .
+    /// `lhs = Σ (scalar_i * point_i)`.
     ///
     /// # Parameters
     /// - `lhs`: The image group element variable (left-hand side of the equation).
@@ -322,7 +322,7 @@ where
     }
 
     /// Adds a new equation to the statement of the form:
-    /// `lhs = Σ (scalar_i * point_i)` .
+    /// `lhs = Σ (scalar_i * point_i)`.
     ///
     /// # Parameters
     /// - `lhs`: The image group element variable (left-hand side of the equation).
