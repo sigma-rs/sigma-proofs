@@ -1,5 +1,4 @@
-//! Implementation of a structure [`Protocol`] aimed at generalizing the SchnorrProtocol
-//! using the compositions of the latter via AND and OR links
+//! Implementation of a structure [`Protocol`] aimed at generalizing the [`SchnorrProtocol`] using the compositions of the latter via AND and OR links.
 //!
 //! This structure allows, for example, the construction of protocols of the form:
 //! And(

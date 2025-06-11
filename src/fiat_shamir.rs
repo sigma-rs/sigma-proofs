@@ -1,9 +1,9 @@
-//! Fiat-Shamir transformation for Sigma protocols.
+//! Fiat-Shamir transformation for [`SigmaProtocol`]s.
 //!
 //! This module defines [`NISigmaProtocol`], a generic non-interactive Sigma protocol wrapper,
 //! based on applying the Fiat-Shamir heuristic using a codec.
 //!
-//! It transforms an interactive Sigma protocol into a non-interactive one,
+//! It transforms an interactive [`SigmaProtocol`] into a non-interactive one,
 //! by deriving challenges deterministically from previous protocol messages
 //! via a cryptographic sponge function (Codec).
 //!
@@ -22,8 +22,8 @@ use rand::{CryptoRng, RngCore};
 /// deterministic challenge generation function.
 ///
 /// Challenge generation occurs in two stages:
-/// - `absorb_statement_and_commitment`: absorbs commitments to feed the codec
-/// - `get_challenge`: extracts the challenge from the codec
+/// - `absorb_statement_and_commitment`: absorbs commitments to feed the codec.
+/// - `get_challenge`: extracts the challenge from the codec.
 ///
 /// # Type Parameters
 /// - `C`: the codec used for encoding/decoding messages to/from the IP space.
@@ -39,7 +39,7 @@ type Transcript<P> = (
     <P as SigmaProtocol>::Response,
 );
 
-/// A Fiat-Shamir transformation of a Sigma protocol into a non-interactive proof.
+/// A Fiat-Shamir transformation of a [`SigmaProtocol`] into a non-interactive proof.
 ///
 /// [`NISigmaProtocol`] wraps an interactive Sigma protocol `P`
 /// and a hash-based codec `C`, to produce non-interactive proofs.
@@ -93,7 +93,7 @@ where
     /// - `rng`: A cryptographically secure random number generator.
     ///
     /// # Returns
-    /// A tuple of:
+    /// A [`Result`] containing a `Transcript<P>` on success. The `Transcript` includes:
     /// - `P::Commitment`: The prover's commitment(s).
     /// - `P::Challenge`: The challenge derived via Fiat-Shamir.
     /// - `P::Response`: The prover's response.
@@ -131,7 +131,7 @@ where
     /// - `Err(Error::VerificationFailure)` if the challenge is invalid or the response fails to verify.
     ///
     /// # Errors
-    /// - Returns `Error::VerificationFailure` if:
+    /// - Returns [`Error::VerificationFailure`] if:
     ///   - The challenge doesn't match the recomputed one from the commitment.
     ///   - The response fails verification under the Sigma protocol.
     pub fn verify(
@@ -185,7 +185,7 @@ where
     /// - `Err(Error)` if deserialization or verification fails.
     ///
     /// # Errors
-    /// - Returns `Error::VerificationFailure` if:
+    /// - Returns [`Error::VerificationFailure`] if:
     ///   - The challenge doesn't match the recomputed one from the commitment.
     ///   - The response fails verification under the Sigma protocol.
     pub fn verify_batchable(&self, proof: &[u8]) -> Result<(), Error> {
@@ -244,7 +244,7 @@ where
     /// - `Err(Error)` if deserialization or verification fails.
     ///
     /// # Errors
-    /// - Returns `Error::VerificationFailure` if:
+    /// - Returns [`Error::VerificationFailure`] if:
     ///   - Deserialization fails.
     ///   - The recomputed commitment or response is invalid under the Sigma protocol.
     pub fn verify_compact(&self, proof: &[u8]) -> Result<(), Error> {

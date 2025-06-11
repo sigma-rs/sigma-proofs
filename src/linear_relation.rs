@@ -1,12 +1,12 @@
-//! # Group Morphism and Preimage Handling
+//! # Group Morphism and Preimage Handling.
 //!
 //! This module provides utilities for describing and manipulating **linear group morphisms**,
 //! supporting sigma protocols over group-based statements (e.g., discrete logarithms, DLEQ proofs). See Maurer09.
 //!
 //! It includes:
-//! - [`LinearCombination`]: a sparse representation of scalar multiplication relations
-//! - [`Morphism`]: a collection of linear combinations acting on group elements
-//! - [`LinearRelation`]: a higher-level structure managing morphisms and their associated images
+//! - [`LinearCombination`]: a sparse representation of scalar multiplication relations.
+//! - [`Morphism`]: a collection of linear combinations acting on group elements.
+//! - [`LinearRelation`]: a higher-level structure managing morphisms and their associated images.
 
 use crate::errors::Error;
 use group::{Group, GroupEncoding};
@@ -210,8 +210,8 @@ pub struct Morphism<G: Group> {
 /// returns the sum of each base multiplied by its scalar coefficient.
 ///
 /// # Parameters
-/// - `scalars`: slice of scalar multipliers
-/// - `bases`: slice of group elements to be multiplied by the scalars
+/// - `scalars`: slice of scalar multipliers.
+/// - `bases`: slice of group elements to be multiplied by the scalars.
 ///
 /// # Returns
 /// The group element result of the MSM.
@@ -311,7 +311,7 @@ where
     }
 
     /// Adds a new equation to the statement of the form:
-    /// `lhs = Σ (scalar_i * point_i)`
+    /// `lhs = Σ (scalar_i * point_i)` .
     ///
     /// # Parameters
     /// - `lhs`: The image group element variable (left-hand side of the equation).
@@ -322,7 +322,7 @@ where
     }
 
     /// Adds a new equation to the statement of the form:
-    /// `lhs = Σ (scalar_i * point_i)`
+    /// `lhs = Σ (scalar_i * point_i)` .
     ///
     /// # Parameters
     /// - `lhs`: The image group element variable (left-hand side of the equation).
