@@ -96,29 +96,31 @@ fn main() {
     // Choose a secret scalar `x` (the witness).
     let x = Scalar::random(&mut OsRng);
 
-    // Construct a relation `P = x * G` and retrieve the constraint system defined above.
-    let (relation, _) = discrete_logarithm(x);
+    // Construct a relation `P = x * G` and retrieve:
+    // - The constraint system defined in the helper function above.
+    // - The witness in vector format (useful for proofs with multiple witnesses).
+    let (relation, witness) = discrete_logarithm(x);
 
     // === Step 2: Create the Schnorr protocol and wrap it with Fiat-Shamir ===
 
     // Build the Sigma protocol instance from the relation.
     let schnorr = SchnorrProtocol::<RistrettoPoint>::from(relation);
 
-    // Convert the Sigma protocol to a non-interactive protocol via Fiat-Shamir.
+    // Convert the Sigma protocol instance to a non-interactive protocol via Fiat-Shamir.
     // A domain separator is given as a byte-sequence to identify the current instance being proven.
     let nizk = NISigmaProtocol::<_, ShakeCodec<RistrettoPoint>>::new(b"schnorr-example", schnorr);
 
     // === Step 3: Generate the proof ===
 
-    // Provide the witness vector (in this case, just `x`).
-    let witness = vec![x];
-
-    // Generate a non-interactive proof.
-    let proof = nizk.prove(&witness, &mut OsRng).unwrap();
+    // Generate a non-interactive proof with the witness.
+    // The non-interactive proof contains the 3 elements of a sigma protocol transcript: a commitment, a challenge, and a response.
+    // This transcript can be transmitted by the prover to any verifier, without revealing any secret information about the prover.
+    let (commitment, challenge, response) = nizk.prove(&witness, &mut OsRng).unwrap();
 
     // === Step 4: Verify the proof ===
 
     // Verification requires checking the proof against the transcript and constraint system.
-    let verified = nizk.verify(&proof.0, &proof.1, &proof.2).is_ok();
+    // The verifier can be convinced that the prover indeed knows `x` so that `P = x*G`. This doesn't require any interaction with the prover other than receiving the transcript.
+    let verified = nizk.verify(&commitment, &challenge, &response).is_ok();
     println!("Schnorr NIZK proof verified: {verified}");
 }
