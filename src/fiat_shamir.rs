@@ -128,10 +128,10 @@ where
     ///
     /// # Returns
     /// - `Ok(())` if the proof is valid.
-    /// - `Err(ProofError::VerificationFailure)` if the challenge is invalid or the response fails to verify.
+    /// - `Err(Error::VerificationFailure)` if the challenge is invalid or the response fails to verify.
     ///
     /// # Errors
-    /// - Returns `ProofError::VerificationFailure` if:
+    /// - Returns `Error::VerificationFailure` if:
     ///   - The challenge doesn't match the recomputed one from the commitment.
     ///   - The response fails verification under the Sigma protocol.
     pub fn verify(
@@ -182,10 +182,10 @@ where
     ///
     /// # Returns
     /// - `Ok(())` if the proof is valid.
-    /// - `Err(ProofError)` if deserialization or verification fails.
+    /// - `Err(Error)` if deserialization or verification fails.
     ///
     /// # Errors
-    /// - Returns `ProofError::VerificationFailure` if:
+    /// - Returns `Error::VerificationFailure` if:
     ///   - The challenge doesn't match the recomputed one from the commitment.
     ///   - The response fails verification under the Sigma protocol.
     pub fn verify_batchable(&self, proof: &[u8]) -> Result<(), Error> {
@@ -241,10 +241,10 @@ where
     ///
     /// # Returns
     /// - `Ok(())` if the proof is valid.
-    /// - `Err(ProofError)` if deserialization or verification fails.
+    /// - `Err(Error)` if deserialization or verification fails.
     ///
     /// # Errors
-    /// - Returns `ProofError::VerificationFailure` if:
+    /// - Returns `Error::VerificationFailure` if:
     ///   - Deserialization fails.
     ///   - The recomputed commitment or response is invalid under the Sigma protocol.
     pub fn verify_compact(&self, proof: &[u8]) -> Result<(), Error> {
