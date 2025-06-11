@@ -440,7 +440,7 @@ where
     /// # Parameters
     /// - `codec`: the Codec that absorbs commitments
     /// - `commitment`: a commitment of SchnorrProtocol
-    fn push_commitment(&self, codec: &mut C, commitment: &Self::Commitment) {
+    fn absorb_commitment(&self, codec: &mut C, commitment: &Self::Commitment) {
         let mut data = Vec::new();
         for commit in commitment {
             data.extend_from_slice(commit.to_bytes().as_ref());
