@@ -316,7 +316,7 @@ where
     /// # Parameters
     /// - `lhs`: The image group element variable (left-hand side of the equation).
     /// - `rhs`: A slice of `(ScalarVar, GroupVar)` pairs representing the linear combination on the right-hand side.
-    pub fn constrain(&mut self, lhs: GroupVar, rhs: impl Into<LinearCombination>) {
+    pub fn append_equation(&mut self, lhs: GroupVar, rhs: impl Into<LinearCombination>) {
         self.morphism.append(rhs.into());
         self.image.push(lhs);
     }
@@ -329,7 +329,7 @@ where
     /// - `rhs`: A slice of `(ScalarVar, GroupVar)` pairs representing the linear combination on the right-hand side.
     pub fn allocate_eq(&mut self, rhs: impl Into<LinearCombination>) -> GroupVar {
         let var = self.allocate_element();
-        self.constrain(var, rhs);
+        self.append_equation(var, rhs);
         var
     }
 
@@ -399,7 +399,7 @@ where
     /// # Panics
     ///
     /// Panics if the given assignment conflicts with the existing assignment.
-    pub fn assign_element(&mut self, var: GroupVar, element: G) {
+    pub fn set_element(&mut self, var: GroupVar, element: G) {
         self.morphism.group_elements.assign_element(var, element)
     }
 
@@ -412,7 +412,7 @@ where
     /// # Panics
     ///
     /// Panics if the collection contains two conflicting assignments for the same variable.
-    pub fn assign_elements(&mut self, assignments: impl IntoIterator<Item = (GroupVar, G)>) {
+    pub fn set_elements(&mut self, assignments: impl IntoIterator<Item = (GroupVar, G)>) {
         self.morphism.group_elements.assign_elements(assignments)
     }
 
