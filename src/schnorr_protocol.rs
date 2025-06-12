@@ -417,7 +417,7 @@ where
     ///
     /// # Parameters
     /// - `codec`: the Codec that absorbs commitments
-    /// - `commitment`: a commitment of SchnorrProof
+    /// - `commitment`: a commitment of [`SchnorrProof`].
     fn absorb_statement_and_commitment(&self, codec: &mut C, commitment: &Self::Commitment) {
         let mut data = self.0.label();
 
