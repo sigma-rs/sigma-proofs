@@ -100,7 +100,7 @@ where
     ///
     /// # Panics
     /// Panics if local verification fails.
-    pub fn prove(
+    fn prove(
         &self,
         witness: &P::Witness,
         rng: &mut (impl RngCore + CryptoRng),
@@ -133,7 +133,7 @@ where
     /// - Returns [`Error::VerificationFailure`] if:
     ///   - The challenge doesn't match the recomputed one from the commitment.
     ///   - The response fails verification under the Sigma protocol.
-    pub fn verify(
+    fn verify(
         &self,
         commitment: &P::Commitment,
         challenge: &P::Challenge,
