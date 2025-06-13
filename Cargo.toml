@@ -20,7 +20,6 @@ exclude = [
 ]
 
 [dependencies]
-byteorder = "1.5.0"
 ff = { version = "0.13", features = ["derive"] }
 group = "0.13.0"
 num-bigint = "0.4.6"

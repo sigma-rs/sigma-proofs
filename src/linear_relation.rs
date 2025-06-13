@@ -9,7 +9,6 @@
 //! - [`LinearRelation`]: a higher-level structure managing morphisms and their associated images
 
 use crate::errors::Error;
-use byteorder::{LittleEndian, WriteBytesExt};
 use group::{Group, GroupEncoding};
 use std::iter;
 
@@ -483,24 +482,21 @@ where
             self.morphism.constraints.len(),
             "Number of equations and image variables must match"
         );
-        out.write_u32::<LittleEndian>(ne as u32).unwrap();
+        out.extend_from_slice(&(ne as u32).to_le_bytes());
 
         // 2. Encode each equation
         for (constraint, output_var) in self.morphism.constraints.iter().zip(self.image.iter()) {
             // a. Output point index (LHS)
-            out.write_u32::<LittleEndian>(output_var.index() as u32)
-                .unwrap();
+            out.extend_from_slice(&(output_var.index() as u32).to_le_bytes());
 
             // b. Number of terms in the RHS linear combination
             let terms = constraint.terms();
-            out.write_u32::<LittleEndian>(terms.len() as u32).unwrap();
+            out.extend_from_slice(&(terms.len() as u32).to_le_bytes());
 
             // c. Each term: scalar index and point index
             for term in terms {
-                out.write_u32::<LittleEndian>(term.scalar().index() as u32)
-                    .unwrap();
-                out.write_u32::<LittleEndian>(term.elem().index() as u32)
-                    .unwrap();
+                out.extend_from_slice(&(term.scalar().index() as u32).to_le_bytes());
+                out.extend_from_slice(&(term.elem().index() as u32).to_le_bytes());
             }
         }
 
