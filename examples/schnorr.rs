@@ -39,7 +39,7 @@ use rand::rngs::OsRng;
 use sigma_rs::codec::ShakeCodec;
 use sigma_rs::fiat_shamir::NISigmaProtocol;
 use sigma_rs::linear_relation::LinearRelation;
-use sigma_rs::schnorr_protocol::SchnorrProtocol;
+use sigma_rs::schnorr_protocol::SchnorrProof;
 
 /// Construct the relation `P = x·G` and return it along with the witness `x`:
 /// - `x` is an element from a group of prime order $p$, typically $\mathbb{Z}_p$,
@@ -69,7 +69,7 @@ pub fn discrete_logarithm<G: Group + GroupEncoding>(
     // Since the witness is provided to the function, we only need to assign the group points.
 
     // Assign the group generator to the corresponding variable `G`
-    morphism.assign_element(var_G, G::generator());
+    morphism.set_element(var_G, G::generator());
 
     // Assign the value of the image to the variable `P` (i.e., evaluate the group equation for `x`)
     morphism.compute_image(&[x]).unwrap();
@@ -94,7 +94,7 @@ fn main() {
     let (relation, witness) = discrete_logarithm(x);
 
     // Build the Sigma protocol instance from the relation.
-    let schnorr = SchnorrProtocol::<RistrettoPoint>::from(relation);
+    let schnorr = SchnorrProof::<RistrettoPoint>::from(relation);
 
     // Convert the Sigma protocol instance to a non-interactive protocol via Fiat-Shamir.
     // A domain separator is given as a byte-sequence to identify the current instance being proven.

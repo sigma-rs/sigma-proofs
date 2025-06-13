@@ -16,7 +16,7 @@ pub fn discrete_logarithm<G: Group + GroupEncoding>(
 
     let var_X = morphismp.allocate_eq(var_x * var_G);
 
-    morphismp.assign_element(var_G, G::generator());
+    morphismp.set_element(var_G, G::generator());
     morphismp.compute_image(&[x]).unwrap();
 
     let X = morphismp.morphism.group_elements.get(var_X).unwrap();
@@ -36,7 +36,7 @@ pub fn dleq<G: Group + GroupEncoding>(x: G::Scalar, H: G) -> (LinearRelation<G>,
     let var_X = morphismp.allocate_eq(var_x * var_G);
     let var_Y = morphismp.allocate_eq(var_x * var_H);
 
-    morphismp.assign_elements([(var_G, G::generator()), (var_H, H)]);
+    morphismp.set_elements([(var_G, G::generator()), (var_H, H)]);
     morphismp.compute_image(&[x]).unwrap();
 
     let X = morphismp.morphism.group_elements.get(var_X).unwrap();
@@ -61,7 +61,7 @@ pub fn pedersen_commitment<G: Group + GroupEncoding>(
 
     let var_C = cs.allocate_eq(var_x * var_G + var_r * var_H);
 
-    cs.assign_elements([(var_H, H), (var_G, G::generator())]);
+    cs.set_elements([(var_H, H), (var_G, G::generator())]);
     cs.compute_image(&[x, r]).unwrap();
 
     let C = cs.morphism.group_elements.get(var_C).unwrap();
@@ -87,16 +87,16 @@ pub fn pedersen_commitment_dleq<G: Group + GroupEncoding>(
     let var_Gs = morphismp.allocate_elements::<4>();
     let [var_X, var_Y] = morphismp.allocate_elements();
 
-    morphismp.assign_elements([
+    morphismp.set_elements([
         (var_Gs[0], generators[0]),
         (var_Gs[1], generators[1]),
         (var_Gs[2], generators[2]),
         (var_Gs[3], generators[3]),
     ]);
-    morphismp.assign_elements([(var_X, X), (var_Y, Y)]);
+    morphismp.set_elements([(var_X, X), (var_Y, Y)]);
 
-    morphismp.constrain(var_X, [(var_x, var_Gs[0]), (var_r, var_Gs[1])]);
-    morphismp.constrain(var_Y, [(var_x, var_Gs[2]), (var_r, var_Gs[3])]);
+    morphismp.append_equation(var_X, [(var_x, var_Gs[0]), (var_r, var_Gs[1])]);
+    morphismp.append_equation(var_Y, [(var_x, var_Gs[2]), (var_r, var_Gs[3])]);
 
     assert!(vec![X, Y] == morphismp.morphism.evaluate(&witness).unwrap());
     (morphismp, witness.to_vec())
@@ -121,7 +121,7 @@ pub fn bbs_blind_commitment_computation<G: Group + GroupEncoding>(
     let [var_Q_2, var_J_1, var_J_2, var_J_3] = morphismp.allocate_elements();
     let var_C = morphismp.allocate_element();
 
-    morphismp.assign_elements([
+    morphismp.set_elements([
         (var_Q_2, Q_2),
         (var_J_1, J_1),
         (var_J_2, J_2),
@@ -129,7 +129,7 @@ pub fn bbs_blind_commitment_computation<G: Group + GroupEncoding>(
         (var_C, C),
     ]);
 
-    morphismp.constrain(
+    morphismp.append_equation(
         var_C,
         [
             (var_secret_prover_blind, var_Q_2),

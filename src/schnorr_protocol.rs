@@ -1,6 +1,6 @@
 //! Implementation of the generic Schnorr Sigma Protocol over a group `G`.
 //!
-//! This module defines the [`SchnorrProtocol`] structure, which implements
+//! This module defines the [`SchnorrProof`] structure, which implements
 //! a Sigma protocol proving different types of discrete logarithm relations (eg. Schnorr, Pedersen's commitments)
 //! through a group morphism abstraction (see Maurer09).
 
@@ -25,9 +25,9 @@ use rand::{CryptoRng, RngCore};
 /// # Type Parameters
 /// - `G`: A cryptographic group implementing [`Group`] and [`GroupEncoding`].
 #[derive(Clone, Default, Debug)]
-pub struct SchnorrProtocol<G: Group + GroupEncoding>(pub LinearRelation<G>);
+pub struct SchnorrProof<G: Group + GroupEncoding>(pub LinearRelation<G>);
 
-impl<G: Group + GroupEncoding> SchnorrProtocol<G> {
+impl<G: Group + GroupEncoding> SchnorrProof<G> {
     pub fn scalars_nb(&self) -> usize {
         self.0.morphism.num_scalars
     }
@@ -37,7 +37,7 @@ impl<G: Group + GroupEncoding> SchnorrProtocol<G> {
     }
 }
 
-impl<G> From<LinearRelation<G>> for SchnorrProtocol<G>
+impl<G> From<LinearRelation<G>> for SchnorrProof<G>
 where
     G: Group + GroupEncoding,
 {
@@ -46,7 +46,7 @@ where
     }
 }
 
-impl<G> SigmaProtocol for SchnorrProtocol<G>
+impl<G> SigmaProtocol for SchnorrProof<G>
 where
     G: Group + GroupEncoding,
 {
@@ -246,7 +246,7 @@ where
     }
 }
 
-impl<G> CompactProtocol for SchnorrProtocol<G>
+impl<G> CompactProtocol for SchnorrProof<G>
 where
     G: Group + GroupEncoding,
 {
@@ -389,7 +389,7 @@ where
     }
 }
 
-impl<G> SigmaProtocolSimulator for SchnorrProtocol<G>
+impl<G> SigmaProtocolSimulator for SchnorrProof<G>
 where
     G: Group + GroupEncoding,
 {
@@ -430,7 +430,7 @@ where
     }
 }
 
-impl<G, C> FiatShamir<C> for SchnorrProtocol<G>
+impl<G, C> FiatShamir<C> for SchnorrProof<G>
 where
     C: Codec<Challenge = <G as Group>::Scalar>,
     G: Group + GroupEncoding,
@@ -439,9 +439,9 @@ where
     ///
     /// # Parameters
     /// - `codec`: the Codec that absorbs commitments
-    /// - `commitment`: a commitment of SchnorrProtocol
+    /// - `commitment`: a commitment of [`SchnorrProof`].
     fn absorb_commitment(&self, codec: &mut C, commitment: &Self::Commitment) {
-        let mut data = Vec::new();
+        let mut data = self.0.label();
         for commit in commitment {
             data.extend_from_slice(commit.to_bytes().as_ref());
         }

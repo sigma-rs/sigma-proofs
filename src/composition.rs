@@ -1,4 +1,5 @@
-//! Implementation of a structure [`Protocol`] aimed at generalizing the [`SchnorrProtocol`] using the compositions of the latter via AND and OR links.
+//! Implementation of a structure [`Protocol`] aimed at generalizing the [`SchnorrProof`]
+//! using the compositions of the latter via AND and OR links
 //!
 //! This structure allows, for example, the construction of protocols of the form:
 //! And(
@@ -17,28 +18,28 @@ use crate::{
     fiat_shamir::FiatShamir,
     group_serialization::{deserialize_scalar, serialize_scalar},
     linear_relation::LinearRelation,
-    schnorr_protocol::SchnorrProtocol,
+    schnorr_protocol::SchnorrProof,
     traits::{SigmaProtocol, SigmaProtocolSimulator},
 };
 
-/// A protocol proving knowledge of a witness for a composition of SchnorrProtocol's.
+/// A protocol proving knowledge of a witness for a composition of SchnorrProof's.
 ///
-/// This implementation generalizes [`SchnorrProtocol`] by using AND/OR links.
+/// This implementation generalizes [`SchnorrProof`] by using AND/OR links.
 ///
 /// # Type Parameters
 /// - `G`: A cryptographic group implementing [`Group`] and [`GroupEncoding`].
 #[derive(Clone)]
 pub enum Protocol<G: Group + GroupEncoding> {
-    Simple(SchnorrProtocol<G>),
+    Simple(SchnorrProof<G>),
     And(Vec<Protocol<G>>),
     Or(Vec<Protocol<G>>),
 }
 
-impl<G> From<SchnorrProtocol<G>> for Protocol<G>
+impl<G> From<SchnorrProof<G>> for Protocol<G>
 where
     G: Group + GroupEncoding,
 {
-    fn from(value: SchnorrProtocol<G>) -> Self {
+    fn from(value: SchnorrProof<G>) -> Self {
         Protocol::Simple(value)
     }
 }
@@ -48,14 +49,14 @@ where
     G: Group + GroupEncoding,
 {
     fn from(value: LinearRelation<G>) -> Self {
-        Self::from(SchnorrProtocol::from(value))
+        Self::from(SchnorrProof::from(value))
     }
 }
 
 // Structure representing the Commitment type of Protocol as SigmaProtocol
 #[derive(Clone)]
 pub enum ProtocolCommitment<G: Group + GroupEncoding> {
-    Simple(<SchnorrProtocol<G> as SigmaProtocol>::Commitment),
+    Simple(<SchnorrProof<G> as SigmaProtocol>::Commitment),
     And(Vec<ProtocolCommitment<G>>),
     Or(Vec<ProtocolCommitment<G>>),
 }
@@ -63,7 +64,7 @@ pub enum ProtocolCommitment<G: Group + GroupEncoding> {
 // Structure representing the ProverState type of Protocol as SigmaProtocol
 #[derive(Clone)]
 pub enum ProtocolProverState<G: Group + GroupEncoding> {
-    Simple(<SchnorrProtocol<G> as SigmaProtocol>::ProverState),
+    Simple(<SchnorrProof<G> as SigmaProtocol>::ProverState),
     And(Vec<ProtocolProverState<G>>),
     Or(
         usize,                                                 // real index
@@ -75,20 +76,20 @@ pub enum ProtocolProverState<G: Group + GroupEncoding> {
 // Structure representing the Response type of Protocol as SigmaProtocol
 #[derive(Clone)]
 pub enum ProtocolResponse<G: Group + GroupEncoding> {
-    Simple(<SchnorrProtocol<G> as SigmaProtocol>::Response),
+    Simple(<SchnorrProof<G> as SigmaProtocol>::Response),
     And(Vec<ProtocolResponse<G>>),
     Or(Vec<ProtocolChallenge<G>>, Vec<ProtocolResponse<G>>),
 }
 
 // Structure representing the Witness type of Protocol as SigmaProtocol
 pub enum ProtocolWitness<G: Group + GroupEncoding> {
-    Simple(<SchnorrProtocol<G> as SigmaProtocol>::Witness),
+    Simple(<SchnorrProof<G> as SigmaProtocol>::Witness),
     And(Vec<ProtocolWitness<G>>),
     Or(usize, Vec<ProtocolWitness<G>>),
 }
 
 // Structure representing the Challenge type of Protocol as SigmaProtocol
-type ProtocolChallenge<G> = <SchnorrProtocol<G> as SigmaProtocol>::Challenge;
+type ProtocolChallenge<G> = <SchnorrProof<G> as SigmaProtocol>::Challenge;
 
 impl<G: Group + GroupEncoding> SigmaProtocol for Protocol<G> {
     type Commitment = ProtocolCommitment<G>;

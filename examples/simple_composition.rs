@@ -75,7 +75,7 @@ pub fn discrete_logarithm<G: Group + GroupEncoding>(
     let var_X = morphism.allocate_eq(var_x * var_G);
 
     // Assign concrete values
-    morphism.assign_element(var_G, G::generator());
+    morphism.set_element(var_G, G::generator());
     morphism.compute_image(&[x]).unwrap();
 
     // Verify: X = x * G
@@ -102,7 +102,7 @@ pub fn dleq<G: Group + GroupEncoding>(x: G::Scalar, H: G) -> (LinearRelation<G>,
     let _var_Y = morphism.allocate_eq(var_x * var_H);
 
     // Assign concrete values
-    morphism.assign_elements([(var_G, G::generator()), (var_H, H)]);
+    morphism.set_elements([(var_G, G::generator()), (var_H, H)]);
     morphism.compute_image(&[x]).unwrap();
 
     // Verify: X = x * G and Y = x * H
