@@ -1,67 +1,85 @@
-# sigma-rs: a(n updated) toolkit for Σ-protocols
+# sigma-rs
 
+A Rust library for building and composing Σ-protocols (Sigma protocols) for zero-knowledge proofs.
 
-# WARNING
+## What is sigma-rs?
 
-**THIS IMPLEMENTATION IS NOT YET READY FOR PRODUCTION USE**
+This library provides a flexible framework for creating zero-knowledge proofs for any statement expressible as a linear relation over group elements. Using the Fiat-Shamir transformation, these interactive protocols become non-interactive proofs suitable for real-world applications.
 
-While I expect the 1.0 version to be largely unchanged from the current
-code, for now there are no stability guarantees on the proofs, so they
-should not yet be deployed.
+## Key Features
 
-### Background
+- **Universal**: Express any linear relation as a Sigma protocol
+- **Composable**: Build complex proofs with AND/OR combinations
+- **Generic**: Works with any prime-order group implementing the `group` trait
+- **Secure**: Constant-time implementations prevent timing attacks
+- **Flexible**: Both high-level macros and low-level constraint API
 
-This crate was originally created as part of [`dalek-cryptography`](https://github.com/dalek-cryptography).
-It has been forked:
-1. To bring the `zkp` crate up to date with `dalek-cryptography` dependencies.
-2. To resolve bugs and incorporate changes to the fiat-shamir transform.
-3. To make this effort compatible with the Σ-protocol standardization effort.
+## Quick Example
 
-This crate has a toolkit for Schnorr-style zero-knowledge proofs over generic [`Group`](https://github.com/zkcrypto/group)s
-It provides two levels of API:
+```rust
+use sigma_rs::{LinearRelation, Protocol, ProtocolWitness, NISigmaProtocol};
+use sigma_rs::codec::ShakeCodec;
+use curve25519_dalek::RistrettoPoint as G;
 
-* a higher-level, declarative API based around the `define_proof` macro,
-  which provides an embedded DSL for specifying proof statements in
-  Camenisch-Stadler-like notation:
-  ```
-  define_proof! {
-    vrf_proof,   // Name of the module for generated implementation
-    "VRF",       // Label for the proof statement
-    (x),         // Secret variables
-    (A, G, H),   // Public variables unique to each proof
-    (B) :        // Public variables common between proofs
-    A = (x * B), // Statements to prove
-    G = (x * H)
-    }
-  ```
-  This expands into a module containing an implementation of proving,
-  verification, and batch verification.  Proving uses constant-time
-  implementations, and the proofs have a derived implementation of
-  (memory-safe) serialization and deserialization via Serde.
+// Prove knowledge of (x, r) such that C = x·G + r·H (Pedersen commitment)
+let mut relation = LinearRelation::<G>::new();
 
-* a lower-level, imperative API inspired by [Bellman][bellman], which
-  provides a constraint system for Schnorr-style statements.  This
-  allows programmable construction of proof statements at runtime.  The
-  higher-level `define_proof` macro expands into an invocation of the
-  lower-level API.
-  The lower-level API is contained in the `toolbox` module.
+// Allocate variables
+let x = relation.allocate_scalar();
+let r = relation.allocate_scalar();
+let [G_var, H_var] = relation.allocate_elements();
 
-#### Auto-generated benchmarks
+// Define constraint: C = x·G + r·H
+let C = relation.allocate_eq(x * G_var + r * H_var);
 
-The `define_proof` macro builds benchmarks for the generated proof
-statements, but because these are generated in the client crate (where
-the macro expansion happens), they need an extra step to be enabled.
+// Set public values and compute the commitment
+relation.set_elements([(G_var, G::generator()), (H_var, H)]);
+relation.compute_image(&[x_val, r_val]).unwrap();
 
-**To enable generated benchmarks in your crate, do the following**:
+// Create non-interactive proof
+let protocol = Protocol::from(relation);
+let nizk = NISigmaProtocol::<_, ShakeCodec<G>>::new(b"pedersen-proof", protocol);
+let proof = nizk.prove_batchable(&witness, &mut rng)?;
+```
 
-* Add a `bench` feature to your crate's `Cargo.toml`;
-* Add `#[cfg_attr(feature = "bench", feature(test))]` to your crate's
-  `lib.rs` or `main.rs`, to enable Rust's nightly-only benchmark
-  feature.
+## Composition Example
 
-## More information
+Prove complex statements with AND/OR logic:
 
-We include runnable examples to demonstrate how to use the `sigma-rs` toolkit in [examples/](https://github.com/mmaker/sigma-rs/tree/main/examples).
+```rust
+// Prove: (I know x for A = x·G) OR (I know y,z for B = y·G AND C = z·H)
+let or_protocol = Protocol::Or(vec![
+    Protocol::from(dlog_relation),           // First option
+    Protocol::And(vec![                      // Second option
+        Protocol::from(relation_B),
+        Protocol::from(relation_C),
+    ])
+]);
+
+// If we know the second option, create witness for index 1
+let witness = ProtocolWitness::Or(1, vec![
+    ProtocolWitness::And(vec![
+        ProtocolWitness::Simple(vec![y]),
+        ProtocolWitness::Simple(vec![z]),
+    ])
+]);
+```
+
+## Examples
+
+See the [examples/](examples/) directory:
+- `schnorr.rs` - Discrete logarithm proof
+- `simple_composition.rs` - OR-proof composition
+
+## Status
+
+**⚠️ NOT YET READY FOR PRODUCTION USE**
+
+This library is under active development. While the API is stabilizing, there are no guarantees on proof compatibility between versions.
+
+## Background
+
+This crate continues the work from the original `zkp` toolkit in [`dalek-cryptography`](https://github.com/dalek-cryptography), modernized with updated dependencies and improved Fiat-Shamir transforms. It implements the general framework for Sigma protocols as described in [Maurer (2009)](https://doi.org/10.1007/978-3-642-02384-2_6).
 
 ## Funding
 
@@ -69,5 +87,3 @@ This project is funded through [NGI0 Entrust](https://nlnet.nl/entrust), a fund 
 
 [<img src="https://nlnet.nl/logo/banner.png" alt="NLnet foundation logo" width="20%" />](https://nlnet.nl)
 [<img src="https://nlnet.nl/image/logos/NGI0_tag.svg" alt="NGI Zero Logo" width="20%" />](https://nlnet.nl/entrust)
-
-[bellman]: https://github.com/zkcrypto/bellman
