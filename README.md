@@ -59,6 +59,9 @@ the macro expansion happens), they need an extra step to be enabled.
   `lib.rs` or `main.rs`, to enable Rust's nightly-only benchmark
   feature.
 
+## More information
+
+We include runnable examples to demonstrate how to use the `sigma-rs` toolkit in [examples/](https://github.com/mmaker/sigma-rs/tree/main/examples).
 
 ## Funding
 

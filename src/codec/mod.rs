@@ -1,3 +1,4 @@
+//! Encoding and decoding utilities for Fiat-Shamir and group operations.
 pub mod keccak_codec;
 pub mod shake_codec;
 pub mod traits;

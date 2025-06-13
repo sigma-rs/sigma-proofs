@@ -26,7 +26,7 @@ pub fn serialize_element<G: Group + GroupEncoding>(element: &G) -> Vec<u8> {
 ///
 /// # Returns
 /// - `Ok(G)`: The deserialized group element if the input is valid.
-/// - `Err(ProofError::GroupSerializationFailure)`: If the byte slice length is incorrect or the data
+/// - `Err(Error::GroupSerializationFailure)`: If the byte slice length is incorrect or the data
 ///   does not represent a valid group element.
 pub fn deserialize_element<G: Group + GroupEncoding>(data: &[u8]) -> Result<G, Error> {
     let element_len = G::Repr::default().as_ref().len();
@@ -45,7 +45,7 @@ pub fn deserialize_element<G: Group + GroupEncoding>(data: &[u8]) -> Result<G, E
     }
 }
 
-/// Serialize a scalar field element into a byte vector
+/// Serialize a scalar field element into a byte vector.
 ///
 /// # Parameters
 /// - `scalar`: A reference to the scalar field element to serialize.
@@ -64,7 +64,7 @@ pub fn serialize_scalar<G: Group>(scalar: &G::Scalar) -> Vec<u8> {
 ///
 /// # Returns
 /// - `Ok(G::Scalar)`: The deserialized scalar if the input is valid.
-/// - `Err(ProofError::GroupSerializationFailure)`: If the byte slice length is incorrect or the data
+/// - `Err(Error::GroupSerializationFailure)`: If the byte slice length is incorrect or the data
 ///   does not represent a valid scalar.
 pub fn deserialize_scalar<G: Group>(data: &[u8]) -> Result<G::Scalar, Error> {
     let scalar_len = <<G as Group>::Scalar as PrimeField>::Repr::default()

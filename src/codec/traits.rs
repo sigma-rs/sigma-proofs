@@ -10,7 +10,7 @@ pub trait DuplexSpongeInterface {
     fn squeeze(&mut self, length: usize) -> Vec<u8>;
 }
 
-/// A trait defining the behavior of a domain-separated codec hashing, which is typically used for Sigma Protocols.
+/// A trait defining the behavior of a domain-separated codec hashing, which is typically used for [`crate::traits::SigmaProtocol`]s.
 ///
 /// A domain-separated hashing codec is a codec, identified by a domain, which is incremented with successive messages ("absorb"). The codec can then output a bit stream of any length, which is typically used to generate a challenge unique to the given codec ("squeeze"). (See Sponge Construction).
 ///

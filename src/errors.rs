@@ -1,4 +1,4 @@
-//! # ProofError: Error Types for Zero-Knowledge Proofs
+//! # Error: Error Types for Zero-Knowledge Proofs.
 //!
 //! This module defines the [`Error`] enum, which encapsulates possible errors that may occur
 //! during the execution of Sigma protocols or their non-interactive variants.
@@ -6,7 +6,7 @@
 //! These errors include:
 //! - Verification failures (e.g., when a proof does not verify correctly).
 //! - Mismatched parameters during batch verification.
-//! - Unimplemented methods.
+//! - Uninitialized group variables.
 //! - Group element or scalar serialization failures.
 
 use crate::linear_relation::GroupVar;

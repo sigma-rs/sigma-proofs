@@ -156,7 +156,7 @@ where
     C: Codec<Challenge = <G as Group>::Scalar>,
     G: SRandom + GroupEncoding,
 {
-    fn absorb_statement_and_commitment(&self, codec: &mut C, commitment: &Self::Commitment) {
+    fn absorb_commitment(&self, codec: &mut C, commitment: &Self::Commitment) {
         let mut data = Vec::new();
         for commit in commitment {
             data.extend_from_slice(commit.to_bytes().as_ref());

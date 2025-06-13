@@ -637,19 +637,17 @@ where
     G: Group + GroupEncoding,
     C: Codec<Challenge = ProtocolChallenge<G>>,
 {
-    fn absorb_statement_and_commitment(&self, codec: &mut C, commitment: &Self::Commitment) {
+    fn absorb_commitment(&self, codec: &mut C, commitment: &Self::Commitment) {
         match (self, commitment) {
-            (Protocol::Simple(p), ProtocolCommitment::Simple(c)) => {
-                p.absorb_statement_and_commitment(codec, c)
-            }
+            (Protocol::Simple(p), ProtocolCommitment::Simple(c)) => p.absorb_commitment(codec, c),
             (Protocol::And(ps), ProtocolCommitment::And(cs)) => {
                 for (i, p) in ps.iter().enumerate() {
-                    p.absorb_statement_and_commitment(codec, &cs[i]);
+                    p.absorb_commitment(codec, &cs[i]);
                 }
             }
             (Protocol::Or(ps), ProtocolCommitment::Or(cs)) => {
                 for (i, p) in ps.iter().enumerate() {
-                    p.absorb_statement_and_commitment(codec, &cs[i]);
+                    p.absorb_commitment(codec, &cs[i]);
                 }
             }
             _ => panic!(),
