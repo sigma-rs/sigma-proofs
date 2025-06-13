@@ -438,15 +438,13 @@ where
     /// Absorbs statement and commitment into the codec.
     ///
     /// # Parameters
-    /// - `codec`: the Codec that absorbs commitments.
-    /// - `commitment`: a commitment of [`SchnorrProtocol`].
-    fn absorb_statement_and_commitment(&self, codec: &mut C, commitment: &Self::Commitment) {
-        let mut data = self.0.label();
-
+    /// - `codec`: the Codec that absorbs commitments
+    /// - `commitment`: a commitment of SchnorrProtocol
+    fn absorb_commitment(&self, codec: &mut C, commitment: &Self::Commitment) {
+        let mut data = Vec::new();
         for commit in commitment {
             data.extend_from_slice(commit.to_bytes().as_ref());
         }
-
         codec.prover_message(&data);
     }
 
