@@ -1,9 +1,8 @@
-use ff::PrimeField;
 use group::{Group, GroupEncoding};
 use rand::{CryptoRng, Rng};
 
 use crate::errors::Error;
-use crate::group_serialization::*;
+use crate::serialization::{serialize_element, serialize_scalar, deserialize_element, deserialize_scalar, scalar_byte_size};
 use crate::linear_relation::LinearRelation;
 use crate::tests::spec::random::SRandom;
 use crate::traits::SigmaProtocol;
@@ -130,9 +129,7 @@ where
     }
 
     fn deserialize_challenge(&self, data: &[u8]) -> Result<Self::Challenge, Error> {
-        let scalar_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
-            .as_ref()
-            .len();
+        let scalar_size = scalar_byte_size::<G::Scalar>();
         if data.len() < scalar_size {
             return Err(Error::ProofSizeMismatch);
         }
@@ -141,9 +138,7 @@ where
 
     fn deserialize_response(&self, data: &[u8]) -> Result<Self::Response, Error> {
         let scalar_nb = self.0.morphism.num_scalars;
-        let scalar_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
-            .as_ref()
-            .len();
+        let scalar_size = scalar_byte_size::<G::Scalar>();
         let expected_len = scalar_nb * scalar_size;
 
         if data.len() < expected_len {

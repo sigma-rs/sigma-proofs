@@ -13,7 +13,7 @@ use group::{Group, GroupEncoding};
 
 use crate::{
     errors::Error,
-    group_serialization::{deserialize_scalar, serialize_scalar},
+    serialization::{deserialize_scalar, serialize_scalar},
     linear_relation::LinearRelation,
     schnorr_protocol::SchnorrProof,
     traits::{SigmaProtocol, SigmaProtocolSimulator},

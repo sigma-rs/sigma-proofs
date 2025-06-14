@@ -7,11 +7,11 @@
 use crate::errors::Error;
 use crate::linear_relation::LinearRelation;
 use crate::{
-    group_serialization::*,
+    serialization::{serialize_element, serialize_scalar, deserialize_element, deserialize_scalar, scalar_byte_size},
     traits::{SigmaProtocol, SigmaProtocolSimulator},
 };
 
-use ff::{Field, PrimeField};
+use ff::Field;
 use group::{Group, GroupEncoding};
 use rand::{CryptoRng, RngCore};
 
@@ -219,9 +219,7 @@ where
     }
 
     fn deserialize_challenge(&self, data: &[u8]) -> Result<Self::Challenge, Error> {
-        let scalar_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
-            .as_ref()
-            .len();
+        let scalar_size = scalar_byte_size::<G::Scalar>();
         if data.len() < scalar_size {
             return Err(Error::ProofSizeMismatch);
         }
@@ -231,9 +229,7 @@ where
 
     fn deserialize_response(&self, data: &[u8]) -> Result<Self::Response, Error> {
         let response_nb = self.scalars_nb();
-        let response_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
-            .as_ref()
-            .len();
+        let response_size = scalar_byte_size::<G::Scalar>();
         let expected_len = response_nb * response_size;
 
         if data.len() < expected_len {
