@@ -10,6 +10,7 @@ use crate::errors::Error;
 
 /// Returns the byte size of a field element.
 #[inline]
+#[allow(clippy::manual_div_ceil)]
 pub fn scalar_byte_size<F: PrimeField>() -> usize {
     (F::NUM_BITS as usize + 7) / 8
 }
