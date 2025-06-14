@@ -14,24 +14,9 @@
 
 use crate::codec::Codec;
 use crate::errors::Error;
-use crate::traits::{CompactProtocol, SigmaProtocol};
+use crate::traits::SigmaProtocol;
 
 use rand::{CryptoRng, RngCore};
-
-/// A trait that allows sigma protocols to have a Fiat-Shamir transform to have a
-/// deterministic challenge generation function.
-///
-/// Challenge generation occurs in two stages:
-/// - `absorb_statement_and_commitment`: absorbs commitments to feed the codec.
-/// - `get_challenge`: extracts the challenge from the codec.
-///
-/// # Type Parameters
-/// - `C`: the codec used for encoding/decoding messages to/from the IP space.
-pub trait FiatShamir<C: Codec>: SigmaProtocol {
-    fn absorb_commitment(&self, codec: &mut C, commitment: &Self::Commitment);
-
-    fn get_challenge(&self, codec: &mut C) -> Result<Self::Challenge, Error>;
-}
 
 type Transcript<P> = (
     <P as SigmaProtocol>::Commitment,
@@ -53,7 +38,7 @@ type Transcript<P> = (
 #[derive(Debug)]
 pub struct NISigmaProtocol<P, C>
 where
-    P: SigmaProtocol<Challenge: PartialEq> + FiatShamir<C>,
+    P: SigmaProtocol<Challenge: PartialEq>,
     C: Codec<Challenge = P::Challenge>,
 {
     /// Current codec state.
@@ -64,7 +49,7 @@ where
 
 impl<P, C> NISigmaProtocol<P, C>
 where
-    P: SigmaProtocol<Challenge: PartialEq> + FiatShamir<C>,
+    P: SigmaProtocol<Challenge: PartialEq>,
     C: Codec<Challenge = P::Challenge> + Clone,
 {
     /// Constructs a new [`NISigmaProtocol`] instance.
@@ -109,8 +94,9 @@ where
 
         let (commitment, prover_state) = self.sigmap.prover_commit(witness, rng)?;
         // Fiat Shamir challenge
-        self.sigmap.absorb_commitment(&mut codec, &commitment);
-        let challenge = self.sigmap.get_challenge(&mut codec)?;
+        let serialized_commitment = self.sigmap.serialize_commitment(&commitment);
+        codec.prover_message(&serialized_commitment);
+        let challenge = codec.verifier_challenge();
         // Prover's response
         let response = self.sigmap.prover_response(prover_state, &challenge)?;
         // Local verification of the proof
@@ -142,8 +128,9 @@ where
         let mut codec = self.hash_state.clone();
 
         // Recompute the challenge
-        self.sigmap.absorb_commitment(&mut codec, commitment);
-        let expected_challenge = self.sigmap.get_challenge(&mut codec)?;
+        let serialized_commitment = self.sigmap.serialize_commitment(commitment);
+        codec.prover_message(&serialized_commitment);
+        let expected_challenge = codec.verifier_challenge();
         // Verification of the proof
         match *challenge == expected_challenge {
             true => self.sigmap.verifier(commitment, challenge, response),
@@ -166,11 +153,11 @@ where
         witness: &P::Witness,
         rng: &mut (impl RngCore + CryptoRng),
     ) -> Result<Vec<u8>, Error> {
-        let (commitment, challenge, response) = self.prove(witness, rng)?;
-        Ok(self
-            .sigmap
-            .serialize_batchable(&commitment, &challenge, &response)
-            .unwrap())
+        let (commitment, _challenge, response) = self.prove(witness, rng)?;
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&self.sigmap.serialize_commitment(&commitment));
+        bytes.extend_from_slice(&self.sigmap.serialize_response(&response));
+        Ok(bytes)
     }
 
     /// Verifies a batchable non-interactive proof.
@@ -187,13 +174,18 @@ where
     ///   - The challenge doesn't match the recomputed one from the commitment.
     ///   - The response fails verification under the Sigma protocol.
     pub fn verify_batchable(&self, proof: &[u8]) -> Result<(), Error> {
-        let ((commitment, response), _) = self.sigmap.deserialize_batchable(proof).unwrap();
+        let commitment = self.sigmap.deserialize_commitment(proof)?;
+        let commitment_size = self.sigmap.serialize_commitment(&commitment).len();
+        let response = self
+            .sigmap
+            .deserialize_response(&proof[commitment_size..])?;
 
         let mut codec = self.hash_state.clone();
 
         // Recompute the challenge
-        self.sigmap.absorb_commitment(&mut codec, &commitment);
-        let challenge = self.sigmap.get_challenge(&mut codec)?;
+        let serialized_commitment = self.sigmap.serialize_commitment(&commitment);
+        codec.prover_message(&serialized_commitment);
+        let challenge = codec.verifier_challenge();
         // Verification of the proof
         self.sigmap.verifier(&commitment, &challenge, &response)
     }
@@ -201,7 +193,7 @@ where
 
 impl<P, C> NISigmaProtocol<P, C>
 where
-    P: SigmaProtocol<Challenge: PartialEq> + CompactProtocol + FiatShamir<C>,
+    P: SigmaProtocol<Challenge: PartialEq>,
     C: Codec<Challenge = P::Challenge> + Clone,
 {
     /// Generates a compact serialized proof.
@@ -222,11 +214,11 @@ where
         witness: &P::Witness,
         rng: &mut (impl RngCore + CryptoRng),
     ) -> Result<Vec<u8>, Error> {
-        let (commitment, challenge, response) = self.prove(witness, rng)?;
-        Ok(self
-            .sigmap
-            .serialize_compact(&commitment, &challenge, &response)
-            .unwrap())
+        let (_commitment, challenge, response) = self.prove(witness, rng)?;
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&self.sigmap.serialize_challenge(&challenge));
+        bytes.extend_from_slice(&self.sigmap.serialize_response(&response));
+        Ok(bytes)
     }
 
     /// Verifies a compact proof.
@@ -245,7 +237,11 @@ where
     ///   - Deserialization fails.
     ///   - The recomputed commitment or response is invalid under the Sigma protocol.
     pub fn verify_compact(&self, proof: &[u8]) -> Result<(), Error> {
-        let (challenge, response) = self.sigmap.deserialize_compact(proof).unwrap();
+        // Deserialize challenge and response from compact proof
+        let challenge = self.sigmap.deserialize_challenge(proof)?;
+        let challenge_size = self.sigmap.serialize_challenge(&challenge).len();
+        let response = self.sigmap.deserialize_response(&proof[challenge_size..])?;
+
         // Compute the commitments
         let commitment = self.sigmap.get_commitment(&challenge, &response)?;
         // Verify the proof

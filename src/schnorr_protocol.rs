@@ -4,13 +4,11 @@
 //! a Sigma protocol proving different types of discrete logarithm relations (eg. Schnorr, Pedersen's commitments)
 //! through a group morphism abstraction (see Maurer09).
 
-use crate::codec::Codec;
 use crate::errors::Error;
-use crate::fiat_shamir::FiatShamir;
 use crate::linear_relation::LinearRelation;
 use crate::{
     group_serialization::*,
-    traits::{CompactProtocol, SigmaProtocol, SigmaProtocolSimulator},
+    traits::{SigmaProtocol, SigmaProtocolSimulator},
 };
 
 use ff::{Field, PrimeField};
@@ -164,29 +162,24 @@ where
     ///
     /// # Errors
     /// - [`Error::ProofSizeMismatch`] if the commitment or response length is incorrect.
-    fn serialize_batchable(
-        &self,
-        commitment: &Self::Commitment,
-        _challenge: &Self::Challenge,
-        response: &Self::Response,
-    ) -> Result<Vec<u8>, Error> {
-        let commit_nb = self.statements_nb();
-        let response_nb = self.scalars_nb();
-        if commitment.len() != commit_nb || response.len() != response_nb {
-            return Err(Error::ProofSizeMismatch);
-        }
-
+    fn serialize_commitment(&self, commitment: &Self::Commitment) -> Vec<u8> {
         let mut bytes = Vec::new();
-        // Serialize commitments
-        for commit in commitment.iter().take(commit_nb) {
+        for commit in commitment {
             bytes.extend_from_slice(&serialize_element(commit));
         }
+        bytes
+    }
 
-        // Serialize responses
-        for response in response.iter().take(response_nb) {
-            bytes.extend_from_slice(&serialize_scalar::<G>(response));
+    fn serialize_challenge(&self, challenge: &Self::Challenge) -> Vec<u8> {
+        serialize_scalar::<G>(challenge)
+    }
+
+    fn serialize_response(&self, response: &Self::Response) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        for resp in response {
+            bytes.extend_from_slice(&serialize_scalar::<G>(resp));
         }
-        Ok(bytes)
+        bytes
     }
 
     /// Deserializes a batchable proof into a commitment vector and response vector.
@@ -204,57 +197,66 @@ where
     ///   expected for `commit_nb` commitments plus `response_nb` responses.
     /// - [`Error::GroupSerializationFailure`] if any group element or scalar fails to
     ///   deserialize (propagated from `deserialize_element` or `deserialize_scalar`).
-    fn deserialize_batchable(
-        &self,
-        data: &[u8],
-    ) -> Result<((Self::Commitment, Self::Response), usize), Error> {
+    fn deserialize_commitment(&self, data: &[u8]) -> Result<Self::Commitment, Error> {
         let commit_nb = self.statements_nb();
-        let response_nb = self.scalars_nb();
-
         let commit_size = G::generator().to_bytes().as_ref().len();
-        let response_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
-            .as_ref()
-            .len();
+        let expected_len = commit_nb * commit_size;
 
-        let expected_len = response_nb * response_size + commit_nb * commit_size;
         if data.len() < expected_len {
             return Err(Error::ProofSizeMismatch);
         }
 
         let mut commitments: Self::Commitment = Vec::new();
-        let mut responses: Self::Response = Vec::new();
-
         for i in 0..commit_nb {
             let start = i * commit_size;
             let end = start + commit_size;
-
             let slice = &data[start..end];
             let elem = deserialize_element(slice)?;
             commitments.push(elem);
         }
 
-        for i in 0..response_nb {
-            let start = commit_nb * commit_size + i * response_size;
-            let end = start + response_size;
+        Ok(commitments)
+    }
 
+    fn deserialize_challenge(&self, data: &[u8]) -> Result<Self::Challenge, Error> {
+        let scalar_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
+            .as_ref()
+            .len();
+        if data.len() < scalar_size {
+            return Err(Error::ProofSizeMismatch);
+        }
+        let challenge = deserialize_scalar::<G>(&data[..scalar_size])?;
+        Ok(challenge)
+    }
+
+    fn deserialize_response(&self, data: &[u8]) -> Result<Self::Response, Error> {
+        let response_nb = self.scalars_nb();
+        let response_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
+            .as_ref()
+            .len();
+        let expected_len = response_nb * response_size;
+
+        if data.len() < expected_len {
+            return Err(Error::ProofSizeMismatch);
+        }
+
+        let mut responses: Self::Response = Vec::new();
+        for i in 0..response_nb {
+            let start = i * response_size;
+            let end = start + response_size;
             let slice = &data[start..end];
             let scalar = deserialize_scalar::<G>(slice)?;
             responses.push(scalar);
         }
 
-        Ok(((commitments, responses), expected_len))
+        Ok(responses)
     }
-}
 
-impl<G> CompactProtocol for SchnorrProof<G>
-where
-    G: Group + GroupEncoding,
-{
     /// Recomputes the commitment from the challenge and response (used in compact proofs).
     ///
     /// # Parameters
     /// - `challenge`: The challenge scalar issued by the verifier or derived via Fiat–Shamir.
-    /// - `response`: The prover’s response vector.
+    /// - `response`: The prover's response vector.
     ///
     /// # Returns
     /// - A vector of group elements representing the recomputed commitment (one per linear constraint).
@@ -278,114 +280,6 @@ where
             commitment.push(response_image[i] - image[i] * challenge);
         }
         Ok(commitment)
-    }
-
-    /// Serializes a compact transcript: challenge followed by responses.
-    /// # Parameters
-    /// - `_commitment`: Omitted in compact format (reconstructed during verification).
-    /// - `challenge`: The challenge scalar.
-    /// - `response`: The prover’s response.
-    ///
-    /// # Returns
-    /// - A byte vector representing the compact proof.
-    ///
-    /// # Errors
-    /// - [`Error::ProofSizeMismatch`] if the response length does not match the expected number of scalars.
-    fn serialize_response(&self, response: &Self::Response) -> Result<Vec<u8>, Error> {
-        let mut bytes = Vec::new();
-        let response_nb = self.scalars_nb();
-        if response.len() != response_nb {
-            return Err(Error::ProofSizeMismatch);
-        }
-
-        // Serialize responses
-        for response in response.iter().take(response_nb) {
-            bytes.extend_from_slice(&serialize_scalar::<G>(response));
-        }
-        Ok(bytes)
-    }
-
-    /// Deserializes a compact proof into a challenge and response.
-    ///
-    /// # Parameters
-    /// - `data`: A byte slice encoding the compact proof.
-    ///
-    /// # Returns
-    /// - A tuple `(challenge, response)`.
-    ///
-    /// # Errors
-    /// - [`Error::ProofSizeMismatch`] if the input data length does not match the expected size.
-    /// - [`Error::GroupSerializationFailure`] if scalar deserialization fails.
-    fn deserialize_response(&self, data: &[u8]) -> Result<(Self::Response, usize), Error> {
-        let response_nb = self.scalars_nb();
-        let response_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
-            .as_ref()
-            .len();
-        let expected_size = response_nb * response_size;
-        if data.len() < expected_size {
-            return Err(Error::ProofSizeMismatch);
-        }
-
-        let mut responses: Self::Response = Vec::new();
-        for i in 0..response_nb {
-            let start = i * response_size;
-            let end = start + response_size;
-
-            let slice = &data[start..end];
-            let scalar = deserialize_scalar::<G>(slice)?;
-            responses.push(scalar);
-        }
-        Ok((responses, expected_size))
-    }
-
-    /// Serializes a compact transcript: challenge followed by responses.
-    /// # Parameters
-    /// - `_commitment`: Omitted in compact format (reconstructed during verification).
-    /// - `challenge`: The challenge scalar.
-    /// - `response`: The prover’s response.
-    ///
-    /// # Returns
-    /// - A byte vector representing the compact proof.
-    ///
-    /// # Errors
-    /// - [`Error::ProofSizeMismatch`] if the response length does not match the expected number of scalars.
-    fn serialize_compact(
-        &self,
-        _commitment: &Self::Commitment,
-        challenge: &Self::Challenge,
-        response: &Self::Response,
-    ) -> Result<Vec<u8>, Error> {
-        let mut bytes = Vec::new();
-
-        // Serialize challenge
-        bytes.extend_from_slice(&serialize_scalar::<G>(challenge));
-
-        // Serialize responses
-        bytes.extend_from_slice(&self.serialize_response(response)?);
-        Ok(bytes)
-    }
-
-    /// Deserializes a compact proof into a challenge and response.
-    ///
-    /// # Parameters
-    /// - `data`: A byte slice encoding the compact proof.
-    ///
-    /// # Returns
-    /// - A tuple `(challenge, response)`.
-    ///
-    /// # Errors
-    /// - [`Error::ProofSizeMismatch`] if the input data length does not match the expected size.
-    /// - [`Error::GroupSerializationFailure`] if scalar deserialization fails.
-    fn deserialize_compact(&self, data: &[u8]) -> Result<(Self::Challenge, Self::Response), Error> {
-        let scalar_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
-            .as_ref()
-            .len();
-
-        let slice = &data[0..scalar_size];
-        let challenge = deserialize_scalar::<G>(slice)?;
-        let (responses, _) = self.deserialize_response(&data[scalar_size..])?;
-
-        Ok((challenge, responses))
     }
 }
 
@@ -427,35 +321,5 @@ where
         let challenge = G::Scalar::random(&mut rng);
         let (commitment, response) = self.simulate_proof(&challenge, rng);
         (commitment, challenge, response)
-    }
-}
-
-impl<G, C> FiatShamir<C> for SchnorrProof<G>
-where
-    C: Codec<Challenge = <G as Group>::Scalar>,
-    G: Group + GroupEncoding,
-{
-    /// Absorbs statement and commitment into the codec.
-    ///
-    /// # Parameters
-    /// - `codec`: the Codec that absorbs commitments
-    /// - `commitment`: a commitment of [`SchnorrProof`].
-    fn absorb_commitment(&self, codec: &mut C, commitment: &Self::Commitment) {
-        let mut data = self.0.label();
-        for commit in commitment {
-            data.extend_from_slice(commit.to_bytes().as_ref());
-        }
-        codec.prover_message(&data);
-    }
-
-    /// Generates a challenge from the [`Codec`] that absorbed the commitments.
-    ///
-    /// # Parameters
-    /// - `codec`: the [`Codec`] from which the challenge is generated.
-    ///
-    /// # Returns
-    /// - A `challenge` that can be used during a non-interactive protocol.
-    fn get_challenge(&self, codec: &mut C) -> Result<Self::Challenge, Error> {
-        Ok(codec.verifier_challenge())
     }
 }
