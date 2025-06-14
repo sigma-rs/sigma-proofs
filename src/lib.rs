@@ -21,6 +21,7 @@ pub mod schnorr_protocol;
 pub mod traits;
 
 pub mod codec;
+pub mod duplex_sponge;
 
 #[cfg(test)]
 pub mod tests;
