@@ -13,9 +13,9 @@ use group::{Group, GroupEncoding};
 
 use crate::{
     errors::Error,
-    serialization::{deserialize_scalar, serialize_scalar},
     linear_relation::LinearRelation,
     schnorr_protocol::SchnorrProof,
+    serialization::{deserialize_scalar, serialize_scalar},
     traits::{SigmaProtocol, SigmaProtocolSimulator},
 };
 

@@ -43,8 +43,8 @@ where
 {
     /// Current codec state.
     pub hash_state: C,
-    /// Underlying Sigma protocol.
-    pub sigmap: P,
+    /// Underlying interactive proof.
+    pub ip: P,
 }
 
 impl<P, C> NISigmaProtocol<P, C>
@@ -64,7 +64,7 @@ where
         let hash_state = C::new(iv);
         Self {
             hash_state,
-            sigmap: instance,
+            ip: instance,
         }
     }
 
@@ -92,15 +92,15 @@ where
     ) -> Result<Transcript<P>, Error> {
         let mut codec = self.hash_state.clone();
 
-        let (commitment, prover_state) = self.sigmap.prover_commit(witness, rng)?;
+        let (commitment, prover_state) = self.ip.prover_commit(witness, rng)?;
         // Fiat Shamir challenge
-        let serialized_commitment = self.sigmap.serialize_commitment(&commitment);
+        let serialized_commitment = self.ip.serialize_commitment(&commitment);
         codec.prover_message(&serialized_commitment);
         let challenge = codec.verifier_challenge();
         // Prover's response
-        let response = self.sigmap.prover_response(prover_state, &challenge)?;
+        let response = self.ip.prover_response(prover_state, &challenge)?;
         // Local verification of the proof
-        self.sigmap.verifier(&commitment, &challenge, &response)?;
+        self.ip.verifier(&commitment, &challenge, &response)?;
         Ok((commitment, challenge, response))
     }
 
@@ -128,12 +128,12 @@ where
         let mut codec = self.hash_state.clone();
 
         // Recompute the challenge
-        let serialized_commitment = self.sigmap.serialize_commitment(commitment);
+        let serialized_commitment = self.ip.serialize_commitment(commitment);
         codec.prover_message(&serialized_commitment);
         let expected_challenge = codec.verifier_challenge();
         // Verification of the proof
         match *challenge == expected_challenge {
-            true => self.sigmap.verifier(commitment, challenge, response),
+            true => self.ip.verifier(commitment, challenge, response),
             false => Err(Error::VerificationFailure),
         }
     }
@@ -155,8 +155,8 @@ where
     ) -> Result<Vec<u8>, Error> {
         let (commitment, _challenge, response) = self.prove(witness, rng)?;
         let mut bytes = Vec::new();
-        bytes.extend_from_slice(&self.sigmap.serialize_commitment(&commitment));
-        bytes.extend_from_slice(&self.sigmap.serialize_response(&response));
+        bytes.extend_from_slice(&self.ip.serialize_commitment(&commitment));
+        bytes.extend_from_slice(&self.ip.serialize_response(&response));
         Ok(bytes)
     }
 
@@ -174,20 +174,18 @@ where
     ///   - The challenge doesn't match the recomputed one from the commitment.
     ///   - The response fails verification under the Sigma protocol.
     pub fn verify_batchable(&self, proof: &[u8]) -> Result<(), Error> {
-        let commitment = self.sigmap.deserialize_commitment(proof)?;
-        let commitment_size = self.sigmap.serialize_commitment(&commitment).len();
-        let response = self
-            .sigmap
-            .deserialize_response(&proof[commitment_size..])?;
+        let commitment = self.ip.deserialize_commitment(proof)?;
+        let commitment_size = self.ip.serialize_commitment(&commitment).len();
+        let response = self.ip.deserialize_response(&proof[commitment_size..])?;
 
         let mut codec = self.hash_state.clone();
 
         // Recompute the challenge
-        let serialized_commitment = self.sigmap.serialize_commitment(&commitment);
+        let serialized_commitment = self.ip.serialize_commitment(&commitment);
         codec.prover_message(&serialized_commitment);
         let challenge = codec.verifier_challenge();
         // Verification of the proof
-        self.sigmap.verifier(&commitment, &challenge, &response)
+        self.ip.verifier(&commitment, &challenge, &response)
     }
 }
 
@@ -216,8 +214,8 @@ where
     ) -> Result<Vec<u8>, Error> {
         let (_commitment, challenge, response) = self.prove(witness, rng)?;
         let mut bytes = Vec::new();
-        bytes.extend_from_slice(&self.sigmap.serialize_challenge(&challenge));
-        bytes.extend_from_slice(&self.sigmap.serialize_response(&response));
+        bytes.extend_from_slice(&self.ip.serialize_challenge(&challenge));
+        bytes.extend_from_slice(&self.ip.serialize_response(&response));
         Ok(bytes)
     }
 
@@ -238,12 +236,12 @@ where
     ///   - The recomputed commitment or response is invalid under the Sigma protocol.
     pub fn verify_compact(&self, proof: &[u8]) -> Result<(), Error> {
         // Deserialize challenge and response from compact proof
-        let challenge = self.sigmap.deserialize_challenge(proof)?;
-        let challenge_size = self.sigmap.serialize_challenge(&challenge).len();
-        let response = self.sigmap.deserialize_response(&proof[challenge_size..])?;
+        let challenge = self.ip.deserialize_challenge(proof)?;
+        let challenge_size = self.ip.serialize_challenge(&challenge).len();
+        let response = self.ip.deserialize_response(&proof[challenge_size..])?;
 
         // Compute the commitments
-        let commitment = self.sigmap.get_commitment(&challenge, &response)?;
+        let commitment = self.ip.get_commitment(&challenge, &response)?;
         // Verify the proof
         self.verify(&commitment, &challenge, &response)
     }

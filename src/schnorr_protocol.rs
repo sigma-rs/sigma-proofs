@@ -7,7 +7,10 @@
 use crate::errors::Error;
 use crate::linear_relation::LinearRelation;
 use crate::{
-    serialization::{serialize_element, serialize_scalar, deserialize_element, deserialize_scalar, scalar_byte_size},
+    serialization::{
+        deserialize_element, deserialize_scalar, scalar_byte_size, serialize_element,
+        serialize_scalar,
+    },
     traits::{SigmaProtocol, SigmaProtocolSimulator},
 };
 
@@ -27,11 +30,11 @@ pub struct SchnorrProof<G: Group + GroupEncoding>(pub LinearRelation<G>);
 
 impl<G: Group + GroupEncoding> SchnorrProof<G> {
     pub fn scalars_nb(&self) -> usize {
-        self.0.morphism.num_scalars
+        self.0.linear_map.num_scalars
     }
 
     pub fn statements_nb(&self) -> usize {
-        self.0.morphism.constraints.len()
+        self.0.linear_map.num_constraints()
     }
 }
 
@@ -80,7 +83,7 @@ where
             .map(|_| G::Scalar::random(&mut rng))
             .collect();
         let prover_state = (nonces.clone(), witness.clone());
-        let commitment = self.0.morphism.evaluate(&nonces)?;
+        let commitment = self.0.linear_map.evaluate(&nonces)?;
         Ok((commitment, prover_state))
     }
 
@@ -136,12 +139,12 @@ where
             return Err(Error::ProofSizeMismatch);
         }
 
-        let lhs = self.0.morphism.evaluate(response)?;
+        let lhs = self.0.linear_map.evaluate(response)?;
         let mut rhs = Vec::new();
         for (i, g) in commitment.iter().enumerate().take(self.statements_nb()) {
             rhs.push({
                 let image_var = self.0.image[i];
-                self.0.morphism.group_elements.get(image_var)? * challenge + g
+                self.0.linear_map.group_elements.get(image_var)? * challenge + g
             });
         }
         match lhs == rhs {
@@ -268,7 +271,7 @@ where
             return Err(Error::ProofSizeMismatch);
         }
 
-        let response_image = self.0.morphism.evaluate(response)?;
+        let response_image = self.0.linear_map.evaluate(response)?;
         let image = self.0.image()?;
 
         let mut commitment = Vec::new();

@@ -12,7 +12,7 @@ pub mod shake;
 /// A duplex sponge allows for:
 /// - **Absorbing** input data into the sponge state
 /// - **Squeezing** output data from the sponge state
-/// 
+///
 /// This is the core primitive used for building cryptographic codecs.
 pub trait DuplexSpongeInterface {
     /// Creates a new sponge instance with an initialization vector.

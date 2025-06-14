@@ -1,8 +1,8 @@
 //! Encoding and decoding utilities for Fiat-Shamir and group operations.
 
+pub use crate::duplex_sponge::keccak::KeccakDuplexSponge;
 use crate::duplex_sponge::{DuplexSpongeInterface, shake::ShakeDuplexSponge};
 use crate::serialization::scalar_byte_size;
-pub use crate::duplex_sponge::keccak::KeccakDuplexSponge;
 use ff::PrimeField;
 use group::{Group, GroupEncoding};
 use num_bigint::BigUint;
@@ -96,4 +96,3 @@ pub type KeccakByteSchnorrCodec<G> = ByteSchnorrCodec<G, KeccakDuplexSponge>;
 
 /// Type alias for a SHAKE-based ByteSchnorrCodec.
 pub type ShakeCodec<G> = ByteSchnorrCodec<G, ShakeDuplexSponge>;
-

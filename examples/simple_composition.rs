@@ -79,7 +79,7 @@ pub fn discrete_logarithm<G: Group + GroupEncoding>(
     morphism.compute_image(&[x]).unwrap();
 
     // Verify: X = x * G
-    let X = morphism.morphism.group_elements.get(var_X).unwrap();
+    let X = morphism.linear_map.group_elements.get(var_X).unwrap();
     assert_eq!(X, G::generator() * x);
 
     (morphism, vec![x])
@@ -106,8 +106,8 @@ pub fn dleq<G: Group + GroupEncoding>(x: G::Scalar, H: G) -> (LinearRelation<G>,
     morphism.compute_image(&[x]).unwrap();
 
     // Verify: X = x * G and Y = x * H
-    let X = morphism.morphism.group_elements.get(_var_X).unwrap();
-    let Y = morphism.morphism.group_elements.get(_var_Y).unwrap();
+    let X = morphism.linear_map.group_elements.get(_var_X).unwrap();
+    let Y = morphism.linear_map.group_elements.get(_var_Y).unwrap();
     assert_eq!(X, G::generator() * x);
     assert_eq!(Y, H * x);
 
