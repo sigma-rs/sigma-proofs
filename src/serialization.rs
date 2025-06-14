@@ -8,6 +8,13 @@ use group::{Group, GroupEncoding};
 
 use crate::errors::Error;
 
+/// Returns the byte size of a field element.
+#[inline]
+#[allow(clippy::manual_div_ceil)]
+pub fn scalar_byte_size<F: PrimeField>() -> usize {
+    (F::NUM_BITS as usize + 7) / 8
+}
+
 /// Serialize a group element into a byte vector.
 ///
 /// # Inputs
@@ -67,9 +74,7 @@ pub fn serialize_scalar<G: Group>(scalar: &G::Scalar) -> Vec<u8> {
 /// - `Err(Error::GroupSerializationFailure)`: If the byte slice length is incorrect or the data
 ///   does not represent a valid scalar.
 pub fn deserialize_scalar<G: Group>(data: &[u8]) -> Result<G::Scalar, Error> {
-    let scalar_len = <<G as Group>::Scalar as PrimeField>::Repr::default()
-        .as_ref()
-        .len();
+    let scalar_len = scalar_byte_size::<G::Scalar>();
     if data.len() < scalar_len {
         return Err(Error::GroupSerializationFailure);
     }

@@ -76,7 +76,7 @@ pub fn discrete_logarithm<G: Group + GroupEncoding>(
 
     // The relation has been defined and is ready to be used in a protocol.
     // Sanity check: ensure `P = x * G`
-    let P = morphism.morphism.group_elements.get(var_P).unwrap();
+    let P = morphism.linear_map.group_elements.get(var_P).unwrap();
     assert_eq!(P, G::generator() * x);
 
     // Output the relation and the witness for the upcoming proof

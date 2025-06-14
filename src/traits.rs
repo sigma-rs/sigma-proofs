@@ -5,7 +5,6 @@
 use crate::errors::Error;
 use rand::{CryptoRng, Rng};
 
-type BatchableProofResult<C, R> = Result<((C, R), usize), Error>;
 /// A trait defining the behavior of a generic Sigma protocol.
 ///
 /// A Sigma protocol is a 3-message proof protocol where a prover can convince
@@ -61,32 +60,24 @@ pub trait SigmaProtocol {
         response: &Self::Response,
     ) -> Result<(), Error>;
 
-    /// Serializes a proof transcript (commitment, challenge, response) to bytes batchable proof.
-    fn serialize_batchable(
-        &self,
-        _commitment: &Self::Commitment,
-        _challenge: &Self::Challenge,
-        _response: &Self::Response,
-    ) -> Result<Vec<u8>, Error>;
+    /// Serializes a commitment to bytes.
+    fn serialize_commitment(&self, commitment: &Self::Commitment) -> Vec<u8>;
 
-    /// Deserializes a batchable proof from bytes.
-    ///
-    /// Returns `Ok(((commitment, response), proof_size))` if parsing is successful, otherwise `Err(Error)`.
-    fn deserialize_batchable(
-        &self,
-        _data: &[u8],
-    ) -> BatchableProofResult<Self::Commitment, Self::Response>;
-}
+    /// Serializes a challenge to bytes.
+    fn serialize_challenge(&self, challenge: &Self::Challenge) -> Vec<u8>;
 
-/// A feature defining the behavior of a protocol for which it is possible to compact the proofs by omitting the commitments.
-///
-/// This is possible if it is possible to retrieve the commitments from the challenge and responses.
-/// This is what the get_commitment function is for.
-///
-/// ## Minimal Implementation
-/// Types implementing [`CompactProtocol`] must define:
-/// - `get_commitment`
-pub trait CompactProtocol: SigmaProtocol {
+    /// Serializes a response to bytes.
+    fn serialize_response(&self, response: &Self::Response) -> Vec<u8>;
+
+    /// Deserializes a commitment from bytes.
+    fn deserialize_commitment(&self, data: &[u8]) -> Result<Self::Commitment, Error>;
+
+    /// Deserializes a challenge from bytes.
+    fn deserialize_challenge(&self, data: &[u8]) -> Result<Self::Challenge, Error>;
+
+    /// Deserializes a response from bytes.
+    fn deserialize_response(&self, data: &[u8]) -> Result<Self::Response, Error>;
+
     /// Returns the commitment for which ('commitment', 'challenge', 'response') is a valid transcript.
     ///
     /// This function allows to omit commitment in compact proofs of the type ('challenge', 'response').
@@ -95,26 +86,6 @@ pub trait CompactProtocol: SigmaProtocol {
         challenge: &Self::Challenge,
         response: &Self::Response,
     ) -> Result<Self::Commitment, Error>;
-
-    /// Serializes a proof response to bytes.
-    fn serialize_response(&self, response: &Self::Response) -> Result<Vec<u8>, Error>;
-
-    /// Deserializes a proof response from bytes.
-    fn deserialize_response(&self, _data: &[u8]) -> Result<(Self::Response, usize), Error>;
-
-    /// Serializes a proof transcript (commitment, challenge, response) to bytes compact proof.
-    fn serialize_compact(
-        &self,
-        commitment: &Self::Commitment,
-        challenge: &Self::Challenge,
-        response: &Self::Response,
-    ) -> Result<Vec<u8>, Error>;
-
-    /// Deserializes a compact proof from bytes.
-    ///
-    /// Returns `Ok((challenge, response))` if parsing is successful, otherwise `Err(Error)`.
-    fn deserialize_compact(&self, _data: &[u8])
-    -> Result<(Self::Challenge, Self::Response), Error>;
 }
 
 /// A trait defining the behavior of a Sigma protocol for which simulation of transcripts is necessary.

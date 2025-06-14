@@ -4,7 +4,7 @@ use group::{Group, GroupEncoding};
 
 use crate::linear_relation::{LinearRelation, msm_pr};
 
-/// Morphism for knowledge of a discrete logarithm relative to a fixed basepoint.
+/// LinearMap for knowledge of a discrete logarithm relative to a fixed basepoint.
 #[allow(non_snake_case)]
 pub fn discrete_logarithm<G: Group + GroupEncoding>(
     x: G::Scalar,
@@ -19,13 +19,13 @@ pub fn discrete_logarithm<G: Group + GroupEncoding>(
     morphismp.set_element(var_G, G::generator());
     morphismp.compute_image(&[x]).unwrap();
 
-    let X = morphismp.morphism.group_elements.get(var_X).unwrap();
+    let X = morphismp.linear_map.group_elements.get(var_X).unwrap();
 
     assert_eq!(X, G::generator() * x);
     (morphismp, vec![x])
 }
 
-/// Morphism for knowledge of a discrete logarithm equality between two pairs.
+/// LinearMap for knowledge of a discrete logarithm equality between two pairs.
 #[allow(non_snake_case)]
 pub fn dleq<G: Group + GroupEncoding>(x: G::Scalar, H: G) -> (LinearRelation<G>, Vec<G::Scalar>) {
     let mut morphismp: LinearRelation<G> = LinearRelation::new();
@@ -39,15 +39,15 @@ pub fn dleq<G: Group + GroupEncoding>(x: G::Scalar, H: G) -> (LinearRelation<G>,
     morphismp.set_elements([(var_G, G::generator()), (var_H, H)]);
     morphismp.compute_image(&[x]).unwrap();
 
-    let X = morphismp.morphism.group_elements.get(var_X).unwrap();
-    let Y = morphismp.morphism.group_elements.get(var_Y).unwrap();
+    let X = morphismp.linear_map.group_elements.get(var_X).unwrap();
+    let Y = morphismp.linear_map.group_elements.get(var_Y).unwrap();
 
     assert_eq!(X, G::generator() * x);
     assert_eq!(Y, H * x);
     (morphismp, vec![x])
 }
 
-/// Morphism for knowledge of an opening to a Pederson commitment.
+/// LinearMap for knowledge of an opening to a Pederson commitment.
 #[allow(non_snake_case)]
 pub fn pedersen_commitment<G: Group + GroupEncoding>(
     H: G,
@@ -64,14 +64,14 @@ pub fn pedersen_commitment<G: Group + GroupEncoding>(
     cs.set_elements([(var_H, H), (var_G, G::generator())]);
     cs.compute_image(&[x, r]).unwrap();
 
-    let C = cs.morphism.group_elements.get(var_C).unwrap();
+    let C = cs.linear_map.group_elements.get(var_C).unwrap();
 
     let witness = vec![x, r];
     assert_eq!(C, G::generator() * x + H * r);
     (cs, witness)
 }
 
-/// Morphism for knowledge of equal openings to two distinct Pederson commitments.
+/// LinearMap for knowledge of equal openings to two distinct Pederson commitments.
 #[allow(non_snake_case)]
 pub fn pedersen_commitment_dleq<G: Group + GroupEncoding>(
     generators: [G; 4],
@@ -98,11 +98,11 @@ pub fn pedersen_commitment_dleq<G: Group + GroupEncoding>(
     morphismp.append_equation(var_X, [(var_x, var_Gs[0]), (var_r, var_Gs[1])]);
     morphismp.append_equation(var_Y, [(var_x, var_Gs[2]), (var_r, var_Gs[3])]);
 
-    assert!(vec![X, Y] == morphismp.morphism.evaluate(&witness).unwrap());
+    assert!(vec![X, Y] == morphismp.linear_map.evaluate(&witness).unwrap());
     (morphismp, witness.to_vec())
 }
 
-/// Morphism for knowledge of an opening for use in a BBS commitment.
+/// LinearMap for knowledge of an opening for use in a BBS commitment.
 // BBS message length is 3
 #[allow(non_snake_case)]
 pub fn bbs_blind_commitment_computation<G: Group + GroupEncoding>(
@@ -141,6 +141,6 @@ pub fn bbs_blind_commitment_computation<G: Group + GroupEncoding>(
 
     let witness = vec![secret_prover_blind, msg_1, msg_2, msg_3];
 
-    assert!(vec![C] == morphismp.morphism.evaluate(&witness).unwrap());
+    assert!(vec![C] == morphismp.linear_map.evaluate(&witness).unwrap());
     (morphismp, witness)
 }
