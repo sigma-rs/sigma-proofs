@@ -66,7 +66,7 @@ pub enum ProtocolProverState<G: Group + GroupEncoding> {
     Or(
         usize,                                                 // real index
         Vec<ProtocolProverState<G>>,                           // real ProverState
-        (Vec<ProtocolChallenge<G>>, Vec<ProtocolResponse<G>>), // fake transcripts
+        (Vec<ProtocolChallenge<G>>, Vec<ProtocolResponse<G>>), // simulated transcripts
     ),
 }
 
@@ -128,15 +128,15 @@ impl<G: Group + GroupEncoding> SigmaProtocol for Protocol<G> {
             }
             (Protocol::Or(ps), ProtocolWitness::Or(w_index, w)) => {
                 let mut commitments = Vec::with_capacity(ps.len());
-                let mut fake_challenges = Vec::new();
-                let mut fake_responses = Vec::new();
+                let mut simulated_challenges = Vec::new();
+                let mut simulated_responses = Vec::new();
                 let (real_commit, real_state) = ps[*w_index].prover_commit(&w[0], rng)?;
                 for (i, _) in ps.iter().enumerate() {
                     if i != *w_index {
                         let (c, ch, r) = ps[i].simulate_transcript(rng);
                         commitments.push(c);
-                        fake_challenges.push(ch);
-                        fake_responses.push(r);
+                        simulated_challenges.push(ch);
+                        simulated_responses.push(r);
                     } else {
                         commitments.push(real_commit.clone());
                     }
@@ -146,7 +146,7 @@ impl<G: Group + GroupEncoding> SigmaProtocol for Protocol<G> {
                     ProtocolProverState::Or(
                         *w_index,
                         vec![real_state],
-                        (fake_challenges, fake_responses),
+                        (simulated_challenges, simulated_responses),
                     ),
                 ))
             }
@@ -177,13 +177,13 @@ impl<G: Group + GroupEncoding> SigmaProtocol for Protocol<G> {
             }
             (
                 Protocol::Or(ps),
-                ProtocolProverState::Or(w_index, real_state, (f_challenges, f_responses)),
+                ProtocolProverState::Or(w_index, real_state, (simulated_challenges, simulated_responses)),
             ) => {
                 let mut challenges = Vec::with_capacity(ps.len());
                 let mut responses = Vec::with_capacity(ps.len());
 
                 let mut real_challenge = *challenge;
-                for ch in &f_challenges {
+                for ch in &simulated_challenges {
                     real_challenge -= ch;
                 }
                 let real_response =
@@ -194,9 +194,9 @@ impl<G: Group + GroupEncoding> SigmaProtocol for Protocol<G> {
                         challenges.push(real_challenge);
                         responses.push(real_response.clone());
                     } else {
-                        let fake_index = if i < w_index { i } else { i - 1 };
-                        challenges.push(f_challenges[fake_index]);
-                        responses.push(f_responses[fake_index].clone());
+                        let simulated_index = if i < w_index { i } else { i - 1 };
+                        challenges.push(simulated_challenges[simulated_index]);
+                        responses.push(simulated_responses[simulated_index].clone());
                     }
                 }
                 Ok(ProtocolResponse::Or(challenges, responses))
@@ -364,26 +364,26 @@ impl<G: Group + GroupEncoding> SigmaProtocol for Protocol<G> {
         }
     }
 
-    fn get_commitment(
+    fn simulate_commitment(
         &self,
         challenge: &Self::Challenge,
         response: &Self::Response,
     ) -> Result<Self::Commitment, Error> {
         match (self, response) {
             (Protocol::Simple(p), ProtocolResponse::Simple(r)) => {
-                Ok(ProtocolCommitment::Simple(p.get_commitment(challenge, r)?))
+                Ok(ProtocolCommitment::Simple(p.simulate_commitment(challenge, r)?))
             }
             (Protocol::And(ps), ProtocolResponse::And(rs)) => {
                 let mut commitments = Vec::with_capacity(ps.len());
                 for (i, p) in ps.iter().enumerate() {
-                    commitments.push(p.get_commitment(challenge, &rs[i])?);
+                    commitments.push(p.simulate_commitment(challenge, &rs[i])?);
                 }
                 Ok(ProtocolCommitment::And(commitments))
             }
             (Protocol::Or(ps), ProtocolResponse::Or(ch, rs)) => {
                 let mut commitments = Vec::with_capacity(ps.len());
                 for (i, p) in ps.iter().enumerate() {
-                    commitments.push(p.get_commitment(&ch[i], &rs[i])?);
+                    commitments.push(p.simulate_commitment(&ch[i], &rs[i])?);
                 }
                 Ok(ProtocolCommitment::Or(commitments))
             }
