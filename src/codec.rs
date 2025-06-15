@@ -70,7 +70,8 @@ where
     }
 
     fn verifier_challenge(&mut self) -> G::Scalar {
-        let scalar_byte_length =  (G::Scalar::NUM_BITS as usize + 7) / 8;
+        #[allow(clippy::manual_div_ceil)]
+        let scalar_byte_length = (G::Scalar::NUM_BITS as usize + 7) / 8;
 
         let uniform_bytes = self.hasher.squeeze(scalar_byte_length + 16);
         let scalar = BigUint::from_bytes_be(&uniform_bytes);

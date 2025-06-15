@@ -81,6 +81,7 @@ pub fn serialize_scalars<G: Group>(scalars: &[G::Scalar]) -> Vec<u8> {
 /// - `Some(Vec<G::Scalar>)`: The deserialized scalars if all are valid.
 /// - `None`: If the byte slice length is incorrect or any scalar is invalid.
 pub fn deserialize_scalars<G: Group>(data: &[u8], count: usize) -> Option<Vec<G::Scalar>> {
+    #[allow(clippy::manual_div_ceil)]
     let scalar_len = (G::Scalar::NUM_BITS as usize + 7) / 8;
     let expected_len = count * scalar_len;
 

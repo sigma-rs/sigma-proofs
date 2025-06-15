@@ -8,8 +8,7 @@ use crate::errors::Error;
 use crate::linear_relation::LinearRelation;
 use crate::{
     serialization::{
-        deserialize_elements, deserialize_scalars, serialize_elements,
-        serialize_scalars,
+        deserialize_elements, deserialize_scalars, serialize_elements, serialize_scalars,
     },
     traits::{SigmaProtocol, SigmaProtocolSimulator},
 };

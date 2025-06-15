@@ -100,7 +100,8 @@ where
     }
 
     fn deserialize_commitment(&self, data: &[u8]) -> Result<Self::Commitment, Error> {
-        deserialize_elements::<G>(data, self.0.linear_map.num_constraints()).ok_or(Error::VerificationFailure)
+        deserialize_elements::<G>(data, self.0.linear_map.num_constraints())
+            .ok_or(Error::VerificationFailure)
     }
 
     fn deserialize_challenge(&self, data: &[u8]) -> Result<Self::Challenge, Error> {
@@ -109,7 +110,8 @@ where
     }
 
     fn deserialize_response(&self, data: &[u8]) -> Result<Self::Response, Error> {
-        deserialize_scalars::<G>(data, self.0.linear_map.num_scalars).ok_or(Error::VerificationFailure)
+        deserialize_scalars::<G>(data, self.0.linear_map.num_scalars)
+            .ok_or(Error::VerificationFailure)
     }
 
     fn simulate_commitment(
