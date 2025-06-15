@@ -123,7 +123,7 @@ where
             let start = i * point_size;
             let end = start + point_size;
             let slice = &data[start..end];
-            let elem = deserialize_element(slice)?;
+            let elem = deserialize_element(slice).ok_or(Error::VerificationFailure)?;
             commitments.push(elem);
         }
 
@@ -135,7 +135,7 @@ where
         if data.len() < scalar_size {
             return Err(Error::ProofSizeMismatch);
         }
-        deserialize_scalar::<G>(&data[..scalar_size])
+        deserialize_scalar::<G>(&data[..scalar_size]).ok_or(Error::VerificationFailure)
     }
 
     fn deserialize_response(&self, data: &[u8]) -> Result<Self::Response, Error> {
@@ -152,7 +152,7 @@ where
             let start = i * scalar_size; // No offset needed - data contains only responses
             let end = start + scalar_size;
             let slice = &data[start..end];
-            let scalar = deserialize_scalar::<G>(slice)?;
+            let scalar = deserialize_scalar::<G>(slice).ok_or(Error::VerificationFailure)?;
             responses.push(scalar);
         }
 

@@ -327,7 +327,7 @@ impl<G: Group + GroupEncoding> SigmaProtocol for Protocol<G> {
     }
 
     fn deserialize_challenge(&self, data: &[u8]) -> Result<Self::Challenge, Error> {
-        deserialize_scalar::<G>(data)
+        deserialize_scalar::<G>(data).ok_or(Error::VerificationFailure)
     }
 
     fn deserialize_response(&self, data: &[u8]) -> Result<Self::Response, Error> {
@@ -355,7 +355,8 @@ impl<G: Group + GroupEncoding> SigmaProtocol for Protocol<G> {
                 let mut challenges = Vec::with_capacity(ps.len());
                 let mut responses = Vec::with_capacity(ps.len());
                 for p in ps {
-                    let ch = deserialize_scalar::<G>(&data[cursor..cursor + ch_bytes_len])?;
+                    let ch = deserialize_scalar::<G>(&data[cursor..cursor + ch_bytes_len])
+                        .ok_or(Error::VerificationFailure)?;
                     cursor += ch_bytes_len;
                     let r = p.deserialize_response(&data[cursor..])?;
                     let size = p.serialize_response(&r).len();

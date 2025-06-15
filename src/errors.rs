@@ -7,7 +7,6 @@
 //! - Verification failures (e.g., when a proof does not verify correctly).
 //! - Mismatched parameters during batch verification.
 //! - Uninitialized group variables.
-//! - Group element or scalar serialization failures.
 
 use crate::linear_relation::GroupVar;
 
@@ -21,9 +20,6 @@ pub enum Error {
     /// Indicates a mismatch in parameter sizes during batch verification.
     #[error("Mismatched parameter sizes for batch verification.")]
     ProofSizeMismatch,
-    /// Serialization of a group element/scalar has failed.
-    #[error("Serialization of a group element/scalar failed.")]
-    GroupSerializationFailure,
     /// Uninitialized group element variable.
     #[error("Uninitialized group element variable {var:?}")]
     UnassignedGroupVar { var: GroupVar },
