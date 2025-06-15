@@ -2,7 +2,6 @@
 
 pub use crate::duplex_sponge::keccak::KeccakDuplexSponge;
 use crate::duplex_sponge::{shake::ShakeDuplexSponge, DuplexSpongeInterface};
-use crate::serialization::scalar_byte_size;
 use ff::PrimeField;
 use group::{Group, GroupEncoding};
 use num_bigint::BigUint;
@@ -71,7 +70,8 @@ where
     }
 
     fn verifier_challenge(&mut self) -> G::Scalar {
-        let scalar_byte_length = scalar_byte_size::<G::Scalar>();
+        #[allow(clippy::manual_div_ceil)]
+        let scalar_byte_length = (G::Scalar::NUM_BITS as usize + 7) / 8;
 
         let uniform_bytes = self.hasher.squeeze(scalar_byte_length + 16);
         let scalar = BigUint::from_bytes_be(&uniform_bytes);

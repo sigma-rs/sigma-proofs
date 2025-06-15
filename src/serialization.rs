@@ -6,90 +6,103 @@
 use ff::PrimeField;
 use group::{Group, GroupEncoding};
 
-use crate::errors::Error;
-
-/// Returns the byte size of a field element.
-#[inline]
-#[allow(clippy::manual_div_ceil)]
-pub fn scalar_byte_size<F: PrimeField>() -> usize {
-    (F::NUM_BITS as usize + 7) / 8
-}
-
-/// Serialize a group element into a byte vector.
-///
-/// # Inputs
-/// - `element`: A reference to the group element to serialize.
-///
-/// # Outputs
-/// - A `Vec<u8>` containing the canonical compressed byte representation of the element.
-pub fn serialize_element<G: Group + GroupEncoding>(element: &G) -> Vec<u8> {
-    element.to_bytes().as_ref().to_vec()
-}
-
-/// Deserialize a byte slice into a group element.
+/// Serialize a slice of group elements into a byte vector.
 ///
 /// # Parameters
-/// - `data`: A byte slice containing the serialized representation of the group element.
+/// - `elements`: A slice of group elements to serialize.
 ///
 /// # Returns
-/// - `Ok(G)`: The deserialized group element if the input is valid.
-/// - `Err(Error::GroupSerializationFailure)`: If the byte slice length is incorrect or the data
-///   does not represent a valid group element.
-pub fn deserialize_element<G: Group + GroupEncoding>(data: &[u8]) -> Result<G, Error> {
+/// - A `Vec<u8>` containing the concatenated canonical compressed byte representations.
+pub fn serialize_elements<G: Group + GroupEncoding>(elements: &[G]) -> Vec<u8> {
+    let mut bytes = Vec::new();
+    for element in elements {
+        bytes.extend_from_slice(element.to_bytes().as_ref());
+    }
+    bytes
+}
+
+/// Deserialize a byte slice into a vector of group elements.
+///
+/// # Parameters
+/// - `data`: A byte slice containing the serialized representations of group elements.
+/// - `count`: The number of elements to deserialize.
+///
+/// # Returns
+/// - `Some(Vec<G>)`: The deserialized group elements if all are valid.
+/// - `None`: If the byte slice length is incorrect or any element is invalid.
+pub fn deserialize_elements<G: Group + GroupEncoding>(data: &[u8], count: usize) -> Option<Vec<G>> {
     let element_len = G::Repr::default().as_ref().len();
-    if data.len() < element_len {
-        return Err(Error::GroupSerializationFailure);
+    let expected_len = count * element_len;
+
+    if data.len() < expected_len {
+        return None;
     }
 
-    let mut repr = G::Repr::default();
-    repr.as_mut().copy_from_slice(&data[..element_len]);
-    let ct_point = G::from_bytes(&repr);
-    if ct_point.is_some().into() {
-        let point = ct_point.unwrap();
-        Ok(point)
-    } else {
-        Err(Error::GroupSerializationFailure)
+    let mut elements = Vec::with_capacity(count);
+    for i in 0..count {
+        let start = i * element_len;
+        let end = start + element_len;
+        let slice = &data[start..end];
+
+        let mut repr = G::Repr::default();
+        repr.as_mut().copy_from_slice(slice);
+        let element = G::from_bytes(&repr).into();
+        let element: Option<G> = element;
+        elements.push(element?);
     }
+
+    Some(elements)
 }
 
-/// Serialize a scalar field element into a byte vector.
+/// Serialize a slice of scalar field elements into a byte vector.
 ///
 /// # Parameters
-/// - `scalar`: A reference to the scalar field element to serialize.
-///
-/// # Outputs
-/// - A `Vec<u8>` containing the scalar bytes in little-endian order.
-pub fn serialize_scalar<G: Group>(scalar: &G::Scalar) -> Vec<u8> {
-    let mut scalar_bytes = scalar.to_repr().as_ref().to_vec();
-    scalar_bytes.reverse();
-    scalar_bytes
-}
-/// Deserialize a byte slice into a scalar field element.
-///
-/// # Parameters
-/// - `data`: A byte slice containing the serialized scalar in little-endian order.
+/// - `scalars`: A slice of scalar field elements to serialize.
 ///
 /// # Returns
-/// - `Ok(G::Scalar)`: The deserialized scalar if the input is valid.
-/// - `Err(Error::GroupSerializationFailure)`: If the byte slice length is incorrect or the data
-///   does not represent a valid scalar.
-pub fn deserialize_scalar<G: Group>(data: &[u8]) -> Result<G::Scalar, Error> {
-    let scalar_len = scalar_byte_size::<G::Scalar>();
-    if data.len() < scalar_len {
-        return Err(Error::GroupSerializationFailure);
+/// - A `Vec<u8>` containing the scalar bytes in little-endian order.
+pub fn serialize_scalars<G: Group>(scalars: &[G::Scalar]) -> Vec<u8> {
+    let mut bytes = Vec::new();
+    for scalar in scalars {
+        let mut scalar_bytes = scalar.to_repr().as_ref().to_vec();
+        scalar_bytes.reverse();
+        bytes.extend_from_slice(&scalar_bytes);
+    }
+    bytes
+}
+
+/// Deserialize a byte slice into a vector of scalar field elements.
+///
+/// # Parameters
+/// - `data`: A byte slice containing the serialized scalars in little-endian order.
+/// - `count`: The number of scalars to deserialize.
+///
+/// # Returns
+/// - `Some(Vec<G::Scalar>)`: The deserialized scalars if all are valid.
+/// - `None`: If the byte slice length is incorrect or any scalar is invalid.
+pub fn deserialize_scalars<G: Group>(data: &[u8], count: usize) -> Option<Vec<G::Scalar>> {
+    #[allow(clippy::manual_div_ceil)]
+    let scalar_len = (G::Scalar::NUM_BITS as usize + 7) / 8;
+    let expected_len = count * scalar_len;
+
+    if data.len() < expected_len {
+        return None;
     }
 
-    let mut repr = <<G as Group>::Scalar as PrimeField>::Repr::default();
-    repr.as_mut().copy_from_slice(&{
-        let mut tmp = data[..scalar_len].to_vec();
-        tmp.reverse();
-        tmp
-    });
-    let ct_scalar = G::Scalar::from_repr(repr);
-    if ct_scalar.is_some().into() {
-        let scalar = ct_scalar.unwrap();
-        Ok(scalar)
-    } else {
-        Err(Error::GroupSerializationFailure)
+    let mut scalars = Vec::with_capacity(count);
+    for i in 0..count {
+        let start = i * scalar_len;
+        let end = start + scalar_len;
+        let slice = &data[start..end];
+
+        let mut repr = <<G as Group>::Scalar as PrimeField>::Repr::default();
+        repr.as_mut().copy_from_slice(slice);
+        repr.as_mut().reverse();
+
+        let scalar = G::Scalar::from_repr(repr).into();
+        let scalar: Option<G::Scalar> = scalar;
+        scalars.push(scalar?);
     }
+
+    Some(scalars)
 }

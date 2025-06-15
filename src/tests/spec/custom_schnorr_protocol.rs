@@ -4,7 +4,7 @@ use rand::{CryptoRng, Rng};
 use crate::errors::Error;
 use crate::linear_relation::LinearRelation;
 use crate::serialization::{
-    deserialize_element, deserialize_scalar, scalar_byte_size, serialize_element, serialize_scalar,
+    deserialize_elements, deserialize_scalars, serialize_elements, serialize_scalars,
 };
 use crate::tests::spec::random::SRandom;
 use crate::traits::SigmaProtocol;
@@ -88,75 +88,30 @@ where
     }
 
     fn serialize_commitment(&self, commitment: &Self::Commitment) -> Vec<u8> {
-        let mut bytes = Vec::new();
-        let point_nb = self.0.linear_map.num_constraints();
-        for commit in commitment.iter().take(point_nb) {
-            bytes.extend_from_slice(&serialize_element(commit));
-        }
-        bytes
+        serialize_elements(&commitment[..self.0.linear_map.num_constraints()])
     }
 
     fn serialize_challenge(&self, challenge: &Self::Challenge) -> Vec<u8> {
-        serialize_scalar::<G>(challenge)
+        serialize_scalars::<G>(&[*challenge])
     }
 
     fn serialize_response(&self, response: &Self::Response) -> Vec<u8> {
-        let mut bytes = Vec::new();
-        let scalar_nb = self.0.linear_map.num_scalars;
-        for response in response.iter().take(scalar_nb) {
-            bytes.extend_from_slice(&serialize_scalar::<G>(response));
-        }
-        bytes
+        serialize_scalars::<G>(&response[..self.0.linear_map.num_scalars])
     }
 
     fn deserialize_commitment(&self, data: &[u8]) -> Result<Self::Commitment, Error> {
-        let point_nb = self.0.linear_map.num_constraints();
-        let point_size = G::generator().to_bytes().as_ref().len();
-        let expected_len = point_nb * point_size;
-
-        if data.len() < expected_len {
-            return Err(Error::ProofSizeMismatch);
-        }
-
-        let mut commitments: Self::Commitment = Vec::new();
-        for i in 0..point_nb {
-            let start = i * point_size;
-            let end = start + point_size;
-            let slice = &data[start..end];
-            let elem = deserialize_element(slice)?;
-            commitments.push(elem);
-        }
-
-        Ok(commitments)
+        deserialize_elements::<G>(data, self.0.linear_map.num_constraints())
+            .ok_or(Error::VerificationFailure)
     }
 
     fn deserialize_challenge(&self, data: &[u8]) -> Result<Self::Challenge, Error> {
-        let scalar_size = scalar_byte_size::<G::Scalar>();
-        if data.len() < scalar_size {
-            return Err(Error::ProofSizeMismatch);
-        }
-        deserialize_scalar::<G>(&data[..scalar_size])
+        let scalars = deserialize_scalars::<G>(data, 1).ok_or(Error::VerificationFailure)?;
+        Ok(scalars[0])
     }
 
     fn deserialize_response(&self, data: &[u8]) -> Result<Self::Response, Error> {
-        let scalar_nb = self.0.linear_map.num_scalars;
-        let scalar_size = scalar_byte_size::<G::Scalar>();
-        let expected_len = scalar_nb * scalar_size;
-
-        if data.len() < expected_len {
-            return Err(Error::ProofSizeMismatch);
-        }
-
-        let mut responses: Self::Response = Vec::new();
-        for i in 0..scalar_nb {
-            let start = i * scalar_size; // No offset needed - data contains only responses
-            let end = start + scalar_size;
-            let slice = &data[start..end];
-            let scalar = deserialize_scalar::<G>(slice)?;
-            responses.push(scalar);
-        }
-
-        Ok(responses)
+        deserialize_scalars::<G>(data, self.0.linear_map.num_scalars)
+            .ok_or(Error::VerificationFailure)
     }
 
     fn simulate_commitment(
