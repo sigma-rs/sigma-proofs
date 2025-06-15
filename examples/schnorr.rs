@@ -47,8 +47,8 @@ fn verify(P: RistrettoPoint, proof: &[u8]) -> ProofResult<()> {
 
 #[allow(non_snake_case)]
 fn main() {
-    let x = Scalar::random(&mut OsRng);  // Private key (witness)
-    let P = RistrettoPoint::generator() * x;  // Public key (statement)
+    let x = Scalar::random(&mut OsRng); // Private key (witness)
+    let P = RistrettoPoint::generator() * x; // Public key (statement)
 
     println!("Generated new key pair:");
     println!("Public key P: {:?}", hex::encode(P.compress().as_bytes()));
