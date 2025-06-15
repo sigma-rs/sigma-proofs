@@ -159,7 +159,7 @@ where
         Ok(responses)
     }
 
-    fn get_commitment(
+    fn simulate_commitment(
         &self,
         challenge: &Self::Challenge,
         response: &Self::Response,

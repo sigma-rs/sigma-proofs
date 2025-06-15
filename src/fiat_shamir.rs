@@ -241,7 +241,7 @@ where
         let response = self.ip.deserialize_response(&proof[challenge_size..])?;
 
         // Compute the commitments
-        let commitment = self.ip.get_commitment(&challenge, &response)?;
+        let commitment = self.ip.simulate_commitment(&challenge, &response)?;
         // Verify the proof
         self.verify(&commitment, &challenge, &response)
     }

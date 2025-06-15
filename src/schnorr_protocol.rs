@@ -262,7 +262,7 @@ where
     ///
     /// # Errors
     /// - [`Error::ProofSizeMismatch`] if the response length does not match the expected number of scalars.
-    fn get_commitment(
+    fn simulate_commitment(
         &self,
         challenge: &Self::Challenge,
         response: &Self::Response,
@@ -299,10 +299,13 @@ where
         challenge: &Self::Challenge,
         mut rng: &mut (impl RngCore + CryptoRng),
     ) -> (Self::Commitment, Self::Response) {
-        let response = (0..self.scalars_nb())
+        let response: Vec<G::Scalar> = (0..self.scalars_nb())
             .map(|_| G::Scalar::random(&mut rng))
             .collect();
-        let commitment = self.get_commitment(challenge, &response).unwrap();
+
+        // Use simulate_commitment to compute the commitment
+        let commitment = self.simulate_commitment(challenge, &response).unwrap();
+
         (commitment, response)
     }
 

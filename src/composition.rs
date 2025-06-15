@@ -364,26 +364,26 @@ impl<G: Group + GroupEncoding> SigmaProtocol for Protocol<G> {
         }
     }
 
-    fn get_commitment(
+    fn simulate_commitment(
         &self,
         challenge: &Self::Challenge,
         response: &Self::Response,
     ) -> Result<Self::Commitment, Error> {
         match (self, response) {
             (Protocol::Simple(p), ProtocolResponse::Simple(r)) => {
-                Ok(ProtocolCommitment::Simple(p.get_commitment(challenge, r)?))
+                Ok(ProtocolCommitment::Simple(p.simulate_commitment(challenge, r)?))
             }
             (Protocol::And(ps), ProtocolResponse::And(rs)) => {
                 let mut commitments = Vec::with_capacity(ps.len());
                 for (i, p) in ps.iter().enumerate() {
-                    commitments.push(p.get_commitment(challenge, &rs[i])?);
+                    commitments.push(p.simulate_commitment(challenge, &rs[i])?);
                 }
                 Ok(ProtocolCommitment::And(commitments))
             }
             (Protocol::Or(ps), ProtocolResponse::Or(ch, rs)) => {
                 let mut commitments = Vec::with_capacity(ps.len());
                 for (i, p) in ps.iter().enumerate() {
-                    commitments.push(p.get_commitment(&ch[i], &rs[i])?);
+                    commitments.push(p.simulate_commitment(&ch[i], &rs[i])?);
                 }
                 Ok(ProtocolCommitment::Or(commitments))
             }
