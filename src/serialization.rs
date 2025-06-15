@@ -6,13 +6,6 @@
 use ff::PrimeField;
 use group::{Group, GroupEncoding};
 
-/// Returns the byte size of a field element.
-#[inline]
-#[allow(clippy::manual_div_ceil)]
-pub fn scalar_byte_size<F: PrimeField>() -> usize {
-    (F::NUM_BITS as usize + 7) / 8
-}
-
 /// Serialize a slice of group elements into a byte vector.
 ///
 /// # Parameters
@@ -40,24 +33,24 @@ pub fn serialize_elements<G: Group + GroupEncoding>(elements: &[G]) -> Vec<u8> {
 pub fn deserialize_elements<G: Group + GroupEncoding>(data: &[u8], count: usize) -> Option<Vec<G>> {
     let element_len = G::Repr::default().as_ref().len();
     let expected_len = count * element_len;
-    
+
     if data.len() < expected_len {
         return None;
     }
-    
+
     let mut elements = Vec::with_capacity(count);
     for i in 0..count {
         let start = i * element_len;
         let end = start + element_len;
         let slice = &data[start..end];
-        
+
         let mut repr = G::Repr::default();
         repr.as_mut().copy_from_slice(slice);
         let element = G::from_bytes(&repr).into();
         let element: Option<G> = element;
         elements.push(element?);
     }
-    
+
     Some(elements)
 }
 
@@ -88,27 +81,27 @@ pub fn serialize_scalars<G: Group>(scalars: &[G::Scalar]) -> Vec<u8> {
 /// - `Some(Vec<G::Scalar>)`: The deserialized scalars if all are valid.
 /// - `None`: If the byte slice length is incorrect or any scalar is invalid.
 pub fn deserialize_scalars<G: Group>(data: &[u8], count: usize) -> Option<Vec<G::Scalar>> {
-    let scalar_len = scalar_byte_size::<G::Scalar>();
+    let scalar_len = (G::Scalar::NUM_BITS as usize + 7) / 8;
     let expected_len = count * scalar_len;
-    
+
     if data.len() < expected_len {
         return None;
     }
-    
+
     let mut scalars = Vec::with_capacity(count);
     for i in 0..count {
         let start = i * scalar_len;
         let end = start + scalar_len;
         let slice = &data[start..end];
-        
+
         let mut repr = <<G as Group>::Scalar as PrimeField>::Repr::default();
         repr.as_mut().copy_from_slice(slice);
         repr.as_mut().reverse();
-        
+
         let scalar = G::Scalar::from_repr(repr).into();
         let scalar: Option<G::Scalar> = scalar;
         scalars.push(scalar?);
     }
-    
+
     Some(scalars)
 }
