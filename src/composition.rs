@@ -177,7 +177,11 @@ impl<G: Group + GroupEncoding> SigmaProtocol for Protocol<G> {
             }
             (
                 Protocol::Or(ps),
-                ProtocolProverState::Or(w_index, real_state, (simulated_challenges, simulated_responses)),
+                ProtocolProverState::Or(
+                    w_index,
+                    real_state,
+                    (simulated_challenges, simulated_responses),
+                ),
             ) => {
                 let mut challenges = Vec::with_capacity(ps.len());
                 let mut responses = Vec::with_capacity(ps.len());
@@ -370,9 +374,9 @@ impl<G: Group + GroupEncoding> SigmaProtocol for Protocol<G> {
         response: &Self::Response,
     ) -> Result<Self::Commitment, Error> {
         match (self, response) {
-            (Protocol::Simple(p), ProtocolResponse::Simple(r)) => {
-                Ok(ProtocolCommitment::Simple(p.simulate_commitment(challenge, r)?))
-            }
+            (Protocol::Simple(p), ProtocolResponse::Simple(r)) => Ok(ProtocolCommitment::Simple(
+                p.simulate_commitment(challenge, r)?,
+            )),
             (Protocol::And(ps), ProtocolResponse::And(rs)) => {
                 let mut commitments = Vec::with_capacity(ps.len());
                 for (i, p) in ps.iter().enumerate() {

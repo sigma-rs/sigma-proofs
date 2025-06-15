@@ -2,7 +2,7 @@
 
 use group::{Group, GroupEncoding};
 
-use crate::linear_relation::{LinearRelation, msm_pr};
+use crate::linear_relation::{msm_pr, LinearRelation};
 
 /// LinearMap for knowledge of a discrete logarithm relative to a fixed basepoint.
 #[allow(non_snake_case)]
