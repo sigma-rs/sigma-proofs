@@ -38,7 +38,8 @@ type Transcript<P> = (
 #[derive(Debug)]
 pub struct NISigmaProtocol<P, C>
 where
-    P: SigmaProtocol<Challenge: PartialEq>,
+    P: SigmaProtocol,
+    P::Challenge: PartialEq,
     C: Codec<Challenge = P::Challenge>,
 {
     /// Current codec state.
@@ -49,7 +50,8 @@ where
 
 impl<P, C> NISigmaProtocol<P, C>
 where
-    P: SigmaProtocol<Challenge: PartialEq>,
+    P: SigmaProtocol,
+    P::Challenge: PartialEq,
     C: Codec<Challenge = P::Challenge> + Clone,
 {
     /// Constructs a new [`NISigmaProtocol`] instance.
@@ -191,7 +193,8 @@ where
 
 impl<P, C> NISigmaProtocol<P, C>
 where
-    P: SigmaProtocol<Challenge: PartialEq>,
+    P: SigmaProtocol,
+    P::Challenge: PartialEq,
     C: Codec<Challenge = P::Challenge> + Clone,
 {
     /// Generates a compact serialized proof.

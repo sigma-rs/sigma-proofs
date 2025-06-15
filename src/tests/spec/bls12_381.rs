@@ -35,7 +35,8 @@ impl SRandom for G1Projective {
         assert!(l <= h);
         let range = h - l + BigUint::one();
         let bits = range.bits();
-        let bytes_needed = bits.div_ceil(8) as usize;
+        #[allow(clippy::manual_div_ceil)]
+        let bytes_needed = ((bits + 7) / 8) as usize;
 
         loop {
             let mut buf = vec![0u8; bytes_needed];
