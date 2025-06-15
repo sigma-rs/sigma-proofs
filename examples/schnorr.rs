@@ -12,35 +12,32 @@ use curve25519_dalek::RistrettoPoint;
 use group::Group;
 use rand::rngs::OsRng;
 
-use sigma_rs::codec::ShakeCodec;
 use sigma_rs::errors::Error;
-use sigma_rs::fiat_shamir::NISigmaProtocol;
-use sigma_rs::linear_relation::LinearRelation;
-use sigma_rs::schnorr_protocol::SchnorrProof;
+use sigma_rs::{LinearRelation, NISigmaProtocol};
 
 type ProofResult<T> = Result<T, Error>;
 
 /// Create a discrete logarithm relation for the given public key P
 #[allow(non_snake_case)]
 fn create_relation(P: RistrettoPoint) -> LinearRelation<RistrettoPoint> {
-    let mut morphism: LinearRelation<RistrettoPoint> = LinearRelation::new();
+    let mut relation = LinearRelation::new();
 
     // Allocate a variable for the scalar witness `x`
-    let var_x = morphism.allocate_scalar();
+    let var_x = relation.allocate_scalar();
 
     // Allocate a variable for the group element `G` (the generator)
-    let var_G = morphism.allocate_element();
+    let var_G = relation.allocate_element();
 
     // Create the constraint `P = x * G`
-    let var_P = morphism.allocate_eq(var_x * var_G);
+    let var_P = relation.allocate_eq(var_x * var_G);
 
     // Assign the group generator to the corresponding variable `G`
-    morphism.set_element(var_G, RistrettoPoint::generator());
+    relation.set_element(var_G, RistrettoPoint::generator());
 
     // Assign the public key to the variable `P`
-    morphism.set_element(var_P, P);
+    relation.set_element(var_P, P);
 
-    morphism
+    relation
 }
 
 /// Prove knowledge of the discrete logarithm: given witness x and public key P,
@@ -48,8 +45,7 @@ fn create_relation(P: RistrettoPoint) -> LinearRelation<RistrettoPoint> {
 #[allow(non_snake_case)]
 fn prove(x: Scalar, P: RistrettoPoint) -> ProofResult<Vec<u8>> {
     let relation = create_relation(P);
-    let schnorr = SchnorrProof::<RistrettoPoint>::from(relation);
-    let nizk = NISigmaProtocol::<_, ShakeCodec<RistrettoPoint>>::new(b"schnorr-example", schnorr);
+    let nizk: NISigmaProtocol<_, _> = relation.into();
 
     let witness = vec![x];
     nizk.prove_batchable(&witness, &mut OsRng)
@@ -59,8 +55,7 @@ fn prove(x: Scalar, P: RistrettoPoint) -> ProofResult<Vec<u8>> {
 #[allow(non_snake_case)]
 fn verify(P: RistrettoPoint, proof: &[u8]) -> ProofResult<()> {
     let relation = create_relation(P);
-    let schnorr = SchnorrProof::<RistrettoPoint>::from(relation);
-    let nizk = NISigmaProtocol::<_, ShakeCodec<RistrettoPoint>>::new(b"schnorr-example", schnorr);
+    let nizk: NISigmaProtocol<_, _> = relation.into();
 
     nizk.verify_batchable(proof)
 }

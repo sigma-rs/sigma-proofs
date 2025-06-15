@@ -246,3 +246,40 @@ where
         self.verify(&commitment, &challenge, &response)
     }
 }
+
+/// Convenience trait implementation to create a NIZK directly from a LinearRelation.
+impl<G> From<crate::linear_relation::LinearRelation<G>>
+    for NISigmaProtocol<crate::schnorr_protocol::SchnorrProof<G>, crate::codec::ShakeCodec<G>>
+where
+    G: group::Group + group::GroupEncoding,
+{
+    /// Convert a LinearRelation into a non-interactive zero-knowledge protocol
+    /// using the default ShakeCodec and a generic domain separator.
+    ///
+    /// # Example
+    /// ```
+    /// # use sigma_rs::{LinearRelation, NISigmaProtocol};
+    /// # use curve25519_dalek::RistrettoPoint as G;
+    /// # use curve25519_dalek::scalar::Scalar;
+    /// # use rand::rngs::OsRng;
+    /// # use group::Group;
+    ///
+    /// let mut relation = LinearRelation::<G>::new();
+    /// let x_var = relation.allocate_scalar();
+    /// let g_var = relation.allocate_element();
+    /// let p_var = relation.allocate_eq(x_var * g_var);
+    ///
+    /// relation.set_element(g_var, G::generator());
+    /// let x = Scalar::random(&mut OsRng);
+    /// relation.compute_image(&[x]).unwrap();
+    ///
+    /// // Convert to NIZK using From trait
+    /// let nizk: NISigmaProtocol<_, _> = relation.into();
+    /// let proof = nizk.prove_batchable(&vec![x], &mut OsRng).unwrap();
+    /// assert!(nizk.verify_batchable(&proof).is_ok());
+    /// ```
+    fn from(relation: crate::linear_relation::LinearRelation<G>) -> Self {
+        let schnorr = crate::schnorr_protocol::SchnorrProof::from(relation);
+        Self::new(b"sigma-rs-default", schnorr)
+    }
+}

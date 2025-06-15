@@ -52,3 +52,4 @@ pub mod duplex_sponge;
 pub mod tests;
 
 pub use linear_relation::LinearRelation;
+pub use fiat_shamir::NISigmaProtocol;
