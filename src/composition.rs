@@ -15,7 +15,7 @@ use crate::{
     errors::Error,
     linear_relation::LinearRelation,
     schnorr_protocol::SchnorrProof,
-    serialization::{deserialize_scalar, serialize_scalar},
+    serialization::{deserialize_scalars, serialize_scalars},
     traits::{SigmaProtocol, SigmaProtocolSimulator},
 };
 
@@ -270,7 +270,7 @@ impl<G: Group + GroupEncoding> SigmaProtocol for Protocol<G> {
     }
 
     fn serialize_challenge(&self, challenge: &Self::Challenge) -> Vec<u8> {
-        serialize_scalar::<G>(challenge)
+        serialize_scalars::<G>(&[*challenge])
     }
 
     fn serialize_response(&self, response: &Self::Response) -> Vec<u8> {
@@ -286,7 +286,7 @@ impl<G: Group + GroupEncoding> SigmaProtocol for Protocol<G> {
             (Protocol::Or(ps), ProtocolResponse::Or(challenges, responses)) => {
                 let mut bytes = Vec::new();
                 for (i, p) in ps.iter().enumerate() {
-                    bytes.extend(&serialize_scalar::<G>(&challenges[i]));
+                    bytes.extend(&serialize_scalars::<G>(&[challenges[i]]));
                     bytes.extend(p.serialize_response(&responses[i]));
                 }
                 bytes
@@ -327,7 +327,8 @@ impl<G: Group + GroupEncoding> SigmaProtocol for Protocol<G> {
     }
 
     fn deserialize_challenge(&self, data: &[u8]) -> Result<Self::Challenge, Error> {
-        deserialize_scalar::<G>(data).ok_or(Error::VerificationFailure)
+        let scalars = deserialize_scalars::<G>(data, 1).ok_or(Error::VerificationFailure)?;
+        Ok(scalars[0])
     }
 
     fn deserialize_response(&self, data: &[u8]) -> Result<Self::Response, Error> {
@@ -355,8 +356,9 @@ impl<G: Group + GroupEncoding> SigmaProtocol for Protocol<G> {
                 let mut challenges = Vec::with_capacity(ps.len());
                 let mut responses = Vec::with_capacity(ps.len());
                 for p in ps {
-                    let ch = deserialize_scalar::<G>(&data[cursor..cursor + ch_bytes_len])
+                    let ch_vec = deserialize_scalars::<G>(&data[cursor..cursor + ch_bytes_len], 1)
                         .ok_or(Error::VerificationFailure)?;
+                    let ch = ch_vec[0];
                     cursor += ch_bytes_len;
                     let r = p.deserialize_response(&data[cursor..])?;
                     let size = p.serialize_response(&r).len();

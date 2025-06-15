@@ -8,8 +8,8 @@ use crate::errors::Error;
 use crate::linear_relation::LinearRelation;
 use crate::{
     serialization::{
-        deserialize_element, deserialize_scalar, scalar_byte_size, serialize_element,
-        serialize_scalar,
+        deserialize_elements, deserialize_scalars, serialize_elements,
+        serialize_scalars,
     },
     traits::{SigmaProtocol, SigmaProtocolSimulator},
 };
@@ -168,23 +168,15 @@ where
     /// # Errors
     /// - [`Error::ProofSizeMismatch`] if the commitment or response length is incorrect.
     fn serialize_commitment(&self, commitment: &Self::Commitment) -> Vec<u8> {
-        let mut bytes = Vec::new();
-        for commit in commitment {
-            bytes.extend_from_slice(&serialize_element(commit));
-        }
-        bytes
+        serialize_elements(commitment)
     }
 
     fn serialize_challenge(&self, challenge: &Self::Challenge) -> Vec<u8> {
-        serialize_scalar::<G>(challenge)
+        serialize_scalars::<G>(&[*challenge])
     }
 
     fn serialize_response(&self, response: &Self::Response) -> Vec<u8> {
-        let mut bytes = Vec::new();
-        for resp in response {
-            bytes.extend_from_slice(&serialize_scalar::<G>(resp));
-        }
-        bytes
+        serialize_scalars::<G>(response)
     }
 
     /// Deserializes a batchable proof into a commitment vector and response vector.
@@ -203,54 +195,16 @@ where
     /// - [`Error::VerificationFailure`] if any group element or scalar fails to
     ///   deserialize (invalid encoding).
     fn deserialize_commitment(&self, data: &[u8]) -> Result<Self::Commitment, Error> {
-        let commit_nb = self.commitment_length();
-        let commit_size = G::generator().to_bytes().as_ref().len();
-        let expected_len = commit_nb * commit_size;
-
-        if data.len() < expected_len {
-            return Err(Error::ProofSizeMismatch);
-        }
-
-        let mut commitments: Self::Commitment = Vec::new();
-        for i in 0..commit_nb {
-            let start = i * commit_size;
-            let end = start + commit_size;
-            let slice = &data[start..end];
-            let elem = deserialize_element(slice).ok_or(Error::VerificationFailure)?;
-            commitments.push(elem);
-        }
-
-        Ok(commitments)
+        deserialize_elements::<G>(data, self.commitment_length()).ok_or(Error::VerificationFailure)
     }
 
     fn deserialize_challenge(&self, data: &[u8]) -> Result<Self::Challenge, Error> {
-        let scalar_size = scalar_byte_size::<G::Scalar>();
-        if data.len() < scalar_size {
-            return Err(Error::ProofSizeMismatch);
-        }
-        let challenge = deserialize_scalar::<G>(&data[..scalar_size]).ok_or(Error::VerificationFailure)?;
-        Ok(challenge)
+        let scalars = deserialize_scalars::<G>(data, 1).ok_or(Error::VerificationFailure)?;
+        Ok(scalars[0])
     }
 
     fn deserialize_response(&self, data: &[u8]) -> Result<Self::Response, Error> {
-        let response_nb = self.witness_length();
-        let response_size = scalar_byte_size::<G::Scalar>();
-        let expected_len = response_nb * response_size;
-
-        if data.len() < expected_len {
-            return Err(Error::ProofSizeMismatch);
-        }
-
-        let mut responses: Self::Response = Vec::new();
-        for i in 0..response_nb {
-            let start = i * response_size;
-            let end = start + response_size;
-            let slice = &data[start..end];
-            let scalar = deserialize_scalar::<G>(slice).ok_or(Error::VerificationFailure)?;
-            responses.push(scalar);
-        }
-
-        Ok(responses)
+        deserialize_scalars::<G>(data, self.witness_length()).ok_or(Error::VerificationFailure)
     }
 
     /// Recomputes the commitment from the challenge and response (used in compact proofs).
