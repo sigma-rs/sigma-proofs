@@ -1,8 +1,8 @@
-//! Implementation of the generic Schnorr Sigma Protocol over a group `G`.
+//! Implementation of the generic Schnorr Sigma Protocol over a [`Group`].
 //!
 //! This module defines the [`SchnorrProof`] structure, which implements
 //! a Sigma protocol proving different types of discrete logarithm relations (eg. Schnorr, Pedersen's commitments)
-//! through a group morphism abstraction (see Maurer09).
+//! through a group morphism abstraction (see [Maurer09](https://crypto-test.ethz.ch/publications/files/Maurer09.pdf)).
 
 use crate::errors::Error;
 use crate::linear_relation::LinearRelation;
@@ -251,14 +251,14 @@ where
         Ok(responses)
     }
 
-    /// Recomputes the commitment from the challenge and response (used in compact proofs).
+    /// Simulates a commitment from the challenge and response (used in compact proofs).
     ///
     /// # Parameters
     /// - `challenge`: The challenge scalar issued by the verifier or derived via Fiat–Shamir.
     /// - `response`: The prover's response vector.
     ///
     /// # Returns
-    /// - A vector of group elements representing the recomputed commitment (one per linear constraint).
+    /// - A vector of group elements representing the simulated commitment (one per linear constraint).
     ///
     /// # Errors
     /// - [`Error::ProofSizeMismatch`] if the response length does not match the expected number of scalars.
