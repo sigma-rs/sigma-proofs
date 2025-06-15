@@ -1,7 +1,6 @@
 //! Example: Schnorr proof of knowledge.
 //!
 //! This example demonstrates how to prove knowledge of a discrete logarithm using `sigma-rs`.
-//! A common use case is authentication: proving you know a secret key without revealing it.
 //!
 //! The prover convinces a verifier that it knows a secret $x$ such that: $$P = x \cdot G$$
 //!
@@ -22,20 +21,11 @@ type ProofResult<T> = Result<T, Error>;
 fn create_relation(P: RistrettoPoint) -> LinearRelation<RistrettoPoint> {
     let mut relation = LinearRelation::new();
 
-    // Allocate a variable for the scalar witness `x`
-    let var_x = relation.allocate_scalar();
-
-    // Allocate a variable for the group element `G` (the generator)
-    let var_G = relation.allocate_element();
-
-    // Create the constraint `P = x * G`
-    let var_P = relation.allocate_eq(var_x * var_G);
-
-    // Assign the group generator to the corresponding variable `G`
-    relation.set_element(var_G, RistrettoPoint::generator());
-
-    // Assign the public key to the variable `P`
-    relation.set_element(var_P, P);
+    let x = relation.allocate_scalar();
+    let G = relation.allocate_element();
+    let P_var = relation.allocate_eq(x * G);
+    relation.set_element(G, RistrettoPoint::generator());
+    relation.set_element(P_var, P);
 
     relation
 }
@@ -44,19 +34,14 @@ fn create_relation(P: RistrettoPoint) -> LinearRelation<RistrettoPoint> {
 /// generate a proof that P = x * G
 #[allow(non_snake_case)]
 fn prove(x: Scalar, P: RistrettoPoint) -> ProofResult<Vec<u8>> {
-    let relation = create_relation(P);
-    let nizk: NISigmaProtocol<_, _> = relation.into();
-
-    let witness = vec![x];
-    nizk.prove_batchable(&witness, &mut OsRng)
+    let nizk: NISigmaProtocol<_, _> = create_relation(P).into();
+    nizk.prove_batchable(&vec![x], &mut OsRng)
 }
 
 /// Verify a proof of knowledge of discrete logarithm for the given public key P
 #[allow(non_snake_case)]
 fn verify(P: RistrettoPoint, proof: &[u8]) -> ProofResult<()> {
-    let relation = create_relation(P);
-    let nizk: NISigmaProtocol<_, _> = relation.into();
-
+    let nizk: NISigmaProtocol<_, _> = create_relation(P).into();
     nizk.verify_batchable(proof)
 }
 
