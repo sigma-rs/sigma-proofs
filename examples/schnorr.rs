@@ -31,8 +31,8 @@
 //!
 //! This example uses the Ristretto group from `curve25519-dalek`, which provides a prime-order group
 //! suitable for secure zero-knowledge protocols.
-use curve25519_dalek::RistrettoPoint;
 use curve25519_dalek::scalar::Scalar;
+use curve25519_dalek::RistrettoPoint;
 use group::{Group, GroupEncoding};
 use rand::rngs::OsRng;
 

@@ -78,10 +78,10 @@ pub trait SigmaProtocol {
     /// Deserializes a response from bytes.
     fn deserialize_response(&self, data: &[u8]) -> Result<Self::Response, Error>;
 
-    /// Returns the commitment for which ('commitment', 'challenge', 'response') is a valid transcript.
+    /// Simulates a commitment for which ('commitment', 'challenge', 'response') is a valid transcript.
     ///
     /// This function allows to omit commitment in compact proofs of the type ('challenge', 'response').
-    fn get_commitment(
+    fn simulate_commitment(
         &self,
         challenge: &Self::Challenge,
         response: &Self::Response,

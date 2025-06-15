@@ -4,8 +4,8 @@
 
 use crate::duplex_sponge::DuplexSpongeInterface;
 use sha3::{
-    Shake128,
     digest::{ExtendableOutput, Update},
+    Shake128,
 };
 
 /// Duplex sponge construction using SHAKE128.

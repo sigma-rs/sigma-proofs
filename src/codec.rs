@@ -1,7 +1,7 @@
 //! Encoding and decoding utilities for Fiat-Shamir and group operations.
 
 pub use crate::duplex_sponge::keccak::KeccakDuplexSponge;
-use crate::duplex_sponge::{DuplexSpongeInterface, shake::ShakeDuplexSponge};
+use crate::duplex_sponge::{shake::ShakeDuplexSponge, DuplexSpongeInterface};
 use crate::serialization::scalar_byte_size;
 use ff::PrimeField;
 use group::{Group, GroupEncoding};

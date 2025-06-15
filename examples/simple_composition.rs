@@ -50,10 +50,10 @@ use curve25519_dalek::scalar::Scalar;
 use group::{Group, GroupEncoding};
 use rand::rngs::OsRng;
 use sigma_rs::{
-    LinearRelation,
     codec::ShakeCodec,
     composition::{Protocol, ProtocolWitness},
     fiat_shamir::NISigmaProtocol,
+    LinearRelation,
 };
 
 type G = RistrettoPoint;
