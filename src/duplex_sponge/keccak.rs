@@ -97,16 +97,14 @@ impl DuplexSpongeInterface for KeccakDuplexSponge {
         self.squeeze_index = self.rate;
 
         while !input.is_empty() {
-            if self.absorb_index == self.rate {
+            if self.absorb_index < self.rate {
+                self.state.state[self.absorb_index] = input[0];
+                self.absorb_index += 1;
+                input = &input[1..];
+            } else {
                 self.state.permute();
                 self.absorb_index = 0;
             }
-
-            let chunk_size = usize::min(self.rate - self.absorb_index, input.len());
-            let dest = &mut self.state.state[self.absorb_index..self.absorb_index + chunk_size];
-            dest.copy_from_slice(&input[..chunk_size]);
-            self.absorb_index += chunk_size;
-            input = &input[chunk_size..];
         }
     }
 
