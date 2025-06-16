@@ -12,7 +12,7 @@ use group::Group;
 use rand::rngs::OsRng;
 
 use sigma_rs::errors::Error;
-use sigma_rs::{LinearRelation, NISigmaProtocol};
+use sigma_rs::LinearRelation;
 
 type ProofResult<T> = Result<T, Error>;
 
@@ -34,14 +34,14 @@ fn create_relation(P: RistrettoPoint) -> LinearRelation<RistrettoPoint> {
 /// generate a proof that P = x * G
 #[allow(non_snake_case)]
 fn prove(x: Scalar, P: RistrettoPoint) -> ProofResult<Vec<u8>> {
-    let nizk: NISigmaProtocol<_, _> = create_relation(P).into();
+    let nizk = create_relation(P).into_nizk(b"schnorr-proof");
     nizk.prove_batchable(&vec![x], &mut OsRng)
 }
 
 /// Verify a proof of knowledge of discrete logarithm for the given public key P
 #[allow(non_snake_case)]
 fn verify(P: RistrettoPoint, proof: &[u8]) -> ProofResult<()> {
-    let nizk: NISigmaProtocol<_, _> = create_relation(P).into();
+    let nizk = create_relation(P).into_nizk(b"schnorr-proof");
     nizk.verify_batchable(proof)
 }
 

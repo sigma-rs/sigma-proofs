@@ -510,4 +510,49 @@ where
 
         out
     }
+
+    /// Convert this LinearRelation into a non-interactive zero-knowledge protocol
+    /// using the ShakeCodec and a specified context/domain separator.
+    ///
+    /// # Parameters
+    /// - `context`: Domain separator bytes for the Fiat-Shamir transform
+    ///
+    /// # Returns
+    /// A `NISigmaProtocol` instance ready for proving and verification
+    ///
+    /// # Example
+    /// ```
+    /// # use sigma_rs::{LinearRelation, NISigmaProtocol};
+    /// # use curve25519_dalek::RistrettoPoint as G;
+    /// # use curve25519_dalek::scalar::Scalar;
+    /// # use rand::rngs::OsRng;
+    /// # use group::Group;
+    ///
+    /// let mut relation = LinearRelation::<G>::new();
+    /// let x_var = relation.allocate_scalar();
+    /// let g_var = relation.allocate_element();
+    /// let p_var = relation.allocate_eq(x_var * g_var);
+    ///
+    /// relation.set_element(g_var, G::generator());
+    /// let x = Scalar::random(&mut OsRng);
+    /// relation.compute_image(&[x]).unwrap();
+    ///
+    /// // Convert to NIZK with custom context
+    /// let nizk = relation.into_nizk(b"my-protocol-v1");
+    /// let proof = nizk.prove_batchable(&vec![x], &mut OsRng).unwrap();
+    /// assert!(nizk.verify_batchable(&proof).is_ok());
+    /// ```
+    pub fn into_nizk(
+        self,
+        context: &[u8],
+    ) -> crate::fiat_shamir::NISigmaProtocol<
+        crate::schnorr_protocol::SchnorrProof<G>,
+        crate::codec::ShakeCodec<G>,
+    >
+    where
+        G: group::GroupEncoding,
+    {
+        let schnorr = crate::schnorr_protocol::SchnorrProof::from(self);
+        crate::fiat_shamir::NISigmaProtocol::new(context, schnorr)
+    }
 }
