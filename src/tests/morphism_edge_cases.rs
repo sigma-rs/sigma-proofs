@@ -3,7 +3,8 @@ use group::{ff::Field, Group};
 use rand::rngs::OsRng;
 
 use crate::{
-    codec::ShakeCodec, fiat_shamir::NISigmaProtocol, linear_relation::LinearRelation, schnorr_protocol::SchnorrProof, tests::test_utils::discrete_logarithm
+    codec::ShakeCodec, fiat_shamir::NISigmaProtocol, linear_relation::LinearRelation,
+    schnorr_protocol::SchnorrProof, tests::test_utils::discrete_logarithm,
 };
 
 /// Test the edge-cases where the witness is zero
@@ -12,9 +13,9 @@ fn zero_scalar_witness_discrete_log() {
     // Same test as a regular dlog but the witness is set to zero
     let zero_witness = Scalar::ZERO;
     let mut rng = OsRng;
-    
+
     let (morphismp, witness) = discrete_logarithm(zero_witness);
-    
+
     // The SigmaProtocol induced by morphismp
     let protocol = SchnorrProof::from(morphismp);
     // Fiat-Shamir wrapper
@@ -49,18 +50,18 @@ fn zero_generator_discrete_log() {
     let (morphismp, witness) = {
         let mut morphismp: LinearRelation<G> = LinearRelation::new();
 
-    let var_x = morphismp.allocate_scalar();
-    let var_G = morphismp.allocate_element();
+        let var_x = morphismp.allocate_scalar();
+        let var_G = morphismp.allocate_element();
 
-    let var_X = morphismp.allocate_eq(var_x * var_G);
+        let var_X = morphismp.allocate_eq(var_x * var_G);
 
-    morphismp.set_element(var_G, G);
-    morphismp.compute_image(&[x]).unwrap();
+        morphismp.set_element(var_G, G);
+        morphismp.compute_image(&[x]).unwrap();
 
-    let X = morphismp.linear_map.group_elements.get(var_X).unwrap();
+        let X = morphismp.linear_map.group_elements.get(var_X).unwrap();
 
-    assert_eq!(X, G * x);
-    (morphismp, vec![x])
+        assert_eq!(X, G * x);
+        (morphismp, vec![x])
     };
 
     // The SigmaProtocol induced by morphismp
@@ -95,7 +96,6 @@ fn fully_zero_pedersen_commitment() {
     let r = Scalar::ZERO;
     let G = Group::identity();
     let H = Group::identity();
-
 
     let (morphismp, witness) = {
         let mut cs: LinearRelation<G> = LinearRelation::new();
@@ -147,7 +147,6 @@ fn partial_zero_pedersen_commitment() {
     let r = Scalar::random(&mut rng);
     let G = Group::generator();
     let H = Group::identity();
-
 
     let (morphismp, witness) = {
         let mut cs: LinearRelation<G> = LinearRelation::new();
