@@ -1,19 +1,19 @@
-//! Implementation of the generic Schnorr Sigma Protocol over a group `G`.
+//! Implementation of the generic Schnorr Sigma Protocol over a [`Group`].
 //!
-//! This module defines the [`SchnorrProtocol`] structure, which implements
+//! This module defines the [`SchnorrProof`] structure, which implements
 //! a Sigma protocol proving different types of discrete logarithm relations (eg. Schnorr, Pedersen's commitments)
-//! through a group morphism abstraction (see Maurer09).
+//! through a group morphism abstraction (see [Maurer09](https://crypto-test.ethz.ch/publications/files/Maurer09.pdf)).
 
-use crate::codec::Codec;
 use crate::errors::Error;
-use crate::fiat_shamir::FiatShamir;
 use crate::linear_relation::LinearRelation;
 use crate::{
-    group_serialization::*,
-    traits::{CompactProtocol, SigmaProtocol, SigmaProtocolSimulator},
+    serialization::{
+        deserialize_elements, deserialize_scalars, serialize_elements, serialize_scalars,
+    },
+    traits::{SigmaProtocol, SigmaProtocolSimulator},
 };
 
-use ff::{Field, PrimeField};
+use ff::Field;
 use group::{Group, GroupEncoding};
 use rand::{CryptoRng, RngCore};
 
@@ -25,19 +25,19 @@ use rand::{CryptoRng, RngCore};
 /// # Type Parameters
 /// - `G`: A cryptographic group implementing [`Group`] and [`GroupEncoding`].
 #[derive(Clone, Default, Debug)]
-pub struct SchnorrProtocol<G: Group + GroupEncoding>(pub LinearRelation<G>);
+pub struct SchnorrProof<G: Group + GroupEncoding>(pub LinearRelation<G>);
 
-impl<G: Group + GroupEncoding> SchnorrProtocol<G> {
-    pub fn scalars_nb(&self) -> usize {
-        self.0.morphism.num_scalars
+impl<G: Group + GroupEncoding> SchnorrProof<G> {
+    pub fn witness_length(&self) -> usize {
+        self.0.linear_map.num_scalars
     }
 
-    pub fn statements_nb(&self) -> usize {
-        self.0.morphism.constraints.len()
+    pub fn commitment_length(&self) -> usize {
+        self.0.linear_map.num_constraints()
     }
 }
 
-impl<G> From<LinearRelation<G>> for SchnorrProtocol<G>
+impl<G> From<LinearRelation<G>> for SchnorrProof<G>
 where
     G: Group + GroupEncoding,
 {
@@ -46,7 +46,7 @@ where
     }
 }
 
-impl<G> SigmaProtocol for SchnorrProtocol<G>
+impl<G> SigmaProtocol for SchnorrProof<G>
 where
     G: Group + GroupEncoding,
 {
@@ -68,21 +68,21 @@ where
     ///     - The prover state (random nonces and witness) used to compute the response.
     ///
     /// # Errors
-    /// -`ProofError::ProofSizeMismatch` if the witness vector length is incorrect.
+    /// -[`Error::ProofSizeMismatch`] if the witness vector length is incorrect.
     fn prover_commit(
         &self,
         witness: &Self::Witness,
         mut rng: &mut (impl RngCore + CryptoRng),
     ) -> Result<(Self::Commitment, Self::ProverState), Error> {
-        if witness.len() != self.scalars_nb() {
+        if witness.len() != self.witness_length() {
             return Err(Error::ProofSizeMismatch);
         }
 
-        let nonces: Vec<G::Scalar> = (0..self.scalars_nb())
+        let nonces: Vec<G::Scalar> = (0..self.witness_length())
             .map(|_| G::Scalar::random(&mut rng))
             .collect();
         let prover_state = (nonces.clone(), witness.clone());
-        let commitment = self.0.morphism.evaluate(&nonces)?;
+        let commitment = self.0.linear_map.evaluate(&nonces)?;
         Ok((commitment, prover_state))
     }
 
@@ -96,19 +96,21 @@ where
     /// - A vector of scalars forming the prover's response.
     ///
     /// # Errors
-    /// - Returns `ProofError::ProofSizeMismatch` if the prover state vectors have incorrect lengths.
+    /// - Returns [`Error::ProofSizeMismatch`] if the prover state vectors have incorrect lengths.
     fn prover_response(
         &self,
-        state: Self::ProverState,
+        prover_state: Self::ProverState,
         challenge: &Self::Challenge,
     ) -> Result<Self::Response, Error> {
-        if state.0.len() != self.scalars_nb() || state.1.len() != self.scalars_nb() {
+        let (nonces, witness) = prover_state;
+
+        if nonces.len() != self.witness_length() || witness.len() != self.witness_length() {
             return Err(Error::ProofSizeMismatch);
         }
 
         let mut responses = Vec::new();
-        for i in 0..self.scalars_nb() {
-            responses.push(state.0[i] + state.1[i] * challenge);
+        for i in 0..self.witness_length() {
+            responses.push(nonces[i] + witness[i] * challenge);
         }
         Ok(responses)
     }
@@ -121,29 +123,29 @@ where
     ///
     /// # Returns
     /// - `Ok(())` if the proof is valid.
-    /// - `Err(ProofError::VerificationFailure)` if the proof is invalid.
-    /// - `Err(ProofError::ProofSizeMismatch)` if the lengths of commitment or response do not match the expected counts.
+    /// - `Err(Error::VerificationFailure)` if the proof is invalid.
+    /// - `Err(Error::ProofSizeMismatch)` if the lengths of commitment or response do not match the expected counts.
     ///
     /// # Errors
-    /// -`Err(ProofError::VerificationFailure)` if the computed relation
+    /// -[`Error::VerificationFailure`] if the computed relation
     /// does not hold for the provided challenge and response, indicating proof invalidity.
-    /// -`Err(ProofError::ProofSizeMismatch)` if the commitment or response length is incorrect.
+    /// -[`Error::ProofSizeMismatch`] if the commitment or response length is incorrect.
     fn verifier(
         &self,
         commitment: &Self::Commitment,
         challenge: &Self::Challenge,
         response: &Self::Response,
     ) -> Result<(), Error> {
-        if commitment.len() != self.statements_nb() || response.len() != self.scalars_nb() {
+        if commitment.len() != self.commitment_length() || response.len() != self.witness_length() {
             return Err(Error::ProofSizeMismatch);
         }
 
-        let lhs = self.0.morphism.evaluate(response)?;
+        let lhs = self.0.linear_map.evaluate(response)?;
         let mut rhs = Vec::new();
-        for (i, g) in commitment.iter().enumerate().take(self.statements_nb()) {
+        for (i, g) in commitment.iter().enumerate().take(self.commitment_length()) {
             rhs.push({
                 let image_var = self.0.image[i];
-                self.0.morphism.group_elements.get(image_var)? * challenge + g
+                self.0.linear_map.group_elements.get(image_var)? * challenge + g
             });
         }
         match lhs == rhs {
@@ -163,30 +165,17 @@ where
     /// - A byte vector representing the serialized batchable proof.
     ///
     /// # Errors
-    /// - `ProofError::ProofSizeMismatch` if the commitment or response length is incorrect.
-    fn serialize_batchable(
-        &self,
-        commitment: &Self::Commitment,
-        _challenge: &Self::Challenge,
-        response: &Self::Response,
-    ) -> Result<Vec<u8>, Error> {
-        let commit_nb = self.statements_nb();
-        let response_nb = self.scalars_nb();
-        if commitment.len() != commit_nb || response.len() != response_nb {
-            return Err(Error::ProofSizeMismatch);
-        }
+    /// - [`Error::ProofSizeMismatch`] if the commitment or response length is incorrect.
+    fn serialize_commitment(&self, commitment: &Self::Commitment) -> Vec<u8> {
+        serialize_elements(commitment)
+    }
 
-        let mut bytes = Vec::new();
-        // Serialize commitments
-        for commit in commitment.iter().take(commit_nb) {
-            bytes.extend_from_slice(&serialize_element(commit));
-        }
+    fn serialize_challenge(&self, challenge: &Self::Challenge) -> Vec<u8> {
+        serialize_scalars::<G>(&[*challenge])
+    }
 
-        // Serialize responses
-        for response in response.iter().take(response_nb) {
-            bytes.extend_from_slice(&serialize_scalar::<G>(response));
-        }
-        Ok(bytes)
+    fn serialize_response(&self, response: &Self::Response) -> Vec<u8> {
+        serialize_scalars::<G>(response)
     }
 
     /// Deserializes a batchable proof into a commitment vector and response vector.
@@ -196,81 +185,48 @@ where
     ///
     /// # Returns
     /// - A tuple `(commitment, response)` where
-    ///   * `commitment` is a vector of group elements (one per statement), and
-    ///   * `response`   is a vector of scalars (one per witness).
+    ///   * `commitment` is a vector of group elements, and
+    ///   * `response` is a vector of scalars.
     ///
     /// # Errors
-    /// - `ProofError::ProofSizeMismatch` if the input length is not the exact number of bytes
+    /// - [`Error::ProofSizeMismatch`] if the input length is not the exact number of bytes
     ///   expected for `commit_nb` commitments plus `response_nb` responses.
-    /// - `ProofError::GroupSerializationFailure` if any group element or scalar fails to
-    ///   deserialize (propagated from `deserialize_element` or `deserialize_scalar`).
-    fn deserialize_batchable(
-        &self,
-        data: &[u8],
-    ) -> Result<((Self::Commitment, Self::Response), usize), Error> {
-        let commit_nb = self.statements_nb();
-        let response_nb = self.scalars_nb();
-
-        let commit_size = G::generator().to_bytes().as_ref().len();
-        let response_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
-            .as_ref()
-            .len();
-
-        let expected_len = response_nb * response_size + commit_nb * commit_size;
-        if data.len() < expected_len {
-            return Err(Error::ProofSizeMismatch);
-        }
-
-        let mut commitments: Self::Commitment = Vec::new();
-        let mut responses: Self::Response = Vec::new();
-
-        for i in 0..commit_nb {
-            let start = i * commit_size;
-            let end = start + commit_size;
-
-            let slice = &data[start..end];
-            let elem = deserialize_element(slice)?;
-            commitments.push(elem);
-        }
-
-        for i in 0..response_nb {
-            let start = commit_nb * commit_size + i * response_size;
-            let end = start + response_size;
-
-            let slice = &data[start..end];
-            let scalar = deserialize_scalar::<G>(slice)?;
-            responses.push(scalar);
-        }
-
-        Ok(((commitments, responses), expected_len))
+    /// - [`Error::VerificationFailure`] if any group element or scalar fails to
+    ///   deserialize (invalid encoding).
+    fn deserialize_commitment(&self, data: &[u8]) -> Result<Self::Commitment, Error> {
+        deserialize_elements::<G>(data, self.commitment_length()).ok_or(Error::VerificationFailure)
     }
-}
 
-impl<G> CompactProtocol for SchnorrProtocol<G>
-where
-    G: Group + GroupEncoding,
-{
+    fn deserialize_challenge(&self, data: &[u8]) -> Result<Self::Challenge, Error> {
+        let scalars = deserialize_scalars::<G>(data, 1).ok_or(Error::VerificationFailure)?;
+        Ok(scalars[0])
+    }
+
+    fn deserialize_response(&self, data: &[u8]) -> Result<Self::Response, Error> {
+        deserialize_scalars::<G>(data, self.witness_length()).ok_or(Error::VerificationFailure)
+    }
+
     /// Recomputes the commitment from the challenge and response (used in compact proofs).
     ///
     /// # Parameters
     /// - `challenge`: The challenge scalar issued by the verifier or derived via Fiat–Shamir.
-    /// - `response`: The prover’s response vector.
+    /// - `response`: The prover's response vector.
     ///
     /// # Returns
-    /// - A vector of group elements representing the recomputed commitment (one per linear constraint).
+    /// - A vector of group elements representing the simulated commitment (one per linear constraint).
     ///
     /// # Errors
-    /// - `ProofError::ProofSizeMismatch` if the response length does not match the expected number of scalars.
-    fn get_commitment(
+    /// - [`Error::ProofSizeMismatch`] if the response length does not match the expected number of scalars.
+    fn simulate_commitment(
         &self,
         challenge: &Self::Challenge,
         response: &Self::Response,
     ) -> Result<Self::Commitment, Error> {
-        if response.len() != self.scalars_nb() {
+        if response.len() != self.witness_length() {
             return Err(Error::ProofSizeMismatch);
         }
 
-        let response_image = self.0.morphism.evaluate(response)?;
+        let response_image = self.0.linear_map.evaluate(response)?;
         let image = self.0.image()?;
 
         let mut commitment = Vec::new();
@@ -279,95 +235,9 @@ where
         }
         Ok(commitment)
     }
-
-    fn serialize_response(&self, response: &Self::Response) -> Result<Vec<u8>, Error> {
-        let mut bytes = Vec::new();
-        let response_nb = self.scalars_nb();
-        if response.len() != response_nb {
-            return Err(Error::ProofSizeMismatch);
-        }
-
-        // Serialize responses
-        for response in response.iter().take(response_nb) {
-            bytes.extend_from_slice(&serialize_scalar::<G>(response));
-        }
-        Ok(bytes)
-    }
-
-    fn deserialize_response(&self, data: &[u8]) -> Result<(Self::Response, usize), Error> {
-        let response_nb = self.scalars_nb();
-        let response_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
-            .as_ref()
-            .len();
-        let expected_size = response_nb * response_size;
-        if data.len() < expected_size {
-            return Err(Error::ProofSizeMismatch);
-        }
-
-        let mut responses: Self::Response = Vec::new();
-        for i in 0..response_nb {
-            let start = i * response_size;
-            let end = start + response_size;
-
-            let slice = &data[start..end];
-            let scalar = deserialize_scalar::<G>(slice)?;
-            responses.push(scalar);
-        }
-        Ok((responses, expected_size))
-    }
-
-    /// Serializes a compact transcript: challenge followed by responses.
-    /// # Parameters
-    /// - `_commitment`: Omitted in compact format (reconstructed during verification).
-    /// - `challenge`: The challenge scalar.
-    /// - `response`: The prover’s response.
-    ///
-    /// # Returns
-    /// - A byte vector representing the compact proof.
-    ///
-    /// # Errors
-    /// - `ProofError::ProofSizeMismatch` if the response length does not match the expected number of scalars.
-    fn serialize_compact(
-        &self,
-        _commitment: &Self::Commitment,
-        challenge: &Self::Challenge,
-        response: &Self::Response,
-    ) -> Result<Vec<u8>, Error> {
-        let mut bytes = Vec::new();
-
-        // Serialize challenge
-        bytes.extend_from_slice(&serialize_scalar::<G>(challenge));
-
-        // Serialize responses
-        bytes.extend_from_slice(&self.serialize_response(response)?);
-        Ok(bytes)
-    }
-
-    /// Deserializes a compact proof into a challenge and response.
-    ///
-    /// # Parameters
-    /// - `data`: A byte slice encoding the compact proof.
-    ///
-    /// # Returns
-    /// - A tuple `(challenge, response)`.
-    ///
-    /// # Errors
-    /// - `ProofError::ProofSizeMismatch` if the input data length does not match the expected size.
-    /// - `ProofError::GroupSerializationFailure` if scalar deserialization fails.
-    fn deserialize_compact(&self, data: &[u8]) -> Result<(Self::Challenge, Self::Response), Error> {
-        let scalar_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
-            .as_ref()
-            .len();
-
-        let slice = &data[0..scalar_size];
-        let challenge = deserialize_scalar::<G>(slice)?;
-        let (responses, _) = self.deserialize_response(&data[scalar_size..])?;
-
-        Ok((challenge, responses))
-    }
 }
 
-impl<G> SigmaProtocolSimulator for SchnorrProtocol<G>
+impl<G> SigmaProtocolSimulator for SchnorrProof<G>
 where
     G: Group + GroupEncoding,
 {
@@ -384,10 +254,13 @@ where
         challenge: &Self::Challenge,
         mut rng: &mut (impl RngCore + CryptoRng),
     ) -> (Self::Commitment, Self::Response) {
-        let response = (0..self.scalars_nb())
+        let response: Vec<G::Scalar> = (0..self.witness_length())
             .map(|_| G::Scalar::random(&mut rng))
             .collect();
-        let commitment = self.get_commitment(challenge, &response).unwrap();
+
+        // Use simulate_commitment to compute the commitment
+        let commitment = self.simulate_commitment(challenge, &response).unwrap();
+
         (commitment, response)
     }
 
@@ -405,37 +278,5 @@ where
         let challenge = G::Scalar::random(&mut rng);
         let (commitment, response) = self.simulate_proof(&challenge, rng);
         (commitment, challenge, response)
-    }
-}
-
-impl<G, C> FiatShamir<C> for SchnorrProtocol<G>
-where
-    C: Codec<Challenge = <G as Group>::Scalar>,
-    G: Group + GroupEncoding,
-{
-    /// Absorbs statement and commitment into the codec
-    ///
-    /// # Parameters
-    /// - `codec`: the Codec that absorbs commitments
-    /// - `commitment`: a commitment of SchnorrProtocol
-    fn absorb_statement_and_commitment(&self, codec: &mut C, commitment: &Self::Commitment) {
-        let mut data = self.0.label();
-
-        for commit in commitment {
-            data.extend_from_slice(commit.to_bytes().as_ref());
-        }
-
-        codec.prover_message(&data);
-    }
-
-    /// Generates a challenge from the codec that absorbed the commitments
-    ///
-    /// # Parameters
-    /// - `codec`: the Codec from which the challenge is generated
-    ///
-    /// # Returns
-    /// - A `challenge`` that can be used during a non-interactive protocol
-    fn get_challenge(&self, codec: &mut C) -> Result<Self::Challenge, Error> {
-        Ok(codec.verifier_challenge())
     }
 }

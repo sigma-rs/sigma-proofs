@@ -9,7 +9,7 @@ use super::test_utils::{
 use crate::codec::ShakeCodec;
 use crate::composition::{Protocol, ProtocolWitness};
 use crate::fiat_shamir::NISigmaProtocol;
-use crate::schnorr_protocol::SchnorrProtocol;
+use crate::schnorr_protocol::SchnorrProof;
 
 type G = RistrettoPoint;
 
@@ -62,8 +62,8 @@ fn composition_proof_correct() {
 
     // second layer protocol definitions
     let or_protocol1 = Protocol::Or(vec![
-        Protocol::Simple(SchnorrProtocol::from(morph1)),
-        Protocol::Simple(SchnorrProtocol::from(morph2)),
+        Protocol::Simple(SchnorrProof::from(morph1)),
+        Protocol::Simple(SchnorrProof::from(morph2)),
     ]);
     let or_witness1 = ProtocolWitness::Or(0, vec![ProtocolWitness::Simple(witness1)]);
 
@@ -71,8 +71,8 @@ fn composition_proof_correct() {
     let simple_witness1 = ProtocolWitness::Simple(witness3);
 
     let and_protocol1 = Protocol::And(vec![
-        Protocol::Simple(SchnorrProtocol::from(morph4)),
-        Protocol::Simple(SchnorrProtocol::from(morph5)),
+        Protocol::Simple(SchnorrProof::from(morph4)),
+        Protocol::Simple(SchnorrProof::from(morph5)),
     ]);
     let and_witness1 = ProtocolWitness::And(vec![
         ProtocolWitness::Simple(witness4),

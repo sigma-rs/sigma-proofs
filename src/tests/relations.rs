@@ -1,5 +1,5 @@
 use bls12_381::{G1Projective as G, Scalar};
-use group::{Group, ff::Field};
+use group::{ff::Field, Group};
 use rand::rngs::OsRng;
 
 use crate::fiat_shamir::NISigmaProtocol;
@@ -7,7 +7,7 @@ use crate::tests::test_utils::{
     bbs_blind_commitment_computation, discrete_logarithm, dleq, pedersen_commitment,
     pedersen_commitment_dleq,
 };
-use crate::{codec::ShakeCodec, schnorr_protocol::SchnorrProtocol};
+use crate::{codec::ShakeCodec, schnorr_protocol::SchnorrProof};
 
 /// This part tests the functioning of morphisms
 /// as well as the implementation of LinearRelation
@@ -69,17 +69,17 @@ fn test_bbs_blind_commitment_computation() {
 }
 
 /// This part tests the implementation of the SigmaProtocol trait for the
-/// SchnorrProtocol structure as well as the Fiat-Shamir NISigmaProtocol transform
+/// SchnorrProof structure as well as the Fiat-Shamir NISigmaProtocol transform
 #[test]
 fn noninteractive_discrete_logarithm() {
     let mut rng = OsRng;
     let (morphismp, witness) = discrete_logarithm(Scalar::random(&mut rng));
 
     // The SigmaProtocol induced by morphismp
-    let protocol = SchnorrProtocol::from(morphismp);
+    let protocol = SchnorrProof::from(morphismp);
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-schnorr";
-    let nizk = NISigmaProtocol::<SchnorrProtocol<G>, ShakeCodec<G>>::new(domain_sep, protocol);
+    let nizk = NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>>::new(domain_sep, protocol);
 
     // Batchable and compact proofs
     let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
@@ -103,10 +103,10 @@ fn noninteractive_dleq() {
     let (morphismp, witness) = dleq(Scalar::random(&mut rng), G::random(&mut rng));
 
     // The SigmaProtocol induced by morphismp
-    let protocol = SchnorrProtocol::from(morphismp);
+    let protocol = SchnorrProof::from(morphismp);
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-DLEQ";
-    let nizk = NISigmaProtocol::<SchnorrProtocol<G>, ShakeCodec<G>>::new(domain_sep, protocol);
+    let nizk = NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>>::new(domain_sep, protocol);
 
     // Batchable and compact proofs
     let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
@@ -134,10 +134,10 @@ fn noninteractive_pedersen_commitment() {
     );
 
     // The SigmaProtocol induced by morphismp
-    let protocol = SchnorrProtocol::from(morphismp);
+    let protocol = SchnorrProof::from(morphismp);
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-pedersen-commitment";
-    let nizk = NISigmaProtocol::<SchnorrProtocol<G>, ShakeCodec<G>>::new(domain_sep, protocol);
+    let nizk = NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>>::new(domain_sep, protocol);
 
     // Batchable and compact proofs
     let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
@@ -172,10 +172,10 @@ fn noninteractive_pedersen_commitment_dleq() {
     );
 
     // The SigmaProtocol induced by morphismp
-    let protocol = SchnorrProtocol::from(morphismp);
+    let protocol = SchnorrProof::from(morphismp);
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-pedersen-commitment-DLEQ";
-    let nizk = NISigmaProtocol::<SchnorrProtocol<G>, ShakeCodec<G>>::new(domain_sep, protocol);
+    let nizk = NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>>::new(domain_sep, protocol);
 
     // Batchable and compact proofs
     let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
@@ -211,10 +211,10 @@ fn noninteractive_bbs_blind_commitment_computation() {
     );
 
     // The SigmaProtocol induced by morphismp
-    let protocol = SchnorrProtocol::from(morphismp);
+    let protocol = SchnorrProof::from(morphismp);
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-bbs-blind-commitment-computation";
-    let nizk = NISigmaProtocol::<SchnorrProtocol<G>, ShakeCodec<G>>::new(domain_sep, protocol);
+    let nizk = NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>>::new(domain_sep, protocol);
 
     // Batchable and compact proofs
     let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();

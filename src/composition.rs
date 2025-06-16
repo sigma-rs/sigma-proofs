@@ -1,4 +1,4 @@
-//! Implementation of a structure [`Protocol`] aimed at generalizing the SchnorrProtocol
+//! Implementation of a structure [`Protocol`] aimed at generalizing the [`SchnorrProof`]
 //! using the compositions of the latter via AND and OR links
 //!
 //! This structure allows, for example, the construction of protocols of the form:
@@ -11,35 +11,32 @@
 use ff::{Field, PrimeField};
 use group::{Group, GroupEncoding};
 
-use crate::codec::Codec;
-use crate::traits::CompactProtocol;
 use crate::{
     errors::Error,
-    fiat_shamir::FiatShamir,
-    group_serialization::{deserialize_scalar, serialize_scalar},
     linear_relation::LinearRelation,
-    schnorr_protocol::SchnorrProtocol,
+    schnorr_protocol::SchnorrProof,
+    serialization::{deserialize_scalars, serialize_scalars},
     traits::{SigmaProtocol, SigmaProtocolSimulator},
 };
 
-/// A protocol proving knowledge of a witness for a composition of SchnorrProtocol's.
+/// A protocol proving knowledge of a witness for a composition of SchnorrProof's.
 ///
-/// This implementation generalizes [`SchnorrProtocol`] by using AND/OR links.
+/// This implementation generalizes [`SchnorrProof`] by using AND/OR links.
 ///
 /// # Type Parameters
 /// - `G`: A cryptographic group implementing [`Group`] and [`GroupEncoding`].
 #[derive(Clone)]
 pub enum Protocol<G: Group + GroupEncoding> {
-    Simple(SchnorrProtocol<G>),
+    Simple(SchnorrProof<G>),
     And(Vec<Protocol<G>>),
     Or(Vec<Protocol<G>>),
 }
 
-impl<G> From<SchnorrProtocol<G>> for Protocol<G>
+impl<G> From<SchnorrProof<G>> for Protocol<G>
 where
     G: Group + GroupEncoding,
 {
-    fn from(value: SchnorrProtocol<G>) -> Self {
+    fn from(value: SchnorrProof<G>) -> Self {
         Protocol::Simple(value)
     }
 }
@@ -49,14 +46,14 @@ where
     G: Group + GroupEncoding,
 {
     fn from(value: LinearRelation<G>) -> Self {
-        Self::from(SchnorrProtocol::from(value))
+        Self::from(SchnorrProof::from(value))
     }
 }
 
 // Structure representing the Commitment type of Protocol as SigmaProtocol
 #[derive(Clone)]
 pub enum ProtocolCommitment<G: Group + GroupEncoding> {
-    Simple(<SchnorrProtocol<G> as SigmaProtocol>::Commitment),
+    Simple(<SchnorrProof<G> as SigmaProtocol>::Commitment),
     And(Vec<ProtocolCommitment<G>>),
     Or(Vec<ProtocolCommitment<G>>),
 }
@@ -64,32 +61,32 @@ pub enum ProtocolCommitment<G: Group + GroupEncoding> {
 // Structure representing the ProverState type of Protocol as SigmaProtocol
 #[derive(Clone)]
 pub enum ProtocolProverState<G: Group + GroupEncoding> {
-    Simple(<SchnorrProtocol<G> as SigmaProtocol>::ProverState),
+    Simple(<SchnorrProof<G> as SigmaProtocol>::ProverState),
     And(Vec<ProtocolProverState<G>>),
     Or(
         usize,                                                 // real index
         Vec<ProtocolProverState<G>>,                           // real ProverState
-        (Vec<ProtocolChallenge<G>>, Vec<ProtocolResponse<G>>), // fake transcripts
+        (Vec<ProtocolChallenge<G>>, Vec<ProtocolResponse<G>>), // simulated transcripts
     ),
 }
 
 // Structure representing the Response type of Protocol as SigmaProtocol
 #[derive(Clone)]
 pub enum ProtocolResponse<G: Group + GroupEncoding> {
-    Simple(<SchnorrProtocol<G> as SigmaProtocol>::Response),
+    Simple(<SchnorrProof<G> as SigmaProtocol>::Response),
     And(Vec<ProtocolResponse<G>>),
     Or(Vec<ProtocolChallenge<G>>, Vec<ProtocolResponse<G>>),
 }
 
 // Structure representing the Witness type of Protocol as SigmaProtocol
 pub enum ProtocolWitness<G: Group + GroupEncoding> {
-    Simple(<SchnorrProtocol<G> as SigmaProtocol>::Witness),
+    Simple(<SchnorrProof<G> as SigmaProtocol>::Witness),
     And(Vec<ProtocolWitness<G>>),
     Or(usize, Vec<ProtocolWitness<G>>),
 }
 
 // Structure representing the Challenge type of Protocol as SigmaProtocol
-type ProtocolChallenge<G> = <SchnorrProtocol<G> as SigmaProtocol>::Challenge;
+type ProtocolChallenge<G> = <SchnorrProof<G> as SigmaProtocol>::Challenge;
 
 impl<G: Group + GroupEncoding> SigmaProtocol for Protocol<G> {
     type Commitment = ProtocolCommitment<G>;
@@ -131,15 +128,15 @@ impl<G: Group + GroupEncoding> SigmaProtocol for Protocol<G> {
             }
             (Protocol::Or(ps), ProtocolWitness::Or(w_index, w)) => {
                 let mut commitments = Vec::with_capacity(ps.len());
-                let mut fake_challenges = Vec::new();
-                let mut fake_responses = Vec::new();
+                let mut simulated_challenges = Vec::new();
+                let mut simulated_responses = Vec::new();
                 let (real_commit, real_state) = ps[*w_index].prover_commit(&w[0], rng)?;
                 for (i, _) in ps.iter().enumerate() {
                     if i != *w_index {
                         let (c, ch, r) = ps[i].simulate_transcript(rng);
                         commitments.push(c);
-                        fake_challenges.push(ch);
-                        fake_responses.push(r);
+                        simulated_challenges.push(ch);
+                        simulated_responses.push(r);
                     } else {
                         commitments.push(real_commit.clone());
                     }
@@ -149,7 +146,7 @@ impl<G: Group + GroupEncoding> SigmaProtocol for Protocol<G> {
                     ProtocolProverState::Or(
                         *w_index,
                         vec![real_state],
-                        (fake_challenges, fake_responses),
+                        (simulated_challenges, simulated_responses),
                     ),
                 ))
             }
@@ -180,13 +177,17 @@ impl<G: Group + GroupEncoding> SigmaProtocol for Protocol<G> {
             }
             (
                 Protocol::Or(ps),
-                ProtocolProverState::Or(w_index, real_state, (f_challenges, f_responses)),
+                ProtocolProverState::Or(
+                    w_index,
+                    real_state,
+                    (simulated_challenges, simulated_responses),
+                ),
             ) => {
                 let mut challenges = Vec::with_capacity(ps.len());
                 let mut responses = Vec::with_capacity(ps.len());
 
                 let mut real_challenge = *challenge;
-                for ch in &f_challenges {
+                for ch in &simulated_challenges {
                     real_challenge -= ch;
                 }
                 let real_response =
@@ -197,9 +198,9 @@ impl<G: Group + GroupEncoding> SigmaProtocol for Protocol<G> {
                         challenges.push(real_challenge);
                         responses.push(real_response.clone());
                     } else {
-                        let fake_index = if i < w_index { i } else { i - 1 };
-                        challenges.push(f_challenges[fake_index]);
-                        responses.push(f_responses[fake_index].clone());
+                        let simulated_index = if i < w_index { i } else { i - 1 };
+                        challenges.push(simulated_challenges[simulated_index]);
+                        responses.push(simulated_responses[simulated_index].clone());
                     }
                 }
                 Ok(ProtocolResponse::Or(challenges, responses))
@@ -247,116 +248,153 @@ impl<G: Group + GroupEncoding> SigmaProtocol for Protocol<G> {
         }
     }
 
-    fn serialize_batchable(
-        &self,
-        commitment: &Self::Commitment,
-        challenge: &Self::Challenge,
-        response: &Self::Response,
-    ) -> Result<Vec<u8>, Error> {
-        match (self, commitment, response) {
-            (Protocol::Simple(p), ProtocolCommitment::Simple(c), ProtocolResponse::Simple(r)) => {
-                p.serialize_batchable(c, challenge, r)
-            }
-            (
-                Protocol::And(ps),
-                ProtocolCommitment::And(commitments),
-                ProtocolResponse::And(responses),
-            ) => {
+    fn serialize_commitment(&self, commitment: &Self::Commitment) -> Vec<u8> {
+        match (self, commitment) {
+            (Protocol::Simple(p), ProtocolCommitment::Simple(c)) => p.serialize_commitment(c),
+            (Protocol::And(ps), ProtocolCommitment::And(commitments)) => {
                 let mut bytes = Vec::new();
                 for (i, p) in ps.iter().enumerate() {
-                    bytes.extend(p.serialize_batchable(
-                        &commitments[i],
-                        challenge,
-                        &responses[i],
-                    )?);
+                    bytes.extend(p.serialize_commitment(&commitments[i]));
                 }
-                Ok(bytes)
+                bytes
             }
-            (
-                Protocol::Or(ps),
-                ProtocolCommitment::Or(commitments),
-                ProtocolResponse::Or(challenges, responses),
-            ) => {
+            (Protocol::Or(ps), ProtocolCommitment::Or(commitments)) => {
                 let mut bytes = Vec::new();
                 for (i, p) in ps.iter().enumerate() {
-                    bytes.extend(p.serialize_batchable(
-                        &commitments[i],
-                        &challenges[i],
-                        &responses[i],
-                    )?);
-                    bytes.extend(&serialize_scalar::<G>(&challenges[i]))
+                    bytes.extend(p.serialize_commitment(&commitments[i]));
                 }
-                Ok(bytes)
+                bytes
             }
             _ => panic!(),
         }
     }
 
-    fn deserialize_batchable(
-        &self,
-        data: &[u8],
-    ) -> Result<((Self::Commitment, Self::Response), usize), Error> {
+    fn serialize_challenge(&self, challenge: &Self::Challenge) -> Vec<u8> {
+        serialize_scalars::<G>(&[*challenge])
+    }
+
+    fn serialize_response(&self, response: &Self::Response) -> Vec<u8> {
+        match (self, response) {
+            (Protocol::Simple(p), ProtocolResponse::Simple(r)) => p.serialize_response(r),
+            (Protocol::And(ps), ProtocolResponse::And(responses)) => {
+                let mut bytes = Vec::new();
+                for (i, p) in ps.iter().enumerate() {
+                    bytes.extend(p.serialize_response(&responses[i]));
+                }
+                bytes
+            }
+            (Protocol::Or(ps), ProtocolResponse::Or(challenges, responses)) => {
+                let mut bytes = Vec::new();
+                for (i, p) in ps.iter().enumerate() {
+                    bytes.extend(&serialize_scalars::<G>(&[challenges[i]]));
+                    bytes.extend(p.serialize_response(&responses[i]));
+                }
+                bytes
+            }
+            _ => panic!(),
+        }
+    }
+
+    fn deserialize_commitment(&self, data: &[u8]) -> Result<Self::Commitment, Error> {
         match self {
             Protocol::Simple(p) => {
-                let ((c, r), size) = p.deserialize_batchable(data)?;
-                Ok((
-                    (ProtocolCommitment::Simple(c), ProtocolResponse::Simple(r)),
-                    size,
-                ))
+                let c = p.deserialize_commitment(data)?;
+                Ok(ProtocolCommitment::Simple(c))
             }
             Protocol::And(ps) => {
                 let mut cursor = 0;
                 let mut commitments = Vec::with_capacity(ps.len());
-                let mut responses = Vec::with_capacity(ps.len());
                 for p in ps {
-                    let ((p_commit, p_resp), size) = p.deserialize_batchable(&data[cursor..])?;
+                    let c = p.deserialize_commitment(&data[cursor..])?;
+                    let size = p.serialize_commitment(&c).len();
                     cursor += size;
-
-                    commitments.push(p_commit);
-                    responses.push(p_resp);
+                    commitments.push(c);
                 }
-                Ok((
-                    (
-                        ProtocolCommitment::And(commitments),
-                        ProtocolResponse::And(responses),
-                    ),
-                    cursor,
-                ))
+                Ok(ProtocolCommitment::And(commitments))
             }
             Protocol::Or(ps) => {
                 let mut cursor = 0;
                 let mut commitments = Vec::with_capacity(ps.len());
-                let mut challenges = Vec::with_capacity(ps.len());
-                let mut responses = Vec::with_capacity(ps.len());
+                for p in ps {
+                    let c = p.deserialize_commitment(&data[cursor..])?;
+                    let size = p.serialize_commitment(&c).len();
+                    cursor += size;
+                    commitments.push(c);
+                }
+                Ok(ProtocolCommitment::Or(commitments))
+            }
+        }
+    }
 
+    fn deserialize_challenge(&self, data: &[u8]) -> Result<Self::Challenge, Error> {
+        let scalars = deserialize_scalars::<G>(data, 1).ok_or(Error::VerificationFailure)?;
+        Ok(scalars[0])
+    }
+
+    fn deserialize_response(&self, data: &[u8]) -> Result<Self::Response, Error> {
+        match self {
+            Protocol::Simple(p) => {
+                let r = p.deserialize_response(data)?;
+                Ok(ProtocolResponse::Simple(r))
+            }
+            Protocol::And(ps) => {
+                let mut cursor = 0;
+                let mut responses = Vec::with_capacity(ps.len());
+                for p in ps {
+                    let r = p.deserialize_response(&data[cursor..])?;
+                    let size = p.serialize_response(&r).len();
+                    cursor += size;
+                    responses.push(r);
+                }
+                Ok(ProtocolResponse::And(responses))
+            }
+            Protocol::Or(ps) => {
                 let ch_bytes_len = <<G as Group>::Scalar as PrimeField>::Repr::default()
                     .as_ref()
                     .len();
-
-                for p in ps.iter() {
-                    let ((c, r), size) = p.deserialize_batchable(&data[cursor..])?;
-                    cursor += size;
-
-                    if data.len() < cursor + ch_bytes_len {
-                        return Err(Error::ProofSizeMismatch);
-                    }
-                    let ch_bytes = &data[cursor..cursor + ch_bytes_len];
-                    let ch = deserialize_scalar::<G>(ch_bytes)?;
+                let mut cursor = 0;
+                let mut challenges = Vec::with_capacity(ps.len());
+                let mut responses = Vec::with_capacity(ps.len());
+                for p in ps {
+                    let ch_vec = deserialize_scalars::<G>(&data[cursor..cursor + ch_bytes_len], 1)
+                        .ok_or(Error::VerificationFailure)?;
+                    let ch = ch_vec[0];
                     cursor += ch_bytes_len;
-
-                    commitments.push(c);
-                    responses.push(r);
+                    let r = p.deserialize_response(&data[cursor..])?;
+                    let size = p.serialize_response(&r).len();
+                    cursor += size;
                     challenges.push(ch);
+                    responses.push(r);
                 }
-
-                Ok((
-                    (
-                        ProtocolCommitment::Or(commitments),
-                        ProtocolResponse::Or(challenges, responses),
-                    ),
-                    cursor,
-                ))
+                Ok(ProtocolResponse::Or(challenges, responses))
             }
+        }
+    }
+
+    fn simulate_commitment(
+        &self,
+        challenge: &Self::Challenge,
+        response: &Self::Response,
+    ) -> Result<Self::Commitment, Error> {
+        match (self, response) {
+            (Protocol::Simple(p), ProtocolResponse::Simple(r)) => Ok(ProtocolCommitment::Simple(
+                p.simulate_commitment(challenge, r)?,
+            )),
+            (Protocol::And(ps), ProtocolResponse::And(rs)) => {
+                let mut commitments = Vec::with_capacity(ps.len());
+                for (i, p) in ps.iter().enumerate() {
+                    commitments.push(p.simulate_commitment(challenge, &rs[i])?);
+                }
+                Ok(ProtocolCommitment::And(commitments))
+            }
+            (Protocol::Or(ps), ProtocolResponse::Or(ch, rs)) => {
+                let mut commitments = Vec::with_capacity(ps.len());
+                for (i, p) in ps.iter().enumerate() {
+                    commitments.push(p.simulate_commitment(&ch[i], &rs[i])?);
+                }
+                Ok(ProtocolCommitment::Or(commitments))
+            }
+            _ => panic!(),
         }
     }
 }
@@ -462,201 +500,5 @@ impl<G: Group + GroupEncoding> SigmaProtocolSimulator for Protocol<G> {
                 )
             }
         }
-    }
-}
-
-impl<G: Group + GroupEncoding> CompactProtocol for Protocol<G> {
-    fn get_commitment(
-        &self,
-        challenge: &Self::Challenge,
-        response: &Self::Response,
-    ) -> Result<Self::Commitment, Error> {
-        match (self, response) {
-            (Protocol::Simple(p), ProtocolResponse::Simple(r)) => {
-                Ok(ProtocolCommitment::Simple(p.get_commitment(challenge, r)?))
-            }
-            (Protocol::And(ps), ProtocolResponse::And(rs)) => {
-                let mut commitments = Vec::with_capacity(ps.len());
-                for (i, p) in ps.iter().enumerate() {
-                    commitments.push(p.get_commitment(challenge, &rs[i])?);
-                }
-                Ok(ProtocolCommitment::And(commitments))
-            }
-            (Protocol::Or(ps), ProtocolResponse::Or(ch, rs)) => {
-                let mut commitments = Vec::with_capacity(ps.len());
-                for (i, p) in ps.iter().enumerate() {
-                    commitments.push(p.get_commitment(&ch[i], &rs[i])?);
-                }
-                Ok(ProtocolCommitment::Or(commitments))
-            }
-            _ => panic!(),
-        }
-    }
-
-    fn serialize_response(&self, response: &Self::Response) -> Result<Vec<u8>, Error> {
-        match (self, response) {
-            (Protocol::Simple(p), ProtocolResponse::Simple(r)) => p.serialize_response(r),
-            (Protocol::And(ps), ProtocolResponse::And(responses)) => {
-                let mut bytes = Vec::new();
-                for (i, p) in ps.iter().enumerate() {
-                    bytes.extend_from_slice(&p.serialize_response(&responses[i])?);
-                }
-                Ok(bytes)
-            }
-            (Protocol::Or(ps), ProtocolResponse::Or(challenges, responses)) => {
-                let mut bytes = Vec::new();
-                for (i, p) in ps.iter().enumerate() {
-                    bytes.extend_from_slice(&serialize_scalar::<G>(&challenges[i]));
-                    bytes.extend_from_slice(&p.serialize_response(&responses[i])?);
-                }
-                Ok(bytes)
-            }
-            _ => panic!(),
-        }
-    }
-
-    fn deserialize_response(&self, data: &[u8]) -> Result<(Self::Response, usize), Error> {
-        match self {
-            Protocol::Simple(p) => {
-                let (response, size) = p.deserialize_response(data)?;
-                Ok((ProtocolResponse::Simple(response), size))
-            }
-            Protocol::And(ps) => {
-                let mut cursor = 0;
-                let mut responses = Vec::with_capacity(ps.len());
-                for p in ps {
-                    let (r, r_size) = p.deserialize_response(&data[cursor..])?;
-                    cursor += r_size;
-                    responses.push(r);
-                }
-                Ok((ProtocolResponse::And(responses), cursor))
-            }
-            Protocol::Or(ps) => {
-                let challenge_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
-                    .as_ref()
-                    .len();
-                let mut cursor = 0;
-                let mut challenges = Vec::with_capacity(ps.len());
-                let mut responses = Vec::with_capacity(ps.len());
-                for p in ps {
-                    let challenge = deserialize_scalar::<G>(&data[cursor..])?;
-                    cursor += challenge_size;
-                    let (response, response_size) = p.deserialize_response(&data[cursor..])?;
-                    cursor += response_size;
-                    challenges.push(challenge);
-                    responses.push(response);
-                }
-                Ok((ProtocolResponse::Or(challenges, responses), cursor))
-            }
-        }
-    }
-
-    fn serialize_compact(
-        &self,
-        commitment: &Self::Commitment,
-        challenge: &Self::Challenge,
-        response: &Self::Response,
-    ) -> Result<Vec<u8>, Error> {
-        match (self, commitment, response) {
-            (Protocol::Simple(p), ProtocolCommitment::Simple(c), ProtocolResponse::Simple(r)) => {
-                p.serialize_compact(c, challenge, r)
-            }
-            (Protocol::And(ps), ProtocolCommitment::And(_), ProtocolResponse::And(responses)) => {
-                let mut bytes = Vec::new();
-                bytes.extend(serialize_scalar::<G>(challenge));
-                for (i, p) in ps.iter().enumerate() {
-                    bytes.extend(p.serialize_response(&responses[i])?);
-                }
-                Ok(bytes)
-            }
-            (
-                Protocol::Or(ps),
-                ProtocolCommitment::Or(_),
-                ProtocolResponse::Or(challenges, responses),
-            ) => {
-                let mut bytes = Vec::new();
-                bytes.extend(serialize_scalar::<G>(challenge));
-                for (i, p) in ps.iter().enumerate() {
-                    bytes.extend(serialize_scalar::<G>(&challenges[i]));
-                    bytes.extend(p.serialize_response(&responses[i])?);
-                }
-                Ok(bytes)
-            }
-            _ => panic!(),
-        }
-    }
-
-    fn deserialize_compact(&self, data: &[u8]) -> Result<(Self::Challenge, Self::Response), Error> {
-        match self {
-            Protocol::Simple(p) => {
-                let (challenge, response) = p.deserialize_compact(data)?;
-                Ok((challenge, ProtocolResponse::Simple(response)))
-            }
-            Protocol::And(ps) => {
-                let challenge_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
-                    .as_ref()
-                    .len();
-                let challenge = deserialize_scalar::<G>(data)?;
-
-                let mut cursor = challenge_size;
-                let mut responses = Vec::with_capacity(ps.len());
-                for p in ps {
-                    let (response, size) = p.deserialize_response(&data[cursor..])?;
-                    cursor += size;
-                    responses.push(response);
-                }
-                Ok((challenge, ProtocolResponse::And(responses)))
-            }
-            Protocol::Or(ps) => {
-                let challenge_size = <<G as Group>::Scalar as PrimeField>::Repr::default()
-                    .as_ref()
-                    .len();
-                let challenge = deserialize_scalar::<G>(data)?;
-
-                let mut cursor = challenge_size;
-                let mut challenges = Vec::with_capacity(ps.len());
-                let mut responses = Vec::with_capacity(ps.len());
-                for p in ps {
-                    let ch = deserialize_scalar::<G>(&data[cursor..])?;
-                    cursor += challenge_size;
-
-                    let (resp, resp_size) = p.deserialize_response(&data[cursor..])?;
-                    cursor += resp_size;
-
-                    challenges.push(ch);
-                    responses.push(resp);
-                }
-                Ok((challenge, ProtocolResponse::Or(challenges, responses)))
-            }
-        }
-    }
-}
-
-impl<G, C> FiatShamir<C> for Protocol<G>
-where
-    G: Group + GroupEncoding,
-    C: Codec<Challenge = ProtocolChallenge<G>>,
-{
-    fn absorb_statement_and_commitment(&self, codec: &mut C, commitment: &Self::Commitment) {
-        match (self, commitment) {
-            (Protocol::Simple(p), ProtocolCommitment::Simple(c)) => {
-                p.absorb_statement_and_commitment(codec, c)
-            }
-            (Protocol::And(ps), ProtocolCommitment::And(cs)) => {
-                for (i, p) in ps.iter().enumerate() {
-                    p.absorb_statement_and_commitment(codec, &cs[i]);
-                }
-            }
-            (Protocol::Or(ps), ProtocolCommitment::Or(cs)) => {
-                for (i, p) in ps.iter().enumerate() {
-                    p.absorb_statement_and_commitment(codec, &cs[i]);
-                }
-            }
-            _ => panic!(),
-        }
-    }
-
-    fn get_challenge(&self, codec: &mut C) -> Result<Self::Challenge, Error> {
-        Ok(codec.verifier_challenge())
     }
 }
