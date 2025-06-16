@@ -20,15 +20,15 @@ pub struct KeccakPermutationState {
 
 impl Default for KeccakPermutationState {
     fn default() -> Self {
-        Self::new(&[0u8; 32])
+        Self::new([0u8; 32])
     }
 }
 
 impl KeccakPermutationState {
-    pub fn new(iv: &[u8]) -> Self {
+    pub fn new(iv: [u8; 32]) -> Self {
         let rate = 136;
         let mut state = [0u8; N];
-        state[rate..rate + 32].copy_from_slice(iv);
+        state[rate..rate + 32].copy_from_slice(&iv);
 
         KeccakPermutationState {
             state,
@@ -74,7 +74,8 @@ pub struct KeccakDuplexSponge {
 impl KeccakDuplexSponge {
     pub fn new(iv: &[u8]) -> Self {
         assert_eq!(iv.len(), 32);
-        let state = KeccakPermutationState::new(iv);
+
+        let state = KeccakPermutationState::new(iv.try_into().unwrap());
         let rate = R;
         let capacity = N - R;
         KeccakDuplexSponge {
