@@ -20,7 +20,7 @@ fn test_discrete_logarithm() {
 #[test]
 fn test_dleq() {
     let mut rng = OsRng;
-    dleq(Scalar::random(&mut rng), G::random(&mut rng));
+    dleq(G::random(&mut rng), Scalar::random(&mut rng));
 }
 
 #[test]
@@ -100,7 +100,7 @@ fn noninteractive_discrete_logarithm() {
 #[test]
 fn noninteractive_dleq() {
     let mut rng = OsRng;
-    let (morphismp, witness) = dleq(Scalar::random(&mut rng), G::random(&mut rng));
+    let (morphismp, witness) = dleq(G::random(&mut rng), Scalar::random(&mut rng));
 
     // The SigmaProtocol induced by morphismp
     let protocol = SchnorrProof::from(morphismp);

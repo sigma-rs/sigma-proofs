@@ -46,7 +46,7 @@ macro_rules! generate_ni_function {
 }
 
 generate_ni_function!(NI_discrete_logarithm, discrete_logarithm, srandom);
-generate_ni_function!(NI_dleq, dleq, srandom, prandom);
+generate_ni_function!(NI_dleq, dleq, prandom, srandom);
 generate_ni_function!(
     NI_pedersen_commitment,
     pedersen_commitment,
