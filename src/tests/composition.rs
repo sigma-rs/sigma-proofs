@@ -27,7 +27,7 @@ fn composition_proof_correct() {
     let domain_sep = b"hello world";
 
     // definitions of the underlying protocols
-    let (morph1, witness1) = dleq(<G as Group>::Scalar::random(&mut rng), G::random(&mut rng));
+    let (morph1, witness1) = dleq(G::random(&mut rng), <G as Group>::Scalar::random(&mut rng));
     let (morph2, _) = pedersen_commitment(
         G::random(&mut rng),
         <G as Group>::Scalar::random(&mut rng),

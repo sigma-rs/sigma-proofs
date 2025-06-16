@@ -27,7 +27,7 @@ pub fn discrete_logarithm<G: Group + GroupEncoding>(
 
 /// LinearMap for knowledge of a discrete logarithm equality between two pairs.
 #[allow(non_snake_case)]
-pub fn dleq<G: Group + GroupEncoding>(x: G::Scalar, H: G) -> (LinearRelation<G>, Vec<G::Scalar>) {
+pub fn dleq<G: Group + GroupEncoding>(H: G, x: G::Scalar) -> (LinearRelation<G>, Vec<G::Scalar>) {
     let mut morphismp: LinearRelation<G> = LinearRelation::new();
 
     let var_x = morphismp.allocate_scalar();
