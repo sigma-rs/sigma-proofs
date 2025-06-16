@@ -20,15 +20,19 @@ pub struct KeccakPermutationState {
 
 impl Default for KeccakPermutationState {
     fn default() -> Self {
-        Self::new()
+        Self::new([0u8; 32])
     }
 }
 
 impl KeccakPermutationState {
-    pub fn new() -> Self {
+    pub fn new(iv: [u8; 32]) -> Self {
+        let rate = 136;
+        let mut state = [0u8; N];
+        state[rate..rate + 32].copy_from_slice(&iv);
+
         KeccakPermutationState {
-            state: [0u8; 200],
-            rate: 136,
+            state,
+            rate,
             capacity: 64,
         }
     }
@@ -70,7 +74,8 @@ pub struct KeccakDuplexSponge {
 impl KeccakDuplexSponge {
     pub fn new(iv: &[u8]) -> Self {
         assert_eq!(iv.len(), 32);
-        let state = KeccakPermutationState::new();
+
+        let state = KeccakPermutationState::new(iv.try_into().unwrap());
         let rate = R;
         let capacity = N - R;
         KeccakDuplexSponge {
@@ -78,7 +83,7 @@ impl KeccakDuplexSponge {
             rate,
             capacity,
             absorb_index: 0,
-            squeeze_index: 0,
+            squeeze_index: rate,
         }
     }
 }
@@ -92,16 +97,14 @@ impl DuplexSpongeInterface for KeccakDuplexSponge {
         self.squeeze_index = self.rate;
 
         while !input.is_empty() {
-            if self.absorb_index == self.rate {
+            if self.absorb_index < self.rate {
+                self.state.state[self.absorb_index] = input[0];
+                self.absorb_index += 1;
+                input = &input[1..];
+            } else {
                 self.state.permute();
                 self.absorb_index = 0;
             }
-
-            let chunk_size = usize::min(self.rate - self.absorb_index, input.len());
-            let dest = &mut self.state.state[self.absorb_index..self.absorb_index + chunk_size];
-            dest.copy_from_slice(&input[..chunk_size]);
-            self.absorb_index += chunk_size;
-            input = &input[chunk_size..];
         }
     }
 
@@ -116,11 +119,11 @@ impl DuplexSpongeInterface for KeccakDuplexSponge {
             }
 
             let chunk_size = usize::min(self.rate - self.squeeze_index, length);
-            self.squeeze_index += chunk_size;
-            length -= chunk_size;
             output.extend_from_slice(
                 &self.state.state[self.squeeze_index..self.squeeze_index + chunk_size],
             );
+            self.squeeze_index += chunk_size;
+            length -= chunk_size;
         }
 
         output
