@@ -28,7 +28,7 @@ macro_rules! generate_ni_function {
 
             let protocol = SchnorrProtocolCustom(morphismp);
             let domain_sep: Vec<u8> = context.to_vec();
-            let codec = Codec::from_duplex_sponge(KeccakDuplexSponge::from_iv(&domain_sep));
+            let codec = Codec::from_iv(&domain_sep);
             let nizk = NISigmaP {
                 hash_state: codec,
                 ip: protocol

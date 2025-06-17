@@ -55,7 +55,8 @@ where
     G: Group + GroupEncoding,
     H: DuplexSpongeInterface,
 {
-    pub fn from_duplex_sponge(hasher: H) -> Self {
+    pub fn from_iv(iv: &[u8]) -> Self {
+        let hasher = H::new(iv);
         Self {
             hasher,
             _marker: Default::default(),
@@ -71,7 +72,12 @@ where
     type Challenge = <G as Group>::Scalar;
 
     fn new(domain_sep: &[u8]) -> Self {
-        let hasher = H::new(domain_sep);
+        let iv = {
+            let mut tmp = H::new(&[0u8; 32]);
+            tmp.absorb(domain_sep);
+            tmp.squeeze(32)
+        };
+        let hasher = H::new(&iv);
         Self {
             hasher,
             _marker: Default::default(),
