@@ -47,6 +47,47 @@ pub fn dleq<G: Group + GroupEncoding>(H: G, x: G::Scalar) -> (LinearRelation<G>,
     (morphismp, vec![x])
 }
 
+#[allow(non_snake_case)]
+pub fn dleq_generalized<G: Group + GroupEncoding>(
+    bases: &[G],
+    x: G::Scalar,
+) -> (LinearRelation<G>, Vec<G::Scalar>) {
+    assert!(
+        !bases.is_empty(),
+        "Cannot construct generalized DLEQ with zero basepoints"
+    );
+
+    let mut morphismp = LinearRelation::<G>::new();
+
+    let var_x = morphismp.allocate_scalar();
+
+    // Allocate one variable per basepoint H_i
+    let var_Hi: Vec<_> = (0..bases.len())
+        .map(|_| morphismp.allocate_element())
+        .collect();
+
+    // Add the equations: Y_i = x · H_i
+    let var_Yi: Vec<_> = var_Hi
+        .iter()
+        .map(|&var_H| morphismp.allocate_eq([(var_x, var_H)]))
+        .collect();
+
+    // Set the basepoints
+    morphismp.set_elements(var_Hi.iter().copied().zip(bases.iter().copied()));
+
+    // Evaluate image of x under this relation
+    morphismp.compute_image(&[x]).unwrap();
+
+    // Check internal consistency
+    let group_elements = &morphismp.linear_map.group_elements;
+    for (&var_H, &var_Y) in var_Hi.iter().zip(var_Yi.iter()) {
+        let H = group_elements.get(var_H).unwrap();
+        let Y = group_elements.get(var_Y).unwrap();
+        assert_eq!(Y, (H * x), "Y_i != x · H_i");
+    }
+    (morphismp, vec![x])
+}
+
 /// LinearMap for knowledge of an opening to a Pederson commitment.
 #[allow(non_snake_case)]
 pub fn pedersen_commitment<G: Group + GroupEncoding>(
@@ -69,6 +110,75 @@ pub fn pedersen_commitment<G: Group + GroupEncoding>(
     let witness = vec![x, r];
     assert_eq!(C, G::generator() * x + H * r);
     (cs, witness)
+}
+
+#[allow(non_snake_case)]
+pub fn pedersen_commitment_generalized<G: Group + GroupEncoding>(
+    additional_generators: &[G],
+    x: G::Scalar,
+    blindings: &[G::Scalar],
+) -> (LinearRelation<G>, Vec<G::Scalar>) {
+    assert!(
+        additional_generators.len() == blindings.len(),
+        "Generators and blindings must have the same length"
+    );
+
+    let mut morphismp = LinearRelation::<G>::new();
+
+    // Allocate variables
+    let var_x = morphismp.allocate_scalar();
+    let var_r: Vec<_> = (0..blindings.len())
+        .map(|_| morphismp.allocate_scalar())
+        .collect();
+    let var_G = morphismp.allocate_element();
+    let var_H: Vec<_> = (0..blindings.len())
+        .map(|_| morphismp.allocate_element())
+        .collect();
+    let var_C = morphismp.allocate_element();
+
+    // Build the linear combination for the commitment
+    let mut lin_comb = vec![(var_x, var_G)];
+    lin_comb.extend(var_r.iter().zip(var_H.iter()).map(|(&r, &h)| (r, h)));
+
+    morphismp.append_equation(var_C, lin_comb);
+
+    // Set the generator and vector of elements
+    morphismp.set_element(var_G, G::generator());
+    morphismp.set_elements(
+        var_H
+            .iter()
+            .copied()
+            .zip(additional_generators.iter().copied()),
+    );
+
+    // Build the full witness vector
+    let mut witness = vec![x];
+    witness.extend_from_slice(blindings);
+
+    morphismp.compute_image(&witness).unwrap();
+
+    // Check commitment correctness
+    let group_elements = &morphismp.linear_map.group_elements;
+    let G_val = group_elements.get(var_G).unwrap();
+    let H_vals: Vec<_> = var_H
+        .iter()
+        .map(|v| group_elements.get(*v).unwrap())
+        .collect();
+    let C = group_elements.get(var_C).unwrap();
+
+    let expected_C = G_val * x
+        + H_vals
+            .iter()
+            .zip(blindings.iter())
+            .map(|(h, r)| *h * r)
+            .fold(G::identity(), |acc, term| acc + term);
+
+    assert_eq!(
+        C, expected_C,
+        "generalized Pedersen commitment check failed"
+    );
+
+    (morphismp, witness)
 }
 
 /// LinearMap for knowledge of equal openings to two distinct Pederson commitments.

@@ -4,8 +4,8 @@ use rand::rngs::OsRng;
 
 use crate::fiat_shamir::NISigmaProtocol;
 use crate::tests::test_utils::{
-    bbs_blind_commitment_computation, discrete_logarithm, dleq, pedersen_commitment,
-    pedersen_commitment_dleq,
+    bbs_blind_commitment_computation, discrete_logarithm, dleq, dleq_generalized,
+    pedersen_commitment, pedersen_commitment_dleq, pedersen_commitment_generalized,
 };
 use crate::{codec::ShakeCodec, schnorr_protocol::SchnorrProof};
 
@@ -24,6 +24,20 @@ fn test_dleq() {
 }
 
 #[test]
+fn test_dleq_generalized() {
+    let mut rng = OsRng;
+
+    // Generate a random scalar witness x
+    let x = Scalar::random(&mut rng);
+
+    // Generate a vector of random basepoints H_i
+    let bases: Vec<G> = (0..4).map(|_| G::random(&mut rng)).collect();
+
+    // Build the generalized DLEQ relation and witness
+    dleq_generalized(&bases, x);
+}
+
+#[test]
 fn test_pedersen_commitment() {
     let mut rng = OsRng;
     pedersen_commitment(
@@ -31,6 +45,21 @@ fn test_pedersen_commitment() {
         Scalar::random(&mut rng),
         Scalar::random(&mut rng),
     );
+}
+
+#[test]
+fn test_pedersen_commitment_generalized() {
+    let mut rng = OsRng;
+
+    // Generate random additional basepoints (e.g., 3 Hᵢ)
+    let additional_generators: Vec<G> = (0..3).map(|_| G::random(&mut rng)).collect();
+
+    // Generate a random secret and random blindings
+    let x = Scalar::random(&mut rng);
+    let blindings: Vec<Scalar> = (0..3).map(|_| Scalar::random(&mut rng)).collect();
+
+    // Construct the morphism and witness
+    pedersen_commitment_generalized(&additional_generators, x, &blindings);
 }
 
 #[test]
@@ -125,6 +154,44 @@ fn noninteractive_dleq() {
 }
 
 #[test]
+fn noninteractive_dleq_generalized() {
+    let mut rng = OsRng;
+
+    // Sample random scalar witness
+    let x = Scalar::random(&mut rng);
+
+    // Generate H₁..Hₙ basepoints
+    let bases: Vec<G> = (0..4).map(|_| G::random(&mut rng)).collect();
+
+    // Build the generalized DLEQ relation
+    let (morphismp, witness) = dleq_generalized(&bases, x);
+
+    // The SigmaProtocol induced by the morphism
+    let protocol = SchnorrProof::from(morphismp);
+
+    // Fiat-Shamir transformation
+    let domain_sep = b"test-fiat-shamir-generalized-DLEQ";
+    let nizk = NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>>::new(domain_sep, protocol);
+
+    // Create both batchable and compact proofs
+    let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
+    let proof_compact_bytes = nizk.prove_compact(&witness, &mut rng).unwrap();
+
+    // Verify both
+    let verified_batchable = nizk.verify_batchable(&proof_batchable_bytes).is_ok();
+    let verified_compact = nizk.verify_compact(&proof_compact_bytes).is_ok();
+
+    assert!(
+        verified_batchable,
+        "Fiat-Shamir generalized DLEQ batchable proof verification failed"
+    );
+    assert!(
+        verified_compact,
+        "Fiat-Shamir generalized DLEQ compact proof verification failed"
+    );
+}
+
+#[test]
 fn noninteractive_pedersen_commitment() {
     let mut rng = OsRng;
     let (morphismp, witness) = pedersen_commitment(
@@ -152,6 +219,46 @@ fn noninteractive_pedersen_commitment() {
     assert!(
         verified_compact,
         "Fiat-Shamir Schnorr proof verification failed"
+    );
+}
+
+#[test]
+fn noninteractive_pedersen_commitment_generalized() {
+    let mut rng = OsRng;
+
+    // Generate random basepoints H₁..Hₙ (e.g., 3 here)
+    let additional_generators: Vec<G> = (0..3).map(|_| G::random(&mut rng)).collect();
+
+    // Secret x and blindings r₁..rₙ
+    let x = Scalar::random(&mut rng);
+    let blindings: Vec<Scalar> = (0..3).map(|_| Scalar::random(&mut rng)).collect();
+
+    // Build the morphism and witness vector
+    let (morphismp, witness) =
+        pedersen_commitment_generalized(&additional_generators, x, &blindings);
+
+    // The SigmaProtocol induced by the morphism
+    let protocol = SchnorrProof::from(morphismp);
+
+    // Fiat-Shamir wrapper
+    let domain_sep = b"test-fiat-shamir-generalized-pedersen-commitment";
+    let nizk = NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>>::new(domain_sep, protocol);
+
+    // Batchable and compact proofs
+    let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
+    let proof_compact_bytes = nizk.prove_compact(&witness, &mut rng).unwrap();
+
+    // Verify proofs
+    let verified_batchable = nizk.verify_batchable(&proof_batchable_bytes).is_ok();
+    let verified_compact = nizk.verify_compact(&proof_compact_bytes).is_ok();
+
+    assert!(
+        verified_batchable,
+        "Fiat-Shamir generalized Pedersen proof (batchable) verification failed"
+    );
+    assert!(
+        verified_compact,
+        "Fiat-Shamir generalized Pedersen proof (compact) verification failed"
     );
 }
 
