@@ -214,6 +214,41 @@ pub fn pedersen_commitment_dleq<G: Group + GroupEncoding>(
     (morphismp, witness.to_vec())
 }
 
+/// LinearMap for knowledge of multiplication proof for Pedersen Commitments.
+#[allow(non_snake_case)]
+pub fn pedersen_commitment_multiplication<G: Group + GroupEncoding>(
+    G: G,
+    B: G,
+    H: G,
+    x: G::Scalar,
+    r1: G::Scalar,
+    r2: G::Scalar,
+) -> (LinearRelation<G>, Vec<G::Scalar>) {
+    let mut morphismp: LinearRelation<G> = LinearRelation::new();
+
+    let X = G * x + H * r1;
+    let Y = B * x + H * r2;
+
+    // Allocate variables
+    let var_x = morphismp.allocate_scalar();
+    let [var_r1, var_r2] = morphismp.allocate_scalars();
+    let [var_G, var_B, var_H] = morphismp.allocate_elements();
+    let [var_X, var_Y] = morphismp.allocate_elements();
+
+    // Set values for basepoints
+    morphismp.set_elements([(var_G, G), (var_B, B), (var_H, H), (var_X, X), (var_Y, Y)]);
+
+    // Equations
+    morphismp.append_equation(var_X, [(var_x, var_G), (var_r1, var_H)]);
+    morphismp.append_equation(var_Y, [(var_x, var_B), (var_r2, var_H)]);
+
+    let witness = vec![x, r1, r2];
+    morphismp.compute_image(&witness).unwrap();
+
+    assert_eq!(morphismp.linear_map.evaluate(&witness).unwrap(), vec![X, Y]);
+    (morphismp, witness)
+}
+
 /// LinearMap for knowledge of equal openings to n distinct generalized Pederson commitments.
 pub fn pedersen_commitment_multi_equation<G: Group + GroupEncoding>(
     base_G: G,
