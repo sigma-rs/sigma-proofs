@@ -6,6 +6,7 @@ use crate::fiat_shamir::NISigmaProtocol;
 use crate::tests::test_utils::{
     bbs_blind_commitment_computation, discrete_logarithm, dleq, dleq_generalized,
     pedersen_commitment, pedersen_commitment_dleq, pedersen_commitment_generalized,
+    pedersen_commitment_multi_equation,
 };
 use crate::{codec::ShakeCodec, schnorr_protocol::SchnorrProof};
 
@@ -60,6 +61,27 @@ fn test_pedersen_commitment_generalized() {
 
     // Construct the morphism and witness
     pedersen_commitment_generalized(&additional_generators, x, &blindings);
+}
+
+#[test]
+fn test_set_of_pedersen_commitments() {
+    let mut rng = OsRng;
+
+    let x = Scalar::random(&mut rng);
+    let r1 = Scalar::random(&mut rng);
+    let r2 = Scalar::random(&mut rng);
+    let r3 = Scalar::random(&mut rng);
+
+    let H1 = G::random(&mut rng);
+    let H2 = G::random(&mut rng);
+    let H3 = G::random(&mut rng);
+
+    let commitment_terms = vec![
+        vec![H1, H2], // c1 = x·G + r1·H1 + r2·H2
+        vec![H1, H3], // c2 = x·G + r1·H1 + r3·H3
+    ];
+
+    pedersen_commitment_multi_equation(G::generator(), &commitment_terms, x, &[r1, r2, r3]);
 }
 
 #[test]
@@ -297,6 +319,55 @@ fn noninteractive_pedersen_commitment_dleq() {
     assert!(
         verified_compact,
         "Fiat-Shamir Schnorr proof verification failed"
+    );
+}
+
+#[test]
+fn noninteractive_pedersen_commitment_generalized_multi_equation() {
+    let mut rng = OsRng;
+
+    // Secret value and blindings
+    let x = Scalar::random(&mut rng);
+    let r1 = Scalar::random(&mut rng);
+    let r2 = Scalar::random(&mut rng);
+    let r3 = Scalar::random(&mut rng);
+
+    // Generators
+    let H1 = G::random(&mut rng);
+    let H2 = G::random(&mut rng);
+    let H3 = G::random(&mut rng);
+
+    // Each inner vec defines one commitment equation
+    let commitment_terms = vec![
+        vec![H1, H2], // c1 = x·G + r1·H1 + r2·H2
+        vec![H1, H3], // c2 = x·G + r1·H1 + r3·H3
+    ];
+
+    let (morphismp, witness) =
+        pedersen_commitment_multi_equation(G::generator(), &commitment_terms, x, &[r1, r2, r3]);
+
+    // The SigmaProtocol induced by the morphism
+    let protocol = SchnorrProof::from(morphismp);
+
+    // Fiat-Shamir wrapper
+    let domain_sep = b"test-fiat-shamir-pedersen-multi-equation";
+    let nizk = NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>>::new(domain_sep, protocol);
+
+    // Batchable and compact proofs
+    let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
+    let proof_compact_bytes = nizk.prove_compact(&witness, &mut rng).unwrap();
+
+    // Verify proofs
+    let verified_batchable = nizk.verify_batchable(&proof_batchable_bytes).is_ok();
+    let verified_compact = nizk.verify_compact(&proof_compact_bytes).is_ok();
+
+    assert!(
+        verified_batchable,
+        "Fiat-Shamir multi-equation Pedersen proof (batchable) verification failed"
+    );
+    assert!(
+        verified_compact,
+        "Fiat-Shamir multi-equation Pedersen proof (compact) verification failed"
     );
 }
 

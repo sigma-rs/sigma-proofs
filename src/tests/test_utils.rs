@@ -47,6 +47,7 @@ pub fn dleq<G: Group + GroupEncoding>(H: G, x: G::Scalar) -> (LinearRelation<G>,
     (morphismp, vec![x])
 }
 
+/// LinearMap for knowledge of a discrete logarithm equality between n pairs.
 #[allow(non_snake_case)]
 pub fn dleq_generalized<G: Group + GroupEncoding>(
     bases: &[G],
@@ -112,6 +113,7 @@ pub fn pedersen_commitment<G: Group + GroupEncoding>(
     (cs, witness)
 }
 
+/// LinearMap for knowledge of an opening to a Pederson commitment generalized for n scalars.
 #[allow(non_snake_case)]
 pub fn pedersen_commitment_generalized<G: Group + GroupEncoding>(
     additional_generators: &[G],
@@ -210,6 +212,60 @@ pub fn pedersen_commitment_dleq<G: Group + GroupEncoding>(
 
     assert!(vec![X, Y] == morphismp.linear_map.evaluate(&witness).unwrap());
     (morphismp, witness.to_vec())
+}
+
+/// LinearMap for knowledge of equal openings to n distinct generalized Pederson commitments.
+pub fn pedersen_commitment_multi_equation<G: Group + GroupEncoding>(
+    base_G: G,
+    commitment_terms: &[Vec<G>], // list of equations, each with list of H_j
+    x: G::Scalar,
+    blindings: &[G::Scalar],
+) -> (LinearRelation<G>, Vec<G::Scalar>) {
+    let mut morphismp = LinearRelation::<G>::new();
+
+    let var_x = morphismp.allocate_scalar();
+    let var_blindings: Vec<_> = (0..blindings.len())
+        .map(|_| morphismp.allocate_scalar())
+        .collect();
+
+    let var_G = morphismp.allocate_element();
+    morphismp.set_element(var_G, base_G);
+
+    // Allocate all distinct H_j across all equations (flattened then deduplicated)
+    let mut all_H: Vec<G> = commitment_terms.iter().flatten().copied().collect();
+    all_H.sort_by(|a, b| a.to_bytes().as_ref().cmp(b.to_bytes().as_ref()));
+    all_H.dedup();
+
+    let mut var_H = vec![];
+    for H in &all_H {
+        let v = morphismp.allocate_element();
+        morphismp.set_element(v, *H);
+        var_H.push((H, v));
+    }
+
+    let resolve_var_H = |H: &G| var_H.iter().find(|(h, _)| *h == H).unwrap().1;
+
+    for terms in commitment_terms {
+        let var_C = morphismp.allocate_element();
+
+        // Find indices of blindings r_j associated with terms
+        let lincomb = terms
+            .iter()
+            .enumerate()
+            .map(|(j, H)| (var_blindings[j], resolve_var_H(H)))
+            .collect::<Vec<_>>();
+
+        let mut full_comb = vec![(var_x, var_G)];
+        full_comb.extend(lincomb);
+
+        morphismp.append_equation(var_C, full_comb);
+    }
+
+    let mut witness = vec![x];
+    witness.extend_from_slice(blindings);
+
+    morphismp.compute_image(&witness).unwrap();
+    (morphismp, witness)
 }
 
 /// LinearMap for knowledge of an opening for use in a BBS commitment.
