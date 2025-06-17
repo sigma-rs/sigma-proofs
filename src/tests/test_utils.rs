@@ -47,6 +47,48 @@ pub fn dleq<G: Group + GroupEncoding>(x: G::Scalar, H: G) -> (LinearRelation<G>,
     (morphismp, vec![x])
 }
 
+/// LinearMap for knowledge of a discrete logarithm equality between n pairs.
+#[allow(non_snake_case)]
+pub fn dleq_generalized<G: Group + GroupEncoding>(
+    bases: &[G],
+    x: G::Scalar,
+) -> (LinearRelation<G>, Vec<G::Scalar>) {
+    assert!(
+        !bases.is_empty(),
+        "Cannot construct generalized DLEQ with zero basepoints"
+    );
+
+    let mut morphismp = LinearRelation::<G>::new();
+
+    let var_x = morphismp.allocate_scalar();
+
+    // Allocate one variable per basepoint H_i
+    let var_Hi: Vec<_> = (0..bases.len())
+        .map(|_| morphismp.allocate_element())
+        .collect();
+
+    // Add the equations: Y_i = x · H_i
+    let var_Yi: Vec<_> = var_Hi
+        .iter()
+        .map(|&var_H| morphismp.allocate_eq([(var_x, var_H)]))
+        .collect();
+
+    // Set the basepoints
+    morphismp.set_elements(var_Hi.iter().copied().zip(bases.iter().copied()));
+
+    // Evaluate image of x under this relation
+    morphismp.compute_image(&[x]).unwrap();
+
+    // Check internal consistency
+    let group_elements = &morphismp.linear_map.group_elements;
+    for (&var_H, &var_Y) in var_Hi.iter().zip(var_Yi.iter()) {
+        let H = group_elements.get(var_H).unwrap();
+        let Y = group_elements.get(var_Y).unwrap();
+        assert_eq!(Y, (H * x), "Y_i != x · H_i");
+    }
+    (morphismp, vec![x])
+}
+
 /// LinearMap for knowledge of an opening to a Pederson commitment.
 #[allow(non_snake_case)]
 pub fn pedersen_commitment<G: Group + GroupEncoding>(
@@ -69,6 +111,76 @@ pub fn pedersen_commitment<G: Group + GroupEncoding>(
     let witness = vec![x, r];
     assert_eq!(C, G::generator() * x + H * r);
     (cs, witness)
+}
+
+/// LinearMap for knowledge of an opening to a Pederson commitment generalized for n scalars.
+#[allow(non_snake_case)]
+pub fn pedersen_commitment_generalized<G: Group + GroupEncoding>(
+    additional_generators: &[G],
+    x: G::Scalar,
+    blindings: &[G::Scalar],
+) -> (LinearRelation<G>, Vec<G::Scalar>) {
+    assert!(
+        additional_generators.len() == blindings.len(),
+        "Generators and blindings must have the same length"
+    );
+
+    let mut morphismp = LinearRelation::<G>::new();
+
+    // Allocate variables
+    let var_x = morphismp.allocate_scalar();
+    let var_r: Vec<_> = (0..blindings.len())
+        .map(|_| morphismp.allocate_scalar())
+        .collect();
+    let var_G = morphismp.allocate_element();
+    let var_H: Vec<_> = (0..blindings.len())
+        .map(|_| morphismp.allocate_element())
+        .collect();
+    let var_C = morphismp.allocate_element();
+
+    // Build the linear combination for the commitment
+    let mut lin_comb = vec![(var_x, var_G)];
+    lin_comb.extend(var_r.iter().zip(var_H.iter()).map(|(&r, &h)| (r, h)));
+
+    morphismp.append_equation(var_C, lin_comb);
+
+    // Set the generator and vector of elements
+    morphismp.set_element(var_G, G::generator());
+    morphismp.set_elements(
+        var_H
+            .iter()
+            .copied()
+            .zip(additional_generators.iter().copied()),
+    );
+
+    // Build the full witness vector
+    let mut witness = vec![x];
+    witness.extend_from_slice(blindings);
+
+    morphismp.compute_image(&witness).unwrap();
+
+    // Check commitment correctness
+    let group_elements = &morphismp.linear_map.group_elements;
+    let G_val = group_elements.get(var_G).unwrap();
+    let H_vals: Vec<_> = var_H
+        .iter()
+        .map(|v| group_elements.get(*v).unwrap())
+        .collect();
+    let C = group_elements.get(var_C).unwrap();
+
+    let expected_C = G_val * x
+        + H_vals
+            .iter()
+            .zip(blindings.iter())
+            .map(|(h, r)| *h * r)
+            .fold(G::identity(), |acc, term| acc + term);
+
+    assert_eq!(
+        C, expected_C,
+        "generalized Pedersen commitment check failed"
+    );
+
+    (morphismp, witness)
 }
 
 /// LinearMap for knowledge of equal openings to two distinct Pederson commitments.
@@ -100,6 +212,60 @@ pub fn pedersen_commitment_dleq<G: Group + GroupEncoding>(
 
     assert!(vec![X, Y] == morphismp.linear_map.evaluate(&witness).unwrap());
     (morphismp, witness.to_vec())
+}
+
+/// LinearMap for knowledge of equal openings to n distinct generalized Pederson commitments.
+pub fn pedersen_commitment_multi_equation<G: Group + GroupEncoding>(
+    base_G: G,
+    commitment_terms: &[Vec<G>], // list of equations, each with list of H_j
+    x: G::Scalar,
+    blindings: &[G::Scalar],
+) -> (LinearRelation<G>, Vec<G::Scalar>) {
+    let mut morphismp = LinearRelation::<G>::new();
+
+    let var_x = morphismp.allocate_scalar();
+    let var_blindings: Vec<_> = (0..blindings.len())
+        .map(|_| morphismp.allocate_scalar())
+        .collect();
+
+    let var_G = morphismp.allocate_element();
+    morphismp.set_element(var_G, base_G);
+
+    // Allocate all distinct H_j across all equations (flattened then deduplicated)
+    let mut all_H: Vec<G> = commitment_terms.iter().flatten().copied().collect();
+    all_H.sort_by(|a, b| a.to_bytes().as_ref().cmp(b.to_bytes().as_ref()));
+    all_H.dedup();
+
+    let mut var_H = vec![];
+    for H in &all_H {
+        let v = morphismp.allocate_element();
+        morphismp.set_element(v, *H);
+        var_H.push((H, v));
+    }
+
+    let resolve_var_H = |H: &G| var_H.iter().find(|(h, _)| *h == H).unwrap().1;
+
+    for terms in commitment_terms {
+        let var_C = morphismp.allocate_element();
+
+        // Find indices of blindings r_j associated with terms
+        let lincomb = terms
+            .iter()
+            .enumerate()
+            .map(|(j, H)| (var_blindings[j], resolve_var_H(H)))
+            .collect::<Vec<_>>();
+
+        let mut full_comb = vec![(var_x, var_G)];
+        full_comb.extend(lincomb);
+
+        morphismp.append_equation(var_C, full_comb);
+    }
+
+    let mut witness = vec![x];
+    witness.extend_from_slice(blindings);
+
+    morphismp.compute_image(&witness).unwrap();
+    (morphismp, witness)
 }
 
 /// LinearMap for knowledge of an opening for use in a BBS commitment.
