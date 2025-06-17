@@ -28,7 +28,11 @@ macro_rules! generate_ni_function {
 
             let protocol = SchnorrProtocolCustom(morphismp);
             let domain_sep: Vec<u8> = context.to_vec();
-            let nizk = NISigmaP::new(&domain_sep, protocol);
+            let codec = Codec::from_duplex_sponge(KeccakDuplexSponge::from_iv(&domain_sep));
+            let nizk = NISigmaP {
+                hash_state: codec,
+                ip: protocol
+                };
 
             let proof_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
             let verified = nizk.verify_batchable(&proof_bytes).is_ok();

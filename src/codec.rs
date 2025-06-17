@@ -50,6 +50,19 @@ where
     _marker: core::marker::PhantomData<G>,
 }
 
+impl<G, H> ByteSchnorrCodec<G, H>
+where
+    G: Group + GroupEncoding,
+    H: DuplexSpongeInterface,
+{
+    pub fn from_duplex_sponge(hasher: H) -> Self {
+        Self {
+            hasher,
+            _marker: Default::default(),
+        }
+    }
+}
+
 impl<G, H> Codec for ByteSchnorrCodec<G, H>
 where
     G: Group + GroupEncoding,

@@ -73,6 +73,15 @@ pub struct KeccakDuplexSponge {
 
 impl KeccakDuplexSponge {
     pub fn new(iv: &[u8]) -> Self {
+        let hashed_iv = {
+            let mut tmp = KeccakDuplexSponge::from_iv(&[0u8; 32]);
+            tmp.absorb(iv);
+            tmp.squeeze(32)
+        };
+        KeccakDuplexSponge::from_iv(&hashed_iv)
+    }
+
+    pub fn from_iv(iv: &[u8]) -> Self {
         assert_eq!(iv.len(), 32);
 
         let state = KeccakPermutationState::new(iv.try_into().unwrap());
