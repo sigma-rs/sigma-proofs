@@ -25,6 +25,16 @@ fn test_dleq() {
 }
 
 #[test]
+fn test_diffie_hellman() {
+    let mut rng = OsRng;
+
+    let private_key_a = Scalar::random(&mut rng); // Diffie-Hellman private key a is known to prover
+    let public_key_b = G::random(&mut rng); // Diffie-Hellman public key B is known to prover, but not its secret key b
+
+    dleq(public_key_b, private_key_a);
+}
+
+#[test]
 fn test_dleq_generalized() {
     let mut rng = OsRng;
 
@@ -157,6 +167,37 @@ fn noninteractive_dleq() {
     let protocol = SchnorrProof::from(morphismp);
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-DLEQ";
+    let nizk = NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>>::new(domain_sep, protocol);
+
+    // Batchable and compact proofs
+    let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
+    let proof_compact_bytes = nizk.prove_compact(&witness, &mut rng).unwrap();
+    // Verify proofs
+    let verified_batchable = nizk.verify_batchable(&proof_batchable_bytes).is_ok();
+    let verified_compact = nizk.verify_compact(&proof_compact_bytes).is_ok();
+    assert!(
+        verified_batchable,
+        "Fiat-Shamir Schnorr proof verification failed"
+    );
+    assert!(
+        verified_compact,
+        "Fiat-Shamir Schnorr proof verification failed"
+    );
+}
+
+#[test]
+fn noninteractive_diffie_hellman() {
+    let mut rng = OsRng;
+
+    let private_key_a = Scalar::random(&mut rng); // Diffie-Hellman private key a is known to prover
+    let public_key_b = G::random(&mut rng); // Diffie-Hellman public key B is known to prover, but not its secret key b
+    
+    let (morphismp, witness) = dleq(public_key_b, private_key_a);
+
+    // The SigmaProtocol induced by morphismp
+    let protocol = SchnorrProof::from(morphismp);
+    // Fiat-Shamir wrapper
+    let domain_sep = b"test-fiat-shamir-diffie-hellman";
     let nizk = NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>>::new(domain_sep, protocol);
 
     // Batchable and compact proofs
