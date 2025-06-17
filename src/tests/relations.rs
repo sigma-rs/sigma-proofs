@@ -191,7 +191,7 @@ fn noninteractive_diffie_hellman() {
 
     let private_key_a = Scalar::random(&mut rng); // Diffie-Hellman private key a is known to prover
     let public_key_b = G::random(&mut rng); // Diffie-Hellman public key B is known to prover, but not its secret key b
-    
+
     let (morphismp, witness) = dleq(public_key_b, private_key_a);
 
     // The SigmaProtocol induced by morphismp
