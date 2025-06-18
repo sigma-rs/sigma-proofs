@@ -206,7 +206,7 @@ where
             .deserialize_response(&proof[commitment_size..])?;
 
         // Assert correct proof size
-        let total_expected_len = commitment_size + self.ip.serialize_response(&response).len();
+        let total_expected_len = commitment_size + self.interactive_proof.serialize_response(&response).len();
         if proof.len() != total_expected_len {
             return Err(Error::VerificationFailure);
         }
@@ -278,7 +278,7 @@ where
             .deserialize_response(&proof[challenge_size..])?;
 
         // Assert correct proof size
-        let total_expected_len = challenge_size + self.ip.serialize_response(&response).len();
+        let total_expected_len = challenge_size + self.interactive_proof.serialize_response(&response).len();
         if proof.len() != total_expected_len {
             return Err(Error::VerificationFailure);
         }
