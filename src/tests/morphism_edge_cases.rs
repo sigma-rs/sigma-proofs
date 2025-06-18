@@ -3,8 +3,11 @@ use group::{ff::Field, Group};
 use rand::rngs::OsRng;
 
 use crate::{
-    codec::ShakeCodec, fiat_shamir::NISigmaProtocol, linear_relation::LinearRelation,
-    schnorr_protocol::SchnorrProof, tests::test_utils::discrete_logarithm,
+    codec::ShakeCodec,
+    fiat_shamir::NISigmaProtocol,
+    linear_relation::{LinearCombination, LinearRelation, Term},
+    schnorr_protocol::SchnorrProof,
+    tests::test_utils::discrete_logarithm,
 };
 
 /// Test the edge-cases where the witness is zero
@@ -185,5 +188,42 @@ fn partial_zero_pedersen_commitment() {
     assert!(
         verified_compact,
         "Fiat-Shamir Schnorr proof verification failed"
+    );
+}
+
+#[test]
+fn trivial_relation() {
+    let mut rng = OsRng;
+
+    let (morphismp, witness) = {
+        let mut cs: LinearRelation<G> = LinearRelation::new();
+
+        // Allocate a scalar variable (not used in constraint)
+        let _dummy_var = cs.allocate_scalar();
+
+        // Allocate a point variable that will serve as the output of the "0 = 0" constraint
+        let out_var = cs.allocate_element();
+
+        // Add the equation: out_var = 0 (empty linear combination)
+        cs.append_equation(out_var, LinearCombination::from(Vec::<Term>::new()));
+
+        // Set the output point to the identity element
+        cs.set_element(out_var, G::identity());
+
+        // Compute image using an empty scalar input (since no scalar is involved)
+        cs.compute_image(&[]).unwrap();
+
+        (cs, vec![])
+    };
+
+    let protocol = SchnorrProof::from(morphismp);
+    let nizk =
+        NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>>::new(b"test-trivial-zero", protocol);
+
+    let proof_result = nizk.prove_batchable(&witness, &mut rng);
+
+    assert!(
+        proof_result.is_err(),
+        "Proof for trivial relation 0=0 should not be generated"
     );
 }
