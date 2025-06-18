@@ -4,106 +4,74 @@
 //! It is designed to match test vectors from the original Sage implementation.
 
 use crate::duplex_sponge::DuplexSpongeInterface;
-use std::convert::TryInto;
-use tiny_keccak::keccakf;
+use zerocopy::IntoBytes;
 
-const R: usize = 136;
-const N: usize = 136 + 64;
+const RATE: usize = 136;
+const LENGTH: usize = 136 + 64;
 
 /// Low-level Keccak-f[1600] state representation.
-#[derive(Clone)]
-pub struct KeccakPermutationState {
-    pub state: [u8; 200],
-    pub rate: usize,
-    pub capacity: usize,
-}
-
-impl Default for KeccakPermutationState {
-    fn default() -> Self {
-        Self::new([0u8; 32])
-    }
-}
+#[derive(Clone, Default)]
+pub struct KeccakPermutationState([u64; LENGTH / 8]);
 
 impl KeccakPermutationState {
     pub fn new(iv: [u8; 32]) -> Self {
-        let rate = 136;
-        let mut state = [0u8; N];
-        state[rate..rate + 32].copy_from_slice(&iv);
-
-        KeccakPermutationState {
-            state,
-            rate,
-            capacity: 64,
-        }
-    }
-
-    fn bytes_to_flat_state(&self) -> [u64; 25] {
-        let mut flat = [0u64; 25];
-        for (i, item) in flat.iter_mut().enumerate() {
-            let start = i * 8;
-            *item = u64::from_le_bytes(self.state[start..start + 8].try_into().unwrap());
-        }
-        flat
-    }
-
-    fn flat_state_to_bytes(&mut self, flat: [u64; 25]) {
-        for (i, item) in flat.iter().enumerate() {
-            let bytes = item.to_le_bytes();
-            let start = i * 8;
-            self.state[start..start + 8].copy_from_slice(&bytes);
-        }
+        let mut state = Self::default();
+        state.as_mut()[RATE..RATE + 32].copy_from_slice(&iv);
+        state
     }
 
     pub fn permute(&mut self) {
-        let mut flat = self.bytes_to_flat_state();
-        keccakf(&mut flat);
-        self.flat_state_to_bytes(flat);
+        keccak::f1600(&mut self.0);
+    }
+}
+
+impl AsRef<[u8]> for KeccakPermutationState {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_bytes()
+    }
+}
+
+impl AsMut<[u8]> for KeccakPermutationState {
+    fn as_mut(&mut self) -> &mut [u8] {
+        self.0.as_mut_bytes()
     }
 }
 
 /// Duplex sponge construction using Keccak-f[1600].
 #[derive(Clone)]
 pub struct KeccakDuplexSponge {
-    pub state: KeccakPermutationState,
-    pub rate: usize,
-    pub capacity: usize,
+    state: KeccakPermutationState,
     absorb_index: usize,
     squeeze_index: usize,
 }
 
 impl KeccakDuplexSponge {
-    pub fn new(iv: &[u8]) -> Self {
-        assert_eq!(iv.len(), 32);
-
-        let state = KeccakPermutationState::new(iv.try_into().unwrap());
-        let rate = R;
-        let capacity = N - R;
+    pub fn new(iv: [u8; 32]) -> Self {
+        let state = KeccakPermutationState::new(iv);
         KeccakDuplexSponge {
             state,
-            rate,
-            capacity,
             absorb_index: 0,
-            squeeze_index: rate,
+            squeeze_index: RATE,
         }
     }
 }
 
 impl DuplexSpongeInterface for KeccakDuplexSponge {
-    fn new(iv: &[u8]) -> Self {
+    fn new(iv: [u8; 32]) -> Self {
         KeccakDuplexSponge::new(iv)
     }
 
     fn absorb(&mut self, mut input: &[u8]) {
-        self.squeeze_index = self.rate;
+        self.squeeze_index = RATE;
 
         while !input.is_empty() {
-            if self.absorb_index == self.rate {
+            if self.absorb_index == RATE {
                 self.state.permute();
                 self.absorb_index = 0;
             }
 
-            let chunk_size = usize::min(self.rate - self.absorb_index, input.len());
-            let dest = &mut self.state.state[self.absorb_index..self.absorb_index + chunk_size];
+            let chunk_size = usize::min(RATE - self.absorb_index, input.len());
+            let dest = &mut self.state.as_mut()[self.absorb_index..self.absorb_index + chunk_size];
             dest.copy_from_slice(&input[..chunk_size]);
             self.absorb_index += chunk_size;
             input = &input[chunk_size..];
@@ -111,23 +79,40 @@ impl DuplexSpongeInterface for KeccakDuplexSponge {
     }
 
     fn squeeze(&mut self, mut length: usize) -> Vec<u8> {
-        self.absorb_index = self.rate;
+        self.absorb_index = RATE;
 
         let mut output = Vec::new();
         while length != 0 {
-            if self.squeeze_index == self.rate {
+            if self.squeeze_index == RATE {
                 self.state.permute();
                 self.squeeze_index = 0;
             }
 
-            let chunk_size = usize::min(self.rate - self.squeeze_index, length);
+            let chunk_size = usize::min(RATE - self.squeeze_index, length);
             output.extend_from_slice(
-                &self.state.state[self.squeeze_index..self.squeeze_index + chunk_size],
+                &self.state.as_mut()[self.squeeze_index..self.squeeze_index + chunk_size],
             );
             self.squeeze_index += chunk_size;
             length -= chunk_size;
         }
 
         output
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::duplex_sponge::DuplexSpongeInterface;
+
+    #[test]
+    fn test_keccak_duplex_sponge() {
+        let mut sponge = KeccakDuplexSponge::new([0u8; 32]);
+
+        let input = b"Hello, World!";
+        sponge.absorb(input);
+        let output = sponge.squeeze(64);
+
+        assert_eq!(output, hex::decode("30b74a98221dd643d0814095c212d663a67945c6a582ef8f71bd2a14607ebade3f16e5975ad13d313d9aa0aa97ad29f7df5cff249fa633d3a7ac70d8587bec90").unwrap());
     }
 }

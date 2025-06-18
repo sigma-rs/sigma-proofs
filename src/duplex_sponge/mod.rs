@@ -16,7 +16,7 @@ pub mod shake;
 /// This is the core primitive used for building cryptographic codecs.
 pub trait DuplexSpongeInterface {
     /// Creates a new sponge instance with an initialization vector.
-    fn new(iv: &[u8]) -> Self;
+    fn new(iv: [u8; 32]) -> Self;
 
     /// Absorbs input data into the sponge state.
     fn absorb(&mut self, input: &[u8]);

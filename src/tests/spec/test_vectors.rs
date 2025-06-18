@@ -22,13 +22,12 @@ type NISigmaP = NISigmaProtocol<SigmaP, Codec>;
 macro_rules! generate_ni_function {
     ($name:ident, $test_fn:ident, $($param:tt),*) => {
         #[allow(non_snake_case)]
-        fn $name(seed: &[u8], context: &[u8]) -> (Vec<Scalar>, Vec<u8>) {
+        fn $name(seed: &[u8], iv: [u8; 32]) -> (Vec<Scalar>, Vec<u8>) {
             let mut rng = TestDRNG::new(seed);
-            let (morphismp, witness) = $test_fn($(generate_ni_function!(@arg rng, $param)),*);
+            let (instance, witness) = $test_fn($(generate_ni_function!(@arg rng, $param)),*);
 
-            let protocol = SchnorrProtocolCustom(morphismp);
-            let domain_sep: Vec<u8> = context.to_vec();
-            let nizk = NISigmaP::new(&domain_sep, protocol);
+            let protocol = SchnorrProtocolCustom(instance);
+            let nizk = NISigmaP::from_iv(iv, protocol);
 
             let proof_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
             let verified = nizk.verify_batchable(&proof_bytes).is_ok();
@@ -73,11 +72,11 @@ generate_ni_function!(
 #[test]
 fn sage_test_vectors() {
     let seed = b"hello world";
-    let context = b"yellow submarineyellow submarine";
+    let iv = *b"yellow submarineyellow submarine";
 
     let vectors = extract_vectors("src/tests/spec/allVectors.json").unwrap();
 
-    let functions: [fn(&[u8], &[u8]) -> (Vec<Scalar>, Vec<u8>); 5] = [
+    let functions: [fn(&[u8], [u8; 32]) -> (Vec<Scalar>, Vec<u8>); 5] = [
         NI_discrete_logarithm,
         NI_dleq,
         NI_pedersen_commitment,
@@ -86,10 +85,10 @@ fn sage_test_vectors() {
     ];
 
     for (i, f) in functions.iter().enumerate() {
-        let (_, proof_bytes) = f(seed, context);
+        let (_, proof_bytes) = f(seed, iv);
         assert_eq!(
-            context.to_vec(),
-            vectors[i].0,
+            iv.as_slice(),
+            vectors[i].0.as_slice(),
             "context for test vector {i} does not match"
         );
         assert_eq!(
