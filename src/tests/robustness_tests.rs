@@ -278,3 +278,36 @@ fn tampered_flip_high_bit_in_pedersen_group_element() {
         "Batchable Pedersen proof with MSB flipped was incorrectly accepted"
     );
 }
+
+#[test]
+fn discrete_log_invalid_witness_should_fail() {
+    let mut rng = OsRng;
+
+    // Correct secret and group generator
+    let real_x = Scalar::random(&mut rng);
+    let (morphismp, _correct_witness) = discrete_logarithm::<G>(real_x);
+
+    // Create protocol from the valid relation
+    let protocol = SchnorrProof::from(morphismp);
+    let nizk = NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>>::new(
+        b"test-dlog-invalid-witness",
+        protocol,
+    );
+
+    // Malicious or incorrect prover gives wrong witness
+    let fake_x = Scalar::random(&mut rng);
+    assert_ne!(fake_x, real_x, "Fake witness must differ from real witness");
+
+    // Proof generation should fail
+    let proof_batchable = nizk.prove_batchable(&vec![fake_x], &mut rng);
+    assert!(
+        proof_batchable.is_err(),
+        "Prover should not be able to generate proof from invalid witness"
+    );
+
+    let proof_compact = nizk.prove_compact(&vec![fake_x], &mut rng);
+    assert!(
+        proof_compact.is_err(),
+        "Compact proof should not be generated from invalid witness"
+    );
+}
