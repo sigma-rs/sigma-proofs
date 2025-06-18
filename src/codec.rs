@@ -24,6 +24,9 @@ pub trait Codec {
     /// Generates an empty codec that can be identified by a domain separator.
     fn new(domain_sep: &[u8]) -> Self;
 
+    /// Allows for precomputed initialization of the codec with a specific IV.
+    fn from_iv(iv: [u8; 32]) -> Self;
+
     /// Absorbs data into the codec.
     fn prover_message(&mut self, data: &[u8]);
 
@@ -58,10 +61,19 @@ where
     type Challenge = <G as Group>::Scalar;
 
     fn new(domain_sep: &[u8]) -> Self {
-        let hasher = H::new(domain_sep);
+        let iv = {
+            let mut tmp = H::new([0u8; 32]);
+            tmp.absorb(domain_sep);
+            tmp.squeeze(32).try_into().unwrap()
+        };
+
+        Self::from_iv(iv)
+    }
+
+    fn from_iv(iv: [u8; 32]) -> Self {
         Self {
-            hasher,
-            _marker: Default::default(),
+            hasher: H::new(iv),
+            _marker: core::marker::PhantomData,
         }
     }
 
