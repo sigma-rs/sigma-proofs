@@ -10,25 +10,22 @@ use sha3::{
 
 /// Duplex sponge construction using SHAKE128.
 #[derive(Clone, Debug)]
-pub struct ShakeDuplexSponge {
-    /// Internal SHAKE128 hasher state.
-    hasher: Shake128,
-}
+pub struct ShakeDuplexSponge(Shake128);
 
 impl DuplexSpongeInterface for ShakeDuplexSponge {
-    fn new(iv: &[u8]) -> Self {
+    fn new(iv: [u8; 32]) -> Self {
         let mut hasher = Shake128::default();
-        hasher.update(iv);
-        Self { hasher }
+        hasher.update(&iv);
+        Self(hasher)
     }
 
     fn absorb(&mut self, input: &[u8]) {
-        self.hasher.update(input);
+        self.0.update(input);
     }
 
     fn squeeze(&mut self, length: usize) -> Vec<u8> {
         let mut output = vec![0u8; length];
-        self.hasher.clone().finalize_xof_into(&mut output);
+        self.0.clone().finalize_xof_into(&mut output);
         output
     }
 }

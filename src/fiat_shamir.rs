@@ -70,6 +70,14 @@ where
         }
     }
 
+    pub fn from_iv(iv: [u8; 32], instance: P) -> Self {
+        let hash_state = C::from_iv(iv);
+        Self {
+            hash_state,
+            ip: instance,
+        }
+    }
+
     /// Generates a non-interactive proof for a witness.
     ///
     /// Executes the interactive protocol steps (commit, derive challenge via hash, respond),
