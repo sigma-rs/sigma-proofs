@@ -2,281 +2,149 @@ use bls12_381::{G1Projective as G, Scalar};
 use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::scalar::Scalar as DalekScalar;
 use group::ff::Field;
-use group::{Group, GroupEncoding};
+use group::Group;
 use rand::rngs::OsRng;
 
 use crate::fiat_shamir::NISigmaProtocol;
 use crate::tests::test_utils::{discrete_logarithm, pedersen_commitment};
 use crate::{codec::ShakeCodec, schnorr_protocol::SchnorrProof};
 
-/// This test checks that flipping a single low-order bit in the proof causes verification to fail.
+/// Flips every bit of the proof one-by-one and asserts verification fails each time.
 #[test]
-fn tampered_bitflip_proof() {
+fn test_proof_dlog_bitflips_bls() {
     let mut rng = OsRng;
-
-    let (morphismp, witness) = discrete_logarithm(Scalar::random(&mut rng));
-    let protocol = SchnorrProof::from(morphismp);
-    let nizk = NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>>::new(
-        b"tamper-test-bitflip-LSB",
-        protocol,
-    );
-
-    let proof_compact = nizk.prove_compact(&witness, &mut rng).unwrap();
-    let proof_batchable = nizk.prove_batchable(&witness, &mut rng).unwrap();
-
-    // Flip the least significant bit of the first byte
-    let mut tampered_compact = proof_compact.clone();
-    let mut tampered_batchable = proof_batchable.clone();
-    tampered_compact[0] ^= 0b00000001;
-    tampered_batchable[0] ^= 0b00000001;
-
-    // Valid proofs should verify
-    assert!(nizk.verify_compact(&proof_compact).is_ok());
-    assert!(nizk.verify_batchable(&proof_batchable).is_ok());
-
-    // Tampered proofs should be rejected
-    assert!(
-        nizk.verify_compact(&tampered_compact).is_err(),
-        "Compact proof with bitflip was incorrectly accepted"
-    );
-    assert!(
-        nizk.verify_batchable(&tampered_batchable).is_err(),
-        "Batchable proof with bitflip was incorrectly accepted"
-    );
-}
-
-/// This test checks that appending an extra byte invalidates the proof.
-#[test]
-fn tampered_extra_byte_proof() {
-    let mut rng = OsRng;
-
     let (morphismp, witness) = discrete_logarithm(Scalar::random(&mut rng));
     let protocol = SchnorrProof::from(morphismp);
     let nizk =
-        NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>>::new(b"tamper-test-extra-byte", protocol);
+        NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>>::new(b"test-proof-bitflips", protocol);
 
-    let proof_compact = nizk.prove_compact(&witness, &mut rng).unwrap();
-    let proof_batchable = nizk.prove_batchable(&witness, &mut rng).unwrap();
+    let proof = nizk.prove_compact(&witness, &mut rng).unwrap();
 
-    // Append a null byte at the end of the proof
-    let mut tampered_compact = proof_compact.clone();
-    let mut tampered_batchable = proof_batchable.clone();
-    tampered_compact.push(0x00);
-    tampered_batchable.push(0x00);
+    // Valid proof should verify
+    assert!(nizk.verify_compact(&proof).is_ok());
 
-    // Valid proofs should verify
-    assert!(nizk.verify_compact(&proof_compact).is_ok());
-    assert!(nizk.verify_batchable(&proof_batchable).is_ok());
-
-    // Tampered proofs should be rejected due to unexpected length
-    assert!(
-        nizk.verify_compact(&tampered_compact).is_err(),
-        "Compact proof with extra byte was incorrectly accepted"
-    );
-    assert!(
-        nizk.verify_batchable(&tampered_batchable).is_err(),
-        "Batchable proof with extra byte was incorrectly accepted"
-    );
+    for i in 0..proof.len() {
+        for bit in 0..8 {
+            let mut tampered = proof.clone();
+            tampered[i] ^= 1 << bit;
+            assert!(
+                nizk.verify_compact(&tampered).is_err(),
+                "Proof bitflip at byte {i}, bit {bit} was incorrectly accepted"
+            );
+        }
+    }
 }
 
-/// This test checks that flipping the high bit in a group encoding breaks the proof (Bls12_381 backend).
+/// Flips every bit of the proof one-by-one and asserts verification fails each time.
 #[test]
-fn tampered_flip_high_bit_in_group_element() {
+fn test_proof_pedersen_bitflips_bls() {
     let mut rng = OsRng;
 
-    let (morphismp, witness) = discrete_logarithm(Scalar::random(&mut rng));
+
+    let (morphismp, witness) = pedersen_commitment(G::random(&mut rng), Scalar::random(&mut rng),Scalar::random(&mut rng));
     let protocol = SchnorrProof::from(morphismp);
-    let nizk = NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>>::new(
-        b"tamper-test-curve-encoding",
-        protocol,
-    );
+    let nizk =
+        NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>>::new(b"test-proof-bitflips", protocol);
 
-    let proof_compact = nizk.prove_compact(&witness, &mut rng).unwrap();
-    let proof_batchable = nizk.prove_batchable(&witness, &mut rng).unwrap();
+    let proof = nizk.prove_compact(&witness, &mut rng).unwrap();
 
-    let mut tampered_compact = proof_compact.clone();
-    let mut tampered_batchable = proof_batchable.clone();
+    // Valid proof should verify
+    assert!(nizk.verify_compact(&proof).is_ok());
 
-    // Determine size of a compressed group element (48 bytes for BLS12-381 G1)
-    let point_size = <G as GroupEncoding>::Repr::default().as_ref().len();
-
-    // Flip the most significant bit of the last byte in the first group element
-    tampered_batchable[point_size - 1] ^= 0b10000000;
-
-    // Flip the MSB of the first byte in the scalar challenge
-    tampered_compact[0] ^= 0b10000000;
-
-    // Valid proofs should verify
-    assert!(nizk.verify_compact(&proof_compact).is_ok());
-    assert!(nizk.verify_batchable(&proof_batchable).is_ok());
-
-    // Tampered proofs should fail due to invalid group or scalar encoding
-    assert!(
-        nizk.verify_compact(&tampered_compact).is_err(),
-        "Compact proof with MSB flipped was incorrectly accepted"
-    );
-    assert!(
-        nizk.verify_batchable(&tampered_batchable).is_err(),
-        "Batchable proof with MSB flipped was incorrectly accepted"
-    );
+    for i in 0..proof.len() {
+        for bit in 0..8 {
+            let mut tampered = proof.clone();
+            tampered[i] ^= 1 << bit;
+            assert!(
+                nizk.verify_compact(&tampered).is_err(),
+                "Proof bitflip at byte {i}, bit {bit} was incorrectly accepted"
+            );
+        }
+    }
 }
 
-/// This test checks that flipping the high bit in a group encoding breaks the proof (Ristretto backend).
+/// Flips every bit of the proof one-by-one and asserts verification fails each time.
 #[test]
-fn tampered_flip_high_bit_in_group_element_ristretto() {
+fn test_proof_bitflips_ristretto() {
     let mut rng = OsRng;
-
     let (morphismp, witness) = discrete_logarithm(DalekScalar::random(&mut rng));
     let protocol = SchnorrProof::from(morphismp);
-    let nizk = NISigmaProtocol::<SchnorrProof<RistrettoPoint>, ShakeCodec<RistrettoPoint>>::new(
-        b"tamper-ristretto-msb",
-        protocol,
-    );
+    let nizk =
+        NISigmaProtocol::<SchnorrProof<RistrettoPoint>, ShakeCodec<RistrettoPoint>>::new(b"test-proof-bitflips", protocol);
 
-    let proof_compact = nizk.prove_compact(&witness, &mut rng).unwrap();
-    let proof_batchable = nizk.prove_batchable(&witness, &mut rng).unwrap();
+    let proof = nizk.prove_compact(&witness, &mut rng).unwrap();
 
-    // Clone for tampering
-    let mut tampered_compact = proof_compact.clone();
-    let mut tampered_batchable = proof_batchable.clone();
+    // Valid proof should verify
+    assert!(nizk.verify_compact(&proof).is_ok());
 
-    // Ristretto group encoding size is 32 bytes
-    let point_size = <RistrettoPoint as GroupEncoding>::Repr::default()
-        .as_ref()
-        .len();
-
-    // Tamper: Flip MSB of last byte in first group element
-    tampered_batchable[point_size - 1] ^= 0b10000000;
-
-    // Tamper: Flip MSB of first byte of scalar
-    tampered_compact[0] ^= 0b10000000;
-
-    // Check original proofs still pass
-    assert!(nizk.verify_compact(&proof_compact).is_ok());
-    assert!(nizk.verify_batchable(&proof_batchable).is_ok());
-
-    // Check tampered proofs fail due to invalid encoding
-    assert!(
-        nizk.verify_compact(&tampered_compact).is_err(),
-        "Compact Ristretto proof with MSB flipped was incorrectly accepted"
-    );
-    assert!(
-        nizk.verify_batchable(&tampered_batchable).is_err(),
-        "Batchable Ristretto proof with MSB flipped was incorrectly accepted"
-    );
+    for i in 0..proof.len() {
+        for bit in 0..8 {
+            let mut tampered = proof.clone();
+            tampered[i] ^= 1 << bit;
+            assert!(
+                nizk.verify_compact(&tampered).is_err(),
+                "Proof bitflip at byte {i}, bit {bit} was incorrectly accepted"
+            );
+        }
+    }
 }
 
+/// Inserts extra bytes before, after, and in the middle of the proof, and asserts verification fails.
 #[test]
-fn tampered_bitflip_pedersen_proof() {
+fn test_proof_extra_bytes_bls() {
     let mut rng = OsRng;
-
-    let (morphismp, witness) = pedersen_commitment(
-        G::random(&mut rng),
-        Scalar::random(&mut rng),
-        Scalar::random(&mut rng),
-    );
+    let (morphismp, witness) = discrete_logarithm(Scalar::random(&mut rng));
     let protocol = SchnorrProof::from(morphismp);
-    let nizk = NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>>::new(
-        b"tamper-pedersen-bitflip",
-        protocol,
-    );
+    let nizk =
+        NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>>::new(b"test-proof-extra-bytes", protocol);
 
-    let proof_compact = nizk.prove_compact(&witness, &mut rng).unwrap();
-    let proof_batchable = nizk.prove_batchable(&witness, &mut rng).unwrap();
+    let proof = nizk.prove_compact(&witness, &mut rng).unwrap();
 
-    // Tampering: Flip 1 LSB in the first byte
-    let mut tampered_compact = proof_compact.clone();
-    let mut tampered_batchable = proof_batchable.clone();
-    tampered_compact[0] ^= 0b00000001;
-    tampered_batchable[0] ^= 0b00000001;
+    // Valid proof should verify
+    assert!(nizk.verify_compact(&proof).is_ok());
 
-    assert!(nizk.verify_compact(&proof_compact).is_ok());
-    assert!(nizk.verify_batchable(&proof_batchable).is_ok());
+    let insertion_points = [0, proof.len() / 2, proof.len()];
+    let injected_bytes = [0x00, 0xFF, 0x42];
 
-    assert!(
-        nizk.verify_compact(&tampered_compact).is_err(),
-        "Bit-flipped compact Pedersen proof was incorrectly accepted"
-    );
-    assert!(
-        nizk.verify_batchable(&tampered_batchable).is_err(),
-        "Bit-flipped batchable Pedersen proof was incorrectly accepted"
-    );
+    for &pos in &insertion_points {
+        for &byte in &injected_bytes {
+            let mut tampered = proof.clone();
+            tampered.insert(pos, byte);
+            assert!(
+                nizk.verify_compact(&tampered).is_err(),
+                "Proof with extra byte 0x{byte:02x} at position {pos} was incorrectly accepted"
+            );
+        }
+    }
 }
 
+/// Inserts extra bytes before, after, and in the middle of the proof, and asserts verification fails.
 #[test]
-fn tampered_extra_byte_pedersen_proof() {
+fn test_proof_extra_bytes_ristretto() {
     let mut rng = OsRng;
-
-    let (morphismp, witness) = pedersen_commitment(
-        G::random(&mut rng),
-        Scalar::random(&mut rng),
-        Scalar::random(&mut rng),
-    );
+    let (morphismp, witness) = discrete_logarithm(DalekScalar::random(&mut rng));
     let protocol = SchnorrProof::from(morphismp);
-    let nizk = NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>>::new(
-        b"tamper-pedersen-extra-byte",
-        protocol,
-    );
+    let nizk =
+        NISigmaProtocol::<SchnorrProof<RistrettoPoint>, ShakeCodec<RistrettoPoint>>::new(b"test-proof-extra-bytes", protocol);
 
-    let proof_compact = nizk.prove_compact(&witness, &mut rng).unwrap();
-    let proof_batchable = nizk.prove_batchable(&witness, &mut rng).unwrap();
+    let proof = nizk.prove_compact(&witness, &mut rng).unwrap();
 
-    // Tampering: Add a trailing null byte
-    let mut tampered_compact = proof_compact.clone();
-    let mut tampered_batchable = proof_batchable.clone();
-    tampered_compact.push(0x00);
-    tampered_batchable.push(0x00);
+    // Valid proof should verify
+    assert!(nizk.verify_compact(&proof).is_ok());
 
-    assert!(nizk.verify_compact(&proof_compact).is_ok());
-    assert!(nizk.verify_batchable(&proof_batchable).is_ok());
+    let insertion_points = [0, proof.len() / 2, proof.len()];
+    let injected_bytes = [0x00, 0xFF, 0x42];
 
-    assert!(
-        nizk.verify_compact(&tampered_compact).is_err(),
-        "Compact Pedersen proof with extra byte was incorrectly accepted"
-    );
-    assert!(
-        nizk.verify_batchable(&tampered_batchable).is_err(),
-        "Batchable Pedersen proof with extra byte was incorrectly accepted"
-    );
-}
-
-#[test]
-fn tampered_flip_high_bit_in_pedersen_group_element() {
-    let mut rng = OsRng;
-
-    let (morphismp, witness) = pedersen_commitment(
-        G::random(&mut rng),
-        Scalar::random(&mut rng),
-        Scalar::random(&mut rng),
-    );
-    let protocol = SchnorrProof::from(morphismp);
-    let nizk = NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>>::new(
-        b"tamper-pedersen-msb-flip",
-        protocol,
-    );
-
-    let proof_compact = nizk.prove_compact(&witness, &mut rng).unwrap();
-    let proof_batchable = nizk.prove_batchable(&witness, &mut rng).unwrap();
-
-    // Tampering: Flip MSB of one group element and one scalar
-    let mut tampered_compact = proof_compact.clone();
-    let mut tampered_batchable = proof_batchable.clone();
-
-    let point_size = <G as GroupEncoding>::Repr::default().as_ref().len();
-    tampered_batchable[point_size - 1] ^= 0b10000000;
-    tampered_compact[0] ^= 0b10000000;
-
-    assert!(nizk.verify_compact(&proof_compact).is_ok());
-    assert!(nizk.verify_batchable(&proof_batchable).is_ok());
-
-    assert!(
-        nizk.verify_compact(&tampered_compact).is_err(),
-        "Compact Pedersen proof with MSB flipped was incorrectly accepted"
-    );
-    assert!(
-        nizk.verify_batchable(&tampered_batchable).is_err(),
-        "Batchable Pedersen proof with MSB flipped was incorrectly accepted"
-    );
+    for &pos in &insertion_points {
+        for &byte in &injected_bytes {
+            let mut tampered = proof.clone();
+            tampered.insert(pos, byte);
+            assert!(
+                nizk.verify_compact(&tampered).is_err(),
+                "Proof with extra byte 0x{byte:02x} at position {pos} was incorrectly accepted"
+            );
+        }
+    }
 }
 
 #[test]
