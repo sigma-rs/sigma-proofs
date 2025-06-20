@@ -65,7 +65,7 @@ fn test_proof_pedersen_bitflips_bls() {
 
 /// Flips every bit of the proof one-by-one and asserts verification fails each time.
 #[test]
-fn test_proof_bitflips_ristretto() {
+fn test_proof_dlog_bitflips_ristretto() {
     let mut rng = OsRng;
     let (morphismp, witness) = discrete_logarithm(DalekScalar::random(&mut rng));
     let protocol = SchnorrProof::from(morphismp);
@@ -91,7 +91,7 @@ fn test_proof_bitflips_ristretto() {
 
 /// Inserts extra bytes before, after, and in the middle of the proof, and asserts verification fails.
 #[test]
-fn test_proof_extra_bytes_bls() {
+fn test_proof_dlog_extra_bytes_bls() {
     let mut rng = OsRng;
     let (morphismp, witness) = discrete_logarithm(Scalar::random(&mut rng));
     let protocol = SchnorrProof::from(morphismp);
@@ -120,7 +120,7 @@ fn test_proof_extra_bytes_bls() {
 
 /// Inserts extra bytes before, after, and in the middle of the proof, and asserts verification fails.
 #[test]
-fn test_proof_extra_bytes_ristretto() {
+fn test_proof_dlog_extra_bytes_ristretto() {
     let mut rng = OsRng;
     let (morphismp, witness) = discrete_logarithm(DalekScalar::random(&mut rng));
     let protocol = SchnorrProof::from(morphismp);
