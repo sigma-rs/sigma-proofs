@@ -91,6 +91,8 @@ impl<T> Sum<T> {
     }
 }
 
+// NOTE: This is implemented directly for each of the key types to avoid collision with the blanket
+// Into impl provided by the standard library.
 macro_rules! impl_from_for_sum {
     ($($type:ty),+) => {
         $(
@@ -102,13 +104,13 @@ macro_rules! impl_from_for_sum {
 
         impl<T: Into<$type>> From<Vec<T>> for Sum<$type> {
             fn from(terms: Vec<T>) -> Self {
-                Self(terms.into_iter().map(|x| x.into()).collect())
+                Self::from_iter(terms)
             }
         }
 
         impl<T: Into<$type>, const N: usize> From<[T; N]> for Sum<$type> {
             fn from(terms: [T; N]) -> Self {
-                Self(terms.into_iter().map(|x| x.into()).collect())
+                Self::from_iter(terms)
             }
         }
 
@@ -126,13 +128,13 @@ macro_rules! impl_from_for_sum {
 
         impl<F, T: Into<Weighted<$type, F>>> From<Vec<T>> for Sum<Weighted<$type, F>> {
             fn from(terms: Vec<T>) -> Self {
-                Self(terms.into_iter().map(|x| x.into()).collect())
+                Self::from_iter(terms)
             }
         }
 
         impl<F, T: Into<Weighted<$type, F>>, const N: usize> From<[T; N]> for Sum<Weighted<$type, F>> {
             fn from(terms: [T; N]) -> Self {
-                Self(terms.into_iter().map(|x| x.into()).collect())
+                Self::from_iter(terms)
             }
         }
 
