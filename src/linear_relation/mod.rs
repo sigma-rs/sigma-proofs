@@ -8,6 +8,7 @@
 //! - [`LinearMap`]: a collection of linear combinations acting on group elements.
 //! - [`LinearRelation`]: a higher-level structure managing morphisms and their associated images.
 
+use std::collections::BTreeMap;
 use std::iter;
 
 use ff::Field;
@@ -579,6 +580,35 @@ where
         }
 
         out
+    }
+
+    /// Construct an equivalent linear relation in the standardized form, without weights and with
+    /// a single group var on the left-hand side.
+    fn standard_repr(&self) -> Vec<(GroupVar, Sum<Term>)> {
+        let mut scaled_group_vars = BTreeMap::<usize, Vec<(G::Scalar, GroupVar)>>::new();
+        let mut repr = Vec::new();
+        for (image_var, equation) in iter::zip(&self.image, &self.linear_map.constraints) {
+            let mut eq_repr = Vec::<(GroupVar, Sum<Term>)>::new();
+            for weighted_term in equation.terms() {
+                let group_var = if weighted_term.weight == G::Scalar::ONE {
+                    weighted_term.term.elem
+                } else if let Some(var) = scaled_group_vars
+                    .get(&weighted_term.term.elem.0)
+                    .map(|vec| {
+                        vec.iter().find_map(|(weight, var)| {
+                            (weighted_term.weight == *weight).then_some(var)
+                        })
+                    })
+                    .flatten()
+                {
+                    *var
+                } else {
+                    todo!("allocate a new scaled group var")
+                };
+            }
+        }
+
+        todo!()
     }
 
     /// Convert this LinearRelation into a non-interactive zero-knowledge protocol
