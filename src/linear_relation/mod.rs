@@ -8,9 +8,12 @@
 //! - [`LinearMap`]: a collection of linear combinations acting on group elements.
 //! - [`LinearRelation`]: a higher-level structure managing morphisms and their associated images.
 
-use crate::errors::Error;
-use group::{Group, GroupEncoding};
 use std::iter;
+
+use ff::Field;
+use group::{Group, GroupEncoding};
+
+use crate::errors::Error;
 
 /// Implementations of core ops for the linear combination types.
 mod ops;
@@ -46,18 +49,107 @@ pub struct Term {
     elem: GroupVar,
 }
 
-impl Term {
-    pub fn scalar(&self) -> ScalarVar {
-        self.scalar
-    }
-    pub fn elem(&self) -> GroupVar {
-        self.elem
-    }
-}
+// QUESTION: Why have accessor functions? Its not generally ideomatic in Rust, which prefers public
+// fields. One reason for this is that, unlike C++ of Java, Rust has strong notions of immutability
+// in that a normal reference to an object cannot be used to mutate its fields.
 
 impl From<(ScalarVar, GroupVar)> for Term {
     fn from((scalar, elem): (ScalarVar, GroupVar)) -> Self {
         Self { scalar, elem }
+    }
+}
+
+impl<F: Field> From<(ScalarVar, GroupVar)> for Weighted<Term, F> {
+    fn from(pair: (ScalarVar, GroupVar)) -> Self {
+        Term::from(pair).into()
+    }
+}
+
+// TODO: Should this be generic over the field instead of the group?
+#[derive(Copy, Clone, Debug)]
+pub struct Weighted<T, F> {
+    pub term: T,
+    pub weight: F,
+}
+
+impl<T, F: Field> From<T> for Weighted<T, F> {
+    fn from(term: T) -> Self {
+        Self {
+            term,
+            weight: F::ONE,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct Sum<T>(Vec<T>);
+
+impl<T> Sum<T> {
+    /// Access the terms of the sum as slice reference.
+    pub fn terms(&self) -> &[T] {
+        &self.0
+    }
+}
+
+macro_rules! impl_from_for_sum {
+    ($($type:ty),+) => {
+        $(
+        impl<T: Into<$type>> From<T> for Sum<$type> {
+            fn from(value: T) -> Self {
+                Sum(vec![value.into()])
+            }
+        }
+
+        impl<T: Into<$type>> From<Vec<T>> for Sum<$type> {
+            fn from(terms: Vec<T>) -> Self {
+                Self(terms.into_iter().map(|x| x.into()).collect())
+            }
+        }
+
+        impl<T: Into<$type>, const N: usize> From<[T; N]> for Sum<$type> {
+            fn from(terms: [T; N]) -> Self {
+                Self(terms.into_iter().map(|x| x.into()).collect())
+            }
+        }
+
+        impl<T: Into<$type>> FromIterator<T> for Sum<$type> {
+            fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+                Self(iter.into_iter().map(|x| x.into()).collect())
+            }
+        }
+
+        impl<F, T: Into<Weighted<$type, F>>> From<T> for Sum<Weighted<$type, F>> {
+            fn from(value: T) -> Self {
+                Sum(vec![value.into()])
+            }
+        }
+
+        impl<F, T: Into<Weighted<$type, F>>> From<Vec<T>> for Sum<Weighted<$type, F>> {
+            fn from(terms: Vec<T>) -> Self {
+                Self(terms.into_iter().map(|x| x.into()).collect())
+            }
+        }
+
+        impl<F, T: Into<Weighted<$type, F>>, const N: usize> From<[T; N]> for Sum<Weighted<$type, F>> {
+            fn from(terms: [T; N]) -> Self {
+                Self(terms.into_iter().map(|x| x.into()).collect())
+            }
+        }
+
+        impl<F, T: Into<Weighted<$type, F>>> FromIterator<T> for Sum<Weighted<$type, F>> {
+            fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+                Self(iter.into_iter().map(|x| x.into()).collect())
+            }
+        }
+        )+
+    };
+}
+
+impl_from_for_sum!(ScalarVar, GroupVar, Term);
+
+impl<T, F: Field> From<Sum<T>> for Sum<Weighted<T, F>> {
+    fn from(sum: Sum<T>) -> Self {
+        Self(sum.0.into_iter().map(|x| x.into()).collect())
     }
 }
 
@@ -69,38 +161,7 @@ impl From<(ScalarVar, GroupVar)> for Term {
 /// where `s_i` are scalars (referenced by `scalar_vars`) and `P_i` are group elements (referenced by `element_vars`).
 ///
 /// The indices refer to external lists managed by the containing LinearMap.
-#[derive(Clone, Debug)]
-pub struct LinearCombination(Vec<Term>);
-
-impl LinearCombination {
-    pub fn terms(&self) -> &[Term] {
-        &self.0
-    }
-}
-
-impl<T: Into<Term>> From<T> for LinearCombination {
-    fn from(term: T) -> Self {
-        Self(vec![term.into()])
-    }
-}
-
-impl<T: Into<Term>> From<Vec<T>> for LinearCombination {
-    fn from(terms: Vec<T>) -> Self {
-        Self(terms.into_iter().map(|x| x.into()).collect())
-    }
-}
-
-impl<T: Into<Term>, const N: usize> From<[T; N]> for LinearCombination {
-    fn from(terms: [T; N]) -> Self {
-        Self(terms.into_iter().map(|x| x.into()).collect())
-    }
-}
-
-impl<T: Into<Term>> FromIterator<T> for LinearCombination {
-    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
-        Self(iter.into_iter().map(|x| x.into()).collect())
-    }
-}
+pub type LinearCombination<G: Group> = Sum<Weighted<Term, G::Scalar>>;
 
 /// Ordered mapping of [GroupVar] to group elements assignments.
 #[derive(Clone, Debug)]
@@ -193,7 +254,8 @@ impl<G: Group> FromIterator<(GroupVar, G)> for GroupMap<G> {
 #[derive(Clone, Default, Debug)]
 pub struct LinearMap<G: Group> {
     /// The set of linear combination constraints (equations).
-    pub constraints: Vec<LinearCombination>,
+    pub constraints: Vec<LinearCombination<G>>,
+    // TODO: Update the usage of the word "morphism"
     /// The list of group elements referenced in the morphism.
     ///
     /// Uninitialized group elements are presented with `None`.
@@ -248,7 +310,7 @@ impl<G: Group> LinearMap<G> {
     ///
     /// # Parameters
     /// - `lc`: The [`LinearCombination`] to add.
-    pub fn append(&mut self, lc: LinearCombination) {
+    pub fn append(&mut self, lc: LinearCombination<G>) {
         self.constraints.push(lc);
     }
 
@@ -264,15 +326,17 @@ impl<G: Group> LinearMap<G> {
         self.constraints
             .iter()
             .map(|lc| {
-                let coefficients =
+                // TODO: The multiplication by the (public) weight is potentially wasteful in the
+                // weight is most commonly 1, but multiplication is constant time.
+                let weighted_coefficients =
                     lc.0.iter()
-                        .map(|term| scalars[term.scalar.0])
+                        .map(|weighted| scalars[weighted.term.scalar.0] * weighted.weight)
                         .collect::<Vec<_>>();
                 let elements =
                     lc.0.iter()
-                        .map(|term| self.group_elements.get(term.elem))
+                        .map(|weighted| self.group_elements.get(weighted.term.elem))
                         .collect::<Result<Vec<_>, Error>>()?;
-                Ok(msm_pr(&coefficients, &elements))
+                Ok(msm_pr(&weighted_coefficients, &elements))
             })
             .collect()
     }
@@ -321,7 +385,7 @@ where
     /// # Parameters
     /// - `lhs`: The image group element variable (left-hand side of the equation).
     /// - `rhs`: A slice of `(ScalarVar, GroupVar)` pairs representing the linear combination on the right-hand side.
-    pub fn append_equation(&mut self, lhs: GroupVar, rhs: impl Into<LinearCombination>) {
+    pub fn append_equation(&mut self, lhs: GroupVar, rhs: impl Into<LinearCombination<G>>) {
         self.linear_map.append(rhs.into());
         self.image.push(lhs);
     }
@@ -332,7 +396,7 @@ where
     /// # Parameters
     /// - `lhs`: The image group element variable (left-hand side of the equation).
     /// - `rhs`: A slice of `(ScalarVar, GroupVar)` pairs representing the linear combination on the right-hand side.
-    pub fn allocate_eq(&mut self, rhs: impl Into<LinearCombination>) -> GroupVar {
+    pub fn allocate_eq(&mut self, rhs: impl Into<LinearCombination<G>>) -> GroupVar {
         let var = self.allocate_element();
         self.append_equation(var, rhs);
         var
@@ -436,6 +500,8 @@ where
     /// computed. Modifies the group elements assigned in the [LinearRelation].
     pub fn compute_image(&mut self, scalars: &[<G as Group>::Scalar]) -> Result<(), Error> {
         if self.linear_map.num_constraints() != self.image.len() {
+            // NOTE: This is a panic, rather than a returned error, because this can only happen if
+            // this implementation has a bug.
             panic!("invalid LinearRelation: different number of constraints and image variables");
         }
 
@@ -443,17 +509,19 @@ where
             self.linear_map.constraints.as_slice(),
             self.image.as_slice(),
         ) {
-            let coefficients =
+            // TODO: The multiplication by the (public) weight is potentially wasteful in the
+            // weight is most commonly 1, but multiplication is constant time.
+            let weighted_coefficients =
                 lc.0.iter()
-                    .map(|term| scalars[term.scalar.0])
+                    .map(|weighted| scalars[weighted.term.scalar.0] * weighted.weight)
                     .collect::<Vec<_>>();
             let elements =
                 lc.0.iter()
-                    .map(|term| self.linear_map.group_elements.get(term.elem))
+                    .map(|weighted| self.linear_map.group_elements.get(weighted.term.elem))
                     .collect::<Result<Vec<_>, Error>>()?;
             self.linear_map
                 .group_elements
-                .assign_element(*lhs, msm_pr(&coefficients, &elements))
+                .assign_element(*lhs, msm_pr(&weighted_coefficients, &elements))
         }
         Ok(())
     }
@@ -503,8 +571,8 @@ where
 
             // c. Each term: scalar index and point index
             for term in terms {
-                out.extend_from_slice(&(term.scalar().index() as u32).to_le_bytes());
-                out.extend_from_slice(&(term.elem().index() as u32).to_le_bytes());
+                out.extend_from_slice(&(term.scalar.index() as u32).to_le_bytes());
+                out.extend_from_slice(&(term.elem.index() as u32).to_le_bytes());
             }
         }
 
