@@ -164,7 +164,7 @@ impl<T, F: Field> From<Sum<T>> for Sum<Weighted<T, F>> {
 /// where `s_i` are scalars (referenced by `scalar_vars`) and `P_i` are group elements (referenced by `element_vars`).
 ///
 /// The indices refer to external lists managed by the containing LinearMap.
-pub type LinearCombination<G: Group> = Sum<Weighted<Term, G::Scalar>>;
+pub type LinearCombination<G> = Sum<Weighted<Term, <G as Group>::Scalar>>;
 
 /// Ordered mapping of [GroupVar] to group elements assignments.
 #[derive(Clone, Debug)]
@@ -553,29 +553,24 @@ where
     ///   - Nt × [scalar_index: u32, point_index: u32] term entries
     pub fn label(&self) -> Vec<u8> {
         let mut out = Vec::new();
+        let repr = self.standard_repr();
 
-        // 1. Number of equations (must match image vector length)
-        let ne = self.image.len();
-        assert_eq!(
-            ne,
-            self.linear_map.constraints.len(),
-            "Number of equations and image variables must match"
-        );
+        // 1. Number of equations
+        let ne = repr.len();
         out.extend_from_slice(&(ne as u32).to_le_bytes());
 
         // 2. Encode each equation
-        for (constraint, output_var) in self.linear_map.constraints.iter().zip(self.image.iter()) {
+        for (output_index, constraint) in repr {
             // a. Output point index (LHS)
-            out.extend_from_slice(&(output_var.index() as u32).to_le_bytes());
+            out.extend_from_slice(&output_index.to_le_bytes());
 
             // b. Number of terms in the RHS linear combination
-            let terms = constraint.terms();
-            out.extend_from_slice(&(terms.len() as u32).to_le_bytes());
+            out.extend_from_slice(&(constraint.len() as u32).to_le_bytes());
 
             // c. Each term: scalar index and point index
-            for term in terms {
-                out.extend_from_slice(&(term.scalar.index() as u32).to_le_bytes());
-                out.extend_from_slice(&(term.elem.index() as u32).to_le_bytes());
+            for (scalar_index, group_index) in constraint {
+                out.extend_from_slice(&scalar_index.to_le_bytes());
+                out.extend_from_slice(&group_index.to_le_bytes());
             }
         }
 
@@ -584,31 +579,58 @@ where
 
     /// Construct an equivalent linear relation in the standardized form, without weights and with
     /// a single group var on the left-hand side.
-    fn standard_repr(&self) -> Vec<(GroupVar, Sum<Term>)> {
-        let mut scaled_group_vars = BTreeMap::<usize, Vec<(G::Scalar, GroupVar)>>::new();
+    // NOTE: This function has a complimentary function that generates the Group elements for the
+    // remapped variables by multiplying their values by the assigned weights. This function can be
+    // called before the group elements are known, and when they are known the actual values can be
+    // assigned to the remapped indices.
+    fn standard_repr(&self) -> Vec<(u32, Vec<(u32, u32)>)> {
+        assert_eq!(
+            self.image.len(),
+            self.linear_map.constraints.len(),
+            "Number of equations and image variables must match"
+        );
+
+        // Create an allocator function to remap each (group_var, weight) pair to a new index.
+        // NOTE: Logically, this is a map of (usize, G::Scalar) => u32. However, Field does not
+        // implement Hash or Ord.
+        let mut remapping = BTreeMap::<usize, Vec<(G::Scalar, u32)>>::new();
+        let mut group_var_remap_index = 0u32;
+        let mut remap_var = |var: GroupVar, weight: G::Scalar| -> u32 {
+            let entry = remapping.entry(var.0).or_default();
+
+            // If the (weight, group_var) pair has already been assigned an index, use it.
+            if let Some(remapped_var) = entry.iter().find_map(|(entry_weight, remapped_var)| {
+                (weight == *entry_weight).then_some(remapped_var)
+            }) {
+                return *remapped_var;
+            }
+
+            // The (weight, group_var) pair has not been assigned an index, assign one now.
+            let remapped_var = group_var_remap_index;
+            entry.push((weight, remapped_var));
+            group_var_remap_index += 1;
+
+            remapped_var
+        };
+
+        // Iterate through the constraints, applying to remapping to weighed group variables and
+        // casting scalar vars to u32.
         let mut repr = Vec::new();
         for (image_var, equation) in iter::zip(&self.image, &self.linear_map.constraints) {
-            let mut eq_repr = Vec::<(GroupVar, Sum<Term>)>::new();
-            for weighted_term in equation.terms() {
-                let group_var = if weighted_term.weight == G::Scalar::ONE {
-                    weighted_term.term.elem
-                } else if let Some(var) = scaled_group_vars
-                    .get(&weighted_term.term.elem.0)
-                    .map(|vec| {
-                        vec.iter().find_map(|(weight, var)| {
-                            (weighted_term.weight == *weight).then_some(var)
-                        })
-                    })
-                    .flatten()
-                {
-                    *var
-                } else {
-                    todo!("allocate a new scaled group var")
-                };
-            }
+            let eq_repr: Vec<(u32, u32)> = equation
+                .terms()
+                .iter()
+                .map(|weighted_term| {
+                    (
+                        weighted_term.term.scalar.0 as u32,
+                        remap_var(weighted_term.term.elem, weighted_term.weight),
+                    )
+                })
+                .collect();
+            repr.push((remap_var(*image_var, G::Scalar::ONE), eq_repr));
         }
 
-        todo!()
+        repr
     }
 
     /// Convert this LinearRelation into a non-interactive zero-knowledge protocol
