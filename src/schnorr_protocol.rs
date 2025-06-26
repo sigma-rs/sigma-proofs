@@ -108,10 +108,11 @@ where
             return Err(Error::ProofSizeMismatch);
         }
 
-        let mut responses = Vec::new();
-        for i in 0..self.witness_length() {
-            responses.push(nonces[i] + witness[i] * challenge);
-        }
+        let responses = nonces
+            .into_iter()
+            .zip(witness)
+            .map(|(r, w)| r + w * challenge)
+            .collect();
         Ok(responses)
     }
     /// Verifies the correctness of the proof.
@@ -148,9 +149,10 @@ where
                 self.0.linear_map.group_elements.get(image_var)? * challenge + g
             });
         }
-        match lhs == rhs {
-            true => Ok(()),
-            false => Err(Error::VerificationFailure),
+        if lhs == rhs {
+            Ok(())
+        } else {
+            Err(Error::VerificationFailure)
         }
     }
 
@@ -229,10 +231,11 @@ where
         let response_image = self.0.linear_map.evaluate(response)?;
         let image = self.0.image()?;
 
-        let mut commitment = Vec::new();
-        for i in 0..image.len() {
-            commitment.push(response_image[i] - image[i] * challenge);
-        }
+        let commitment = response_image
+            .iter()
+            .zip(&image)
+            .map(|(res, img)| *res - *img * challenge)
+            .collect::<Vec<_>>();
         Ok(commitment)
     }
 }
