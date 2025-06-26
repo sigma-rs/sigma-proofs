@@ -156,54 +156,98 @@ where
         }
     }
 
-    /// Serializes the proof into a batchable format: commitments followed by responses.
+    /// Serializes the prover's commitment into a byte vector.
+    ///
+    /// This function encodes the vector of group elements (the commitment)
+    /// into a binary format suitable for transmission or storage. This is
+    /// typically the first message sent in a Sigma protocol round.
     ///
     /// # Parameters
-    /// - `commitment`: A vector of group elements (typically sent in the first round).
-    /// - `_challenge`: The verifier’s challenge (omitted from batchable format).
-    /// - `response`: A vector of scalars forming the prover’s response.
+    /// - `commitment`: A vector of group elements representing the prover's commitment.
     ///
     /// # Returns
-    /// - A byte vector representing the serialized batchable proof.
-    ///
-    /// # Errors
-    /// - [`Error::ProofSizeMismatch`] if the commitment or response length is incorrect.
+    /// A `Vec<u8>` containing the serialized group elements.
     fn serialize_commitment(&self, commitment: &Self::Commitment) -> Vec<u8> {
         serialize_elements(commitment)
     }
 
+    /// Serializes the verifier's challenge scalar into bytes.
+    ///
+    /// Converts the challenge scalar into a fixed-length byte encoding. This can be used
+    /// for Fiat–Shamir hashing, transcript recording, or proof transmission.
+    ///
+    /// # Parameters
+    /// - `challenge`: The scalar challenge value.
+    ///
+    /// # Returns
+    /// A `Vec<u8>` containing the serialized scalar.
     fn serialize_challenge(&self, challenge: &Self::Challenge) -> Vec<u8> {
         serialize_scalars::<G>(&[*challenge])
     }
 
+    /// Serializes the prover's response vector into a byte format.
+    ///
+    /// The response is a vector of scalars computed by the prover after receiving
+    /// the verifier's challenge. This function encodes the vector into a format
+    /// suitable for transmission or inclusion in a batchable proof.
+    ///
+    /// # Parameters
+    /// - `response`: A vector of scalar responses computed by the prover.
+    ///
+    /// # Returns
+    /// A `Vec<u8>` containing the serialized scalars.
     fn serialize_response(&self, response: &Self::Response) -> Vec<u8> {
         serialize_scalars::<G>(response)
     }
 
-    /// Deserializes a batchable proof into a commitment vector and response vector.
+    /// Deserializes a byte slice into a vector of group elements (commitment).
+    ///
+    /// This function reconstructs the prover’s commitment from its binary representation.
+    /// The number of elements expected is determined by the number of linear constraints
+    /// in the underlying linear relation.
     ///
     /// # Parameters
-    /// - `data`: A byte slice containing the serialized proof.
+    /// - `data`: A byte slice containing the serialized commitment.
     ///
     /// # Returns
-    /// - A tuple `(commitment, response)` where
-    ///   * `commitment` is a vector of group elements, and
-    ///   * `response` is a vector of scalars.
+    /// A `Vec<G>` containing the deserialized group elements.
     ///
     /// # Errors
-    /// - [`Error::ProofSizeMismatch`] if the input length is not the exact number of bytes
-    ///   expected for `commit_nb` commitments plus `response_nb` responses.
-    /// - [`Error::VerificationFailure`] if any group element or scalar fails to
-    ///   deserialize (invalid encoding).
+    /// - Returns [`Error::VerificationFailure`] if the data is malformed or contains an invalid encoding.
     fn deserialize_commitment(&self, data: &[u8]) -> Result<Self::Commitment, Error> {
         deserialize_elements::<G>(data, self.commitment_length()).ok_or(Error::VerificationFailure)
     }
 
+    /// Deserializes a byte slice into a challenge scalar.
+    ///
+    /// This function expects a single scalar to be encoded and returns it as the verifier's challenge.
+    ///
+    /// # Parameters
+    /// - `data`: A byte slice containing the serialized scalar challenge.
+    ///
+    /// # Returns
+    /// The deserialized scalar challenge value.
+    ///
+    /// # Errors
+    /// - Returns [`Error::VerificationFailure`] if deserialization fails or data is invalid.
     fn deserialize_challenge(&self, data: &[u8]) -> Result<Self::Challenge, Error> {
         let scalars = deserialize_scalars::<G>(data, 1).ok_or(Error::VerificationFailure)?;
         Ok(scalars[0])
     }
 
+    /// Deserializes a byte slice into the prover's response vector.
+    ///
+    /// The response vector contains scalars used in the second round of the Sigma protocol.
+    /// The expected number of scalars matches the number of witness variables.
+    ///
+    /// # Parameters
+    /// - `data`: A byte slice containing the serialized response.
+    ///
+    /// # Returns
+    /// A vector of deserialized scalars.
+    ///
+    /// # Errors
+    /// - Returns [`Error::VerificationFailure`] if the byte data is malformed or the length is incorrect.
     fn deserialize_response(&self, data: &[u8]) -> Result<Self::Response, Error> {
         deserialize_scalars::<G>(data, self.witness_length()).ok_or(Error::VerificationFailure)
     }
