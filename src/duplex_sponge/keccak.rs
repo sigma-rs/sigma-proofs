@@ -124,5 +124,4 @@ mod tests {
         assert_eq!(out1, expected_output);
         assert_eq!(out2, expected_output);
     }
-
 }
