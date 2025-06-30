@@ -7,7 +7,7 @@ use crate::serialization::{
     deserialize_elements, deserialize_scalars, serialize_elements, serialize_scalars,
 };
 use crate::tests::spec::random::SRandom;
-use crate::traits::SigmaProtocol;
+use crate::traits::{SigmaProtocol, SigmaProtocolSimulator};
 
 pub struct SchnorrProtocolCustom<G: SRandom + GroupEncoding>(pub LinearRelation<G>);
 
@@ -113,7 +113,16 @@ where
         deserialize_scalars::<G>(data, self.0.linear_map.num_scalars)
             .ok_or(Error::VerificationFailure)
     }
+    fn instance_label(&self) -> impl AsRef<[u8]> {
+        self.0.label()
+    }
 
+    fn protocol_identifier(&self) -> impl AsRef<[u8]> {
+        b"draft-zkproof-fiat-shamir"
+    }
+}
+
+impl<G: SRandom + GroupEncoding> SigmaProtocolSimulator for SchnorrProtocolCustom<G> {
     fn simulate_commitment(
         &self,
         challenge: &Self::Challenge,
@@ -133,11 +142,19 @@ where
         Ok(commitment)
     }
 
-    fn instance_label(&self) -> impl AsRef<[u8]> {
-        self.0.label()
+    fn simulate_response<R: Rng + CryptoRng>(&self, rng: &mut R) -> Self::Response {
+        (0..self.0.linear_map.num_scalars)
+            .map(|_| <G as SRandom>::srandom(rng))
+            .collect()
     }
 
-    fn protocol_identifier(&self) -> impl AsRef<[u8]> {
-        b"draft-zkproof-fiat-shamir"
+    fn simulate_transcript<R: Rng + CryptoRng>(
+        &self,
+        rng: &mut R,
+    ) -> Result<(Self::Commitment, Self::Challenge, Self::Response), Error> {
+        let challenge = <G as SRandom>::srandom(rng);
+        let response = self.simulate_response(rng);
+        let commitment = self.simulate_commitment(&challenge, &response)?;
+        Ok((commitment, challenge, response))
     }
 }

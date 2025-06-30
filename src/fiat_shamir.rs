@@ -12,9 +12,9 @@
 //! - `P`: the underlying Sigma protocol ([`SigmaProtocol`] trait).
 //! - `C`: the codec ([`Codec`] trait).
 
-use crate::codec::Codec;
 use crate::errors::Error;
 use crate::traits::SigmaProtocol;
+use crate::{codec::Codec, traits::SigmaProtocolSimulator};
 
 use rand::{CryptoRng, RngCore};
 
@@ -211,7 +211,7 @@ where
 
 impl<P, C> NISigmaProtocol<P, C>
 where
-    P: SigmaProtocol,
+    P: SigmaProtocol + SigmaProtocolSimulator,
     P::Challenge: PartialEq,
     C: Codec<Challenge = P::Challenge> + Clone,
 {

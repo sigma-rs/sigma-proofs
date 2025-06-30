@@ -15,7 +15,7 @@ use crate::{
 
 use ff::Field;
 use group::{Group, GroupEncoding};
-use rand::{CryptoRng, RngCore};
+use rand::{CryptoRng, Rng, RngCore};
 
 /// A Schnorr protocol proving knowledge of a witness for a linear group relation.
 ///
@@ -259,6 +259,43 @@ where
     fn protocol_identifier(&self) -> impl AsRef<[u8]> {
         b"SchnorrProof"
     }
+}
+
+impl<G> SigmaProtocolSimulator for SchnorrProof<G>
+where
+    G: Group + GroupEncoding,
+{
+    /// Simulates a valid transcript for a given challenge without a witness.
+    ///
+    /// # Parameters
+    /// - `challenge`: A scalar value representing the challenge.
+    /// - `rng`: A cryptographically secure RNG.
+    ///
+    /// # Returns
+    /// - A commitment and response forming a valid proof for the given challenge.
+    fn simulate_response<R: Rng + CryptoRng>(&self, mut rng: &mut R) -> Self::Response {
+        let response: Vec<G::Scalar> = (0..self.witness_length())
+            .map(|_| G::Scalar::random(&mut rng))
+            .collect();
+        response
+    }
+
+    /// Simulates a full proof transcript using a randomly generated challenge.
+    ///
+    /// # Parameters
+    /// - `rng`: A cryptographically secure RNG.
+    ///
+    /// # Returns
+    /// - A tuple `(commitment, challenge, response)` forming a valid proof.
+    fn simulate_transcript<R: Rng + CryptoRng>(
+        &self,
+        rng: &mut R,
+    ) -> Result<(Self::Commitment, Self::Challenge, Self::Response), Error> {
+        let challenge = G::Scalar::random(&mut *rng);
+        let response = self.simulate_response(&mut *rng);
+        let commitment = self.simulate_commitment(&challenge, &response)?;
+        Ok((commitment, challenge, response))
+    }
 
     /// Recomputes the commitment from the challenge and response (used in compact proofs).
     ///
@@ -289,49 +326,5 @@ where
             .map(|(res, img)| *res - *img * challenge)
             .collect::<Vec<_>>();
         Ok(commitment)
-    }
-}
-
-impl<G> SigmaProtocolSimulator for SchnorrProof<G>
-where
-    G: Group + GroupEncoding,
-{
-    /// Simulates a valid transcript for a given challenge without a witness.
-    ///
-    /// # Parameters
-    /// - `challenge`: A scalar value representing the challenge.
-    /// - `rng`: A cryptographically secure RNG.
-    ///
-    /// # Returns
-    /// - A commitment and response forming a valid proof for the given challenge.
-    fn simulate_proof(
-        &self,
-        challenge: &Self::Challenge,
-        mut rng: &mut (impl RngCore + CryptoRng),
-    ) -> (Self::Commitment, Self::Response) {
-        let response: Vec<G::Scalar> = (0..self.witness_length())
-            .map(|_| G::Scalar::random(&mut rng))
-            .collect();
-
-        // Use simulate_commitment to compute the commitment
-        let commitment = self.simulate_commitment(challenge, &response).unwrap();
-
-        (commitment, response)
-    }
-
-    /// Simulates a full proof transcript using a randomly generated challenge.
-    ///
-    /// # Parameters
-    /// - `rng`: A cryptographically secure RNG.
-    ///
-    /// # Returns
-    /// - A tuple `(commitment, challenge, response)` forming a valid proof.
-    fn simulate_transcript(
-        &self,
-        mut rng: &mut (impl RngCore + CryptoRng),
-    ) -> (Self::Commitment, Self::Challenge, Self::Response) {
-        let challenge = G::Scalar::random(&mut rng);
-        let (commitment, response) = self.simulate_proof(&challenge, rng);
-        (commitment, challenge, response)
     }
 }
