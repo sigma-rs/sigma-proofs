@@ -67,7 +67,6 @@ impl<G: Group> From<(ScalarVar<G>, GroupVar<G>)> for Weighted<Term<G>, G::Scalar
     }
 }
 
-// TODO: Should this be generic over the field instead of the group?
 #[derive(Copy, Clone, Debug)]
 pub struct Weighted<T, F> {
     pub term: T,
