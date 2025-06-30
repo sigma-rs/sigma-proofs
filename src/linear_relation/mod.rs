@@ -142,9 +142,11 @@ impl<T, F: Field> From<Sum<T>> for Sum<Weighted<T, F>> {
 /// Represents a sparse linear combination of scalars and group elements.
 ///
 /// For example, it can represent an equation like:
-/// `s_1 * P_1 + s_2 * P_2 + ... + s_n * P_n`
+/// `w_1 * (s_1 * P_1) + w_2 * (s_2 * P_2) + ... + w_n * (s_n * P_n)`
 ///
-/// where `s_i` are scalars (referenced by `scalar_vars`) and `P_i` are group elements (referenced by `element_vars`).
+/// where:
+/// - `(s_i * P_i)` are the terms, with `s_i` scalars (referenced by `scalar_vars`) and `P_i` group elements (referenced by `element_vars`).
+/// - `w_i` are the constant weight scalars
 ///
 /// The indices refer to external lists managed by the containing LinearMap.
 pub type LinearCombination<G> = Sum<Weighted<Term<G>, <G as Group>::Scalar>>;
@@ -368,22 +370,21 @@ where
     }
 
     /// Adds a new equation to the statement of the form:
-    /// `lhs = Σ (scalar_i * point_i)`.
+    /// `lhs = Σ weight_i * (scalar_i * point_i)`.
     ///
     /// # Parameters
     /// - `lhs`: The image group element variable (left-hand side of the equation).
-    /// - `rhs`: A slice of `(ScalarVar, GroupVar)` pairs representing the linear combination on the right-hand side.
+    /// - `rhs`: An instance of [`LinearCombination`] representing the linear combination on the right-hand side.
     pub fn append_equation(&mut self, lhs: GroupVar<G>, rhs: impl Into<LinearCombination<G>>) {
         self.linear_map.append(rhs.into());
         self.image.push(lhs);
     }
 
     /// Adds a new equation to the statement of the form:
-    /// `lhs = Σ (scalar_i * point_i)`.
+    /// `lhs = Σ weight_i * (scalar_i * point_i)` without allocating `lhs`.
     ///
     /// # Parameters
-    /// - `lhs`: The image group element variable (left-hand side of the equation).
-    /// - `rhs`: A slice of `(ScalarVar, GroupVar)` pairs representing the linear combination on the right-hand side.
+    /// - `rhs`: An instance of [`LinearCombination`] representing the linear combination on the right-hand side.
     pub fn allocate_eq(&mut self, rhs: impl Into<LinearCombination<G>>) -> GroupVar<G> {
         let var = self.allocate_element();
         self.append_equation(var, rhs);
