@@ -81,15 +81,6 @@ pub trait SigmaProtocol {
     fn protocol_identifier(&self) -> impl AsRef<[u8]>;
 
     fn instance_label(&self) -> impl AsRef<[u8]>;
-
-    /// Simulates a commitment for which ('commitment', 'challenge', 'response') is a valid transcript.
-    ///
-    /// This function allows to omit commitment in compact proofs of the type ('challenge', 'response').
-    fn simulate_commitment(
-        &self,
-        challenge: &Self::Challenge,
-        response: &Self::Response,
-    ) -> Result<Self::Commitment, Error>;
 }
 
 /// A trait defining the behavior of a Sigma protocol for which simulation of transcripts is necessary.
@@ -105,15 +96,20 @@ pub trait SigmaProtocolSimulator: SigmaProtocol {
     /// Simulates a protocol transcript given a challenge.
     ///
     /// This serves to create zero-knowledge simulations without access to a witness.
-    fn simulate_proof(
+    fn simulate_response<R: Rng + CryptoRng>(&self, rng: &mut R) -> Self::Response;
+
+    /// Simulates a commitment for which ('commitment', 'challenge', 'response') is a valid transcript.
+    ///
+    /// This function allows to omit commitment in compact proofs of the type ('challenge', 'response').
+    fn simulate_commitment(
         &self,
         challenge: &Self::Challenge,
-        rng: &mut (impl Rng + CryptoRng),
-    ) -> (Self::Commitment, Self::Response);
+        response: &Self::Response,
+    ) -> Result<Self::Commitment, Error>;
 
     /// Simulates an entire protocol transcript.
-    fn simulate_transcript(
+    fn simulate_transcript<R: Rng + CryptoRng>(
         &self,
-        rng: &mut (impl Rng + CryptoRng),
-    ) -> (Self::Commitment, Self::Challenge, Self::Response);
+        rng: &mut R,
+    ) -> Result<(Self::Commitment, Self::Challenge, Self::Response), Error>;
 }
