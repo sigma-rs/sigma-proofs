@@ -95,9 +95,9 @@ fn main() {
             // Verify the proof
             match verify(P1, P2, Q, H, &proof) {
                 Ok(()) => println!("✓ Proof verified successfully!"),
-                Err(e) => println!("✗ Proof verification failed: {:?}", e),
+                Err(e) => println!("✗ Proof verification failed: {e:?}"),
             }
         }
-        Err(e) => println!("✗ Failed to generate proof: {:?}", e),
+        Err(e) => println!("✗ Failed to generate proof: {e:?}"),
     }
 }
