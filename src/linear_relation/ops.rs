@@ -246,10 +246,24 @@ mod neg {
         }
     }
 
-    // TODO: Find a way to negate ScalarVar, GroupVar, and Term. One option would be to make these
-    // types generic, such that they carry with them what type they can be multiplied by. Another
-    // option is to add a Negated struct, that acts like weighted by specifically for negative one
-    // (and without the requirement that the field by known at that point).
+    macro_rules! impl_neg_term {
+        ($($type:ty),+) => {
+            $(
+            impl<G: Group> Neg for $type {
+                type Output = Weighted<$type, G::Scalar>;
+
+                fn neg(self) -> Self::Output {
+                    Weighted {
+                        term: self,
+                        weight: -G::Scalar::ONE,
+                    }
+                }
+            }
+            )+
+        };
+    }
+
+    impl_neg_term!(ScalarVar<G>, GroupVar<G>, Term<G>);
 }
 
 mod sub {
@@ -281,5 +295,24 @@ mod sub {
         }
     }
 
-    // TODO: Add additionall impls
+    macro_rules! impl_sub_as_neg_add {
+        ($($type:ty),+) => {
+            $(
+            impl<G, Rhs> Sub<Rhs> for $type
+            where
+                Rhs: Neg,
+                <Rhs as Neg>::Output: Add<Self>,
+            {
+                type Output = <<Rhs as Neg>::Output as Add<Self>>::Output;
+
+                #[allow(clippy::suspicious_arithmetic_impl)]
+                fn sub(self, rhs: Rhs) -> Self::Output {
+                    rhs.neg() + self
+                }
+            }
+            )+
+        };
+    }
+
+    impl_sub_as_neg_add!(ScalarVar<G>, GroupVar<G>, Term<G>);
 }
