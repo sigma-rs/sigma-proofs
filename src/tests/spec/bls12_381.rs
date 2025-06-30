@@ -58,7 +58,7 @@ impl SRandom for G1Projective {
         let rand = Self::randint_big(&low, &high, rng);
         let mut hex_string = rand.to_str_radix(16);
         if hex_string.len() < 64 {
-            hex_string = format!("{:0>64}", hex_string); // pad à gauche avec des zéros
+            hex_string = format!("{hex_string:0>64}");
         }
         G1Projective::scalar_from_hex_be(&hex_string).unwrap()
     }
