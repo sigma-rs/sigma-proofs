@@ -49,7 +49,7 @@ impl<G> GroupVar<G> {
 }
 
 /// A term in a linear combination, representing `scalar * elem`.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Term<G> {
     scalar: ScalarVar<G>,
     elem: GroupVar<G>,
