@@ -252,6 +252,14 @@ where
         deserialize_scalars::<G>(data, self.witness_length()).ok_or(Error::VerificationFailure)
     }
 
+    fn instance_label(&self) -> impl AsRef<[u8]> {
+        self.0.label()
+    }
+
+    fn protocol_id(&self) -> impl AsRef<[u8]> {
+        b"SchnorrProof"
+    }
+
     /// Recomputes the commitment from the challenge and response (used in compact proofs).
     ///
     /// # Parameters

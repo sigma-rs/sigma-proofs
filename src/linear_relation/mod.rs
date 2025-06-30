@@ -14,7 +14,10 @@ use std::iter;
 use ff::Field;
 use group::{Group, GroupEncoding};
 
+use crate::codec::ShakeCodec;
 use crate::errors::Error;
+use crate::schnorr_protocol::SchnorrProof;
+use crate::NISigmaProtocol;
 
 /// Implementations of core ops for the linear combination types.
 mod ops;
@@ -49,10 +52,6 @@ pub struct Term {
     scalar: ScalarVar,
     elem: GroupVar,
 }
-
-// QUESTION: Why have accessor functions? Its not generally ideomatic in Rust, which prefers public
-// fields. One reason for this is that, unlike C++ of Java, Rust has strong notions of immutability
-// in that a normal reference to an object cannot be used to mutate its fields.
 
 impl From<(ScalarVar, GroupVar)> for Term {
     fn from((scalar, elem): (ScalarVar, GroupVar)) -> Self {
@@ -666,15 +665,15 @@ where
     /// ```
     pub fn into_nizk(
         self,
-        context: &[u8],
-    ) -> crate::fiat_shamir::NISigmaProtocol<
-        crate::schnorr_protocol::SchnorrProof<G>,
-        crate::codec::ShakeCodec<G>,
+        session_identifier: &[u8],
+    ) -> NISigmaProtocol<
+        SchnorrProof<G>,
+        ShakeCodec<G>,
     >
     where
         G: group::GroupEncoding,
     {
-        let schnorr = crate::schnorr_protocol::SchnorrProof::from(self);
-        crate::fiat_shamir::NISigmaProtocol::new(context, schnorr)
+        let schnorr = SchnorrProof::from(self);
+        NISigmaProtocol::new(session_identifier, schnorr)
     }
 }

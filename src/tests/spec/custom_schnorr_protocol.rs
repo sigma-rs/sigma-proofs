@@ -132,4 +132,12 @@ where
         }
         Ok(commitment)
     }
+
+    fn instance_label(&self) -> impl AsRef<[u8]> {
+        self.0.label()
+    }
+
+    fn protocol_id(&self) -> impl AsRef<[u8]> {
+        b"draft-zkproof-fiat-shamir"
+    }
 }
