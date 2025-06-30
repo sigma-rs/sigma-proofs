@@ -8,8 +8,6 @@
 //! - Mismatched parameters during batch verification.
 //! - Uninitialized group variables.
 
-use crate::linear_relation::GroupVar;
-
 /// An error during proving or verification, such as a verification failure.
 #[non_exhaustive]
 #[derive(Debug, thiserror::Error)]
@@ -21,6 +19,6 @@ pub enum Error {
     #[error("Mismatched parameter sizes for batch verification.")]
     ProofSizeMismatch,
     /// Uninitialized group element variable.
-    #[error("Uninitialized group element variable {var:?}")]
-    UnassignedGroupVar { var: GroupVar },
+    #[error("Uninitialized group element variable: {var_debug}")]
+    UnassignedGroupVar { var_debug: String },
 }

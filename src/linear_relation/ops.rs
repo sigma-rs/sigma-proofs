@@ -1,5 +1,6 @@
 use core::ops::{Add, Mul, Neg, Sub};
 use ff::Field;
+use group::Group;
 
 use super::{GroupVar, ScalarVar, Sum, Term, Weighted};
 
@@ -9,7 +10,7 @@ mod add {
     macro_rules! impl_add_term {
         ($($type:ty),+) => {
             $(
-            impl Add<$type> for $type {
+            impl<G> Add<$type> for $type {
                 type Output = Sum<$type>;
 
                 fn add(self, rhs: $type) -> Self::Output {
@@ -20,7 +21,7 @@ mod add {
         };
     }
 
-    impl_add_term!(ScalarVar, GroupVar, Term);
+    impl_add_term!(ScalarVar<G>, GroupVar<G>, Term<G>);
 
     impl<T> Add<T> for Sum<T> {
         type Output = Sum<T>;
@@ -34,7 +35,7 @@ mod add {
     macro_rules! impl_add_sum_term {
         ($($type:ty),+) => {
             $(
-            impl Add<Sum<$type>> for $type {
+            impl<G> Add<Sum<$type>> for $type {
                 type Output = Sum<$type>;
 
                 fn add(self, rhs: Sum<$type>) -> Self::Output {
@@ -45,7 +46,7 @@ mod add {
         };
     }
 
-    impl_add_sum_term!(ScalarVar, GroupVar, Term);
+    impl_add_sum_term!(ScalarVar<G>, GroupVar<G>, Term<G>);
 
     impl<T> Add<Sum<T>> for Sum<T> {
         type Output = Sum<T>;
@@ -75,10 +76,10 @@ mod add {
     macro_rules! impl_add_weighted_term {
         ($($type:ty),+) => {
             $(
-            impl<F: Field> Add<Weighted<$type, F>> for $type {
-                type Output = Sum<Weighted<$type, F>>;
+            impl<G: Group> Add<Weighted<$type, G::Scalar>> for $type {
+                type Output = Sum<Weighted<$type, G::Scalar>>;
 
-                fn add(self, rhs: Weighted<$type, F>) -> Self::Output {
+                fn add(self, rhs: Weighted<$type, G::Scalar>) -> Self::Output {
                     rhs + self
                 }
             }
@@ -86,7 +87,7 @@ mod add {
         };
     }
 
-    impl_add_weighted_term!(ScalarVar, GroupVar, Term);
+    impl_add_weighted_term!(ScalarVar<G>, GroupVar<G>, Term<G>);
 
     impl<T, F: Field> Add<T> for Sum<Weighted<T, F>> {
         type Output = Sum<Weighted<T, F>>;
@@ -100,10 +101,10 @@ mod add {
     macro_rules! impl_add_weighted_sum_term {
         ($($type:ty),+) => {
             $(
-            impl<F: Field> Add<Sum<Weighted<$type, F>>> for $type {
-                type Output = Sum<Weighted<$type, F>>;
+            impl<G: Group> Add<Sum<Weighted<$type, G::Scalar>>> for $type {
+                type Output = Sum<Weighted<$type, G::Scalar>>;
 
-                fn add(self, rhs: Sum<Weighted<$type, F>>) -> Self::Output {
+                fn add(self, rhs: Sum<Weighted<$type, G::Scalar>>) -> Self::Output {
                     rhs + self
                 }
             }
@@ -111,17 +112,17 @@ mod add {
         };
     }
 
-    impl_add_weighted_sum_term!(ScalarVar, GroupVar, Term);
+    impl_add_weighted_sum_term!(ScalarVar<G>, GroupVar<G>, Term<G>);
 }
 
 mod mul {
     use super::*;
 
-    impl Mul<ScalarVar> for GroupVar {
-        type Output = Term;
+    impl<G> Mul<ScalarVar<G>> for GroupVar<G> {
+        type Output = Term<G>;
 
         /// Multiply a [ScalarVar] by a [GroupVar] to form a new [Term].
-        fn mul(self, rhs: ScalarVar) -> Term {
+        fn mul(self, rhs: ScalarVar<G>) -> Term<G> {
             Term {
                 elem: self,
                 scalar: rhs,
@@ -129,11 +130,11 @@ mod mul {
         }
     }
 
-    impl Mul<GroupVar> for ScalarVar {
-        type Output = Term;
+    impl<G> Mul<GroupVar<G>> for ScalarVar<G> {
+        type Output = Term<G>;
 
         /// Multiply a [ScalarVar] by a [GroupVar] to form a new [Term].
-        fn mul(self, rhs: GroupVar) -> Term {
+        fn mul(self, rhs: GroupVar<G>) -> Term<G> {
             rhs * self
         }
     }
@@ -154,13 +155,14 @@ mod mul {
     macro_rules! impl_scalar_mul_term {
         ($($type:ty),+) => {
             $(
-            impl<F: Field> Mul<F> for $type {
-                type Output = Weighted<$type, F>;
+            // NOTE: Rust does not like this impl when F is replaced by G::Scalar.
+            impl<F: Field + Into<G::Scalar>, G: Group> Mul<F> for $type {
+                type Output = Weighted<$type, G::Scalar>;
 
                 fn mul(self, rhs: F) -> Self::Output {
                     Weighted {
                         term: self,
-                        weight: rhs,
+                        weight: rhs.into(),
                     }
                 }
             }
@@ -168,7 +170,7 @@ mod mul {
         };
     }
 
-    impl_scalar_mul_term!(ScalarVar, GroupVar, Term);
+    impl_scalar_mul_term!(ScalarVar<G>, GroupVar<G>, Term<G>);
 
     impl<T, F: Field> Mul<F> for Weighted<T, F> {
         type Output = Weighted<T, F>;
@@ -181,10 +183,10 @@ mod mul {
         }
     }
 
-    impl<F: Field> Mul<ScalarVar> for Weighted<GroupVar, F> {
-        type Output = Weighted<Term, F>;
+    impl<G: Group> Mul<ScalarVar<G>> for Weighted<GroupVar<G>, G::Scalar> {
+        type Output = Weighted<Term<G>, G::Scalar>;
 
-        fn mul(self, rhs: ScalarVar) -> Self::Output {
+        fn mul(self, rhs: ScalarVar<G>) -> Self::Output {
             Weighted {
                 term: self.term * rhs,
                 weight: self.weight,
@@ -192,18 +194,18 @@ mod mul {
         }
     }
 
-    impl<F: Field> Mul<Weighted<GroupVar, F>> for ScalarVar {
-        type Output = Weighted<Term, F>;
+    impl<G: Group> Mul<Weighted<GroupVar<G>, G::Scalar>> for ScalarVar<G> {
+        type Output = Weighted<Term<G>, G::Scalar>;
 
-        fn mul(self, rhs: Weighted<GroupVar, F>) -> Self::Output {
+        fn mul(self, rhs: Weighted<GroupVar<G>, G::Scalar>) -> Self::Output {
             rhs * self
         }
     }
 
-    impl<F: Field> Mul<GroupVar> for Weighted<ScalarVar, F> {
-        type Output = Weighted<Term, F>;
+    impl<G: Group> Mul<GroupVar<G>> for Weighted<ScalarVar<G>, G::Scalar> {
+        type Output = Weighted<Term<G>, G::Scalar>;
 
-        fn mul(self, rhs: GroupVar) -> Self::Output {
+        fn mul(self, rhs: GroupVar<G>) -> Self::Output {
             Weighted {
                 term: self.term * rhs,
                 weight: self.weight,
@@ -211,10 +213,10 @@ mod mul {
         }
     }
 
-    impl<F: Field> Mul<Weighted<ScalarVar, F>> for GroupVar {
-        type Output = Weighted<Term, F>;
+    impl<G: Group> Mul<Weighted<ScalarVar<G>, G::Scalar>> for GroupVar<G> {
+        type Output = Weighted<Term<G>, G::Scalar>;
 
-        fn mul(self, rhs: Weighted<ScalarVar, F>) -> Self::Output {
+        fn mul(self, rhs: Weighted<ScalarVar<G>, G::Scalar>) -> Self::Output {
             rhs * self
         }
     }

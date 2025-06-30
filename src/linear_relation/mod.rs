@@ -10,6 +10,7 @@
 
 use std::collections::BTreeMap;
 use std::iter;
+use std::marker::PhantomData;
 
 use ff::Field;
 use group::{Group, GroupEncoding};
@@ -27,9 +28,9 @@ mod ops;
 ///
 /// Used to reference scalars in sparse linear combinations.
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
-pub struct ScalarVar(usize);
+pub struct ScalarVar<G>(usize, PhantomData<G>);
 
-impl ScalarVar {
+impl<G> ScalarVar<G> {
     pub fn index(&self) -> usize {
         self.0
     }
@@ -39,9 +40,9 @@ impl ScalarVar {
 ///
 /// Used to reference group elements in sparse linear combinations.
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
-pub struct GroupVar(usize);
+pub struct GroupVar<G>(usize, PhantomData<G>);
 
-impl GroupVar {
+impl<G> GroupVar<G> {
     pub fn index(&self) -> usize {
         self.0
     }
@@ -49,19 +50,19 @@ impl GroupVar {
 
 /// A term in a linear combination, representing `scalar * elem`.
 #[derive(Copy, Clone, Debug)]
-pub struct Term {
-    scalar: ScalarVar,
-    elem: GroupVar,
+pub struct Term<G> {
+    scalar: ScalarVar<G>,
+    elem: GroupVar<G>,
 }
 
-impl From<(ScalarVar, GroupVar)> for Term {
-    fn from((scalar, elem): (ScalarVar, GroupVar)) -> Self {
+impl<G> From<(ScalarVar<G>, GroupVar<G>)> for Term<G> {
+    fn from((scalar, elem): (ScalarVar<G>, GroupVar<G>)) -> Self {
         Self { scalar, elem }
     }
 }
 
-impl<F: Field> From<(ScalarVar, GroupVar)> for Weighted<Term, F> {
-    fn from(pair: (ScalarVar, GroupVar)) -> Self {
+impl<G: Group> From<(ScalarVar<G>, GroupVar<G>)> for Weighted<Term<G>, G::Scalar> {
+    fn from(pair: (ScalarVar<G>, GroupVar<G>)) -> Self {
         Term::from(pair).into()
     }
 }
@@ -97,49 +98,25 @@ impl<T> Sum<T> {
 macro_rules! impl_from_for_sum {
     ($($type:ty),+) => {
         $(
-        impl<T: Into<$type>> From<T> for Sum<$type> {
+        impl<G: Group, T: Into<$type>> From<T> for Sum<$type> {
             fn from(value: T) -> Self {
                 Sum(vec![value.into()])
             }
         }
 
-        impl<T: Into<$type>> From<Vec<T>> for Sum<$type> {
+        impl<G: Group, T: Into<$type>> From<Vec<T>> for Sum<$type> {
             fn from(terms: Vec<T>) -> Self {
                 Self::from_iter(terms)
             }
         }
 
-        impl<T: Into<$type>, const N: usize> From<[T; N]> for Sum<$type> {
+        impl<G: Group, T: Into<$type>, const N: usize> From<[T; N]> for Sum<$type> {
             fn from(terms: [T; N]) -> Self {
                 Self::from_iter(terms)
             }
         }
 
-        impl<T: Into<$type>> FromIterator<T> for Sum<$type> {
-            fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
-                Self(iter.into_iter().map(|x| x.into()).collect())
-            }
-        }
-
-        impl<F, T: Into<Weighted<$type, F>>> From<T> for Sum<Weighted<$type, F>> {
-            fn from(value: T) -> Self {
-                Sum(vec![value.into()])
-            }
-        }
-
-        impl<F, T: Into<Weighted<$type, F>>> From<Vec<T>> for Sum<Weighted<$type, F>> {
-            fn from(terms: Vec<T>) -> Self {
-                Self::from_iter(terms)
-            }
-        }
-
-        impl<F, T: Into<Weighted<$type, F>>, const N: usize> From<[T; N]> for Sum<Weighted<$type, F>> {
-            fn from(terms: [T; N]) -> Self {
-                Self::from_iter(terms)
-            }
-        }
-
-        impl<F, T: Into<Weighted<$type, F>>> FromIterator<T> for Sum<Weighted<$type, F>> {
+        impl<G: Group, T: Into<$type>> FromIterator<T> for Sum<$type> {
             fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
                 Self(iter.into_iter().map(|x| x.into()).collect())
             }
@@ -148,7 +125,14 @@ macro_rules! impl_from_for_sum {
     };
 }
 
-impl_from_for_sum!(ScalarVar, GroupVar, Term);
+impl_from_for_sum!(
+    ScalarVar<G>,
+    GroupVar<G>,
+    Term<G>,
+    Weighted<ScalarVar<G>, G::Scalar>,
+    Weighted<GroupVar<G>, G::Scalar>,
+    Weighted<Term<G>, G::Scalar>
+);
 
 impl<T, F: Field> From<Sum<T>> for Sum<Weighted<T, F>> {
     fn from(sum: Sum<T>) -> Self {
@@ -164,7 +148,7 @@ impl<T, F: Field> From<Sum<T>> for Sum<Weighted<T, F>> {
 /// where `s_i` are scalars (referenced by `scalar_vars`) and `P_i` are group elements (referenced by `element_vars`).
 ///
 /// The indices refer to external lists managed by the containing LinearMap.
-pub type LinearCombination<G> = Sum<Weighted<Term, <G as Group>::Scalar>>;
+pub type LinearCombination<G> = Sum<Weighted<Term<G>, <G as Group>::Scalar>>;
 
 /// Ordered mapping of [GroupVar] to group elements assignments.
 #[derive(Clone, Debug)]
@@ -181,7 +165,7 @@ impl<G: Group> GroupMap<G> {
     /// # Panics
     ///
     /// Panics if the given assignment conflicts with the existing assignment.
-    pub fn assign_element(&mut self, var: GroupVar, element: G) {
+    pub fn assign_element(&mut self, var: GroupVar<G>, element: G) {
         if self.0.len() <= var.0 {
             self.0.resize(var.0 + 1, None);
         } else if let Some(assignment) = self.0[var.0] {
@@ -202,7 +186,7 @@ impl<G: Group> GroupMap<G> {
     /// # Panics
     ///
     /// Panics if the collection contains two conflicting assignments for the same variable.
-    pub fn assign_elements(&mut self, assignments: impl IntoIterator<Item = (GroupVar, G)>) {
+    pub fn assign_elements(&mut self, assignments: impl IntoIterator<Item = (GroupVar<G>, G)>) {
         for (var, elem) in assignments.into_iter() {
             self.assign_element(var, elem);
         }
@@ -211,26 +195,28 @@ impl<G: Group> GroupMap<G> {
     /// Get the element value assigned to the given point var.
     ///
     /// Returns [`Error::UnassignedGroupVar`] if a value is not assigned.
-    pub fn get(&self, var: GroupVar) -> Result<G, Error> {
-        self.0[var.0].ok_or(Error::UnassignedGroupVar { var })
+    pub fn get(&self, var: GroupVar<G>) -> Result<G, Error> {
+        self.0[var.0].ok_or(Error::UnassignedGroupVar {
+            var_debug: format!("{var:?}"),
+        })
     }
 
     /// Iterate over the assigned variable and group element pairs in this mapping.
     // NOTE: Not implemented as `IntoIterator` for now because doing so requires explicitly
     // defining an iterator type, See https://github.com/rust-lang/rust/issues/63063
     #[allow(clippy::should_implement_trait)]
-    pub fn into_iter(self) -> impl Iterator<Item = (GroupVar, Option<G>)> {
+    pub fn into_iter(self) -> impl Iterator<Item = (GroupVar<G>, Option<G>)> {
         self.0
             .into_iter()
             .enumerate()
-            .map(|(i, x)| (GroupVar(i), x))
+            .map(|(i, x)| (GroupVar(i, PhantomData), x))
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = (GroupVar, Option<&G>)> {
+    pub fn iter(&self) -> impl Iterator<Item = (GroupVar<G>, Option<&G>)> {
         self.0
             .iter()
             .enumerate()
-            .map(|(i, opt)| (GroupVar(i), opt.as_ref()))
+            .map(|(i, opt)| (GroupVar(i, PhantomData), opt.as_ref()))
     }
 }
 
@@ -240,8 +226,8 @@ impl<G> Default for GroupMap<G> {
     }
 }
 
-impl<G: Group> FromIterator<(GroupVar, G)> for GroupMap<G> {
-    fn from_iter<T: IntoIterator<Item = (GroupVar, G)>>(iter: T) -> Self {
+impl<G: Group> FromIterator<(GroupVar<G>, G)> for GroupMap<G> {
+    fn from_iter<T: IntoIterator<Item = (GroupVar<G>, G)>>(iter: T) -> Self {
         iter.into_iter()
             .fold(Self::default(), |mut instance, (var, val)| {
                 instance.assign_element(var, val);
@@ -361,7 +347,7 @@ where
     /// The underlying linear map describing the structure of the statement.
     pub linear_map: LinearMap<G>,
     /// Indices pointing to elements representing the "target" images for each constraint.
-    pub image: Vec<GroupVar>,
+    pub image: Vec<GroupVar<G>>,
 }
 
 impl<G> LinearRelation<G>
@@ -388,7 +374,7 @@ where
     /// # Parameters
     /// - `lhs`: The image group element variable (left-hand side of the equation).
     /// - `rhs`: A slice of `(ScalarVar, GroupVar)` pairs representing the linear combination on the right-hand side.
-    pub fn append_equation(&mut self, lhs: GroupVar, rhs: impl Into<LinearCombination<G>>) {
+    pub fn append_equation(&mut self, lhs: GroupVar<G>, rhs: impl Into<LinearCombination<G>>) {
         self.linear_map.append(rhs.into());
         self.image.push(lhs);
     }
@@ -399,16 +385,16 @@ where
     /// # Parameters
     /// - `lhs`: The image group element variable (left-hand side of the equation).
     /// - `rhs`: A slice of `(ScalarVar, GroupVar)` pairs representing the linear combination on the right-hand side.
-    pub fn allocate_eq(&mut self, rhs: impl Into<LinearCombination<G>>) -> GroupVar {
+    pub fn allocate_eq(&mut self, rhs: impl Into<LinearCombination<G>>) -> GroupVar<G> {
         let var = self.allocate_element();
         self.append_equation(var, rhs);
         var
     }
 
     /// Allocates a scalar variable for use in the morphism.
-    pub fn allocate_scalar(&mut self) -> ScalarVar {
+    pub fn allocate_scalar(&mut self) -> ScalarVar<G> {
         self.linear_map.num_scalars += 1;
-        ScalarVar(self.linear_map.num_scalars - 1)
+        ScalarVar(self.linear_map.num_scalars - 1, PhantomData)
     }
 
     /// Allocates space for `N` new scalar variables.
@@ -425,8 +411,8 @@ where
     /// let [var_x, var_y] = morphism.allocate_scalars();
     /// let vars = morphism.allocate_scalars::<10>();
     /// ```
-    pub fn allocate_scalars<const N: usize>(&mut self) -> [ScalarVar; N] {
-        let mut vars = [ScalarVar(usize::MAX); N];
+    pub fn allocate_scalars<const N: usize>(&mut self) -> [ScalarVar<G>; N] {
+        let mut vars = [ScalarVar(usize::MAX, PhantomData); N];
         for var in vars.iter_mut() {
             *var = self.allocate_scalar();
         }
@@ -434,9 +420,9 @@ where
     }
 
     /// Allocates a point variable (group element) for use in the morphism.
-    pub fn allocate_element(&mut self) -> GroupVar {
+    pub fn allocate_element(&mut self) -> GroupVar<G> {
         self.linear_map.num_elements += 1;
-        GroupVar(self.linear_map.num_elements - 1)
+        GroupVar(self.linear_map.num_elements - 1, PhantomData)
     }
 
     /// Allocates `N` point variables (group elements) for use in the morphism.
@@ -453,8 +439,8 @@ where
     /// let [var_g, var_h] = morphism.allocate_elements();
     /// let vars = morphism.allocate_elements::<10>();
     /// ```
-    pub fn allocate_elements<const N: usize>(&mut self) -> [GroupVar; N] {
-        let mut vars = [GroupVar(usize::MAX); N];
+    pub fn allocate_elements<const N: usize>(&mut self) -> [GroupVar<G>; N] {
+        let mut vars = [GroupVar(usize::MAX, PhantomData); N];
         for var in vars.iter_mut() {
             *var = self.allocate_element();
         }
@@ -471,7 +457,7 @@ where
     /// # Panics
     ///
     /// Panics if the given assignment conflicts with the existing assignment.
-    pub fn set_element(&mut self, var: GroupVar, element: G) {
+    pub fn set_element(&mut self, var: GroupVar<G>, element: G) {
         self.linear_map.group_elements.assign_element(var, element)
     }
 
@@ -484,7 +470,7 @@ where
     /// # Panics
     ///
     /// Panics if the collection contains two conflicting assignments for the same variable.
-    pub fn set_elements(&mut self, assignments: impl IntoIterator<Item = (GroupVar, G)>) {
+    pub fn set_elements(&mut self, assignments: impl IntoIterator<Item = (GroupVar<G>, G)>) {
         self.linear_map.group_elements.assign_elements(assignments)
     }
 
@@ -606,7 +592,7 @@ where
         // implement Hash or Ord.
         let mut remapping = BTreeMap::<usize, Vec<(G::Scalar, u32)>>::new();
         let mut group_var_remap_index = 0u32;
-        let mut remap_var = |var: GroupVar, weight: G::Scalar| -> u32 {
+        let mut remap_var = |var: GroupVar<G>, weight: G::Scalar| -> u32 {
             let entry = remapping.entry(var.0).or_default();
 
             // If the (weight, group_var) pair has already been assigned an index, use it.
