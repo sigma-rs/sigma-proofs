@@ -79,13 +79,12 @@ impl DuplexSpongeInterface for KeccakDuplexSponge {
     }
 
     fn squeeze(&mut self, mut length: usize) -> Vec<u8> {
-        self.absorb_index = RATE;
-
         let mut output = Vec::new();
         while length != 0 {
             if self.squeeze_index == RATE {
                 self.state.permute();
                 self.squeeze_index = 0;
+                self.absorb_index = 0;
             }
 
             let chunk_size = usize::min(RATE - self.squeeze_index, length);
@@ -95,7 +94,6 @@ impl DuplexSpongeInterface for KeccakDuplexSponge {
             self.squeeze_index += chunk_size;
             length -= chunk_size;
         }
-
         output
     }
 }
@@ -104,15 +102,26 @@ impl DuplexSpongeInterface for KeccakDuplexSponge {
 mod tests {
     use super::*;
     use crate::duplex_sponge::DuplexSpongeInterface;
+    use hex_literal::hex;
 
     #[test]
-    fn test_keccak_duplex_sponge() {
-        let mut sponge = KeccakDuplexSponge::new([0u8; 32]);
+    fn test_associativity_of_absorb() {
+        let expected_output =
+            hex!("7dfada182d6191e106ce287c2262a443ce2fb695c7cc5037a46626e88889af58");
+        let tag = *b"absorb-associativity-domain-----";
 
-        let input = b"Hello, World!";
-        sponge.absorb(input);
-        let output = sponge.squeeze(64);
+        // Absorb all at once
+        let mut sponge1 = KeccakDuplexSponge::new(tag);
+        sponge1.absorb(b"hello world");
+        let out1 = sponge1.squeeze(32);
 
-        assert_eq!(output, hex::decode("30b74a98221dd643d0814095c212d663a67945c6a582ef8f71bd2a14607ebade3f16e5975ad13d313d9aa0aa97ad29f7df5cff249fa633d3a7ac70d8587bec90").unwrap());
+        // Absorb in two parts
+        let mut sponge2 = KeccakDuplexSponge::new(tag);
+        sponge2.absorb(b"hello");
+        sponge2.absorb(b" world");
+        let out2 = sponge2.squeeze(32);
+
+        assert_eq!(out1, expected_output);
+        assert_eq!(out2, expected_output);
     }
 }

@@ -70,7 +70,7 @@ generate_ni_function!(
 #[allow(clippy::type_complexity)]
 #[allow(non_snake_case)]
 #[test]
-fn sage_test_vectors() {
+fn test_spec_testvectors() {
     let seed = b"hello world";
     let iv = *b"yellow submarineyellow submarine";
 

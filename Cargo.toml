@@ -35,7 +35,10 @@ zeroize = "1.8.1"
 bls12_381 = "0.8.0"
 curve25519-dalek = { version = "4", default-features = false, features = ["serde", "rand_core", "alloc", "digest", "precomputed-tables", "group"] }
 hex = "0.4"
+hex-literal = "0.4"
 json = "0.12.4"
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.140"
 sha2 = "0.10"
 subtle = "2.6.1"
 

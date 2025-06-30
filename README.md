@@ -6,14 +6,6 @@ A Rust library for building and composing Σ-protocols (Sigma protocols) for zer
 
 This library provides a flexible framework for creating zero-knowledge proofs for any statement expressible as a linear relation over group elements. Using the Fiat-Shamir transformation, these interactive protocols become non-interactive proofs suitable for real-world applications.
 
-## Key Features
-
-- **Universal**: Express any linear relation as a Sigma protocol
-- **Composable**: Build complex proofs with AND/OR combinations
-- **Generic**: Works with any prime-order group implementing the `group` trait
-- **Secure**: Constant-time implementations prevent timing attacks
-- **Flexible**: Both high-level macros and low-level constraint API
-
 ## Quick Example
 
 ```rust
