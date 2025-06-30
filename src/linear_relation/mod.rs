@@ -541,8 +541,7 @@ where
             .collect()
     }
 
-    /// Returns a binary label describing the morphism structure, inspired by the Signal POKSHO format,
-    /// but adapted to u32 to support large statements.
+    /// Returns a binary label describing the morphism.
     ///
     /// The format is:
     /// - [Ne: u32] number of equations
@@ -573,6 +572,11 @@ where
             }
         }
 
+        // Dump the group elements
+        for (var, elem) in self.linear_map.group_elements.iter() {
+            out.extend_from_slice(&(var.index() as u32).to_le_bytes());
+            out.extend_from_slice(elem.to_bytes().as_ref());
+        }
         out
     }
 
