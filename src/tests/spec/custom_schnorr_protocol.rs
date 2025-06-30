@@ -137,7 +137,7 @@ where
         self.0.label()
     }
 
-    fn protocol_id(&self) -> impl AsRef<[u8]> {
+    fn protocol_identifier(&self) -> impl AsRef<[u8]> {
         b"draft-zkproof-fiat-shamir"
     }
 }

@@ -64,7 +64,7 @@ where
     /// A new [`NISigmaProtocol`] that can generate and verify non-interactive proofs.
     pub fn new(session_identifier: &[u8], interactive_proof: P) -> Self {
         let hash_state = C::new(
-            interactive_proof.protocol_id().as_ref(),
+            interactive_proof.protocol_identifier().as_ref(),
             session_identifier,
             interactive_proof.instance_label().as_ref(),
         );

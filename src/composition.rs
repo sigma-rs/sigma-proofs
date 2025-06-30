@@ -298,27 +298,27 @@ impl<G: Group + GroupEncoding> SigmaProtocol for Protocol<G> {
         }
     }
 
-    fn protocol_id(&self) -> impl AsRef<[u8]> {
+    fn protocol_identifier(&self) -> impl AsRef<[u8]> {
         let mut hasher = Sha3_256::new();
 
         match self {
             Protocol::Simple(p) => {
                 // take the digest of the simple protocol id
                 hasher.update([0u8; 32]);
-                hasher.update(p.protocol_id());
+                hasher.update(p.protocol_identifier());
             }
             Protocol::And(protocols) => {
                 let mut hasher = Sha3_256::new();
                 hasher.update([1u8; 32]);
                 for p in protocols {
-                    hasher.update(p.protocol_id());
+                    hasher.update(p.protocol_identifier());
                 }
             }
             Protocol::Or(protocols) => {
                 let mut hasher = Sha3_256::new();
                 hasher.update([2u8; 32]);
                 for p in protocols {
-                    hasher.update(p.protocol_id());
+                    hasher.update(p.protocol_identifier());
                 }
             }
         }

@@ -17,6 +17,7 @@ use group::{Group, GroupEncoding};
 use crate::codec::ShakeCodec;
 use crate::errors::Error;
 use crate::schnorr_protocol::SchnorrProof;
+use crate::serialization::serialize_elements;
 use crate::NISigmaProtocol;
 
 /// Implementations of core ops for the linear combination types.
@@ -218,18 +219,18 @@ impl<G: Group> GroupMap<G> {
     // NOTE: Not implemented as `IntoIterator` for now because doing so requires explicitly
     // defining an iterator type, See https://github.com/rust-lang/rust/issues/63063
     #[allow(clippy::should_implement_trait)]
-    pub fn into_iter(self) -> impl Iterator<Item = (GroupVar, G)> {
+    pub fn into_iter(self) -> impl Iterator<Item = (GroupVar, Option<G>)> {
         self.0
             .into_iter()
             .enumerate()
-            .filter_map(|(i, x)| x.map(|x| (GroupVar(i), x)))
+            .map(|(i, x)| (GroupVar(i), x))
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = (GroupVar, &G)> {
+    pub fn iter(&self) -> impl Iterator<Item = (GroupVar, Option<&G>)> {
         self.0
             .iter()
             .enumerate()
-            .filter_map(|(i, opt)| opt.as_ref().map(|g| (GroupVar(i), g)))
+            .map(|(i, opt)| (GroupVar(i), opt.as_ref()))
     }
 }
 
@@ -572,11 +573,18 @@ where
             }
         }
 
-        // Dump the group elements
-        for (var, elem) in self.linear_map.group_elements.iter() {
-            out.extend_from_slice(&(var.index() as u32).to_le_bytes());
-            out.extend_from_slice(elem.to_bytes().as_ref());
-        }
+        // Dump the group elements.
+        // XXX. We should return an error if the group elements are not assigned, instead of panicking.
+        // Also, batch serialization of group elements should not require allocation of a new vector in this case and should be part of a Group trait.
+        let group_elements = self
+            .linear_map
+            .group_elements
+            .iter()
+            .map(|(_, x)| x.cloned())
+            .collect::<Option<Vec<_>>>()
+            .expect("All group elements must be assigned");
+        out.extend(serialize_elements(&group_elements));
+
         out
     }
 
@@ -670,10 +678,7 @@ where
     pub fn into_nizk(
         self,
         session_identifier: &[u8],
-    ) -> NISigmaProtocol<
-        SchnorrProof<G>,
-        ShakeCodec<G>,
-    >
+    ) -> NISigmaProtocol<SchnorrProof<G>, ShakeCodec<G>>
     where
         G: group::GroupEncoding,
     {
