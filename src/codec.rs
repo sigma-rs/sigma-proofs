@@ -22,7 +22,7 @@ pub trait Codec {
     type Challenge;
 
     /// Generates an empty codec that can be identified by a domain separator.
-    fn new(domain_sep: &[u8]) -> Self;
+    fn new(protocol_identifier: &[u8], session_identifier: &[u8], instance_label: &[u8]) -> Self;
 
     /// Allows for precomputed initialization of the codec with a specific IV.
     fn from_iv(iv: [u8; 32]) -> Self;
@@ -60,10 +60,14 @@ where
 {
     type Challenge = <G as Group>::Scalar;
 
-    fn new(domain_sep: &[u8]) -> Self {
+    fn new(protocol_id: &[u8], session_id: &[u8], instance_label: &[u8]) -> Self {
         let iv = {
             let mut tmp = H::new([0u8; 32]);
-            tmp.absorb(domain_sep);
+            tmp.absorb(protocol_id);
+            tmp.ratchet();
+            tmp.absorb(session_id);
+            tmp.ratchet();
+            tmp.absorb(instance_label);
             tmp.squeeze(32).try_into().unwrap()
         };
 

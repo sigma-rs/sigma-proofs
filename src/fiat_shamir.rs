@@ -62,11 +62,15 @@ where
     ///
     /// # Returns
     /// A new [`NISigmaProtocol`] that can generate and verify non-interactive proofs.
-    pub fn new(iv: &[u8], instance: P) -> Self {
-        let hash_state = C::new(iv);
+    pub fn new(session_identifier: &[u8], interactive_proof: P) -> Self {
+        let hash_state = C::new(
+            interactive_proof.protocol_identifier().as_ref(),
+            session_identifier,
+            interactive_proof.instance_label().as_ref(),
+        );
         Self {
             hash_state,
-            ip: instance,
+            ip: interactive_proof,
         }
     }
 
