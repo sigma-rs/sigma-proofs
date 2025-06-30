@@ -752,7 +752,7 @@ mod tests {
             assert_eq!(expr.terms()[i].term.elem, groups[i]);
             assert_eq!(expr.terms()[i].weight, Scalar::ONE);
         }
-        
+
         assert_eq!(expr.terms()[3].term.scalar, scalars[3]);
         assert_eq!(expr.terms()[3].term.elem, groups[3]);
         assert_eq!(expr.terms()[3].weight, -Scalar::ONE);
