@@ -8,9 +8,17 @@
 //! - [`LinearMap`]: a collection of linear combinations acting on group elements.
 //! - [`LinearRelation`]: a higher-level structure managing morphisms and their associated images.
 
-use crate::errors::Error;
-use group::{Group, GroupEncoding};
+use std::collections::BTreeMap;
 use std::iter;
+
+use ff::Field;
+use group::{Group, GroupEncoding};
+
+use crate::codec::ShakeCodec;
+use crate::errors::Error;
+use crate::schnorr_protocol::SchnorrProof;
+use crate::serialization::serialize_elements;
+use crate::NISigmaProtocol;
 
 /// Implementations of core ops for the linear combination types.
 mod ops;
@@ -46,18 +54,105 @@ pub struct Term {
     elem: GroupVar,
 }
 
-impl Term {
-    pub fn scalar(&self) -> ScalarVar {
-        self.scalar
-    }
-    pub fn elem(&self) -> GroupVar {
-        self.elem
-    }
-}
-
 impl From<(ScalarVar, GroupVar)> for Term {
     fn from((scalar, elem): (ScalarVar, GroupVar)) -> Self {
         Self { scalar, elem }
+    }
+}
+
+impl<F: Field> From<(ScalarVar, GroupVar)> for Weighted<Term, F> {
+    fn from(pair: (ScalarVar, GroupVar)) -> Self {
+        Term::from(pair).into()
+    }
+}
+
+// TODO: Should this be generic over the field instead of the group?
+#[derive(Copy, Clone, Debug)]
+pub struct Weighted<T, F> {
+    pub term: T,
+    pub weight: F,
+}
+
+impl<T, F: Field> From<T> for Weighted<T, F> {
+    fn from(term: T) -> Self {
+        Self {
+            term,
+            weight: F::ONE,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct Sum<T>(Vec<T>);
+
+impl<T> Sum<T> {
+    /// Access the terms of the sum as slice reference.
+    pub fn terms(&self) -> &[T] {
+        &self.0
+    }
+}
+
+// NOTE: This is implemented directly for each of the key types to avoid collision with the blanket
+// Into impl provided by the standard library.
+macro_rules! impl_from_for_sum {
+    ($($type:ty),+) => {
+        $(
+        impl<T: Into<$type>> From<T> for Sum<$type> {
+            fn from(value: T) -> Self {
+                Sum(vec![value.into()])
+            }
+        }
+
+        impl<T: Into<$type>> From<Vec<T>> for Sum<$type> {
+            fn from(terms: Vec<T>) -> Self {
+                Self::from_iter(terms)
+            }
+        }
+
+        impl<T: Into<$type>, const N: usize> From<[T; N]> for Sum<$type> {
+            fn from(terms: [T; N]) -> Self {
+                Self::from_iter(terms)
+            }
+        }
+
+        impl<T: Into<$type>> FromIterator<T> for Sum<$type> {
+            fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+                Self(iter.into_iter().map(|x| x.into()).collect())
+            }
+        }
+
+        impl<F, T: Into<Weighted<$type, F>>> From<T> for Sum<Weighted<$type, F>> {
+            fn from(value: T) -> Self {
+                Sum(vec![value.into()])
+            }
+        }
+
+        impl<F, T: Into<Weighted<$type, F>>> From<Vec<T>> for Sum<Weighted<$type, F>> {
+            fn from(terms: Vec<T>) -> Self {
+                Self::from_iter(terms)
+            }
+        }
+
+        impl<F, T: Into<Weighted<$type, F>>, const N: usize> From<[T; N]> for Sum<Weighted<$type, F>> {
+            fn from(terms: [T; N]) -> Self {
+                Self::from_iter(terms)
+            }
+        }
+
+        impl<F, T: Into<Weighted<$type, F>>> FromIterator<T> for Sum<Weighted<$type, F>> {
+            fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+                Self(iter.into_iter().map(|x| x.into()).collect())
+            }
+        }
+        )+
+    };
+}
+
+impl_from_for_sum!(ScalarVar, GroupVar, Term);
+
+impl<T, F: Field> From<Sum<T>> for Sum<Weighted<T, F>> {
+    fn from(sum: Sum<T>) -> Self {
+        Self(sum.0.into_iter().map(|x| x.into()).collect())
     }
 }
 
@@ -69,38 +164,7 @@ impl From<(ScalarVar, GroupVar)> for Term {
 /// where `s_i` are scalars (referenced by `scalar_vars`) and `P_i` are group elements (referenced by `element_vars`).
 ///
 /// The indices refer to external lists managed by the containing LinearMap.
-#[derive(Clone, Debug)]
-pub struct LinearCombination(Vec<Term>);
-
-impl LinearCombination {
-    pub fn terms(&self) -> &[Term] {
-        &self.0
-    }
-}
-
-impl<T: Into<Term>> From<T> for LinearCombination {
-    fn from(term: T) -> Self {
-        Self(vec![term.into()])
-    }
-}
-
-impl<T: Into<Term>> From<Vec<T>> for LinearCombination {
-    fn from(terms: Vec<T>) -> Self {
-        Self(terms.into_iter().map(|x| x.into()).collect())
-    }
-}
-
-impl<T: Into<Term>, const N: usize> From<[T; N]> for LinearCombination {
-    fn from(terms: [T; N]) -> Self {
-        Self(terms.into_iter().map(|x| x.into()).collect())
-    }
-}
-
-impl<T: Into<Term>> FromIterator<T> for LinearCombination {
-    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
-        Self(iter.into_iter().map(|x| x.into()).collect())
-    }
-}
+pub type LinearCombination<G> = Sum<Weighted<Term, <G as Group>::Scalar>>;
 
 /// Ordered mapping of [GroupVar] to group elements assignments.
 #[derive(Clone, Debug)]
@@ -155,18 +219,18 @@ impl<G: Group> GroupMap<G> {
     // NOTE: Not implemented as `IntoIterator` for now because doing so requires explicitly
     // defining an iterator type, See https://github.com/rust-lang/rust/issues/63063
     #[allow(clippy::should_implement_trait)]
-    pub fn into_iter(self) -> impl Iterator<Item = (GroupVar, G)> {
+    pub fn into_iter(self) -> impl Iterator<Item = (GroupVar, Option<G>)> {
         self.0
             .into_iter()
             .enumerate()
-            .filter_map(|(i, x)| x.map(|x| (GroupVar(i), x)))
+            .map(|(i, x)| (GroupVar(i), x))
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = (GroupVar, &G)> {
+    pub fn iter(&self) -> impl Iterator<Item = (GroupVar, Option<&G>)> {
         self.0
             .iter()
             .enumerate()
-            .filter_map(|(i, opt)| opt.as_ref().map(|g| (GroupVar(i), g)))
+            .map(|(i, opt)| (GroupVar(i), opt.as_ref()))
     }
 }
 
@@ -193,7 +257,8 @@ impl<G: Group> FromIterator<(GroupVar, G)> for GroupMap<G> {
 #[derive(Clone, Default, Debug)]
 pub struct LinearMap<G: Group> {
     /// The set of linear combination constraints (equations).
-    pub constraints: Vec<LinearCombination>,
+    pub constraints: Vec<LinearCombination<G>>,
+    // TODO: Update the usage of the word "morphism"
     /// The list of group elements referenced in the morphism.
     ///
     /// Uninitialized group elements are presented with `None`.
@@ -248,7 +313,7 @@ impl<G: Group> LinearMap<G> {
     ///
     /// # Parameters
     /// - `lc`: The [`LinearCombination`] to add.
-    pub fn append(&mut self, lc: LinearCombination) {
+    pub fn append(&mut self, lc: LinearCombination<G>) {
         self.constraints.push(lc);
     }
 
@@ -264,15 +329,17 @@ impl<G: Group> LinearMap<G> {
         self.constraints
             .iter()
             .map(|lc| {
-                let coefficients =
+                // TODO: The multiplication by the (public) weight is potentially wasteful in the
+                // weight is most commonly 1, but multiplication is constant time.
+                let weighted_coefficients =
                     lc.0.iter()
-                        .map(|term| scalars[term.scalar.0])
+                        .map(|weighted| scalars[weighted.term.scalar.0] * weighted.weight)
                         .collect::<Vec<_>>();
                 let elements =
                     lc.0.iter()
-                        .map(|term| self.group_elements.get(term.elem))
+                        .map(|weighted| self.group_elements.get(weighted.term.elem))
                         .collect::<Result<Vec<_>, Error>>()?;
-                Ok(msm_pr(&coefficients, &elements))
+                Ok(msm_pr(&weighted_coefficients, &elements))
             })
             .collect()
     }
@@ -321,7 +388,7 @@ where
     /// # Parameters
     /// - `lhs`: The image group element variable (left-hand side of the equation).
     /// - `rhs`: A slice of `(ScalarVar, GroupVar)` pairs representing the linear combination on the right-hand side.
-    pub fn append_equation(&mut self, lhs: GroupVar, rhs: impl Into<LinearCombination>) {
+    pub fn append_equation(&mut self, lhs: GroupVar, rhs: impl Into<LinearCombination<G>>) {
         self.linear_map.append(rhs.into());
         self.image.push(lhs);
     }
@@ -332,7 +399,7 @@ where
     /// # Parameters
     /// - `lhs`: The image group element variable (left-hand side of the equation).
     /// - `rhs`: A slice of `(ScalarVar, GroupVar)` pairs representing the linear combination on the right-hand side.
-    pub fn allocate_eq(&mut self, rhs: impl Into<LinearCombination>) -> GroupVar {
+    pub fn allocate_eq(&mut self, rhs: impl Into<LinearCombination<G>>) -> GroupVar {
         let var = self.allocate_element();
         self.append_equation(var, rhs);
         var
@@ -436,6 +503,8 @@ where
     /// computed. Modifies the group elements assigned in the [LinearRelation].
     pub fn compute_image(&mut self, scalars: &[<G as Group>::Scalar]) -> Result<(), Error> {
         if self.linear_map.num_constraints() != self.image.len() {
+            // NOTE: This is a panic, rather than a returned error, because this can only happen if
+            // this implementation has a bug.
             panic!("invalid LinearRelation: different number of constraints and image variables");
         }
 
@@ -443,17 +512,19 @@ where
             self.linear_map.constraints.as_slice(),
             self.image.as_slice(),
         ) {
-            let coefficients =
+            // TODO: The multiplication by the (public) weight is potentially wasteful in the
+            // weight is most commonly 1, but multiplication is constant time.
+            let weighted_coefficients =
                 lc.0.iter()
-                    .map(|term| scalars[term.scalar.0])
+                    .map(|weighted| scalars[weighted.term.scalar.0] * weighted.weight)
                     .collect::<Vec<_>>();
             let elements =
                 lc.0.iter()
-                    .map(|term| self.linear_map.group_elements.get(term.elem))
+                    .map(|weighted| self.linear_map.group_elements.get(weighted.term.elem))
                     .collect::<Result<Vec<_>, Error>>()?;
             self.linear_map
                 .group_elements
-                .assign_element(*lhs, msm_pr(&coefficients, &elements))
+                .assign_element(*lhs, msm_pr(&weighted_coefficients, &elements))
         }
         Ok(())
     }
@@ -471,8 +542,7 @@ where
             .collect()
     }
 
-    /// Returns a binary label describing the morphism structure, inspired by the Signal POKSHO format,
-    /// but adapted to u32 to support large statements.
+    /// Returns a binary label describing the morphism.
     ///
     /// The format is:
     /// - [Ne: u32] number of equations
@@ -482,33 +552,96 @@ where
     ///   - Nt × [scalar_index: u32, point_index: u32] term entries
     pub fn label(&self) -> Vec<u8> {
         let mut out = Vec::new();
+        let repr = self.standard_repr();
 
-        // 1. Number of equations (must match image vector length)
-        let ne = self.image.len();
-        assert_eq!(
-            ne,
-            self.linear_map.constraints.len(),
-            "Number of equations and image variables must match"
-        );
+        // 1. Number of equations
+        let ne = repr.len();
         out.extend_from_slice(&(ne as u32).to_le_bytes());
 
         // 2. Encode each equation
-        for (constraint, output_var) in self.linear_map.constraints.iter().zip(self.image.iter()) {
+        for (output_index, constraint) in repr {
             // a. Output point index (LHS)
-            out.extend_from_slice(&(output_var.index() as u32).to_le_bytes());
+            out.extend_from_slice(&output_index.to_le_bytes());
 
             // b. Number of terms in the RHS linear combination
-            let terms = constraint.terms();
-            out.extend_from_slice(&(terms.len() as u32).to_le_bytes());
+            out.extend_from_slice(&(constraint.len() as u32).to_le_bytes());
 
             // c. Each term: scalar index and point index
-            for term in terms {
-                out.extend_from_slice(&(term.scalar().index() as u32).to_le_bytes());
-                out.extend_from_slice(&(term.elem().index() as u32).to_le_bytes());
+            for (scalar_index, group_index) in constraint {
+                out.extend_from_slice(&scalar_index.to_le_bytes());
+                out.extend_from_slice(&group_index.to_le_bytes());
             }
         }
 
+        // Dump the group elements.
+        // XXX. We should return an error if the group elements are not assigned, instead of panicking.
+        // Also, batch serialization of group elements should not require allocation of a new vector in this case and should be part of a Group trait.
+        let group_elements = self
+            .linear_map
+            .group_elements
+            .iter()
+            .map(|(_, x)| x.cloned())
+            .collect::<Option<Vec<_>>>()
+            .expect("All group elements must be assigned");
+        out.extend(serialize_elements(&group_elements));
+
         out
+    }
+
+    /// Construct an equivalent linear relation in the standardized form, without weights and with
+    /// a single group var on the left-hand side.
+    // NOTE: This function has a complimentary function that generates the Group elements for the
+    // remapped variables by multiplying their values by the assigned weights. This function can be
+    // called before the group elements are known, and when they are known the actual values can be
+    // assigned to the remapped indices.
+    fn standard_repr(&self) -> Vec<(u32, Vec<(u32, u32)>)> {
+        assert_eq!(
+            self.image.len(),
+            self.linear_map.constraints.len(),
+            "Number of equations and image variables must match"
+        );
+
+        // Create an allocator function to remap each (group_var, weight) pair to a new index.
+        // NOTE: Logically, this is a map of (usize, G::Scalar) => u32. However, Field does not
+        // implement Hash or Ord.
+        let mut remapping = BTreeMap::<usize, Vec<(G::Scalar, u32)>>::new();
+        let mut group_var_remap_index = 0u32;
+        let mut remap_var = |var: GroupVar, weight: G::Scalar| -> u32 {
+            let entry = remapping.entry(var.0).or_default();
+
+            // If the (weight, group_var) pair has already been assigned an index, use it.
+            if let Some(remapped_var) = entry.iter().find_map(|(entry_weight, remapped_var)| {
+                (weight == *entry_weight).then_some(remapped_var)
+            }) {
+                return *remapped_var;
+            }
+
+            // The (weight, group_var) pair has not been assigned an index, assign one now.
+            let remapped_var = group_var_remap_index;
+            entry.push((weight, remapped_var));
+            group_var_remap_index += 1;
+
+            remapped_var
+        };
+
+        // Iterate through the constraints, applying to remapping to weighed group variables and
+        // casting scalar vars to u32.
+        let mut repr = Vec::new();
+        for (image_var, equation) in iter::zip(&self.image, &self.linear_map.constraints) {
+            let eq_repr: Vec<(u32, u32)> = equation
+                .terms()
+                .iter()
+                .map(|weighted_term| {
+                    (
+                        weighted_term.term.scalar.0 as u32,
+                        remap_var(weighted_term.term.elem, weighted_term.weight),
+                    )
+                })
+                .collect();
+            repr.push((remap_var(*image_var, G::Scalar::ONE), eq_repr));
+        }
+
+        repr
     }
 
     /// Convert this LinearRelation into a non-interactive zero-knowledge protocol
@@ -544,15 +677,12 @@ where
     /// ```
     pub fn into_nizk(
         self,
-        context: &[u8],
-    ) -> crate::fiat_shamir::NISigmaProtocol<
-        crate::schnorr_protocol::SchnorrProof<G>,
-        crate::codec::ShakeCodec<G>,
-    >
+        session_identifier: &[u8],
+    ) -> NISigmaProtocol<SchnorrProof<G>, ShakeCodec<G>>
     where
         G: group::GroupEncoding,
     {
-        let schnorr = crate::schnorr_protocol::SchnorrProof::from(self);
-        crate::fiat_shamir::NISigmaProtocol::new(context, schnorr)
+        let schnorr = SchnorrProof::from(self);
+        NISigmaProtocol::new(session_identifier, schnorr)
     }
 }

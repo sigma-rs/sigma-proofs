@@ -63,11 +63,7 @@ fn run_test_vector(name: &str, test_vector: &TestVector) {
     }
 
     let expected_output = hex_decode(&test_vector.expected);
-    assert_eq!(
-        final_output, expected_output,
-        "Test vector '{}' failed",
-        name
-    );
+    assert_eq!(final_output, expected_output, "Test vector '{name}' failed");
 }
 
 #[test]

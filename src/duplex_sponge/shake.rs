@@ -4,7 +4,7 @@
 
 use crate::duplex_sponge::DuplexSpongeInterface;
 use sha3::{
-    digest::{ExtendableOutput, Update},
+    digest::{ExtendableOutput, Reset, Update},
     Shake128,
 };
 
@@ -27,5 +27,12 @@ impl DuplexSpongeInterface for ShakeDuplexSponge {
         let mut output = vec![0u8; length];
         self.0.clone().finalize_xof_into(&mut output);
         output
+    }
+
+    fn ratchet(&mut self) {
+        let mut output = [0u8; 32];
+        self.0.clone().finalize_xof_into(&mut output);
+        self.0.reset();
+        self.0.update(&output);
     }
 }

@@ -10,6 +10,8 @@
 
 use ff::{Field, PrimeField};
 use group::{Group, GroupEncoding};
+use sha3::Digest;
+use sha3::Sha3_256;
 
 use crate::{
     errors::Error,
@@ -271,6 +273,57 @@ impl<G: Group + GroupEncoding> SigmaProtocol for Protocol<G> {
 
     fn serialize_challenge(&self, challenge: &Self::Challenge) -> Vec<u8> {
         serialize_scalars::<G>(&[*challenge])
+    }
+
+    fn instance_label(&self) -> impl AsRef<[u8]> {
+        match self {
+            Protocol::Simple(p) => {
+                let label = p.instance_label();
+                label.as_ref().to_vec()
+            }
+            Protocol::And(ps) => {
+                let mut bytes = Vec::new();
+                for p in ps {
+                    bytes.extend(p.instance_label().as_ref());
+                }
+                bytes
+            }
+            Protocol::Or(ps) => {
+                let mut bytes = Vec::new();
+                for p in ps {
+                    bytes.extend(p.instance_label().as_ref());
+                }
+                bytes
+            }
+        }
+    }
+
+    fn protocol_identifier(&self) -> impl AsRef<[u8]> {
+        let mut hasher = Sha3_256::new();
+
+        match self {
+            Protocol::Simple(p) => {
+                // take the digest of the simple protocol id
+                hasher.update([0u8; 32]);
+                hasher.update(p.protocol_identifier());
+            }
+            Protocol::And(protocols) => {
+                let mut hasher = Sha3_256::new();
+                hasher.update([1u8; 32]);
+                for p in protocols {
+                    hasher.update(p.protocol_identifier());
+                }
+            }
+            Protocol::Or(protocols) => {
+                let mut hasher = Sha3_256::new();
+                hasher.update([2u8; 32]);
+                for p in protocols {
+                    hasher.update(p.protocol_identifier());
+                }
+            }
+        }
+
+        hasher.finalize()
     }
 
     fn serialize_response(&self, response: &Self::Response) -> Vec<u8> {
