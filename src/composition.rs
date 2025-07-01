@@ -356,27 +356,22 @@ impl<G: Group + GroupEncoding> SigmaProtocol for Protocol<G> {
                 let c = p.deserialize_commitment(data)?;
                 Ok(ProtocolCommitment::Simple(c))
             }
-            Protocol::And(ps) => {
+            Protocol::And(ps) | Protocol::Or(ps) => {
                 let mut cursor = 0;
                 let mut commitments = Vec::with_capacity(ps.len());
+
                 for p in ps {
                     let c = p.deserialize_commitment(&data[cursor..])?;
                     let size = p.serialize_commitment(&c).len();
                     cursor += size;
                     commitments.push(c);
                 }
-                Ok(ProtocolCommitment::And(commitments))
-            }
-            Protocol::Or(ps) => {
-                let mut cursor = 0;
-                let mut commitments = Vec::with_capacity(ps.len());
-                for p in ps {
-                    let c = p.deserialize_commitment(&data[cursor..])?;
-                    let size = p.serialize_commitment(&c).len();
-                    cursor += size;
-                    commitments.push(c);
-                }
-                Ok(ProtocolCommitment::Or(commitments))
+
+                Ok(match self {
+                    Protocol::And(_) => ProtocolCommitment::And(commitments),
+                    Protocol::Or(_) => ProtocolCommitment::Or(commitments),
+                    _ => unreachable!(),
+                })
             }
         }
     }
