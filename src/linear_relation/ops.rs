@@ -424,7 +424,7 @@ mod neg {
         };
     }
 
-    impl_neg_term!(ScalarVar<G>, GroupVar<G>, Term<G>);
+    impl_neg_term!(ScalarVar<G>, ScalarTerm<G>, GroupVar<G>, Term<G>);
 }
 
 mod sub {
@@ -475,7 +475,7 @@ mod sub {
         };
     }
 
-    impl_sub_as_neg_add!(ScalarVar<G>, GroupVar<G>, Term<G>);
+    impl_sub_as_neg_add!(ScalarVar<G>, ScalarTerm<G>, GroupVar<G>, Term<G>);
 }
 
 #[cfg(test)]
