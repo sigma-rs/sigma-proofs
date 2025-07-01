@@ -1,12 +1,22 @@
-//! Implementation of a structure [`Protocol`] aimed at generalizing the [`SchnorrProof`]
-//! using the compositions of the latter via AND and OR links
+//! # Protocol Composition with AND/OR Logic
 //!
-//! This structure allows, for example, the construction of protocols of the form:
+//! This module defines the [`Protocol`] enum, which generalizes the [`SchnorrProof`]
+//! by enabling compositional logic between multiple proof instances.
+//!
+//! Specifically, it supports:
+//! - Simple atomic proofs (e.g., discrete logarithm, Pedersen commitments)
+//! - Conjunctions (`And`) of multiple sub-protocols
+//! - Disjunctions (`Or`) of multiple sub-protocols
+//!
+//! ## Example Composition
+//!
+//! ```ignore
 //! And(
-//!    Or( dleq, pedersen_commitment ),
-//!    Simple( discrete_logarithm ),
-//!    And( pedersen_commitment_dleq, bbs_blind_commitment_computation )
+//!     Or(dleq_proof, pedersen_commitment_proof),
+//!     Simple(discrete_log_proof),
+//!     And(pedersen_dleq_proof, bbs_blind_commitment_proof)
 //! )
+//! ```
 
 use ff::{Field, PrimeField};
 use group::{Group, GroupEncoding};
@@ -104,11 +114,12 @@ impl<G: Group + GroupEncoding> SigmaProtocol for Protocol<G> {
     ) -> Result<(Self::Commitment, Self::ProverState), Error> {
         match (self, witness) {
             (Protocol::Simple(p), ProtocolWitness::Simple(w)) => {
-                let (c, s) = p.prover_commit(w, rng)?;
-                Ok((
-                    ProtocolCommitment::Simple(c),
-                    ProtocolProverState::Simple(s),
-                ))
+                p.prover_commit(w, rng).map(|(c, s)| {
+                    (
+                        ProtocolCommitment::Simple(c),
+                        ProtocolProverState::Simple(s),
+                    )
+                })
             }
             (Protocol::And(ps), ProtocolWitness::And(ws)) => {
                 if ps.len() != ws.len() {
@@ -162,20 +173,20 @@ impl<G: Group + GroupEncoding> SigmaProtocol for Protocol<G> {
         challenge: &Self::Challenge,
     ) -> Result<Self::Response, Error> {
         match (self, state) {
-            (Protocol::Simple(p), ProtocolProverState::Simple(state)) => {
-                let response = p.prover_response(state, challenge)?;
-                Ok(ProtocolResponse::Simple(response))
-            }
+            (Protocol::Simple(p), ProtocolProverState::Simple(state)) => p
+                .prover_response(state, challenge)
+                .map(ProtocolResponse::Simple),
             (Protocol::And(ps), ProtocolProverState::And(states)) => {
                 if ps.len() != states.len() {
                     return Err(Error::ProofSizeMismatch);
                 }
-                let mut responses = Vec::with_capacity(ps.len());
-                for (i, p) in ps.iter().enumerate() {
-                    let r = p.prover_response(states[i].clone(), challenge)?;
-                    responses.push(r);
-                }
-                Ok(ProtocolResponse::And(responses))
+                let responses: Result<Vec<_>, _> = ps
+                    .iter()
+                    .zip(states)
+                    .map(|(p, s)| p.prover_response(s, challenge))
+                    .collect();
+
+                Ok(ProtocolResponse::And(responses?))
             }
             (
                 Protocol::Or(ps),
@@ -225,12 +236,11 @@ impl<G: Group + GroupEncoding> SigmaProtocol for Protocol<G> {
                 Protocol::And(ps),
                 ProtocolCommitment::And(commitments),
                 ProtocolResponse::And(responses),
-            ) => {
-                for (i, p) in ps.iter().enumerate() {
-                    p.verifier(&commitments[i], challenge, &responses[i])?;
-                }
-                Ok(())
-            }
+            ) => ps
+                .iter()
+                .zip(commitments)
+                .zip(responses)
+                .try_for_each(|((p, c), r)| p.verifier(c, challenge, r)),
             (
                 Protocol::Or(ps),
                 ProtocolCommitment::Or(commitments),
@@ -253,20 +263,16 @@ impl<G: Group + GroupEncoding> SigmaProtocol for Protocol<G> {
     fn serialize_commitment(&self, commitment: &Self::Commitment) -> Vec<u8> {
         match (self, commitment) {
             (Protocol::Simple(p), ProtocolCommitment::Simple(c)) => p.serialize_commitment(c),
-            (Protocol::And(ps), ProtocolCommitment::And(commitments)) => {
-                let mut bytes = Vec::new();
-                for (i, p) in ps.iter().enumerate() {
-                    bytes.extend(p.serialize_commitment(&commitments[i]));
-                }
-                bytes
-            }
-            (Protocol::Or(ps), ProtocolCommitment::Or(commitments)) => {
-                let mut bytes = Vec::new();
-                for (i, p) in ps.iter().enumerate() {
-                    bytes.extend(p.serialize_commitment(&commitments[i]));
-                }
-                bytes
-            }
+            (Protocol::And(ps), ProtocolCommitment::And(commitments)) => ps
+                .iter()
+                .zip(commitments)
+                .flat_map(|(p, c)| p.serialize_commitment(c))
+                .collect(),
+            (Protocol::Or(ps), ProtocolCommitment::Or(commitments)) => ps
+                .iter()
+                .zip(commitments)
+                .flat_map(|(p, c)| p.serialize_commitment(c))
+                .collect(),
             _ => panic!(),
         }
     }
@@ -436,17 +442,20 @@ impl<G: Group + GroupEncoding> SigmaProtocolSimulator for Protocol<G> {
                 p.simulate_commitment(challenge, r)?,
             )),
             (Protocol::And(ps), ProtocolResponse::And(rs)) => {
-                let mut commitments = Vec::with_capacity(ps.len());
-                for (i, p) in ps.iter().enumerate() {
-                    commitments.push(p.simulate_commitment(challenge, &rs[i])?);
-                }
+                let commitments = ps
+                    .iter()
+                    .zip(rs)
+                    .map(|(p, r)| p.simulate_commitment(challenge, r))
+                    .collect::<Result<Vec<_>, _>>()?;
                 Ok(ProtocolCommitment::And(commitments))
             }
-            (Protocol::Or(ps), ProtocolResponse::Or(ch, rs)) => {
-                let mut commitments = Vec::with_capacity(ps.len());
-                for (i, p) in ps.iter().enumerate() {
-                    commitments.push(p.simulate_commitment(&ch[i], &rs[i])?);
-                }
+            (Protocol::Or(ps), ProtocolResponse::Or(challenges, rs)) => {
+                let commitments = ps
+                    .iter()
+                    .zip(challenges)
+                    .zip(rs)
+                    .map(|((p, ch), r)| p.simulate_commitment(ch, r))
+                    .collect::<Result<Vec<_>, _>>()?;
                 Ok(ProtocolCommitment::Or(commitments))
             }
             _ => panic!(),
