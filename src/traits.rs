@@ -110,6 +110,7 @@ pub trait SigmaProtocol {
 /// Types implementing [`SigmaProtocolSimulator`] must define:
 /// - `simulate_proof`
 /// - `simulate_transcript`
+#[allow(clippy::type_complexity)]
 pub trait SigmaProtocolSimulator: SigmaProtocol {
     /// Generates a random response (e.g. for simulation or OR composition).
     ///
