@@ -9,6 +9,31 @@ impl<G> From<ScalarVar<G>> for ScalarTerm<G> {
     }
 }
 
+impl<G: Group> From<ScalarVar<G>> for Weighted<ScalarTerm<G>, G::Scalar> {
+    fn from(value: ScalarVar<G>) -> Self {
+        ScalarTerm::from(value).into()
+    }
+}
+
+impl<G: Group> From<Weighted<ScalarVar<G>, G::Scalar>> for Weighted<ScalarTerm<G>, G::Scalar> {
+    fn from(value: Weighted<ScalarVar<G>, G::Scalar>) -> Self {
+        Self {
+            term: value.term.into(),
+            weight: value.weight,
+        }
+    }
+}
+
+// NOTE: Rust does not accept an impl over From<G::Scalar>
+impl<T: Field + Into<G::Scalar>, G: Group> From<T> for Weighted<ScalarTerm<G>, G::Scalar> {
+    fn from(value: T) -> Self {
+        Self {
+            term: ScalarTerm::Unit,
+            weight: value.into(),
+        }
+    }
+}
+
 impl<G> From<(ScalarVar<G>, GroupVar<G>)> for Term<G> {
     fn from((scalar, elem): (ScalarVar<G>, GroupVar<G>)) -> Self {
         Self {
@@ -24,6 +49,15 @@ impl<G> From<(ScalarTerm<G>, GroupVar<G>)> for Term<G> {
     }
 }
 
+impl<G> From<GroupVar<G>> for Term<G> {
+    fn from(value: GroupVar<G>) -> Self {
+        Term {
+            scalar: ScalarTerm::Unit,
+            elem: value,
+        }
+    }
+}
+
 impl<G: Group> From<(ScalarVar<G>, GroupVar<G>)> for Weighted<Term<G>, G::Scalar> {
     fn from(pair: (ScalarVar<G>, GroupVar<G>)) -> Self {
         Term::from(pair).into()
@@ -33,6 +67,21 @@ impl<G: Group> From<(ScalarVar<G>, GroupVar<G>)> for Weighted<Term<G>, G::Scalar
 impl<G: Group> From<(ScalarTerm<G>, GroupVar<G>)> for Weighted<Term<G>, G::Scalar> {
     fn from(pair: (ScalarTerm<G>, GroupVar<G>)) -> Self {
         Term::from(pair).into()
+    }
+}
+
+impl<G: Group> From<GroupVar<G>> for Weighted<Term<G>, G::Scalar> {
+    fn from(value: GroupVar<G>) -> Self {
+        Term::from(value).into()
+    }
+}
+
+impl<G: Group> From<Weighted<GroupVar<G>, G::Scalar>> for Weighted<Term<G>, G::Scalar> {
+    fn from(value: Weighted<GroupVar<G>, G::Scalar>) -> Self {
+        Weighted {
+            term: value.term.into(),
+            weight: value.weight,
+        }
     }
 }
 
