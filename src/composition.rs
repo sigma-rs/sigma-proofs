@@ -263,12 +263,8 @@ impl<G: Group + GroupEncoding> SigmaProtocol for Protocol<G> {
     fn serialize_commitment(&self, commitment: &Self::Commitment) -> Vec<u8> {
         match (self, commitment) {
             (Protocol::Simple(p), ProtocolCommitment::Simple(c)) => p.serialize_commitment(c),
-            (Protocol::And(ps), ProtocolCommitment::And(commitments)) => ps
-                .iter()
-                .zip(commitments)
-                .flat_map(|(p, c)| p.serialize_commitment(c))
-                .collect(),
-            (Protocol::Or(ps), ProtocolCommitment::Or(commitments)) => ps
+            (Protocol::And(ps), ProtocolCommitment::And(commitments))
+            | (Protocol::Or(ps), ProtocolCommitment::Or(commitments)) => ps
                 .iter()
                 .zip(commitments)
                 .flat_map(|(p, c)| p.serialize_commitment(c))
