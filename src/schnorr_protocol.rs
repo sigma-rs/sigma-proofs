@@ -81,8 +81,8 @@ where
         let nonces: Vec<G::Scalar> = (0..self.witness_length())
             .map(|_| G::Scalar::random(&mut rng))
             .collect();
-        let prover_state = (nonces.clone(), witness.clone());
         let commitment = self.0.linear_map.evaluate(&nonces)?;
+        let prover_state = (nonces, witness.clone());
         Ok((commitment, prover_state))
     }
 
