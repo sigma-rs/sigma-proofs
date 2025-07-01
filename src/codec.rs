@@ -87,16 +87,11 @@ where
 
     fn verifier_challenge(&mut self) -> G::Scalar {
         #[allow(clippy::manual_div_ceil)]
-        let scalar_byte_length = (G::Scalar::NUM_BITS as usize + 7) / 8;
-
-        let uniform_bytes = self.hasher.squeeze(scalar_byte_length + 16);
-        let scalar = BigUint::from_bytes_be(&uniform_bytes);
-        let reduced = scalar % cardinal::<G::Scalar>();
-
-        let mut bytes = vec![0u8; scalar_byte_length];
-        let reduced_bytes = reduced.to_bytes_be();
-        let start = bytes.len() - reduced_bytes.len();
-        bytes[start..].copy_from_slice(&reduced_bytes);
+        let len = (G::Scalar::NUM_BITS as usize + 7) / 8;
+        let scalar =
+            BigUint::from_bytes_be(&self.hasher.squeeze(len + 16)) % cardinal::<G::Scalar>();
+        let mut bytes = scalar.to_bytes_be();
+        bytes.resize(len, 0);
         bytes.reverse();
 
         let mut repr = <<G as Group>::Scalar as PrimeField>::Repr::default();
