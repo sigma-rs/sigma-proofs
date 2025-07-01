@@ -562,6 +562,12 @@ where
         // Dump the group elements.
         // XXX. We should return an error if the group elements are not assigned, instead of panicking.
         // Also, batch serialization of group elements should not require allocation of a new vector in this case and should be part of a Group trait.
+        // TODO: This does not result in a complete serialization in that it will contain fewer
+        // elements than the number of indices committed above in the presence of non-unit
+        // weights. This is because the standard_repr function will have allocated a new index for
+        // each unique (index, weight) pair in the original statement, and the associated group
+        // element should be the value of the group element from this map times the weight. That is
+        // currently missing.
         let group_elements = self
             .linear_map
             .group_elements
