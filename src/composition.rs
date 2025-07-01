@@ -12,9 +12,9 @@
 //!
 //! ```ignore
 //! And(
-//!     Or(dleq_proof, pedersen_commitment_proof),
-//!     Simple(discrete_log_proof),
-//!     And(pedersen_dleq_proof, bbs_blind_commitment_proof)
+//!    Or( dleq, pedersen_commitment ),
+//!    Simple( discrete_logarithm ),
+//!    And( pedersen_commitment_dleq, bbs_blind_commitment_computation )
 //! )
 //! ```
 
