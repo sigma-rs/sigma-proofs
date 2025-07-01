@@ -4,13 +4,13 @@
 //! It allows proving knowledge of secret data without revealing the data itself.
 //!
 //! ---
-//! 
+//!
 //! ## What are Sigma Protocols?
 //!
 //! Sigma protocols are interactive cryptographic protocols that allow a prover to convince
 //! a verifier they know a secret (like a private key) without revealing the secret itself.
 //! They follow a simple three-step pattern: commitment, challenge, response.
-//! 
+//!
 //! ---
 //!
 //! ## Key Features
@@ -19,7 +19,7 @@
 //! - **Generic**: Works with any cryptographic group supporting the required operations
 //! - **Flexible Hashing**: Multiple hash function backends for different use cases
 //! - **Non-Interactive Ready**: Support for Fiat–Shamir transformation
-//! 
+//!
 //! ---
 //!
 //! ## Basic Usage
@@ -30,7 +30,7 @@
 //! 2. Create a Sigma protocol with [`schnorr_protocol::SchnorrProof`]
 //! 3. Convert to non-interactive using [`fiat_shamir::NISigmaProtocol`]
 //! 4. Generate and verify proofs using the protocol interface
-//! 
+//!
 //! ---
 //!
 //! ## Core Components
@@ -40,7 +40,7 @@
 //! - **[`fiat_shamir::NISigmaProtocol`]**: Convert interactive proofs to standalone proofs
 //! - **[`composition::Protocol`]**: Combine multiple proofs together
 //! - **[`codec`]**: Hash function backends for proof generation
-//! 
+//!
 //! ---
 //!
 //! Σ-rs is designed to be modular, extensible, and easy to integrate into zero-knowledge applications.
