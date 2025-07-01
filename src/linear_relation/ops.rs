@@ -157,7 +157,7 @@ mod mul {
         fn mul(self, rhs: ScalarVar<G>) -> Term<G> {
             Term {
                 elem: self,
-                scalar: rhs,
+                scalar: rhs.into(),
             }
         }
     }
@@ -393,8 +393,14 @@ mod tests {
         let y = scalar_var(1);
         let h = group_var(1);
 
-        let term1 = Term { scalar: x, elem: g };
-        let term2 = Term { scalar: y, elem: h };
+        let term1 = Term {
+            scalar: x.into(),
+            elem: g,
+        };
+        let term2 = Term {
+            scalar: y.into(),
+            elem: h,
+        };
 
         let sum = term1 + term2;
         assert_eq!(sum.terms().len(), 2);
@@ -410,9 +416,9 @@ mod tests {
         let term1 = x * g;
         let term2 = g * x;
 
-        assert_eq!(term1.scalar, x);
+        assert_eq!(term1.scalar, x.into());
         assert_eq!(term1.elem, g);
-        assert_eq!(term2.scalar, x);
+        assert_eq!(term2.scalar, x.into());
         assert_eq!(term2.elem, g);
     }
 
@@ -438,7 +444,10 @@ mod tests {
     fn test_term_coefficient_multiplication() {
         let x = scalar_var(0);
         let g = group_var(0);
-        let term = Term { scalar: x, elem: g };
+        let term = Term {
+            scalar: x.into(),
+            elem: g,
+        };
         let weighted = term * Scalar::from(7u64);
 
         assert_eq!(weighted.term, term);
@@ -467,7 +476,10 @@ mod tests {
     fn test_term_negation() {
         let x = scalar_var(0);
         let g = group_var(0);
-        let term = Term { scalar: x, elem: g };
+        let term = Term {
+            scalar: x.into(),
+            elem: g,
+        };
         let neg_term = -term;
 
         assert_eq!(neg_term.term, term);
@@ -517,8 +529,14 @@ mod tests {
         let y = scalar_var(1);
         let h = group_var(1);
 
-        let term1 = Term { scalar: x, elem: g };
-        let term2 = Term { scalar: y, elem: h };
+        let term1 = Term {
+            scalar: x.into(),
+            elem: g,
+        };
+        let term2 = Term {
+            scalar: y.into(),
+            elem: h,
+        };
 
         let diff = term1 - term2;
         assert_eq!(diff.terms().len(), 2);
@@ -637,7 +655,7 @@ mod tests {
         let weighted_g = g * Scalar::from(5u64);
         let result = x * weighted_g;
 
-        assert_eq!(result.term.scalar, x);
+        assert_eq!(result.term.scalar, x.into());
         assert_eq!(result.term.elem, g);
         assert_eq!(result.weight, Scalar::from(5u64));
     }
@@ -650,7 +668,7 @@ mod tests {
         let weighted_x = x * Scalar::from(3u64);
         let result = weighted_x * g;
 
-        assert_eq!(result.term.scalar, x);
+        assert_eq!(result.term.scalar, x.into());
         assert_eq!(result.term.elem, g);
         assert_eq!(result.weight, Scalar::from(3u64));
     }
@@ -714,9 +732,9 @@ mod tests {
 
         let commitment = x * g + r * h;
         assert_eq!(commitment.terms().len(), 2);
-        assert_eq!(commitment.terms()[0].scalar, x);
+        assert_eq!(commitment.terms()[0].scalar, x.into());
         assert_eq!(commitment.terms()[0].elem, g);
-        assert_eq!(commitment.terms()[1].scalar, r);
+        assert_eq!(commitment.terms()[1].scalar, r.into());
         assert_eq!(commitment.terms()[1].elem, h);
     }
 
@@ -729,10 +747,10 @@ mod tests {
 
         let commitment = x * g * Scalar::from(3u64) + r * h * Scalar::from(2u64);
         assert_eq!(commitment.terms().len(), 2);
-        assert_eq!(commitment.terms()[0].term.scalar, x);
+        assert_eq!(commitment.terms()[0].term.scalar, x.into());
         assert_eq!(commitment.terms()[0].term.elem, g);
         assert_eq!(commitment.terms()[0].weight, Scalar::from(3u64));
-        assert_eq!(commitment.terms()[1].term.scalar, r);
+        assert_eq!(commitment.terms()[1].term.scalar, r.into());
         assert_eq!(commitment.terms()[1].term.elem, h);
         assert_eq!(commitment.terms()[1].weight, Scalar::from(2u64));
     }
@@ -748,12 +766,12 @@ mod tests {
         assert_eq!(expr.terms().len(), 4);
 
         for i in 0..3 {
-            assert_eq!(expr.terms()[i].term.scalar, scalars[i]);
+            assert_eq!(expr.terms()[i].term.scalar, scalars[i].into());
             assert_eq!(expr.terms()[i].term.elem, groups[i]);
             assert_eq!(expr.terms()[i].weight, Scalar::ONE);
         }
 
-        assert_eq!(expr.terms()[3].term.scalar, scalars[3]);
+        assert_eq!(expr.terms()[3].term.scalar, scalars[3].into());
         assert_eq!(expr.terms()[3].term.elem, groups[3]);
         assert_eq!(expr.terms()[3].weight, -Scalar::ONE);
     }
@@ -776,7 +794,7 @@ mod tests {
         let expected_groups = [g, h, k];
 
         for i in 0..3 {
-            assert_eq!(expr.terms()[i].term.scalar, expected_scalars[i]);
+            assert_eq!(expr.terms()[i].term.scalar, expected_scalars[i].into());
             assert_eq!(expr.terms()[i].term.elem, expected_groups[i]);
             assert_eq!(expr.terms()[i].weight, Scalar::from(expected_coeffs[i]));
         }
@@ -796,13 +814,13 @@ mod tests {
         let mixed = basic_sum + weighted_term;
 
         assert_eq!(mixed.terms().len(), 3);
-        assert_eq!(mixed.terms()[0].term.scalar, x);
+        assert_eq!(mixed.terms()[0].term.scalar, x.into());
         assert_eq!(mixed.terms()[0].term.elem, g);
         assert_eq!(mixed.terms()[0].weight, Scalar::ONE);
-        assert_eq!(mixed.terms()[1].term.scalar, y);
+        assert_eq!(mixed.terms()[1].term.scalar, y.into());
         assert_eq!(mixed.terms()[1].term.elem, h);
         assert_eq!(mixed.terms()[1].weight, Scalar::ONE);
-        assert_eq!(mixed.terms()[2].term.scalar, z);
+        assert_eq!(mixed.terms()[2].term.scalar, z.into());
         assert_eq!(mixed.terms()[2].term.elem, k);
         assert_eq!(mixed.terms()[2].weight, Scalar::from(3u64));
     }
