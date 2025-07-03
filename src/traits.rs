@@ -83,13 +83,11 @@ pub trait SigmaProtocol {
     fn instance_label(&self) -> impl AsRef<[u8]>;
 }
 
-
 type Transcript<P> = (
     <P as SigmaProtocol>::Commitment,
     <P as SigmaProtocol>::Challenge,
     <P as SigmaProtocol>::Response,
 );
-
 
 /// A trait defining the behavior of a Sigma protocol for which simulation of transcripts is necessary.
 ///
