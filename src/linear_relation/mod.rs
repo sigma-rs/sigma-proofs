@@ -406,9 +406,9 @@ where
     /// # use sigma_rs::LinearRelation;
     /// use curve25519_dalek::RistrettoPoint as G;
     ///
-    /// let mut linear_map = LinearRelation::<G>::new();
-    /// let [var_x, var_y] = linear_map.allocate_scalars();
-    /// let vars = linear_map.allocate_scalars::<10>();
+    /// let mut relation = LinearRelation::<G>::new();
+    /// let [var_x, var_y] = relation.allocate_scalars();
+    /// let vars = relation.allocate_scalars::<10>();
     /// ```
     pub fn allocate_scalars<const N: usize>(&mut self) -> [ScalarVar<G>; N] {
         let mut vars = [ScalarVar(usize::MAX, PhantomData); N];
@@ -434,9 +434,9 @@ where
     /// # use sigma_rs::LinearRelation;
     /// use curve25519_dalek::RistrettoPoint as G;
     ///
-    /// let mut linear_map = LinearRelation::<G>::new();
-    /// let [var_g, var_h] = linear_map.allocate_elements();
-    /// let vars = linear_map.allocate_elements::<10>();
+    /// let mut relation = LinearRelation::<G>::new();
+    /// let [var_g, var_h] = relation.allocate_elements();
+    /// let vars = relation.allocate_elements::<10>();
     /// ```
     pub fn allocate_elements<const N: usize>(&mut self) -> [GroupVar<G>; N] {
         let mut vars = [GroupVar(usize::MAX, PhantomData); N];
