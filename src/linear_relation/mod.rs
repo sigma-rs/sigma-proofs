@@ -402,13 +402,13 @@ where
     /// An array of [`ScalarVar`] representing the newly allocated scalar indices.
     ///
     /// # Example
-    /// ```ignore
+    /// ```
     /// # use sigma_rs::LinearRelation;
     /// use curve25519_dalek::RistrettoPoint as G;
     ///
-    /// let mut linear map = LinearRelation::<G>::new();
-    /// let [var_x, var_y] = linear map.allocate_scalars();
-    /// let vars = linear map.allocate_scalars::<10>();
+    /// let mut linear_map = LinearRelation::<G>::new();
+    /// let [var_x, var_y] = linear_map.allocate_scalars();
+    /// let vars = linear_map.allocate_scalars::<10>();
     /// ```
     pub fn allocate_scalars<const N: usize>(&mut self) -> [ScalarVar<G>; N] {
         let mut vars = [ScalarVar(usize::MAX, PhantomData); N];
@@ -430,13 +430,13 @@ where
     /// An array of [`GroupVar`] representing the newly allocated group element indices.
     ///
     /// # Example
-    /// ```ignore
+    /// ```
     /// # use sigma_rs::LinearRelation;
     /// use curve25519_dalek::RistrettoPoint as G;
     ///
-    /// let mut linear map = LinearRelation::<G>::new();
-    /// let [var_g, var_h] = linear map.allocate_elements();
-    /// let vars = linear map.allocate_elements::<10>();
+    /// let mut linear_map = LinearRelation::<G>::new();
+    /// let [var_g, var_h] = linear_map.allocate_elements();
+    /// let vars = linear_map.allocate_elements::<10>();
     /// ```
     pub fn allocate_elements<const N: usize>(&mut self) -> [GroupVar<G>; N] {
         let mut vars = [GroupVar(usize::MAX, PhantomData); N];
@@ -639,7 +639,7 @@ where
     /// A `NISigmaProtocol` instance ready for proving and verification
     ///
     /// # Example
-    /// ```ignore
+    /// ```
     /// # use sigma_rs::{LinearRelation, NISigmaProtocol};
     /// # use curve25519_dalek::RistrettoPoint as G;
     /// # use curve25519_dalek::scalar::Scalar;
