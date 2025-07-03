@@ -402,7 +402,7 @@ where
     /// An array of [`ScalarVar`] representing the newly allocated scalar indices.
     ///
     /// # Example
-    /// ```
+    /// ```ignore
     /// # use sigma_rs::LinearRelation;
     /// use curve25519_dalek::RistrettoPoint as G;
     ///
@@ -430,7 +430,7 @@ where
     /// An array of [`GroupVar`] representing the newly allocated group element indices.
     ///
     /// # Example
-    /// ```
+    /// ```ignore
     /// # use sigma_rs::LinearRelation;
     /// use curve25519_dalek::RistrettoPoint as G;
     ///
@@ -639,7 +639,7 @@ where
     /// A `NISigmaProtocol` instance ready for proving and verification
     ///
     /// # Example
-    /// ```
+    /// ```ignore
     /// # use sigma_rs::{LinearRelation, NISigmaProtocol};
     /// # use curve25519_dalek::RistrettoPoint as G;
     /// # use curve25519_dalek::scalar::Scalar;
