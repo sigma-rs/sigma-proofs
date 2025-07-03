@@ -1,12 +1,12 @@
 //! # Linear Maps and Relations Handling.
 //!
-//! This module provides utilities for describing and manipulating **linear group morphisms**,
+//! This module provides utilities for describing and manipulating **linear group linear maps**,
 //! supporting sigma protocols over group-based statements (e.g., discrete logarithms, DLEQ proofs). See Maurer09.
 //!
 //! It includes:
 //! - [`LinearCombination`]: a sparse representation of scalar multiplication relations.
 //! - [`LinearMap`]: a collection of linear combinations acting on group elements.
-//! - [`LinearRelation`]: a higher-level structure managing morphisms and their associated images.
+//! - [`LinearRelation`]: a higher-level structure managing linear maps and their associated images.
 
 use std::collections::BTreeMap;
 use std::iter;
@@ -245,8 +245,7 @@ impl<G: Group> FromIterator<(GroupVar<G>, G)> for GroupMap<G> {
 pub struct LinearMap<G: Group> {
     /// The set of linear combination constraints (equations).
     pub constraints: Vec<LinearCombination<G>>,
-    // TODO: Update the usage of the word "morphism"
-    /// The list of group elements referenced in the morphism.
+    /// The list of group elements referenced in the linear map.
     ///
     /// Uninitialized group elements are presented with `None`.
     pub group_elements: GroupMap<G>,
@@ -296,7 +295,7 @@ impl<G: Group> LinearMap<G> {
         self.constraints.len()
     }
 
-    /// Adds a new linear combination constraint to the morphism.
+    /// Adds a new linear combination constraint to the linear map.
     ///
     /// # Parameters
     /// - `lc`: The [`LinearCombination`] to add.
@@ -304,7 +303,7 @@ impl<G: Group> LinearMap<G> {
         self.constraints.push(lc);
     }
 
-    /// Evaluates all linear combinations in the morphism with the provided scalars.
+    /// Evaluates all linear combinations in the linear map with the provided scalars.
     ///
     /// # Parameters
     /// - `scalars`: A slice of scalar values corresponding to the scalar variables.
@@ -334,8 +333,8 @@ impl<G: Group> LinearMap<G> {
 
 /// A wrapper struct coupling a [`LinearMap`] with the corresponding expected output (image) elements.
 ///
-/// This structure represents the *preimage problem* for a group morphism: given a set of scalar inputs,
-/// determine whether their image under the morphism matches a target set of group elements.
+/// This structure represents the *preimage problem* for a group linear map: given a set of scalar inputs,
+/// determine whether their image under the linear map matches a target set of group elements.
 ///
 /// Internally, the constraint system is defined through:
 /// - A list of group elements and linear equations (held in the [`LinearMap`] field),
@@ -391,7 +390,7 @@ where
         var
     }
 
-    /// Allocates a scalar variable for use in the morphism.
+    /// Allocates a scalar variable for use in the linear map.
     pub fn allocate_scalar(&mut self) -> ScalarVar<G> {
         self.linear_map.num_scalars += 1;
         ScalarVar(self.linear_map.num_scalars - 1, PhantomData)
@@ -407,9 +406,9 @@ where
     /// # use sigma_rs::LinearRelation;
     /// use curve25519_dalek::RistrettoPoint as G;
     ///
-    /// let mut morphism = LinearRelation::<G>::new();
-    /// let [var_x, var_y] = morphism.allocate_scalars();
-    /// let vars = morphism.allocate_scalars::<10>();
+    /// let mut linear map = LinearRelation::<G>::new();
+    /// let [var_x, var_y] = linear map.allocate_scalars();
+    /// let vars = linear map.allocate_scalars::<10>();
     /// ```
     pub fn allocate_scalars<const N: usize>(&mut self) -> [ScalarVar<G>; N] {
         let mut vars = [ScalarVar(usize::MAX, PhantomData); N];
@@ -419,13 +418,13 @@ where
         vars
     }
 
-    /// Allocates a point variable (group element) for use in the morphism.
+    /// Allocates a point variable (group element) for use in the linear map.
     pub fn allocate_element(&mut self) -> GroupVar<G> {
         self.linear_map.num_elements += 1;
         GroupVar(self.linear_map.num_elements - 1, PhantomData)
     }
 
-    /// Allocates `N` point variables (group elements) for use in the morphism.
+    /// Allocates `N` point variables (group elements) for use in the linear map.
     ///
     /// # Returns
     /// An array of [`GroupVar`] representing the newly allocated group element indices.
@@ -435,9 +434,9 @@ where
     /// # use sigma_rs::LinearRelation;
     /// use curve25519_dalek::RistrettoPoint as G;
     ///
-    /// let mut morphism = LinearRelation::<G>::new();
-    /// let [var_g, var_h] = morphism.allocate_elements();
-    /// let vars = morphism.allocate_elements::<10>();
+    /// let mut linear map = LinearRelation::<G>::new();
+    /// let [var_g, var_h] = linear map.allocate_elements();
+    /// let vars = linear map.allocate_elements::<10>();
     /// ```
     pub fn allocate_elements<const N: usize>(&mut self) -> [GroupVar<G>; N] {
         let mut vars = [GroupVar(usize::MAX, PhantomData); N];
@@ -474,7 +473,7 @@ where
         self.linear_map.group_elements.assign_elements(assignments)
     }
 
-    /// Evaluates all linear combinations in the morphism with the provided scalars, computing the
+    /// Evaluates all linear combinations in the linear map with the provided scalars, computing the
     /// left-hand side of this constraints (i.e. the image).
     ///
     /// After calling this function, all point variables will be assigned.
@@ -519,7 +518,7 @@ where
     ///
     /// # Returns
     ///
-    /// A vector of group elements (`Vec<G>`) representing the morphism's image.
+    /// A vector of group elements (`Vec<G>`) representing the linear map's image.
     // TODO: Should this return GroupMap?
     pub fn image(&self) -> Result<Vec<G>, Error> {
         self.image
@@ -528,7 +527,7 @@ where
             .collect()
     }
 
-    /// Returns a binary label describing the morphism.
+    /// Returns a binary label describing the linear map.
     ///
     /// The format is:
     /// - [Ne: u32] number of equations

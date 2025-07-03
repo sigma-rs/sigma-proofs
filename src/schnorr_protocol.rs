@@ -59,7 +59,7 @@ where
     /// Prover's first message: generates a commitment using random nonces.
     ///
     /// # Parameters
-    /// - `witness`: A vector of scalars that satisfy the morphism relation.
+    /// - `witness`: A vector of scalars that satisfy the linear map relation.
     /// - `rng`: A cryptographically secure random number generator.
     ///
     /// # Returns
