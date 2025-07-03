@@ -15,9 +15,9 @@ pub enum Error {
     /// Something is wrong with the proof, causing a verification failure.
     #[error("Verification failed.")]
     VerificationFailure,
-    /// Indicates a mismatch in parameter sizes during batch verification.
-    #[error("Mismatched parameter sizes for batch verification.")]
-    ProofSizeMismatch,
+    /// Indicates an invalid statement/witness pair
+    #[error("Invalid instance/witness pair.")]
+    InvalidInstanceWitnessPair,
     /// Uninitialized group element variable.
     #[error("Uninitialized group element variable: {var_debug}")]
     UnassignedGroupVar { var_debug: String },
