@@ -33,7 +33,7 @@ where
         rng: &mut (impl Rng + CryptoRng),
     ) -> Result<(Self::Commitment, Self::ProverState), Error> {
         if witness.len() != self.witness_len() {
-            return Err(Error::ProofSizeMismatch);
+            return Err(Error::InvalidInstanceWitnessPair);
         }
 
         let mut nonces: Vec<G::Scalar> = Vec::new();
@@ -51,7 +51,7 @@ where
         challenge: &Self::Challenge,
     ) -> Result<Self::Response, Error> {
         if state.0.len() != self.witness_len() || state.1.len() != self.witness_len() {
-            return Err(Error::ProofSizeMismatch);
+            return Err(Error::InvalidInstanceWitnessPair);
         }
 
         let mut responses = Vec::new();
@@ -129,7 +129,7 @@ impl<G: SRandom + GroupEncoding> SigmaProtocolSimulator for SchnorrProtocolCusto
         response: &Self::Response,
     ) -> Result<Self::Commitment, Error> {
         if response.len() != self.0.linear_map.num_scalars {
-            return Err(Error::ProofSizeMismatch);
+            return Err(Error::InvalidInstanceWitnessPair);
         }
 
         let response_image = self.0.linear_map.evaluate(response)?;
