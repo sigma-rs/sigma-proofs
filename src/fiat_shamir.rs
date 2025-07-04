@@ -112,10 +112,15 @@ where
         hash_state.prover_message(&serialized_commitment);
         let challenge = hash_state.verifier_challenge();
         // Prover's response
-        let response = self.interactive_proof.prover_response(prover_state, &challenge)?;
+        let response = self
+            .interactive_proof
+            .prover_response(prover_state, &challenge)?;
 
         // Local verification of the proof
-        debug_assert!(self.interactive_proof.verifier(&commitment, &challenge, &response).is_ok());
+        debug_assert!(self
+            .interactive_proof
+            .verifier(&commitment, &challenge, &response)
+            .is_ok());
         Ok((commitment, challenge, response))
     }
 
@@ -148,7 +153,9 @@ where
         let expected_challenge = hash_state.verifier_challenge();
         // Verification of the proof
         match *challenge == expected_challenge {
-            true => self.interactive_proof.verifier(commitment, challenge, response),
+            true => self
+                .interactive_proof
+                .verifier(commitment, challenge, response),
             false => Err(Error::VerificationFailure),
         }
     }
@@ -190,8 +197,13 @@ where
     ///   - The response fails verification under the Sigma protocol.
     pub fn verify_batchable(&self, proof: &[u8]) -> Result<(), Error> {
         let commitment = self.interactive_proof.deserialize_commitment(proof)?;
-        let commitment_size = self.interactive_proof.serialize_commitment(&commitment).len();
-        let response = self.interactive_proof.deserialize_response(&proof[commitment_size..])?;
+        let commitment_size = self
+            .interactive_proof
+            .serialize_commitment(&commitment)
+            .len();
+        let response = self
+            .interactive_proof
+            .deserialize_response(&proof[commitment_size..])?;
 
         // Assert correct proof size
         let total_expected_len = commitment_size + self.ip.serialize_response(&response).len();
@@ -206,7 +218,8 @@ where
         hash_state.prover_message(&serialized_commitment);
         let challenge = hash_state.verifier_challenge();
         // Verification of the proof
-        self.interactive_proof.verifier(&commitment, &challenge, &response)
+        self.interactive_proof
+            .verifier(&commitment, &challenge, &response)
     }
 }
 
@@ -260,7 +273,9 @@ where
         // Deserialize challenge and response from compact proof
         let challenge = self.interactive_proof.deserialize_challenge(proof)?;
         let challenge_size = self.interactive_proof.serialize_challenge(&challenge).len();
-        let response = self.interactive_proof.deserialize_response(&proof[challenge_size..])?;
+        let response = self
+            .interactive_proof
+            .deserialize_response(&proof[challenge_size..])?;
 
         // Assert correct proof size
         let total_expected_len = challenge_size + self.ip.serialize_response(&response).len();
@@ -269,7 +284,9 @@ where
         }
 
         // Compute the commitments
-        let commitment = self.interactive_proof.simulate_commitment(&challenge, &response)?;
+        let commitment = self
+            .interactive_proof
+            .simulate_commitment(&challenge, &response)?;
         // Verify the proof
         self.verify(&commitment, &challenge, &response)
     }
