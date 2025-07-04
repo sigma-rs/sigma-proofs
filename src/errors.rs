@@ -17,11 +17,9 @@ pub enum Error {
     /// The proof is invalid: verification failed.
     #[error("Verification failed.")]
     VerificationFailure,
-
-    /// The sizes of input parameters (e.g., witnesses, commitments) do not match expected values.
-    #[error("Mismatched parameter sizes in proof or batch verification.")]
-    ProofSizeMismatch,
-
+    /// Indicates an invalid statement/witness pair
+    #[error("Invalid instance/witness pair.")]
+    InvalidInstanceWitnessPair,
     /// Uninitialized group element variable.
     #[error("Uninitialized group element variable: {var_debug}")]
     UnassignedGroupVar {

@@ -99,6 +99,12 @@ pub trait SigmaProtocol {
     fn instance_label(&self) -> impl AsRef<[u8]>;
 }
 
+type Transcript<P> = (
+    <P as SigmaProtocol>::Commitment,
+    <P as SigmaProtocol>::Challenge,
+    <P as SigmaProtocol>::Response,
+);
+
 /// A trait defining the behavior of a Sigma protocol for which simulation of transcripts is necessary.
 ///
 /// Every Sigma protocol can be simulated, but in practice, this is primarily used
@@ -131,5 +137,5 @@ pub trait SigmaProtocolSimulator: SigmaProtocol {
     fn simulate_transcript<R: Rng + CryptoRng>(
         &self,
         rng: &mut R,
-    ) -> Result<(Self::Commitment, Self::Challenge, Self::Response), Error>;
+    ) -> Result<Transcript<Self>, Error>;
 }

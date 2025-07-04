@@ -68,14 +68,19 @@ where
     ///     - The prover state (random nonces and witness) used to compute the response.
     ///
     /// # Errors
-    /// -[`Error::ProofSizeMismatch`] if the witness vector length is incorrect.
+    /// -[`Error::InvalidInstanceWitnessPair`] if the witness vector length is incorrect.
     fn prover_commit(
         &self,
         witness: &Self::Witness,
         mut rng: &mut (impl RngCore + CryptoRng),
     ) -> Result<(Self::Commitment, Self::ProverState), Error> {
         if witness.len() != self.witness_length() {
-            return Err(Error::ProofSizeMismatch);
+            return Err(Error::InvalidInstanceWitnessPair);
+        }
+
+        // If the relation being proven is trivial, refuse to prove the statement.
+        if self.0.image()?.iter().all(|&x| x == G::identity()) {
+            return Err(Error::InvalidInstanceWitnessPair)
         }
 
         let nonces: Vec<G::Scalar> = (0..self.witness_length())
@@ -96,7 +101,7 @@ where
     /// - A vector of scalars forming the prover's response.
     ///
     /// # Errors
-    /// - Returns [`Error::ProofSizeMismatch`] if the prover state vectors have incorrect lengths.
+    /// - Returns [`Error::InvalidInstanceWitnessPair`] if the prover state vectors have incorrect lengths.
     fn prover_response(
         &self,
         prover_state: Self::ProverState,
@@ -105,7 +110,7 @@ where
         let (nonces, witness) = prover_state;
 
         if nonces.len() != self.witness_length() || witness.len() != self.witness_length() {
-            return Err(Error::ProofSizeMismatch);
+            return Err(Error::InvalidInstanceWitnessPair);
         }
 
         let responses = nonces
@@ -125,12 +130,12 @@ where
     /// # Returns
     /// - `Ok(())` if the proof is valid.
     /// - `Err(Error::VerificationFailure)` if the proof is invalid.
-    /// - `Err(Error::ProofSizeMismatch)` if the lengths of commitment or response do not match the expected counts.
+    /// - `Err(Error::InvalidInstanceWitnessPair)` if the lengths of commitment or response do not match the expected counts.
     ///
     /// # Errors
     /// -[`Error::VerificationFailure`] if the computed relation
     /// does not hold for the provided challenge and response, indicating proof invalidity.
-    /// -[`Error::ProofSizeMismatch`] if the commitment or response length is incorrect.
+    /// -[`Error::InvalidInstanceWitnessPair`] if the commitment or response length is incorrect.
     fn verifier(
         &self,
         commitment: &Self::Commitment,
@@ -138,12 +143,12 @@ where
         response: &Self::Response,
     ) -> Result<(), Error> {
         if commitment.len() != self.commitment_length() || response.len() != self.witness_length() {
-            return Err(Error::ProofSizeMismatch);
+            return Err(Error::InvalidInstanceWitnessPair);
         }
 
         let lhs = self.0.linear_map.evaluate(response)?;
         let mut rhs = Vec::new();
-        for (i, g) in commitment.iter().enumerate().take(self.commitment_length()) {
+        for (i, g) in commitment.iter().enumerate() {
             rhs.push({
                 let image_var = self.0.image[i];
                 self.0.linear_map.group_elements.get(image_var)? * challenge + g
@@ -307,14 +312,14 @@ where
     /// - A vector of group elements representing the simulated commitment (one per linear constraint).
     ///
     /// # Errors
-    /// - [`Error::ProofSizeMismatch`] if the response length does not match the expected number of scalars.
+    /// - [`Error::InvalidInstanceWitnessPair`] if the response length does not match the expected number of scalars.
     fn simulate_commitment(
         &self,
         challenge: &Self::Challenge,
         response: &Self::Response,
     ) -> Result<Self::Commitment, Error> {
         if response.len() != self.witness_length() {
-            return Err(Error::ProofSizeMismatch);
+            return Err(Error::InvalidInstanceWitnessPair);
         }
 
         let response_image = self.0.linear_map.evaluate(response)?;

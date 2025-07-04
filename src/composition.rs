@@ -123,7 +123,7 @@ impl<G: Group + GroupEncoding> SigmaProtocol for Protocol<G> {
             }
             (Protocol::And(ps), ProtocolWitness::And(ws)) => {
                 if ps.len() != ws.len() {
-                    return Err(Error::ProofSizeMismatch);
+                    return Err(Error::InvalidInstanceWitnessPair);
                 }
                 let mut commitments = Vec::with_capacity(ps.len());
                 let mut prover_states = Vec::with_capacity(ps.len());
@@ -178,7 +178,7 @@ impl<G: Group + GroupEncoding> SigmaProtocol for Protocol<G> {
                 .map(ProtocolResponse::Simple),
             (Protocol::And(ps), ProtocolProverState::And(states)) => {
                 if ps.len() != states.len() {
-                    return Err(Error::ProofSizeMismatch);
+                    return Err(Error::InvalidInstanceWitnessPair);
                 }
                 let responses: Result<Vec<_>, _> = ps
                     .iter()
