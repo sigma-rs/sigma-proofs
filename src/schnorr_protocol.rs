@@ -148,7 +148,7 @@ where
 
         let lhs = self.0.linear_map.evaluate(response)?;
         let mut rhs = Vec::new();
-        for (i, g) in commitment.iter().enumerate().take(self.commitment_length()) {
+        for (i, g) in commitment.iter().enumerate() {
             rhs.push({
                 let image_var = self.0.image[i];
                 self.0.linear_map.group_elements.get(image_var)? * challenge + g
