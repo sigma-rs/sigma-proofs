@@ -80,7 +80,7 @@ where
 
         // If the relation being proven is trivial, refuse to prove the statement.
         if self.0.image()?.iter().all(|&x| x == G::identity()) {
-            return Err(Error::InvalidInstanceWitnessPair)
+            return Err(Error::InvalidInstanceWitnessPair);
         }
 
         let nonces: Vec<G::Scalar> = (0..self.witness_length())
