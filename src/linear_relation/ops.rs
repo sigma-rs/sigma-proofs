@@ -2,7 +2,7 @@ use core::ops::{Add, Mul, Neg, Sub};
 use ff::Field;
 use group::Group;
 
-use super::{GroupVar, ScalarVar, Sum, Term, Weighted};
+use super::{GroupVar, ScalarTerm, ScalarVar, Sum, Term, Weighted};
 
 mod add {
     use super::*;
@@ -21,7 +21,7 @@ mod add {
         };
     }
 
-    impl_add_term!(ScalarVar<G>, GroupVar<G>, Term<G>);
+    impl_add_term!(ScalarVar<G>, ScalarTerm<G>, GroupVar<G>, Term<G>);
 
     impl<T> Add<T> for Sum<T> {
         type Output = Sum<T>;
@@ -46,7 +46,7 @@ mod add {
         };
     }
 
-    impl_add_sum_term!(ScalarVar<G>, GroupVar<G>, Term<G>);
+    impl_add_sum_term!(ScalarVar<G>, ScalarTerm<G>, GroupVar<G>, Term<G>);
 
     impl<T> Add<Sum<T>> for Sum<T> {
         type Output = Sum<T>;
@@ -87,7 +87,7 @@ mod add {
         };
     }
 
-    impl_add_weighted_term!(ScalarVar<G>, GroupVar<G>, Term<G>);
+    impl_add_weighted_term!(ScalarVar<G>, ScalarTerm<G>, GroupVar<G>, Term<G>);
 
     impl<T, F: Field> Add<T> for Sum<Weighted<T, F>> {
         type Output = Sum<Weighted<T, F>>;
@@ -112,7 +112,7 @@ mod add {
         };
     }
 
-    impl_add_weighted_sum_term!(ScalarVar<G>, GroupVar<G>, Term<G>);
+    impl_add_weighted_sum_term!(ScalarVar<G>, ScalarTerm<G>, GroupVar<G>, Term<G>);
 
     impl<T, F: Field> Add<Sum<T>> for Sum<Weighted<T, F>> {
         type Output = Sum<Weighted<T, F>>;
@@ -145,6 +145,78 @@ mod add {
             rhs + self
         }
     }
+
+    impl<G> Add<ScalarVar<G>> for ScalarTerm<G> {
+        type Output = Sum<ScalarTerm<G>>;
+
+        fn add(self, rhs: ScalarVar<G>) -> Self::Output {
+            self + ScalarTerm::from(rhs)
+        }
+    }
+
+    impl<G> Add<ScalarTerm<G>> for ScalarVar<G> {
+        type Output = Sum<ScalarTerm<G>>;
+
+        fn add(self, rhs: ScalarTerm<G>) -> Self::Output {
+            rhs + self
+        }
+    }
+
+    impl<T: Field + Into<G::Scalar>, G: Group> Add<T> for Weighted<ScalarTerm<G>, G::Scalar> {
+        type Output = Sum<Weighted<ScalarTerm<G>, G::Scalar>>;
+
+        fn add(self, rhs: T) -> Self::Output {
+            self + Self::from(rhs.into())
+        }
+    }
+
+    impl<T: Field + Into<G::Scalar>, G: Group> Add<T> for Weighted<ScalarVar<G>, G::Scalar> {
+        type Output = Sum<Weighted<ScalarTerm<G>, G::Scalar>>;
+
+        fn add(self, rhs: T) -> Self::Output {
+            <Weighted<ScalarTerm<G>, G::Scalar>>::from(self) + rhs.into()
+        }
+    }
+
+    impl<T: Field + Into<G::Scalar>, G: Group> Add<T> for ScalarVar<G> {
+        type Output = Sum<Weighted<ScalarTerm<G>, G::Scalar>>;
+
+        fn add(self, rhs: T) -> Self::Output {
+            Weighted::from(ScalarTerm::from(self)) + rhs.into()
+        }
+    }
+
+    impl<G: Group> Add<GroupVar<G>> for Sum<Weighted<Term<G>, G::Scalar>> {
+        type Output = Sum<Weighted<Term<G>, G::Scalar>>;
+
+        fn add(self, rhs: GroupVar<G>) -> Self::Output {
+            self + Self::from(rhs)
+        }
+    }
+
+    impl<G: Group> Add<GroupVar<G>> for Sum<Term<G>> {
+        type Output = Sum<Term<G>>;
+
+        fn add(self, rhs: GroupVar<G>) -> Self::Output {
+            self + Self::from(rhs)
+        }
+    }
+
+    impl<G: Group> Add<GroupVar<G>> for Weighted<Term<G>, G::Scalar> {
+        type Output = Sum<Weighted<Term<G>, G::Scalar>>;
+
+        fn add(self, rhs: GroupVar<G>) -> Self::Output {
+            self + Self::from(rhs)
+        }
+    }
+
+    impl<G: Group> Add<GroupVar<G>> for Term<G> {
+        type Output = Sum<Term<G>>;
+
+        fn add(self, rhs: GroupVar<G>) -> Self::Output {
+            self + Self::from(rhs)
+        }
+    }
 }
 
 mod mul {
@@ -157,7 +229,7 @@ mod mul {
         fn mul(self, rhs: ScalarVar<G>) -> Term<G> {
             Term {
                 elem: self,
-                scalar: rhs,
+                scalar: rhs.into(),
             }
         }
     }
@@ -166,6 +238,25 @@ mod mul {
         type Output = Term<G>;
 
         /// Multiply a [ScalarVar] by a [GroupVar] to form a new [Term].
+        fn mul(self, rhs: GroupVar<G>) -> Term<G> {
+            rhs * self
+        }
+    }
+
+    impl<G> Mul<ScalarTerm<G>> for GroupVar<G> {
+        type Output = Term<G>;
+
+        fn mul(self, rhs: ScalarTerm<G>) -> Term<G> {
+            Term {
+                elem: self,
+                scalar: rhs,
+            }
+        }
+    }
+
+    impl<G> Mul<GroupVar<G>> for ScalarTerm<G> {
+        type Output = Term<G>;
+
         fn mul(self, rhs: GroupVar<G>) -> Term<G> {
             rhs * self
         }
@@ -202,7 +293,7 @@ mod mul {
         };
     }
 
-    impl_scalar_mul_term!(ScalarVar<G>, GroupVar<G>, Term<G>);
+    impl_scalar_mul_term!(ScalarVar<G>, ScalarTerm<G>, GroupVar<G>, Term<G>);
 
     impl<T, F: Field> Mul<F> for Weighted<T, F> {
         type Output = Weighted<T, F>;
@@ -252,6 +343,44 @@ mod mul {
             rhs * self
         }
     }
+
+    impl<G: Group> Mul<ScalarTerm<G>> for Weighted<GroupVar<G>, G::Scalar> {
+        type Output = Weighted<Term<G>, G::Scalar>;
+
+        fn mul(self, rhs: ScalarTerm<G>) -> Self::Output {
+            Weighted {
+                term: self.term * rhs,
+                weight: self.weight,
+            }
+        }
+    }
+
+    impl<G: Group> Mul<Weighted<GroupVar<G>, G::Scalar>> for ScalarTerm<G> {
+        type Output = Weighted<Term<G>, G::Scalar>;
+
+        fn mul(self, rhs: Weighted<GroupVar<G>, G::Scalar>) -> Self::Output {
+            rhs * self
+        }
+    }
+
+    impl<G: Group> Mul<GroupVar<G>> for Weighted<ScalarTerm<G>, G::Scalar> {
+        type Output = Weighted<Term<G>, G::Scalar>;
+
+        fn mul(self, rhs: GroupVar<G>) -> Self::Output {
+            Weighted {
+                term: self.term * rhs,
+                weight: self.weight,
+            }
+        }
+    }
+
+    impl<G: Group> Mul<Weighted<ScalarTerm<G>, G::Scalar>> for GroupVar<G> {
+        type Output = Weighted<Term<G>, G::Scalar>;
+
+        fn mul(self, rhs: Weighted<ScalarTerm<G>, G::Scalar>) -> Self::Output {
+            rhs * self
+        }
+    }
 }
 
 mod neg {
@@ -295,7 +424,7 @@ mod neg {
         };
     }
 
-    impl_neg_term!(ScalarVar<G>, GroupVar<G>, Term<G>);
+    impl_neg_term!(ScalarVar<G>, ScalarTerm<G>, GroupVar<G>, Term<G>);
 }
 
 mod sub {
@@ -346,12 +475,12 @@ mod sub {
         };
     }
 
-    impl_sub_as_neg_add!(ScalarVar<G>, GroupVar<G>, Term<G>);
+    impl_sub_as_neg_add!(ScalarVar<G>, ScalarTerm<G>, GroupVar<G>, Term<G>);
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::linear_relation::{GroupVar, ScalarVar, Term};
+    use crate::linear_relation::{GroupVar, ScalarTerm, ScalarVar, Term};
     use curve25519_dalek::RistrettoPoint as G;
     use curve25519_dalek::Scalar;
     use std::marker::PhantomData;
@@ -376,6 +505,44 @@ mod tests {
     }
 
     #[test]
+    fn test_scalar_var_scalar_addition() {
+        let x = scalar_var(0);
+
+        let sum = x + Scalar::from(5u64);
+        assert_eq!(sum.terms().len(), 2);
+        assert_eq!(sum.terms()[0].term, x.into());
+        assert_eq!(sum.terms()[0].weight, Scalar::ONE);
+        assert_eq!(sum.terms()[1].term, ScalarTerm::Unit);
+        assert_eq!(sum.terms()[1].weight, Scalar::from(5u64));
+    }
+
+    #[test]
+    fn test_scalar_var_scalar_addition_mul_group() {
+        let x = scalar_var(0);
+        let g = group_var(0);
+
+        let res = (x + Scalar::from(5u64)) * g;
+
+        assert_eq!(res.terms().len(), 2);
+        assert_eq!(
+            res.terms()[0].term,
+            Term {
+                scalar: x.into(),
+                elem: g
+            }
+        );
+        assert_eq!(res.terms()[0].weight, Scalar::ONE);
+        assert_eq!(
+            res.terms()[1].term,
+            Term {
+                scalar: ScalarTerm::Unit,
+                elem: g
+            }
+        );
+        assert_eq!(res.terms()[1].weight, Scalar::from(5u64));
+    }
+
+    #[test]
     fn test_group_var_addition() {
         let g = group_var(0);
         let h = group_var(1);
@@ -393,13 +560,43 @@ mod tests {
         let y = scalar_var(1);
         let h = group_var(1);
 
-        let term1 = Term { scalar: x, elem: g };
-        let term2 = Term { scalar: y, elem: h };
+        let term1 = Term {
+            scalar: x.into(),
+            elem: g,
+        };
+        let term2 = Term {
+            scalar: y.into(),
+            elem: h,
+        };
 
         let sum = term1 + term2;
         assert_eq!(sum.terms().len(), 2);
         assert_eq!(sum.terms()[0], term1);
         assert_eq!(sum.terms()[1], term2);
+    }
+
+    #[test]
+    fn test_term_group_var_addition() {
+        let x = scalar_var(0);
+        let g = group_var(0);
+
+        let res = (x * g) + g;
+
+        assert_eq!(res.terms().len(), 2);
+        assert_eq!(
+            res.terms()[0],
+            Term {
+                scalar: x.into(),
+                elem: g
+            }
+        );
+        assert_eq!(
+            res.terms()[1],
+            Term {
+                scalar: ScalarTerm::Unit,
+                elem: g
+            }
+        );
     }
 
     #[test]
@@ -410,9 +607,9 @@ mod tests {
         let term1 = x * g;
         let term2 = g * x;
 
-        assert_eq!(term1.scalar, x);
+        assert_eq!(term1.scalar, x.into());
         assert_eq!(term1.elem, g);
-        assert_eq!(term2.scalar, x);
+        assert_eq!(term2.scalar, x.into());
         assert_eq!(term2.elem, g);
     }
 
@@ -438,7 +635,10 @@ mod tests {
     fn test_term_coefficient_multiplication() {
         let x = scalar_var(0);
         let g = group_var(0);
-        let term = Term { scalar: x, elem: g };
+        let term = Term {
+            scalar: x.into(),
+            elem: g,
+        };
         let weighted = term * Scalar::from(7u64);
 
         assert_eq!(weighted.term, term);
@@ -467,7 +667,10 @@ mod tests {
     fn test_term_negation() {
         let x = scalar_var(0);
         let g = group_var(0);
-        let term = Term { scalar: x, elem: g };
+        let term = Term {
+            scalar: x.into(),
+            elem: g,
+        };
         let neg_term = -term;
 
         assert_eq!(neg_term.term, term);
@@ -517,8 +720,14 @@ mod tests {
         let y = scalar_var(1);
         let h = group_var(1);
 
-        let term1 = Term { scalar: x, elem: g };
-        let term2 = Term { scalar: y, elem: h };
+        let term1 = Term {
+            scalar: x.into(),
+            elem: g,
+        };
+        let term2 = Term {
+            scalar: y.into(),
+            elem: h,
+        };
 
         let diff = term1 - term2;
         assert_eq!(diff.terms().len(), 2);
@@ -637,7 +846,7 @@ mod tests {
         let weighted_g = g * Scalar::from(5u64);
         let result = x * weighted_g;
 
-        assert_eq!(result.term.scalar, x);
+        assert_eq!(result.term.scalar, x.into());
         assert_eq!(result.term.elem, g);
         assert_eq!(result.weight, Scalar::from(5u64));
     }
@@ -650,7 +859,7 @@ mod tests {
         let weighted_x = x * Scalar::from(3u64);
         let result = weighted_x * g;
 
-        assert_eq!(result.term.scalar, x);
+        assert_eq!(result.term.scalar, x.into());
         assert_eq!(result.term.elem, g);
         assert_eq!(result.weight, Scalar::from(3u64));
     }
@@ -714,9 +923,9 @@ mod tests {
 
         let commitment = x * g + r * h;
         assert_eq!(commitment.terms().len(), 2);
-        assert_eq!(commitment.terms()[0].scalar, x);
+        assert_eq!(commitment.terms()[0].scalar, x.into());
         assert_eq!(commitment.terms()[0].elem, g);
-        assert_eq!(commitment.terms()[1].scalar, r);
+        assert_eq!(commitment.terms()[1].scalar, r.into());
         assert_eq!(commitment.terms()[1].elem, h);
     }
 
@@ -729,10 +938,10 @@ mod tests {
 
         let commitment = x * g * Scalar::from(3u64) + r * h * Scalar::from(2u64);
         assert_eq!(commitment.terms().len(), 2);
-        assert_eq!(commitment.terms()[0].term.scalar, x);
+        assert_eq!(commitment.terms()[0].term.scalar, x.into());
         assert_eq!(commitment.terms()[0].term.elem, g);
         assert_eq!(commitment.terms()[0].weight, Scalar::from(3u64));
-        assert_eq!(commitment.terms()[1].term.scalar, r);
+        assert_eq!(commitment.terms()[1].term.scalar, r.into());
         assert_eq!(commitment.terms()[1].term.elem, h);
         assert_eq!(commitment.terms()[1].weight, Scalar::from(2u64));
     }
@@ -748,12 +957,12 @@ mod tests {
         assert_eq!(expr.terms().len(), 4);
 
         for i in 0..3 {
-            assert_eq!(expr.terms()[i].term.scalar, scalars[i]);
+            assert_eq!(expr.terms()[i].term.scalar, scalars[i].into());
             assert_eq!(expr.terms()[i].term.elem, groups[i]);
             assert_eq!(expr.terms()[i].weight, Scalar::ONE);
         }
 
-        assert_eq!(expr.terms()[3].term.scalar, scalars[3]);
+        assert_eq!(expr.terms()[3].term.scalar, scalars[3].into());
         assert_eq!(expr.terms()[3].term.elem, groups[3]);
         assert_eq!(expr.terms()[3].weight, -Scalar::ONE);
     }
@@ -776,7 +985,7 @@ mod tests {
         let expected_groups = [g, h, k];
 
         for i in 0..3 {
-            assert_eq!(expr.terms()[i].term.scalar, expected_scalars[i]);
+            assert_eq!(expr.terms()[i].term.scalar, expected_scalars[i].into());
             assert_eq!(expr.terms()[i].term.elem, expected_groups[i]);
             assert_eq!(expr.terms()[i].weight, Scalar::from(expected_coeffs[i]));
         }
@@ -796,13 +1005,13 @@ mod tests {
         let mixed = basic_sum + weighted_term;
 
         assert_eq!(mixed.terms().len(), 3);
-        assert_eq!(mixed.terms()[0].term.scalar, x);
+        assert_eq!(mixed.terms()[0].term.scalar, x.into());
         assert_eq!(mixed.terms()[0].term.elem, g);
         assert_eq!(mixed.terms()[0].weight, Scalar::ONE);
-        assert_eq!(mixed.terms()[1].term.scalar, y);
+        assert_eq!(mixed.terms()[1].term.scalar, y.into());
         assert_eq!(mixed.terms()[1].term.elem, h);
         assert_eq!(mixed.terms()[1].weight, Scalar::ONE);
-        assert_eq!(mixed.terms()[2].term.scalar, z);
+        assert_eq!(mixed.terms()[2].term.scalar, z.into());
         assert_eq!(mixed.terms()[2].term.elem, k);
         assert_eq!(mixed.terms()[2].weight, Scalar::from(3u64));
     }
