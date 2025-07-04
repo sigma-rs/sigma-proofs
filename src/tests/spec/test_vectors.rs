@@ -4,7 +4,7 @@ use hex::FromHex;
 use json::JsonValue;
 use std::fs;
 
-use crate::codec::{ByteSchnorrCodec, KeccakDuplexSponge};
+use crate::codec::KeccakByteSchnorrCodec;
 use crate::fiat_shamir::NISigmaProtocol;
 use crate::tests::spec::{
     custom_schnorr_protocol::SchnorrProtocolCustom, random::SRandom, rng::TestDRNG,
@@ -14,9 +14,7 @@ use crate::tests::test_utils::{
     pedersen_commitment_dleq,
 };
 
-type Codec = ByteSchnorrCodec<G, KeccakDuplexSponge>;
-type SigmaP = SchnorrProtocolCustom<G>;
-type NISigmaP = NISigmaProtocol<SigmaP, Codec>;
+type NIProtocol = NISigmaProtocol<SchnorrProtocolCustom<G>, KeccakByteSchnorrCodec<G>>;
 
 /// Macro to generate non-interactive sigma protocols test functions
 macro_rules! generate_ni_function {
@@ -27,7 +25,7 @@ macro_rules! generate_ni_function {
             let (instance, witness) = $test_fn($(generate_ni_function!(@arg rng, $param)),*);
 
             let protocol = SchnorrProtocolCustom(instance);
-            let nizk = NISigmaP::from_iv(iv, protocol);
+            let nizk = NIProtocol::from_iv(iv, protocol);
 
             let proof_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
             let verified = nizk.verify_batchable(&proof_bytes).is_ok();
@@ -73,7 +71,6 @@ generate_ni_function!(
 fn test_spec_testvectors() {
     let seed = b"hello world";
     let iv = *b"yellow submarineyellow submarine";
-
     let vectors = extract_vectors("src/tests/spec/allVectors.json").unwrap();
 
     let functions: [fn(&[u8], [u8; 32]) -> (Vec<Scalar>, Vec<u8>); 5] = [
@@ -101,7 +98,6 @@ fn test_spec_testvectors() {
 fn extract_vectors(path: &str) -> json::Result<Vec<(Vec<u8>, Vec<u8>)>> {
     let content = fs::read_to_string(path).expect("Unable to read JSON file");
     let root: JsonValue = json::parse(&content).expect("JSON parsing error");
-
     root.entries()
         .map(|(_, obj)| {
             let context_hex = obj["Context"]

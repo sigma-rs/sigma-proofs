@@ -1,6 +1,8 @@
-//! [`SigmaProtocol`] Trait.
+//! Generic interface for 3-message Sigma protocols.
 //!
-//! This module defines the [`SigmaProtocol`] trait, a generic interface for 3-message Sigma protocols.
+//! This module defines the [`SigmaProtocol`] and [`SigmaProtocolSimulator`] traits,
+//! used to describe interactive zero-knowledge proofs of knowledge,
+//! such as Schnorr proofs, that follow the 3-message Sigma protocol structure.
 
 use crate::errors::Error;
 use rand::{CryptoRng, Rng};
@@ -18,11 +20,27 @@ use rand::{CryptoRng, Rng};
 /// - `Witness`: The prover's secret knowledge.
 /// - `Challenge`: The verifier's challenge value.
 ///
-/// ## Minimal Implementation
+///  ## Minimal Implementation
 /// Types implementing [`SigmaProtocol`] must define:
-/// - `prover_commit`
-/// - `prover_response`
-/// - `verifier`
+/// - `prover_commit` — Generates a commitment and internal state.
+/// - `prover_response` — Computes a response to a challenge.
+/// - `verifier` — Verifies a full transcript `(commitment, challenge, response)`.
+///
+/// ## Serialization
+/// Implementors must also provide methods for serialization and deserialization
+/// of each component of the proof.
+/// Required methods:
+/// - `serialize_commitment` / `deserialize_commitment`
+/// - `serialize_challenge` / `deserialize_challenge`
+/// - `serialize_response` / `deserialize_response`
+///
+/// These functions should encode/decode each component into/from a compact binary format.
+///
+/// ## Identification
+/// To allow transcript hash binding and protocol distinction,
+/// implementors must provide:
+/// - `protocol_identifier` — A fixed byte identifier of the protocol.
+/// - `instance_label` — A label specific to the instance being proven.
 pub trait SigmaProtocol {
     type Commitment;
     type ProverState;
@@ -30,11 +48,9 @@ pub trait SigmaProtocol {
     type Witness;
     type Challenge;
 
-    /// Generates a prover commitment given a witness and randomness.
-    ///
-    /// Returns a tuple containing:
-    /// - The public commitment sent to the verifier.
-    /// - The internal prover state needed for the response.
+    /// First step of the protocol. Given the witness and RNG, this generates:
+    /// - A public commitment to send to the verifier.
+    /// - The internal state to use when computing the response.
     fn prover_commit(
         &self,
         witness: &Self::Witness,
@@ -48,11 +64,11 @@ pub trait SigmaProtocol {
         challenge: &Self::Challenge,
     ) -> Result<Self::Response, Error>;
 
-    /// Verifies a Sigma protocol transcript.
+    /// Final step of the protocol: checks that the commitment, challenge, and response form a valid transcript.
     ///
     /// Returns:
-    /// - `Ok(())` if the verification succeeds.
-    /// - `Err(())` if the verification fails.
+    /// - `Ok(())` if the transcript is valid.
+    /// - `Err(())` otherwise.
     fn verifier(
         &self,
         commitment: &Self::Commitment,
@@ -91,17 +107,20 @@ type Transcript<P> = (
 
 /// A trait defining the behavior of a Sigma protocol for which simulation of transcripts is necessary.
 ///
-/// All Sigma protocols can technically simulate a valid transcript, but this mostly serve to prove the security of the protocol and is not used in the real protocol execution.
-/// However, some protocols (like OR protocols that prove the truth of one-out-of-two statements) require them during for the real execution.
+/// Every Sigma protocol can be simulated, but in practice, this is primarily used
+/// for proving security properties (zero-knowledge, soundness, etc.).
+///
+/// Some protocols (e.g. OR compositions) require simulation capabilities during actual proof generation.
 ///
 /// ## Minimal Implementation
 /// Types implementing [`SigmaProtocolSimulator`] must define:
 /// - `simulate_proof`
 /// - `simulate_transcript`
+#[allow(clippy::type_complexity)]
 pub trait SigmaProtocolSimulator: SigmaProtocol {
-    /// Simulates a protocol transcript given a challenge.
+    /// Generates a random response (e.g. for simulation or OR composition).
     ///
-    /// This serves to create zero-knowledge simulations without access to a witness.
+    /// Typically used to simulate a proof without a witness.
     fn simulate_response<R: Rng + CryptoRng>(&self, rng: &mut R) -> Self::Response;
 
     /// Simulates a commitment for which ('commitment', 'challenge', 'response') is a valid transcript.
@@ -113,7 +132,8 @@ pub trait SigmaProtocolSimulator: SigmaProtocol {
         response: &Self::Response,
     ) -> Result<Self::Commitment, Error>;
 
-    /// Simulates an entire protocol transcript.
+    /// Generates a full simulated proof transcript (commitment, challenge, response)
+    /// without requiring knowledge of a witness.
     fn simulate_transcript<R: Rng + CryptoRng>(
         &self,
         rng: &mut R,
