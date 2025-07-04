@@ -59,7 +59,7 @@ where
     /// Prover's first message: generates a commitment using random nonces.
     ///
     /// # Parameters
-    /// - `witness`: A vector of scalars that satisfy the morphism relation.
+    /// - `witness`: A vector of scalars that satisfy the linear map relation.
     /// - `rng`: A cryptographically secure random number generator.
     ///
     /// # Returns
@@ -86,8 +86,8 @@ where
         let nonces: Vec<G::Scalar> = (0..self.witness_length())
             .map(|_| G::Scalar::random(&mut rng))
             .collect();
-        let prover_state = (nonces.clone(), witness.clone());
         let commitment = self.0.linear_map.evaluate(&nonces)?;
+        let prover_state = (nonces, witness.clone());
         Ok((commitment, prover_state))
     }
 

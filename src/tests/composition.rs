@@ -18,7 +18,7 @@ type G = RistrettoPoint;
 fn composition_proof_correct() {
     // Composition and verification of proof for the following protocol :
     //
-    // protocol = And(
+    // And(
     //     Or( dleq, pedersen_commitment ),
     //     Simple( discrete_logarithm ),
     //     And( pedersen_commitment_dleq, bbs_blind_commitment_computation )
@@ -27,14 +27,14 @@ fn composition_proof_correct() {
     let domain_sep = b"hello world";
 
     // definitions of the underlying protocols
-    let (morph1, witness1) = dleq(G::random(&mut rng), <G as Group>::Scalar::random(&mut rng));
-    let (morph2, _) = pedersen_commitment(
+    let (relation1, witness1) = dleq(G::random(&mut rng), <G as Group>::Scalar::random(&mut rng));
+    let (relation2, _) = pedersen_commitment(
         G::random(&mut rng),
         <G as Group>::Scalar::random(&mut rng),
         <G as Group>::Scalar::random(&mut rng),
     );
-    let (morph3, witness3) = discrete_logarithm(<G as Group>::Scalar::random(&mut rng));
-    let (morph4, witness4) = pedersen_commitment_dleq(
+    let (relation3, witness3) = discrete_logarithm(<G as Group>::Scalar::random(&mut rng));
+    let (relation4, witness4) = pedersen_commitment_dleq(
         (0..4)
             .map(|_| G::random(&mut rng))
             .collect::<Vec<_>>()
@@ -46,7 +46,7 @@ fn composition_proof_correct() {
             .try_into()
             .unwrap(),
     );
-    let (morph5, witness5) = bbs_blind_commitment_computation(
+    let (relation5, witness5) = bbs_blind_commitment_computation(
         (0..4)
             .map(|_| G::random(&mut rng))
             .collect::<Vec<_>>()
@@ -62,17 +62,17 @@ fn composition_proof_correct() {
 
     // second layer protocol definitions
     let or_protocol1 = Protocol::Or(vec![
-        Protocol::Simple(SchnorrProof::from(morph1)),
-        Protocol::Simple(SchnorrProof::from(morph2)),
+        Protocol::Simple(SchnorrProof::from(relation1)),
+        Protocol::Simple(SchnorrProof::from(relation2)),
     ]);
     let or_witness1 = ProtocolWitness::Or(0, vec![ProtocolWitness::Simple(witness1)]);
 
-    let simple_protocol1 = Protocol::from(morph3);
+    let simple_protocol1 = Protocol::from(relation3);
     let simple_witness1 = ProtocolWitness::Simple(witness3);
 
     let and_protocol1 = Protocol::And(vec![
-        Protocol::Simple(SchnorrProof::from(morph4)),
-        Protocol::Simple(SchnorrProof::from(morph5)),
+        Protocol::Simple(SchnorrProof::from(relation4)),
+        Protocol::Simple(SchnorrProof::from(relation5)),
     ]);
     let and_witness1 = ProtocolWitness::And(vec![
         ProtocolWitness::Simple(witness4),

@@ -9,7 +9,7 @@ use crate::tests::test_utils::{
 };
 use crate::{codec::ShakeCodec, schnorr_protocol::SchnorrProof};
 
-/// This part tests the functioning of morphisms
+/// This part tests the functioning of linear maps
 /// as well as the implementation of LinearRelation
 #[test]
 fn test_discrete_logarithm() {
@@ -73,10 +73,10 @@ fn test_bbs_blind_commitment_computation() {
 #[test]
 fn noninteractive_discrete_logarithm() {
     let mut rng = OsRng;
-    let (morphismp, witness) = discrete_logarithm(Scalar::random(&mut rng));
+    let (relation, witness) = discrete_logarithm(Scalar::random(&mut rng));
 
-    // The SigmaProtocol induced by morphismp
-    let protocol = SchnorrProof::from(morphismp);
+    // The SigmaProtocol induced by relation
+    let protocol = SchnorrProof::from(relation);
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-schnorr";
     let nizk = NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>>::new(domain_sep, protocol);
@@ -100,10 +100,10 @@ fn noninteractive_discrete_logarithm() {
 #[test]
 fn noninteractive_dleq() {
     let mut rng = OsRng;
-    let (morphismp, witness) = dleq(G::random(&mut rng), Scalar::random(&mut rng));
+    let (relation, witness) = dleq(G::random(&mut rng), Scalar::random(&mut rng));
 
-    // The SigmaProtocol induced by morphismp
-    let protocol = SchnorrProof::from(morphismp);
+    // The SigmaProtocol induced by relation
+    let protocol = SchnorrProof::from(relation);
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-DLEQ";
     let nizk = NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>>::new(domain_sep, protocol);
@@ -127,14 +127,14 @@ fn noninteractive_dleq() {
 #[test]
 fn noninteractive_pedersen_commitment() {
     let mut rng = OsRng;
-    let (morphismp, witness) = pedersen_commitment(
+    let (relation, witness) = pedersen_commitment(
         G::random(&mut rng),
         Scalar::random(&mut rng),
         Scalar::random(&mut rng),
     );
 
-    // The SigmaProtocol induced by morphismp
-    let protocol = SchnorrProof::from(morphismp);
+    // The SigmaProtocol induced by relation
+    let protocol = SchnorrProof::from(relation);
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-pedersen-commitment";
     let nizk = NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>>::new(domain_sep, protocol);
@@ -158,7 +158,7 @@ fn noninteractive_pedersen_commitment() {
 #[test]
 fn noninteractive_pedersen_commitment_dleq() {
     let mut rng = OsRng;
-    let (morphismp, witness) = pedersen_commitment_dleq(
+    let (relation, witness) = pedersen_commitment_dleq(
         (0..4)
             .map(|_| G::random(&mut rng))
             .collect::<Vec<_>>()
@@ -171,8 +171,8 @@ fn noninteractive_pedersen_commitment_dleq() {
             .unwrap(),
     );
 
-    // The SigmaProtocol induced by morphismp
-    let protocol = SchnorrProof::from(morphismp);
+    // The SigmaProtocol induced by relation
+    let protocol = SchnorrProof::from(relation);
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-pedersen-commitment-DLEQ";
     let nizk = NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>>::new(domain_sep, protocol);
@@ -196,7 +196,7 @@ fn noninteractive_pedersen_commitment_dleq() {
 #[test]
 fn noninteractive_bbs_blind_commitment_computation() {
     let mut rng = OsRng;
-    let (morphismp, witness) = bbs_blind_commitment_computation(
+    let (relation, witness) = bbs_blind_commitment_computation(
         (0..4)
             .map(|_| G::random(&mut rng))
             .collect::<Vec<_>>()
@@ -210,8 +210,8 @@ fn noninteractive_bbs_blind_commitment_computation() {
         Scalar::random(&mut rng),
     );
 
-    // The SigmaProtocol induced by morphismp
-    let protocol = SchnorrProof::from(morphismp);
+    // The SigmaProtocol induced by relation
+    let protocol = SchnorrProof::from(relation);
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-bbs-blind-commitment-computation";
     let nizk = NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>>::new(domain_sep, protocol);
