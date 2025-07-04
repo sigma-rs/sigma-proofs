@@ -114,7 +114,6 @@ pub trait SigmaProtocolSimulator: SigmaProtocol {
     ) -> Result<Self::Commitment, Error>;
 
     /// Simulates an entire protocol transcript.
-    #[allow(clippy::type_complexity)] // TODO: Address this warning
     fn simulate_transcript<R: Rng + CryptoRng>(
         &self,
         rng: &mut R,
