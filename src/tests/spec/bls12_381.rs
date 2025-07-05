@@ -3,7 +3,6 @@ use ff::PrimeField;
 use group::Group;
 use hex::FromHex;
 use num_bigint::BigUint;
-use num_traits::One;
 use rand::{CryptoRng, Rng};
 use subtle::CtOption;
 
@@ -33,7 +32,7 @@ impl SInput for G1Projective {
 impl SRandom for G1Projective {
     fn randint_big(l: &BigUint, h: &BigUint, rng: &mut (impl Rng + CryptoRng)) -> BigUint {
         assert!(l <= h);
-        let range = h - l + BigUint::one();
+        let range = h - l;
         let bits = range.bits();
         #[allow(clippy::manual_div_ceil)]
         let bytes_needed = ((bits + 7) / 8) as usize;
