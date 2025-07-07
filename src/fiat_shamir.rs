@@ -117,10 +117,13 @@ where
             .prover_response(prover_state, &challenge)?;
 
         // Local verification of the proof
-        debug_assert!(self
-            .interactive_proof
-            .verifier(&commitment, &challenge, &response)
-            .is_ok());
+        if self
+        .interactive_proof
+        .verifier(&commitment, &challenge, &response)
+        .is_err()
+    {
+        return Err(Error::VerificationFailure);
+    }
         Ok((commitment, challenge, response))
     }
 
