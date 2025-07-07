@@ -40,8 +40,11 @@ fn test_proof_dlog_bitflips_bls() {
 fn test_proof_pedersen_bitflips_bls() {
     let mut rng = OsRng;
 
-
-    let (morphismp, witness) = pedersen_commitment(G::random(&mut rng), Scalar::random(&mut rng),Scalar::random(&mut rng));
+    let (morphismp, witness) = pedersen_commitment(
+        G::random(&mut rng),
+        Scalar::random(&mut rng),
+        Scalar::random(&mut rng),
+    );
     let protocol = SchnorrProof::from(morphismp);
     let nizk =
         NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>>::new(b"test-proof-bitflips", protocol);
@@ -69,8 +72,10 @@ fn test_proof_dlog_bitflips_ristretto() {
     let mut rng = OsRng;
     let (morphismp, witness) = discrete_logarithm(DalekScalar::random(&mut rng));
     let protocol = SchnorrProof::from(morphismp);
-    let nizk =
-        NISigmaProtocol::<SchnorrProof<RistrettoPoint>, ShakeCodec<RistrettoPoint>>::new(b"test-proof-bitflips", protocol);
+    let nizk = NISigmaProtocol::<SchnorrProof<RistrettoPoint>, ShakeCodec<RistrettoPoint>>::new(
+        b"test-proof-bitflips",
+        protocol,
+    );
 
     let proof = nizk.prove_compact(&witness, &mut rng).unwrap();
 
@@ -124,8 +129,10 @@ fn test_proof_dlog_extra_bytes_ristretto() {
     let mut rng = OsRng;
     let (morphismp, witness) = discrete_logarithm(DalekScalar::random(&mut rng));
     let protocol = SchnorrProof::from(morphismp);
-    let nizk =
-        NISigmaProtocol::<SchnorrProof<RistrettoPoint>, ShakeCodec<RistrettoPoint>>::new(b"test-proof-extra-bytes", protocol);
+    let nizk = NISigmaProtocol::<SchnorrProof<RistrettoPoint>, ShakeCodec<RistrettoPoint>>::new(
+        b"test-proof-extra-bytes",
+        protocol,
+    );
 
     let proof = nizk.prove_compact(&witness, &mut rng).unwrap();
 
