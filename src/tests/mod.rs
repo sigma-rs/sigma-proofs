@@ -1,5 +1,5 @@
 mod composition;
+mod edge_case;
 mod relations;
 mod spec;
-mod edge_case;
 pub mod test_utils;
