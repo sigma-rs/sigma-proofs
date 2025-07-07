@@ -1,5 +1,5 @@
 mod composition;
 mod relations;
-mod spec;
 mod robustness;
+mod spec;
 pub mod test_utils;
