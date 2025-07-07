@@ -214,6 +214,13 @@ where
             return Err(Error::VerificationFailure);
         }
 
+        // Assert correct proof size
+        let total_expected_len =
+            commitment_size + self.interactive_proof.serialize_response(&response).len();
+        if proof.len() != total_expected_len {
+            return Err(Error::VerificationFailure);
+        }
+
         let mut hash_state = self.hash_state.clone();
 
         // Recompute the challenge
@@ -225,6 +232,7 @@ where
             .verifier(&commitment, &challenge, &response)
     }
 }
+
 
 impl<P, C> NISigmaProtocol<P, C>
 where
@@ -286,6 +294,13 @@ where
             return Err(Error::VerificationFailure);
         }
 
+        // Assert correct proof size
+        let total_expected_len =
+            challenge_size + self.interactive_proof.serialize_response(&response).len();
+        if proof.len() != total_expected_len {
+            return Err(Error::VerificationFailure);
+        }
+        
         // Compute the commitments
         let commitment = self
             .interactive_proof
