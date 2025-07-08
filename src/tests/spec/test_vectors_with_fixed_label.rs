@@ -100,6 +100,7 @@ fn test_spec_testvectors() {
     }
 }
 
+#[allow(clippy::type_complexity)]
 fn extract_vectors(path: &str) -> json::Result<Vec<(Vec<u8>, Vec<u8>, Vec<u8>)>> {
     let content = fs::read_to_string(path).expect("Unable to read JSON file");
     let root: JsonValue = json::parse(&content).expect("JSON parsing error");
