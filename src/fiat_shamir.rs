@@ -204,6 +204,12 @@ where
         let response = self
             .interactive_proof
             .deserialize_response(&proof[commitment_size..])?;
+        let response_size = self.interactive_proof.serialize_response(&response).len();
+
+        // Proof size check
+        if proof.len() != commitment_size + response_size {
+            return Err(Error::VerificationFailure);
+        }
 
         let mut hash_state = self.hash_state.clone();
 
@@ -270,6 +276,12 @@ where
         let response = self
             .interactive_proof
             .deserialize_response(&proof[challenge_size..])?;
+        let response_size = self.interactive_proof.serialize_response(&response).len();
+
+        // Proof size check
+        if proof.len() != challenge_size + response_size {
+            return Err(Error::VerificationFailure);
+        }
 
         // Compute the commitments
         let commitment = self
