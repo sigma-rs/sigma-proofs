@@ -53,6 +53,15 @@ where
     _marker: core::marker::PhantomData<G>,
 }
 
+const WORD_SIZE: usize = 32;
+
+fn length_to_bytes(x: usize) -> [u8; WORD_SIZE] {
+    let mut bytes = [0u8; WORD_SIZE];
+    let x_bytes = x.to_be_bytes();
+    bytes[WORD_SIZE - x_bytes.len()..].copy_from_slice(&x_bytes);
+    bytes
+}
+
 impl<G, H> Codec for ByteSchnorrCodec<G, H>
 where
     G: Group + GroupEncoding,
@@ -63,10 +72,11 @@ where
     fn new(protocol_id: &[u8], session_id: &[u8], instance_label: &[u8]) -> Self {
         let iv = {
             let mut tmp = H::new([0u8; 32]);
+            tmp.absorb(&length_to_bytes(protocol_id.len()));
             tmp.absorb(protocol_id);
-            tmp.ratchet();
+            tmp.absorb(&length_to_bytes(session_id.len()));
             tmp.absorb(session_id);
-            tmp.ratchet();
+            tmp.absorb(&length_to_bytes(instance_label.len()));
             tmp.absorb(instance_label);
             tmp.squeeze(32).try_into().unwrap()
         };

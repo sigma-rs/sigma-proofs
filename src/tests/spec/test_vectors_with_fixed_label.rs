@@ -20,17 +20,18 @@ type NIProtocol = NISigmaProtocol<SchnorrProtocolCustom<G>, KeccakByteSchnorrCod
 macro_rules! generate_ni_function {
     ($name:ident, $test_fn:ident, $($param:tt),*) => {
         #[allow(non_snake_case)]
-        fn $name(seed: &[u8], iv: [u8; 32]) -> (Vec<Scalar>, Vec<u8>) {
+        fn $name(seed: &[u8], session_id: &[u8]) -> (Vec<Scalar>, Vec<u8>, Vec<u8>) {
             let mut rng = TestDRNG::new(seed);
             let (instance, witness) = $test_fn($(generate_ni_function!(@arg rng, $param)),*);
 
+            let statement = instance.label();
             let protocol = SchnorrProtocolCustom(instance);
-            let nizk = NIProtocol::from_iv(iv, protocol);
+            let nizk = NIProtocol::new(session_id, protocol);
 
             let proof_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
             let verified = nizk.verify_batchable(&proof_bytes).is_ok();
             assert!(verified, "Fiat-Shamir Schnorr proof verification failed");
-            (witness, proof_bytes)
+            (witness, proof_bytes, statement)
         }
     };
 
@@ -70,10 +71,10 @@ generate_ni_function!(
 #[test]
 fn test_spec_testvectors() {
     let seed = b"hello world";
-    let iv = *b"yellow submarineyellow submarine";
-    let vectors = extract_vectors("src/tests/spec/vectors/allVectors.json").unwrap();
+    let session_id = b"yellow submarineyellow submarine";
+    let vectors = extract_vectors("src/tests/spec/vectors/fixedLabelVectors.json").unwrap();
 
-    let functions: [fn(&[u8], [u8; 32]) -> (Vec<Scalar>, Vec<u8>); 5] = [
+    let functions: [fn(&[u8], &[u8]) -> (Vec<Scalar>, Vec<u8>, Vec<u8>); 5] = [
         NI_discrete_logarithm,
         NI_dleq,
         NI_pedersen_commitment,
@@ -82,9 +83,9 @@ fn test_spec_testvectors() {
     ];
 
     for (i, f) in functions.iter().enumerate() {
-        let (_, proof_bytes) = f(seed, iv);
+        let (_, proof_bytes, statement) = f(seed, session_id);
         assert_eq!(
-            iv.as_slice(),
+            session_id.as_slice(),
             vectors[i].0.as_slice(),
             "context for test vector {i} does not match"
         );
@@ -92,10 +93,15 @@ fn test_spec_testvectors() {
             proof_bytes, vectors[i].1,
             "proof bytes for test vector {i} does not match"
         );
+        assert_eq!(
+            statement, vectors[i].2,
+            "statement for test vector {i} does not match"
+        );
     }
 }
 
-fn extract_vectors(path: &str) -> json::Result<Vec<(Vec<u8>, Vec<u8>)>> {
+#[allow(clippy::type_complexity)]
+fn extract_vectors(path: &str) -> json::Result<Vec<(Vec<u8>, Vec<u8>, Vec<u8>)>> {
     let content = fs::read_to_string(path).expect("Unable to read JSON file");
     let root: JsonValue = json::parse(&content).expect("JSON parsing error");
     root.entries()
@@ -106,9 +112,13 @@ fn extract_vectors(path: &str) -> json::Result<Vec<(Vec<u8>, Vec<u8>)>> {
             let proof_hex = obj["Proof"]
                 .as_str()
                 .expect("Proof field not found or not a string");
+            let statement_hex = obj["Statement"]
+                .as_str()
+                .expect("Statement field not found or not a string");
             Ok((
                 Vec::from_hex(context_hex).unwrap(),
                 Vec::from_hex(proof_hex).unwrap(),
+                Vec::from_hex(statement_hex).unwrap(),
             ))
         })
         .collect()
