@@ -29,8 +29,7 @@ relation.set_elements([(G_var, G::generator()), (H_var, H)]);
 relation.compute_image(&[x_val, r_val]).unwrap();
 
 // Create non-interactive proof
-let protocol = Protocol::from(relation);
-let nizk = NISigmaProtocol::<_, ShakeCodec<G>>::new(b"pedersen-proof", protocol);
+let nizk = relation.into_nizk(b"pedersen-proof");
 let proof = nizk.prove_batchable(&witness, &mut rng)?;
 ```
 
