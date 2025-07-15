@@ -79,7 +79,7 @@ where
         }
 
         // If the relation being proven is trivial, refuse to prove the statement.
-        if self.0.image()?.iter().all(|&x| x == G::identity()) {
+        if self.0.image()?.iter().any(|&x| x == G::identity()) {
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
