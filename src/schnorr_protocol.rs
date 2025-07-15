@@ -324,13 +324,16 @@ where
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
+        let zero_vec = vec![<<G as Group>::Scalar as Field>::ZERO; self.0.linear_map.num_scalars];
+        let zero_image = self.0.linear_map.evaluate(&zero_vec)?;
         let response_image = self.0.linear_map.evaluate(response)?;
         let image = self.0.image()?;
 
         let commitment = response_image
             .iter()
             .zip(&image)
-            .map(|(res, img)| *res - *img * challenge)
+            .zip(&zero_image)
+            .map(|((res, img), z_img)| *res - (*img - *z_img) * challenge)
             .collect::<Vec<_>>();
         Ok(commitment)
     }

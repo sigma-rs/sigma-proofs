@@ -1,5 +1,6 @@
 //! Definitions used in tests for this crate.
 
+use ff::Field;
 use group::{Group, GroupEncoding};
 
 use crate::linear_relation::{msm_pr, LinearRelation};
@@ -22,6 +23,27 @@ pub fn discrete_logarithm<G: Group + GroupEncoding>(
     let X = relation.linear_map.group_elements.get(var_X).unwrap();
 
     assert_eq!(X, G::generator() * x);
+    (relation, vec![x])
+}
+
+/// LinearMap for knowledge of a translated discrete logarithm relative to a fixed basepoint.
+#[allow(non_snake_case)]
+pub fn translated_discrete_logarithm<G: Group + GroupEncoding>(
+    x: G::Scalar,
+) -> (LinearRelation<G>, Vec<G::Scalar>) {
+    let mut relation: LinearRelation<G> = LinearRelation::new();
+
+    let var_x = relation.allocate_scalar();
+    let var_G = relation.allocate_element();
+
+    let var_X = relation.allocate_eq((var_x + <<G as Group>::Scalar as Field>::ONE) * var_G);
+
+    relation.set_element(var_G, G::generator());
+    relation.compute_image(&[x]).unwrap();
+
+    let X = relation.linear_map.group_elements.get(var_X).unwrap();
+
+    assert!(vec![X] == relation.linear_map.evaluate(&[x]).unwrap());
     (relation, vec![x])
 }
 
