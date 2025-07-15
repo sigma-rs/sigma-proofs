@@ -69,6 +69,31 @@ pub fn dleq<G: Group + GroupEncoding>(H: G, x: G::Scalar) -> (LinearRelation<G>,
     (relation, vec![x])
 }
 
+/// LinearMap for knowledge of a translated dleq.
+#[allow(non_snake_case)]
+pub fn translated_dleq<G: Group + GroupEncoding>(
+    H: G,
+    x: G::Scalar,
+) -> (LinearRelation<G>, Vec<G::Scalar>) {
+    let mut relation: LinearRelation<G> = LinearRelation::new();
+
+    let var_x = relation.allocate_scalar();
+    let [var_G, var_H] = relation.allocate_elements();
+
+    let var_X = relation.allocate_eq(var_x * var_G + var_H);
+    let var_Y = relation.allocate_eq(var_x * var_H + var_G);
+
+    relation.set_elements([(var_G, G::generator()), (var_H, H)]);
+    relation.compute_image(&[x]).unwrap();
+
+    let X = relation.linear_map.group_elements.get(var_X).unwrap();
+    let Y = relation.linear_map.group_elements.get(var_Y).unwrap();
+
+    assert_eq!(X, G::generator() * x + H);
+    assert_eq!(Y, H * x + G::generator());
+    (relation, vec![x])
+}
+
 /// LinearMap for knowledge of an opening to a Pederson commitment.
 #[allow(non_snake_case)]
 pub fn pedersen_commitment<G: Group + GroupEncoding>(
