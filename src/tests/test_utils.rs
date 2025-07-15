@@ -85,7 +85,8 @@ pub fn pedersen_commitment_dleq<G: Group + GroupEncoding>(
     let [var_x, var_r] = relation.allocate_scalars();
 
     let var_Gs = relation.allocate_elements::<4>();
-    let [var_X, var_Y] = relation.allocate_elements();
+    let var_X = relation.allocate_eq(var_x * var_Gs[0] + var_r * var_Gs[1]);
+    let var_Y = relation.allocate_eq(var_x * var_Gs[2] + var_r * var_Gs[3]);
 
     relation.set_elements([
         (var_Gs[0], generators[0]),
@@ -94,9 +95,6 @@ pub fn pedersen_commitment_dleq<G: Group + GroupEncoding>(
         (var_Gs[3], generators[3]),
     ]);
     relation.set_elements([(var_X, X), (var_Y, Y)]);
-
-    relation.append_equation(var_X, [(var_x, var_Gs[0]), (var_r, var_Gs[1])]);
-    relation.append_equation(var_Y, [(var_x, var_Gs[2]), (var_r, var_Gs[3])]);
 
     assert!(vec![X, Y] == relation.linear_map.evaluate(&witness).unwrap());
     (relation, witness.to_vec())
@@ -119,7 +117,12 @@ pub fn bbs_blind_commitment_computation<G: Group + GroupEncoding>(
     let [var_secret_prover_blind, var_msg_1, var_msg_2, var_msg_3] = relation.allocate_scalars();
 
     let [var_Q_2, var_J_1, var_J_2, var_J_3] = relation.allocate_elements();
-    let var_C = relation.allocate_element();
+    let var_C = relation.allocate_eq(
+        var_secret_prover_blind * var_Q_2
+            + var_msg_1 * var_J_1
+            + var_msg_2 * var_J_2
+            + var_msg_3 * var_J_3,
+    );
 
     relation.set_elements([
         (var_Q_2, Q_2),
@@ -128,16 +131,6 @@ pub fn bbs_blind_commitment_computation<G: Group + GroupEncoding>(
         (var_J_3, J_3),
         (var_C, C),
     ]);
-
-    relation.append_equation(
-        var_C,
-        [
-            (var_secret_prover_blind, var_Q_2),
-            (var_msg_1, var_J_1),
-            (var_msg_2, var_J_2),
-            (var_msg_3, var_J_3),
-        ],
-    );
 
     let witness = vec![secret_prover_blind, msg_1, msg_2, msg_3];
 
