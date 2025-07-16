@@ -26,8 +26,14 @@ fn assert_proof_resists_bitflips<G, R>(
     let batchable = nizk.prove_batchable(&witness, rng).unwrap();
 
     // Sanity checks: both must verify correctly
-    assert!(nizk.verify_compact(&compact).is_ok(), "compact proof sanity check failed");
-    assert!(nizk.verify_batchable(&batchable).is_ok(), "batchable proof sanity check failed");
+    assert!(
+        nizk.verify_compact(&compact).is_ok(),
+        "compact proof sanity check failed"
+    );
+    assert!(
+        nizk.verify_batchable(&batchable).is_ok(),
+        "batchable proof sanity check failed"
+    );
 
     // Bit-flip tampering for compact proof
     for i in 0..compact.len() {
@@ -70,8 +76,14 @@ fn assert_proof_resists_extra_bytes<G, R>(
     let batchable = nizk.prove_batchable(&witness, rng).unwrap();
 
     // Sanity checks: both must verify correctly
-    assert!(nizk.verify_compact(&compact).is_ok(), "compact proof sanity check failed");
-    assert!(nizk.verify_batchable(&batchable).is_ok(), "batchable proof sanity check failed");
+    assert!(
+        nizk.verify_compact(&compact).is_ok(),
+        "compact proof sanity check failed"
+    );
+    assert!(
+        nizk.verify_batchable(&batchable).is_ok(),
+        "batchable proof sanity check failed"
+    );
 
     let insertion_points = [0, compact.len() / 2, compact.len()];
     let injected_bytes = [0x00, 0xFF, 0x42];
@@ -102,11 +114,8 @@ fn assert_proof_resists_extra_bytes<G, R>(
 }
 
 /// Tries to prove with a bogus witness and asserts that (compact/batchable) proof generation fails.
-fn assert_invalid_witness_fails<G, R, Setup>(
-    rng: &mut R,
-    tag: &'static [u8],
-    setup: Setup,
-) where
+fn assert_invalid_witness_fails<G, R, Setup>(rng: &mut R, tag: &'static [u8], setup: Setup)
+where
     G: Group + GroupEncoding + Clone,
     R: RngCore + CryptoRng,
     Setup: FnOnce(&mut R) -> (SchnorrProof<G>, Vec<<G as Group>::Scalar>),
@@ -116,8 +125,9 @@ fn assert_invalid_witness_fails<G, R, Setup>(
     let nizk = NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>>::new(tag, protocol);
 
     // Forge a bogus witness of the same length (retry until different)
-    let mut fake_witness: Vec<<G as Group>::Scalar> =
-        (0..correct_witness.len()).map(|_| <G as Group>::Scalar::random(&mut *rng)).collect();
+    let mut fake_witness: Vec<<G as Group>::Scalar> = (0..correct_witness.len())
+        .map(|_| <G as Group>::Scalar::random(&mut *rng))
+        .collect();
     while fake_witness == correct_witness {
         // extremely unlikely, but be safe
         for x in &mut fake_witness {
@@ -150,12 +160,7 @@ fn proof_dlog_bitflips_bls() {
     let (morph, witness) = discrete_logarithm::<G>(Scalar::random(&mut rng));
     let protocol = SchnorrProof::from(morph);
 
-    assert_proof_resists_bitflips::<G, _>(
-        &mut rng,
-        b"dlog-bitflips-bls",
-        protocol,
-        witness,
-    );
+    assert_proof_resists_bitflips::<G, _>(&mut rng, b"dlog-bitflips-bls", protocol, witness);
 }
 
 #[test]
@@ -222,12 +227,7 @@ fn proof_dlog_extra_bytes_bls() {
     let (morph, witness) = discrete_logarithm::<G>(Scalar::random(&mut rng));
     let protocol = SchnorrProof::from(morph);
 
-    assert_proof_resists_extra_bytes::<G, _>(
-        &mut rng,
-        b"dlog-extra-bytes-bls",
-        protocol,
-        witness,
-    );
+    assert_proof_resists_extra_bytes::<G, _>(&mut rng, b"dlog-extra-bytes-bls", protocol, witness);
 }
 
 #[test]
@@ -290,15 +290,11 @@ fn proof_pedersen_extra_bytes_ristretto() {
 #[test]
 fn dlog_invalid_witness_bls() {
     let mut rng = OsRng;
-    assert_invalid_witness_fails::<G, _, _>(
-        &mut rng,
-        b"dlog-invalid-bls",
-        |rng: &mut _| {
-            let secret = Scalar::random(rng);
-            let (morph, witness) = discrete_logarithm::<G>(secret);
-            (SchnorrProof::from(morph), witness)
-        }
-    );
+    assert_invalid_witness_fails::<G, _, _>(&mut rng, b"dlog-invalid-bls", |rng: &mut _| {
+        let secret = Scalar::random(rng);
+        let (morph, witness) = discrete_logarithm::<G>(secret);
+        (SchnorrProof::from(morph), witness)
+    });
 }
 
 #[test]
@@ -311,25 +307,21 @@ fn dlog_invalid_witness_ristretto() {
             let secret = DalekScalar::random(rng);
             let (morph, witness) = discrete_logarithm::<RistrettoPoint>(secret);
             (SchnorrProof::from(morph), witness)
-        }
+        },
     );
 }
 
 #[test]
 fn pedersen_invalid_witness_bls() {
     let mut rng = OsRng;
-    assert_invalid_witness_fails::<G, _, _>(
-        &mut rng,
-        b"pedersen-invalid-bls",
-        |rng: &mut _| {
-            let (morph, witness) = pedersen_commitment(
-                G::random(&mut *rng),
-                Scalar::random(&mut *rng),
-                Scalar::random(&mut *rng)
-            );
-            (SchnorrProof::from(morph), witness)
-        }
-    );
+    assert_invalid_witness_fails::<G, _, _>(&mut rng, b"pedersen-invalid-bls", |rng: &mut _| {
+        let (morph, witness) = pedersen_commitment(
+            G::random(&mut *rng),
+            Scalar::random(&mut *rng),
+            Scalar::random(&mut *rng),
+        );
+        (SchnorrProof::from(morph), witness)
+    });
 }
 
 #[test]
@@ -342,9 +334,9 @@ fn pedersen_invalid_witness_ristretto() {
             let (morph, witness) = pedersen_commitment(
                 RistrettoPoint::random(rng),
                 DalekScalar::random(rng),
-                DalekScalar::random(rng)
+                DalekScalar::random(rng),
             );
             (SchnorrProof::from(morph), witness)
-        }
+        },
     );
 }
