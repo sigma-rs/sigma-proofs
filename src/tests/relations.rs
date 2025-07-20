@@ -5,7 +5,7 @@ use rand::rngs::OsRng;
 use crate::fiat_shamir::NISigmaProtocol;
 use crate::tests::test_utils::{
     bbs_blind_commitment_computation, discrete_logarithm, dleq, pedersen_commitment,
-    pedersen_commitment_dleq,
+    pedersen_commitment_dleq, translated_discrete_logarithm, translated_dleq,
 };
 use crate::{codec::ShakeCodec, schnorr_protocol::SchnorrProof};
 
@@ -18,7 +18,19 @@ fn test_discrete_logarithm() {
 }
 
 #[test]
+fn test_translated_discrete_logarithm() {
+    let mut rng = OsRng;
+    translated_discrete_logarithm::<G>(Scalar::random(&mut rng));
+}
+
+#[test]
 fn test_dleq() {
+    let mut rng = OsRng;
+    dleq(G::random(&mut rng), Scalar::random(&mut rng));
+}
+
+#[test]
+fn test_translated_dleq() {
     let mut rng = OsRng;
     dleq(G::random(&mut rng), Scalar::random(&mut rng));
 }
@@ -98,6 +110,33 @@ fn noninteractive_discrete_logarithm() {
 }
 
 #[test]
+fn noninteractive_translated_discrete_logarithm() {
+    let mut rng = OsRng;
+    let (relation, witness) = translated_discrete_logarithm(Scalar::random(&mut rng));
+
+    // The SigmaProtocol induced by relation
+    let protocol = SchnorrProof::from(relation);
+    // Fiat-Shamir wrapper
+    let domain_sep = b"test-fiat-shamir-translated-schnorr";
+    let nizk = NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>>::new(domain_sep, protocol);
+
+    // Batchable and compact proofs
+    let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
+    let proof_compact_bytes = nizk.prove_compact(&witness, &mut rng).unwrap();
+    // Verify proofs
+    let verified_batchable = nizk.verify_batchable(&proof_batchable_bytes).is_ok();
+    let verified_compact = nizk.verify_compact(&proof_compact_bytes).is_ok();
+    assert!(
+        verified_batchable,
+        "Fiat-Shamir Schnorr proof verification failed"
+    );
+    assert!(
+        verified_compact,
+        "Fiat-Shamir Schnorr proof verification failed"
+    );
+}
+
+#[test]
 fn noninteractive_dleq() {
     let mut rng = OsRng;
     let (relation, witness) = dleq(G::random(&mut rng), Scalar::random(&mut rng));
@@ -106,6 +145,33 @@ fn noninteractive_dleq() {
     let protocol = SchnorrProof::from(relation);
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-DLEQ";
+    let nizk = NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>>::new(domain_sep, protocol);
+
+    // Batchable and compact proofs
+    let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
+    let proof_compact_bytes = nizk.prove_compact(&witness, &mut rng).unwrap();
+    // Verify proofs
+    let verified_batchable = nizk.verify_batchable(&proof_batchable_bytes).is_ok();
+    let verified_compact = nizk.verify_compact(&proof_compact_bytes).is_ok();
+    assert!(
+        verified_batchable,
+        "Fiat-Shamir Schnorr proof verification failed"
+    );
+    assert!(
+        verified_compact,
+        "Fiat-Shamir Schnorr proof verification failed"
+    );
+}
+
+#[test]
+fn noninteractive_translated_dleq() {
+    let mut rng = OsRng;
+    let (relation, witness) = translated_dleq(G::random(&mut rng), Scalar::random(&mut rng));
+
+    // The SigmaProtocol induced by relation
+    let protocol = SchnorrProof::from(relation);
+    // Fiat-Shamir wrapper
+    let domain_sep = b"test-fiat-shamir-translated-DLEQ";
     let nizk = NISigmaProtocol::<SchnorrProof<G>, ShakeCodec<G>>::new(domain_sep, protocol);
 
     // Batchable and compact proofs

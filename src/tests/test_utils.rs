@@ -1,5 +1,6 @@
 //! Definitions used in tests for this crate.
 
+use ff::Field;
 use group::{Group, GroupEncoding};
 
 use crate::linear_relation::{msm_pr, LinearRelation};
@@ -25,6 +26,27 @@ pub fn discrete_logarithm<G: Group + GroupEncoding>(
     (relation, vec![x])
 }
 
+/// LinearMap for knowledge of a translated discrete logarithm relative to a fixed basepoint.
+#[allow(non_snake_case)]
+pub fn translated_discrete_logarithm<G: Group + GroupEncoding>(
+    x: G::Scalar,
+) -> (LinearRelation<G>, Vec<G::Scalar>) {
+    let mut relation: LinearRelation<G> = LinearRelation::new();
+
+    let var_x = relation.allocate_scalar();
+    let var_G = relation.allocate_element();
+
+    let var_X = relation.allocate_eq((var_x + <<G as Group>::Scalar as Field>::ONE) * var_G);
+
+    relation.set_element(var_G, G::generator());
+    relation.compute_image(&[x]).unwrap();
+
+    let X = relation.linear_map.group_elements.get(var_X).unwrap();
+
+    assert!(vec![X] == relation.linear_map.evaluate(&[x]).unwrap());
+    (relation, vec![x])
+}
+
 /// LinearMap for knowledge of a discrete logarithm equality between two pairs.
 #[allow(non_snake_case)]
 pub fn dleq<G: Group + GroupEncoding>(H: G, x: G::Scalar) -> (LinearRelation<G>, Vec<G::Scalar>) {
@@ -44,6 +66,31 @@ pub fn dleq<G: Group + GroupEncoding>(H: G, x: G::Scalar) -> (LinearRelation<G>,
 
     assert_eq!(X, G::generator() * x);
     assert_eq!(Y, H * x);
+    (relation, vec![x])
+}
+
+/// LinearMap for knowledge of a translated dleq.
+#[allow(non_snake_case)]
+pub fn translated_dleq<G: Group + GroupEncoding>(
+    H: G,
+    x: G::Scalar,
+) -> (LinearRelation<G>, Vec<G::Scalar>) {
+    let mut relation: LinearRelation<G> = LinearRelation::new();
+
+    let var_x = relation.allocate_scalar();
+    let [var_G, var_H] = relation.allocate_elements();
+
+    let var_X = relation.allocate_eq(var_x * var_G + var_H);
+    let var_Y = relation.allocate_eq(var_x * var_H + var_G);
+
+    relation.set_elements([(var_G, G::generator()), (var_H, H)]);
+    relation.compute_image(&[x]).unwrap();
+
+    let X = relation.linear_map.group_elements.get(var_X).unwrap();
+    let Y = relation.linear_map.group_elements.get(var_Y).unwrap();
+
+    assert_eq!(X, G::generator() * x + H);
+    assert_eq!(Y, H * x + G::generator());
     (relation, vec![x])
 }
 
@@ -85,7 +132,8 @@ pub fn pedersen_commitment_dleq<G: Group + GroupEncoding>(
     let [var_x, var_r] = relation.allocate_scalars();
 
     let var_Gs = relation.allocate_elements::<4>();
-    let [var_X, var_Y] = relation.allocate_elements();
+    let var_X = relation.allocate_eq(var_x * var_Gs[0] + var_r * var_Gs[1]);
+    let var_Y = relation.allocate_eq(var_x * var_Gs[2] + var_r * var_Gs[3]);
 
     relation.set_elements([
         (var_Gs[0], generators[0]),
@@ -94,9 +142,6 @@ pub fn pedersen_commitment_dleq<G: Group + GroupEncoding>(
         (var_Gs[3], generators[3]),
     ]);
     relation.set_elements([(var_X, X), (var_Y, Y)]);
-
-    relation.append_equation(var_X, [(var_x, var_Gs[0]), (var_r, var_Gs[1])]);
-    relation.append_equation(var_Y, [(var_x, var_Gs[2]), (var_r, var_Gs[3])]);
 
     assert!(vec![X, Y] == relation.linear_map.evaluate(&witness).unwrap());
     (relation, witness.to_vec())
@@ -119,7 +164,12 @@ pub fn bbs_blind_commitment_computation<G: Group + GroupEncoding>(
     let [var_secret_prover_blind, var_msg_1, var_msg_2, var_msg_3] = relation.allocate_scalars();
 
     let [var_Q_2, var_J_1, var_J_2, var_J_3] = relation.allocate_elements();
-    let var_C = relation.allocate_element();
+    let var_C = relation.allocate_eq(
+        var_secret_prover_blind * var_Q_2
+            + var_msg_1 * var_J_1
+            + var_msg_2 * var_J_2
+            + var_msg_3 * var_J_3,
+    );
 
     relation.set_elements([
         (var_Q_2, Q_2),
@@ -128,16 +178,6 @@ pub fn bbs_blind_commitment_computation<G: Group + GroupEncoding>(
         (var_J_3, J_3),
         (var_C, C),
     ]);
-
-    relation.append_equation(
-        var_C,
-        [
-            (var_secret_prover_blind, var_Q_2),
-            (var_msg_1, var_J_1),
-            (var_msg_2, var_J_2),
-            (var_msg_3, var_J_3),
-        ],
-    );
 
     let witness = vec![secret_prover_blind, msg_1, msg_2, msg_3];
 

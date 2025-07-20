@@ -147,11 +147,13 @@ where
         }
 
         let lhs = self.0.linear_map.evaluate(response)?;
+        let zero_vec = vec![<<G as Group>::Scalar as Field>::ZERO; self.0.linear_map.num_scalars];
+        let zero_image = self.0.linear_map.evaluate(&zero_vec)?;
         let mut rhs = Vec::new();
         for (i, g) in commitment.iter().enumerate() {
             rhs.push({
                 let image_var = self.0.image[i];
-                self.0.linear_map.group_elements.get(image_var)? * challenge + g
+                (self.0.linear_map.group_elements.get(image_var)? - zero_image[i]) * challenge + g
             });
         }
         if lhs == rhs {
@@ -322,13 +324,16 @@ where
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
+        let zero_vec = vec![<<G as Group>::Scalar as Field>::ZERO; self.0.linear_map.num_scalars];
+        let zero_image = self.0.linear_map.evaluate(&zero_vec)?;
         let response_image = self.0.linear_map.evaluate(response)?;
         let image = self.0.image()?;
 
         let commitment = response_image
             .iter()
             .zip(&image)
-            .map(|(res, img)| *res - *img * challenge)
+            .zip(&zero_image)
+            .map(|((res, img), z_img)| *res - (*img - *z_img) * challenge)
             .collect::<Vec<_>>();
         Ok(commitment)
     }
