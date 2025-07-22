@@ -65,7 +65,7 @@ fn composition_proof_correct() {
         Protocol::Simple(SchnorrProof::from(relation1)),
         Protocol::Simple(SchnorrProof::from(relation2)),
     ]);
-    let or_witness1 = ProtocolWitness::Or(0, vec![ProtocolWitness::Simple(witness1)]);
+    let or_witness1 = ProtocolWitness::from((0, ProtocolWitness::Simple(witness1)));
 
     let simple_protocol1 = Protocol::from(relation3);
     let simple_witness1 = ProtocolWitness::Simple(witness3);
@@ -74,14 +74,14 @@ fn composition_proof_correct() {
         Protocol::Simple(SchnorrProof::from(relation4)),
         Protocol::Simple(SchnorrProof::from(relation5)),
     ]);
-    let and_witness1 = ProtocolWitness::And(vec![
+    let and_witness1 = ProtocolWitness::from(vec![
         ProtocolWitness::Simple(witness4),
         ProtocolWitness::Simple(witness5),
     ]);
 
     // definition of the final protocol
     let protocol = Protocol::And(vec![or_protocol1, simple_protocol1, and_protocol1]);
-    let witness = ProtocolWitness::And(vec![or_witness1, simple_witness1, and_witness1]);
+    let witness = ProtocolWitness::from(vec![or_witness1, simple_witness1, and_witness1]);
 
     let nizk =
         NISigmaProtocol::<Protocol<RistrettoPoint>, ShakeCodec<G>>::new(domain_sep, protocol);

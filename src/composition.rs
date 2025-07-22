@@ -77,7 +77,7 @@ pub enum ProtocolProverState<G: Group + GroupEncoding> {
     And(Vec<ProtocolProverState<G>>),
     Or(
         usize,                                                 // real index
-        Vec<ProtocolProverState<G>>,                           // real ProverState
+        Box<ProtocolProverState<G>>,                           // real ProverState
         (Vec<ProtocolChallenge<G>>, Vec<ProtocolResponse<G>>), // simulated transcripts
     ),
 }
@@ -94,7 +94,19 @@ pub enum ProtocolResponse<G: Group + GroupEncoding> {
 pub enum ProtocolWitness<G: Group + GroupEncoding> {
     Simple(<SchnorrProof<G> as SigmaProtocol>::Witness),
     And(Vec<ProtocolWitness<G>>),
-    Or(usize, Vec<ProtocolWitness<G>>),
+    Or(usize, Box<ProtocolWitness<G>>),
+}
+
+impl<G: Group + GroupEncoding> From<Vec<ProtocolWitness<G>>> for ProtocolWitness<G> {
+    fn from(value: Vec<ProtocolWitness<G>>) -> Self {
+        Self::And(value)
+    }
+}
+
+impl<G: Group + GroupEncoding> From<(usize, ProtocolWitness<G>)> for ProtocolWitness<G> {
+    fn from((i, witness): (usize, ProtocolWitness<G>)) -> Self {
+        Self::Or(i, Box::new(witness))
+    }
 }
 
 // Structure representing the Challenge type of Protocol as SigmaProtocol
@@ -144,7 +156,7 @@ impl<G: Group + GroupEncoding> SigmaProtocol for Protocol<G> {
                 let mut simulated_challenges = Vec::new();
                 let mut simulated_responses = Vec::new();
 
-                let (real_commitment, real_state) = ps[*w_index].prover_commit(&w[0], rng)?;
+                let (real_commitment, real_state) = ps[*w_index].prover_commit(&w, rng)?;
 
                 for i in (0..ps.len()).filter(|i| i != w_index) {
                     let (commitment, challenge, response) = ps[i].simulate_transcript(rng)?;
@@ -158,7 +170,7 @@ impl<G: Group + GroupEncoding> SigmaProtocol for Protocol<G> {
                     ProtocolCommitment::Or(commitments),
                     ProtocolProverState::Or(
                         *w_index,
-                        vec![real_state],
+                        Box::new(real_state),
                         (simulated_challenges, simulated_responses),
                     ),
                 ))
@@ -203,8 +215,7 @@ impl<G: Group + GroupEncoding> SigmaProtocol for Protocol<G> {
                 for ch in &simulated_challenges {
                     real_challenge -= ch;
                 }
-                let real_response =
-                    ps[w_index].prover_response(real_state[0].clone(), &real_challenge)?;
+                let real_response = ps[w_index].prover_response(*real_state, &real_challenge)?;
 
                 for (i, _) in ps.iter().enumerate() {
                     if i == w_index {

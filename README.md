@@ -48,12 +48,12 @@ let or_protocol = Protocol::Or(vec![
 ]);
 
 // If we know the second option, create witness for index 1
-let witness = ProtocolWitness::Or(1, vec![
-    ProtocolWitness::And(vec![
+let witness = ProtocolWitness::from((1, 
+    ProtocolWitness::from(vec![
         ProtocolWitness::Simple(vec![y]),
         ProtocolWitness::Simple(vec![z]),
     ])
-]);
+));
 ```
 
 ## Examples

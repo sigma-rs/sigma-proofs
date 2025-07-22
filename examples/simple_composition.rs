@@ -55,7 +55,7 @@ fn prove(P1: G, x2: Scalar, H: G) -> ProofResult<Vec<u8>> {
     let Q = H * x2;
 
     let protocol = create_relation(P1, P2, Q, H);
-    let witness = ProtocolWitness::Or(1, vec![ProtocolWitness::Simple(vec![x2])]);
+    let witness = ProtocolWitness::from((1, ProtocolWitness::Simple(vec![x2])));
     let nizk = NISigmaProtocol::<_, ShakeCodec<G>>::new(b"or_proof_example", protocol);
 
     nizk.prove_batchable(&witness, &mut rng)
