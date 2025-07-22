@@ -94,7 +94,7 @@ pub fn translated_dleq<G: Group + GroupEncoding>(
     (relation, vec![x])
 }
 
-/// LinearMap for knowledge of an opening to a Pederson commitment.
+/// LinearMap for knowledge of an opening to a Pedersen commitment.
 #[allow(non_snake_case)]
 pub fn pedersen_commitment<G: Group + GroupEncoding>(
     H: G,
@@ -118,7 +118,7 @@ pub fn pedersen_commitment<G: Group + GroupEncoding>(
     (relation, witness)
 }
 
-/// LinearMap for knowledge of equal openings to two distinct Pederson commitments.
+/// LinearMap for knowledge of equal openings to two distinct Pedersen commitments.
 #[allow(non_snake_case)]
 pub fn pedersen_commitment_dleq<G: Group + GroupEncoding>(
     generators: [G; 4],
