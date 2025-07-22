@@ -156,7 +156,7 @@ impl<G: Group + GroupEncoding> SigmaProtocol for Protocol<G> {
                 let mut simulated_challenges = Vec::new();
                 let mut simulated_responses = Vec::new();
 
-                let (real_commitment, real_state) = ps[*w_index].prover_commit(&w, rng)?;
+                let (real_commitment, real_state) = ps[*w_index].prover_commit(w, rng)?;
 
                 for i in (0..ps.len()).filter(|i| i != w_index) {
                     let (commitment, challenge, response) = ps[i].simulate_transcript(rng)?;
