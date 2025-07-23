@@ -155,12 +155,6 @@ fn test_spec_testvectors_with_fixed_label() {
     let session_id = b"hello world";
     let vectors = extract_vectors_session("src/tests/spec/vectors/fixedLabelVectors.json").unwrap();
 
-    // Order functions to match JSON vector order:
-    // 0: bbs_blind_commitment_computation_with_session_ID
-    // 1: discrete_logarithm_with_session_ID
-    // 2: dleq_with_session_ID
-    // 3: pedersen_commitment_dleq_with_session_ID
-    // 4: pedersen_commitment_with_session_ID
     let functions: [fn(&[u8], &[u8]) -> (Vec<Scalar>, Vec<u8>, Vec<u8>); 5] = [
         NI_bbs_blind_commitment_computation_session,
         NI_discrete_logarithm_session,
@@ -174,7 +168,7 @@ fn test_spec_testvectors_with_fixed_label() {
         assert_eq!(
             session_id.as_slice(),
             vectors[i].0.as_slice(),
-            "context for test vector {i} does not match"
+            "session id for test vector {i} does not match"
         );
         assert_eq!(
             proof_bytes, vectors[i].1,
