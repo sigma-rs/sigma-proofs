@@ -19,7 +19,7 @@ use group::{Group, GroupEncoding};
 use crate::codec::ShakeCodec;
 use crate::errors::Error;
 use crate::schnorr_protocol::SchnorrProof;
-use crate::NISigmaProtocol;
+use crate::Nizk;
 
 /// Implementations of conversion operations such as From and FromIterator for var and term types.
 mod convert;
@@ -737,11 +737,11 @@ where
     /// - `context`: Domain separator bytes for the Fiat-Shamir transform
     ///
     /// # Returns
-    /// A `NISigmaProtocol` instance ready for proving and verification
+    /// A `Nizk` instance ready for proving and verification
     ///
     /// # Example
     /// ```
-    /// # use sigma_rs::{LinearRelation, NISigmaProtocol};
+    /// # use sigma_rs::{LinearRelation, Nizk};
     /// # use curve25519_dalek::RistrettoPoint as G;
     /// # use curve25519_dalek::scalar::Scalar;
     /// # use rand::rngs::OsRng;
@@ -764,11 +764,11 @@ where
     pub fn into_nizk(
         self,
         session_identifier: &[u8],
-    ) -> NISigmaProtocol<SchnorrProof<G>, ShakeCodec<G>>
+    ) -> Nizk<SchnorrProof<G>, ShakeCodec<G>>
     where
         G: group::GroupEncoding,
     {
         let schnorr = SchnorrProof::from(self);
-        NISigmaProtocol::new(session_identifier, schnorr)
+        Nizk::new(session_identifier, schnorr)
     }
 }

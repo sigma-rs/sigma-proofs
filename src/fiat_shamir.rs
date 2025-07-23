@@ -1,6 +1,6 @@
 //! Fiat-Shamir transformation for [`SigmaProtocol`]s.
 //!
-//! This module defines [`NISigmaProtocol`], a generic non-interactive Sigma protocol wrapper,
+//! This module defines [`Nizk`], a generic non-interactive Sigma protocol wrapper,
 //! based on applying the Fiat-Shamir heuristic using a codec.
 //!
 //! It transforms an interactive [`SigmaProtocol`] into a non-interactive one,
@@ -26,7 +26,7 @@ type Transcript<P> = (
 
 /// A Fiat-Shamir transformation of a [`SigmaProtocol`] into a non-interactive proof.
 ///
-/// [`NISigmaProtocol`] wraps an interactive Sigma protocol `P`
+/// [`Nizk`] wraps an interactive Sigma protocol `P`
 /// and a hash-based codec `C`, to produce non-interactive proofs.
 ///
 /// It manages the domain separation, codec reset,
@@ -36,7 +36,7 @@ type Transcript<P> = (
 /// - `P`: the Sigma protocol implementation.
 /// - `C`: the codec used for Fiat-Shamir.
 #[derive(Debug)]
-pub struct NISigmaProtocol<P, C>
+pub struct Nizk<P, C>
 where
     P: SigmaProtocol,
     P::Challenge: PartialEq,
@@ -48,20 +48,20 @@ where
     pub interactive_proof: P,
 }
 
-impl<P, C> NISigmaProtocol<P, C>
+impl<P, C> Nizk<P, C>
 where
     P: SigmaProtocol,
     P::Challenge: PartialEq,
     C: Codec<Challenge = P::Challenge> + Clone,
 {
-    /// Constructs a new [`NISigmaProtocol`] instance.
+    /// Constructs a new [`Nizk`] instance.
     ///
     /// # Parameters
     /// - `iv`: Domain separation tag for the hash function (e.g., protocol name or context).
     /// - `instance`: An instance of the interactive Sigma protocol.
     ///
     /// # Returns
-    /// A new [`NISigmaProtocol`] that can generate and verify non-interactive proofs.
+    /// A new [`Nizk`] that can generate and verify non-interactive proofs.
     pub fn new(session_identifier: &[u8], interactive_proof: P) -> Self {
         let hash_state = C::new(
             interactive_proof.protocol_identifier().as_ref(),
@@ -233,7 +233,7 @@ where
     }
 }
 
-impl<P, C> NISigmaProtocol<P, C>
+impl<P, C> Nizk<P, C>
 where
     P: SigmaProtocol + SigmaProtocolSimulator,
     P::Challenge: PartialEq,

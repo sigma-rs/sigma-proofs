@@ -5,7 +5,7 @@ use json::JsonValue;
 use std::fs;
 
 use crate::codec::KeccakByteSchnorrCodec;
-use crate::fiat_shamir::NISigmaProtocol;
+use crate::fiat_shamir::Nizk as Nizk;
 use crate::tests::spec::{
     custom_schnorr_protocol::SchnorrProtocolCustom, random::SRandom, rng::TestDRNG,
 };
@@ -14,7 +14,7 @@ use crate::tests::test_utils::{
     pedersen_commitment_dleq,
 };
 
-type NIProtocol = NISigmaProtocol<SchnorrProtocolCustom<G>, KeccakByteSchnorrCodec<G>>;
+type SchnorrNizk = Nizk<SchnorrProtocolCustom<G>, KeccakByteSchnorrCodec<G>>;
 
 /// Macro to generate non-interactive sigma protocols test functions
 macro_rules! generate_ni_function {
@@ -26,7 +26,7 @@ macro_rules! generate_ni_function {
 
             let statement = instance.label();
             let protocol = SchnorrProtocolCustom(instance);
-            let nizk = NIProtocol::new(session_id, protocol);
+            let nizk = SchnorrNizk::new(session_id, protocol);
 
             let proof_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
             let verified = nizk.verify_batchable(&proof_bytes).is_ok();
