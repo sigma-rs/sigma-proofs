@@ -123,12 +123,14 @@ fn test_spec_testvectors() {
     let iv = *b"yellow submarineyellow submarine";
     let vectors = extract_vectors_iv("src/tests/spec/vectors/allVectors.json").unwrap();
 
+    // Order functions to match JSON vector order:
+    // allVectors.json order is: bbs, discrete_log, dleq, pedersen_commitment, pedersen_commitment_dleq
     let functions: [fn(&[u8], [u8; 32]) -> (Vec<Scalar>, Vec<u8>); 5] = [
+        NI_bbs_blind_commitment_computation_iv,
         NI_discrete_logarithm_iv,
         NI_dleq_iv,
         NI_pedersen_commitment_iv,
         NI_pedersen_commitment_dleq_iv,
-        NI_bbs_blind_commitment_computation_iv,
     ];
 
     for (i, f) in functions.iter().enumerate() {
@@ -150,15 +152,21 @@ fn test_spec_testvectors() {
 #[test]
 fn test_spec_testvectors_with_fixed_label() {
     let seed = b"hello world";
-    let session_id = b"yellow submarineyellow submarine";
+    let session_id = b"hello world";
     let vectors = extract_vectors_session("src/tests/spec/vectors/fixedLabelVectors.json").unwrap();
 
+    // Order functions to match JSON vector order:
+    // 0: bbs_blind_commitment_computation_with_session_ID
+    // 1: discrete_logarithm_with_session_ID
+    // 2: dleq_with_session_ID
+    // 3: pedersen_commitment_dleq_with_session_ID
+    // 4: pedersen_commitment_with_session_ID
     let functions: [fn(&[u8], &[u8]) -> (Vec<Scalar>, Vec<u8>, Vec<u8>); 5] = [
+        NI_bbs_blind_commitment_computation_session,
         NI_discrete_logarithm_session,
         NI_dleq_session,
-        NI_pedersen_commitment_session,
         NI_pedersen_commitment_dleq_session,
-        NI_bbs_blind_commitment_computation_session,
+        NI_pedersen_commitment_session,
     ];
 
     for (i, f) in functions.iter().enumerate() {

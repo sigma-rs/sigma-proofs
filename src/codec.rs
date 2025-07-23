@@ -53,13 +53,10 @@ where
     _marker: core::marker::PhantomData<G>,
 }
 
-const WORD_SIZE: usize = 32;
+const WORD_SIZE: usize = 4;
 
 fn length_to_bytes(x: usize) -> [u8; WORD_SIZE] {
-    let mut bytes = [0u8; WORD_SIZE];
-    let x_bytes = x.to_be_bytes();
-    bytes[WORD_SIZE - x_bytes.len()..].copy_from_slice(&x_bytes);
-    bytes
+    (x as u32).to_le_bytes()
 }
 
 impl<G, H> Codec for ByteSchnorrCodec<G, H>
