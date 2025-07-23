@@ -47,7 +47,7 @@ where
 
         let mut nonces: Vec<G::Scalar> = Vec::new();
         for _i in 0..self.0.linear_map.num_scalars {
-            nonces.push(<G as SRandom>::srandom(&mut *rng));
+            nonces.push(<G as SRandom>::srandom(rng));
         }
         let prover_state = (nonces.clone(), witness.clone());
         let commitment = self.0.linear_map.evaluate(&nonces)?;

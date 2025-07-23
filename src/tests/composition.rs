@@ -23,41 +23,43 @@ fn composition_proof_correct() {
     //     Simple( discrete_logarithm ),
     //     And( pedersen_commitment_dleq, bbs_blind_commitment_computation )
     // )
-    let mut rng = OsRng;
     let domain_sep = b"hello world";
 
     // definitions of the underlying protocols
-    let (relation1, witness1) = dleq(G::random(&mut rng), <G as Group>::Scalar::random(&mut rng));
-    let (relation2, _) = pedersen_commitment(
-        G::random(&mut rng),
-        <G as Group>::Scalar::random(&mut rng),
-        <G as Group>::Scalar::random(&mut rng),
+    let (relation1, witness1) = dleq(
+        G::random(&mut OsRng),
+        <G as Group>::Scalar::random(&mut OsRng),
     );
-    let (relation3, witness3) = discrete_logarithm(<G as Group>::Scalar::random(&mut rng));
+    let (relation2, _) = pedersen_commitment(
+        G::random(&mut OsRng),
+        <G as Group>::Scalar::random(&mut OsRng),
+        <G as Group>::Scalar::random(&mut OsRng),
+    );
+    let (relation3, witness3) = discrete_logarithm(<G as Group>::Scalar::random(&mut OsRng));
     let (relation4, witness4) = pedersen_commitment_dleq(
         (0..4)
-            .map(|_| G::random(&mut rng))
+            .map(|_| G::random(&mut OsRng))
             .collect::<Vec<_>>()
             .try_into()
             .unwrap(),
         (0..2)
-            .map(|_| <G as Group>::Scalar::random(&mut rng))
+            .map(|_| <G as Group>::Scalar::random(&mut OsRng))
             .collect::<Vec<_>>()
             .try_into()
             .unwrap(),
     );
     let (relation5, witness5) = bbs_blind_commitment_computation(
         (0..4)
-            .map(|_| G::random(&mut rng))
+            .map(|_| G::random(&mut OsRng))
             .collect::<Vec<_>>()
             .try_into()
             .unwrap(),
         (0..3)
-            .map(|_| <G as Group>::Scalar::random(&mut rng))
+            .map(|_| <G as Group>::Scalar::random(&mut OsRng))
             .collect::<Vec<_>>()
             .try_into()
             .unwrap(),
-        <G as Group>::Scalar::random(&mut rng),
+        <G as Group>::Scalar::random(&mut OsRng),
     );
 
     // second layer protocol definitions
@@ -86,8 +88,8 @@ fn composition_proof_correct() {
     let nizk = Nizk::<Protocol<RistrettoPoint>, ShakeCodec<G>>::new(domain_sep, protocol);
 
     // Batchable and compact proofs
-    let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
-    let proof_compact_bytes = nizk.prove_compact(&witness, &mut rng).unwrap();
+    let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut OsRng).unwrap();
+    let proof_compact_bytes = nizk.prove_compact(&witness, &mut OsRng).unwrap();
     // Verify proofs
     let verified_batchable = nizk.verify_batchable(&proof_batchable_bytes).is_ok();
     let verified_compact = nizk.verify_compact(&proof_compact_bytes).is_ok();

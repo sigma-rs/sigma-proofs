@@ -93,7 +93,7 @@ where
     fn prover_commit(
         &self,
         witness: &Self::Witness,
-        mut rng: &mut (impl RngCore + CryptoRng),
+        rng: &mut (impl RngCore + CryptoRng),
     ) -> Result<(Self::Commitment, Self::ProverState), Error> {
         if witness.len() != self.witness_length() {
             return Err(Error::InvalidInstanceWitnessPair);
@@ -105,7 +105,7 @@ where
         }
 
         let nonces: Vec<G::Scalar> = (0..self.witness_length())
-            .map(|_| G::Scalar::random(&mut rng))
+            .map(|_| G::Scalar::random(&mut *rng))
             .collect();
         let commitment = self.evaluate(&nonces)?;
         let prover_state = (nonces, witness.clone());
@@ -296,9 +296,9 @@ where
     ///
     /// # Returns
     /// - A commitment and response forming a valid proof for the given challenge.
-    fn simulate_response<R: Rng + CryptoRng>(&self, mut rng: &mut R) -> Self::Response {
+    fn simulate_response<R: Rng + CryptoRng>(&self, rng: &mut R) -> Self::Response {
         let response: Vec<G::Scalar> = (0..self.witness_length())
-            .map(|_| G::Scalar::random(&mut rng))
+            .map(|_| G::Scalar::random(&mut *rng))
             .collect();
         response
     }

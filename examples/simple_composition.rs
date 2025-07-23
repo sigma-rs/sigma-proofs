@@ -48,8 +48,6 @@ fn create_relation(P1: G, P2: G, Q: G, H: G) -> Protocol<G> {
 /// Prove knowledge of one of the witnesses (we know x2 for the DLEQ)
 #[allow(non_snake_case)]
 fn prove(P1: G, x2: Scalar, H: G) -> ProofResult<Vec<u8>> {
-    let mut rng = OsRng;
-
     // Compute public values
     let P2 = G::generator() * x2;
     let Q = H * x2;
@@ -58,7 +56,7 @@ fn prove(P1: G, x2: Scalar, H: G) -> ProofResult<Vec<u8>> {
     let witness = ProtocolWitness::Or(1, vec![ProtocolWitness::Simple(vec![x2])]);
     let nizk = Nizk::<_, ShakeCodec<G>>::new(b"or_proof_example", protocol);
 
-    nizk.prove_batchable(&witness, &mut rng)
+    nizk.prove_batchable(&witness, &mut OsRng)
 }
 
 /// Verify an OR proof given the public values
@@ -72,12 +70,10 @@ fn verify(P1: G, P2: G, Q: G, H: G, proof: &[u8]) -> ProofResult<()> {
 
 #[allow(non_snake_case)]
 fn main() {
-    let mut rng = OsRng;
-
     // Setup: We don't know x1, but we do know x2
-    let x1 = Scalar::random(&mut rng);
-    let x2 = Scalar::random(&mut rng);
-    let H = G::random(&mut rng);
+    let x1 = Scalar::random(&mut OsRng);
+    let x2 = Scalar::random(&mut OsRng);
+    let H = G::random(&mut OsRng);
 
     // Compute public values
     let P1 = G::generator() * x1; // We don't actually know x1 in the proof
