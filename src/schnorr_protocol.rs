@@ -5,7 +5,7 @@
 //! through a group morphism abstraction (see [Maurer09](https://crypto-test.ethz.ch/publications/files/Maurer09.pdf)).
 
 use crate::errors::Error;
-use crate::linear_relation::LinearRelation;
+use crate::linear_relation::{CanonicalLinearRelation, LinearRelation};
 use crate::{
     serialization::{
         deserialize_elements, deserialize_scalars, serialize_elements, serialize_scalars,
@@ -25,15 +25,32 @@ use rand::{CryptoRng, Rng, RngCore};
 /// # Type Parameters
 /// - `G`: A cryptographic group implementing [`Group`] and [`GroupEncoding`].
 #[derive(Clone, Default, Debug)]
-pub struct SchnorrProof<G: Group + GroupEncoding>(pub LinearRelation<G>);
+pub struct SchnorrProof<G: Group + GroupEncoding>(pub CanonicalLinearRelation<G>);
 
 impl<G: Group + GroupEncoding> SchnorrProof<G> {
     pub fn witness_length(&self) -> usize {
-        self.0.linear_map.num_scalars
+        self.0.num_scalars
     }
 
     pub fn commitment_length(&self) -> usize {
-        self.0.linear_map.num_constraints()
+        self.0.constraints.len()
+    }
+
+    /// Evaluate the canonical linear relation with the provided scalars
+    fn evaluate(&self, scalars: &[G::Scalar]) -> Result<Vec<G>, Error> {
+        self.0
+            .constraints
+            .iter()
+            .map(|constraint| {
+                let mut result = G::identity();
+                for (scalar_var, group_var) in constraint {
+                    let scalar_val = scalars[scalar_var.index()];
+                    let group_val = self.0.group_elements.get(*group_var)?;
+                    result += group_val * scalar_val;
+                }
+                Ok(result)
+            })
+            .collect()
     }
 }
 
@@ -42,7 +59,11 @@ where
     G: Group + GroupEncoding,
 {
     fn from(value: LinearRelation<G>) -> Self {
-        Self(value)
+        Self(
+            value
+                .try_into()
+                .expect("Failed to convert LinearRelation to CanonicalLinearRelation"),
+        )
     }
 }
 
@@ -79,14 +100,14 @@ where
         }
 
         // If the relation being proven is trivial, refuse to prove the statement.
-        if self.0.image()?.iter().any(|&x| x == G::identity()) {
+        if self.0.image.iter().any(|&x| x == G::identity()) {
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
         let nonces: Vec<G::Scalar> = (0..self.witness_length())
             .map(|_| G::Scalar::random(&mut rng))
             .collect();
-        let commitment = self.0.linear_map.evaluate(&nonces)?;
+        let commitment = self.evaluate(&nonces)?;
         let prover_state = (nonces, witness.clone());
         Ok((commitment, prover_state))
     }
@@ -146,15 +167,10 @@ where
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
-        let lhs = self.0.linear_map.evaluate(response)?;
-        let zero_vec = vec![<<G as Group>::Scalar as Field>::ZERO; self.0.linear_map.num_scalars];
-        let zero_image = self.0.linear_map.evaluate(&zero_vec)?;
+        let lhs = self.evaluate(response)?;
         let mut rhs = Vec::new();
         for (i, g) in commitment.iter().enumerate() {
-            rhs.push({
-                let image_var = self.0.image[i];
-                (self.0.linear_map.group_elements.get(image_var)? - zero_image[i]) * challenge + g
-            });
+            rhs.push(self.0.image[i] * challenge + g);
         }
         if lhs == rhs {
             Ok(())
@@ -260,7 +276,7 @@ where
     }
 
     fn instance_label(&self) -> impl AsRef<[u8]> {
-        self.0.label()
+        self.0.label().unwrap_or_default()
     }
 
     fn protocol_identifier(&self) -> impl AsRef<[u8]> {
@@ -324,16 +340,13 @@ where
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
-        let zero_vec = vec![<<G as Group>::Scalar as Field>::ZERO; self.0.linear_map.num_scalars];
-        let zero_image = self.0.linear_map.evaluate(&zero_vec)?;
-        let response_image = self.0.linear_map.evaluate(response)?;
-        let image = self.0.image()?;
+        let response_image = self.evaluate(response)?;
+        let image = &self.0.image;
 
         let commitment = response_image
             .iter()
-            .zip(&image)
-            .zip(&zero_image)
-            .map(|((res, img), z_img)| *res - (*img - *z_img) * challenge)
+            .zip(image)
+            .map(|(res, img)| *res - *img * challenge)
             .collect::<Vec<_>>();
         Ok(commitment)
     }

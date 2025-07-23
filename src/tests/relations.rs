@@ -124,14 +124,12 @@ fn noninteractive_translated_discrete_logarithm() {
     let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
     let proof_compact_bytes = nizk.prove_compact(&witness, &mut rng).unwrap();
     // Verify proofs
-    let verified_batchable = nizk.verify_batchable(&proof_batchable_bytes).is_ok();
-    let verified_compact = nizk.verify_compact(&proof_compact_bytes).is_ok();
     assert!(
-        verified_batchable,
+        nizk.verify_batchable(&proof_batchable_bytes).is_ok(),
         "Fiat-Shamir Schnorr proof verification failed"
     );
     assert!(
-        verified_compact,
+        nizk.verify_compact(&proof_compact_bytes).is_ok(),
         "Fiat-Shamir Schnorr proof verification failed"
     );
 }
