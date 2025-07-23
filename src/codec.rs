@@ -106,10 +106,10 @@ where
         bytes[start..].copy_from_slice(&reduced_bytes);
         bytes.reverse();
 
-        let mut repr = <<G as Group>::Scalar as PrimeField>::Repr::default();
+        let mut repr = <G::Scalar as PrimeField>::Repr::default();
         repr.as_mut().copy_from_slice(&bytes);
 
-        <<G as Group>::Scalar as PrimeField>::from_repr(repr).expect("Error")
+        <G::Scalar as PrimeField>::from_repr(repr).expect("Error")
     }
 }
 

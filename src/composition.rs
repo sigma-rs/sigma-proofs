@@ -19,7 +19,7 @@
 //! ```
 
 use ff::{Field, PrimeField};
-use group::{prime::PrimeGroup, Group};
+use group::prime::PrimeGroup;
 use sha3::Digest;
 use sha3::Sha3_256;
 
@@ -399,7 +399,7 @@ impl<G: PrimeGroup> SigmaProtocol for Protocol<G> {
                 Ok(ProtocolResponse::And(responses))
             }
             Protocol::Or(ps) => {
-                let ch_bytes_len = <<G as Group>::Scalar as PrimeField>::Repr::default()
+                let ch_bytes_len = <G::Scalar as PrimeField>::Repr::default()
                     .as_ref()
                     .len();
                 let mut cursor = 0;

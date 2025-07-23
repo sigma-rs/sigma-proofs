@@ -95,7 +95,7 @@ pub fn deserialize_scalars<G: Group>(data: &[u8], count: usize) -> Option<Vec<G:
         let end = start + scalar_len;
         let slice = &data[start..end];
 
-        let mut repr = <<G as Group>::Scalar as PrimeField>::Repr::default();
+        let mut repr = <G::Scalar as PrimeField>::Repr::default();
         repr.as_mut().copy_from_slice(slice);
         repr.as_mut().reverse();
 
