@@ -83,8 +83,7 @@ fn composition_proof_correct() {
     let protocol = Protocol::And(vec![or_protocol1, simple_protocol1, and_protocol1]);
     let witness = ProtocolWitness::And(vec![or_witness1, simple_witness1, and_witness1]);
 
-    let nizk =
-        Nizk::<Protocol<RistrettoPoint>, ShakeCodec<G>>::new(domain_sep, protocol);
+    let nizk = Nizk::<Protocol<RistrettoPoint>, ShakeCodec<G>>::new(domain_sep, protocol);
 
     // Batchable and compact proofs
     let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();

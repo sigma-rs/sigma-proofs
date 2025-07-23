@@ -184,3 +184,18 @@ pub fn bbs_blind_commitment_computation<G: Group + GroupEncoding>(
     assert!(vec![C] == relation.linear_map.evaluate(&witness).unwrap());
     (relation, witness)
 }
+
+/// Test function with the requested LinearRelation code
+#[allow(non_snake_case)]
+pub fn test_linear_relation_example<G: Group + GroupEncoding>() -> LinearRelation<G> {
+    use ff::Field;
+
+    let mut sigma__lr = LinearRelation::<G>::new();
+    let x = sigma__lr.allocate_scalar();
+    let B = sigma__lr.allocate_element();
+    let _sigma__eq1 =
+        sigma__lr.allocate_eq((x + (-<<G as Group>::Scalar as Field>::ONE)) * B + (-B));
+
+    sigma__lr
+}
+

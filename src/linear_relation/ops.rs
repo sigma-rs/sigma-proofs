@@ -217,6 +217,41 @@ mod add {
             self + Self::from(rhs)
         }
     }
+
+    impl<G: Group> Add<Weighted<GroupVar<G>, G::Scalar>> for Term<G> {
+        type Output = Sum<Weighted<Term<G>, G::Scalar>>;
+
+        fn add(self, rhs: Weighted<GroupVar<G>, G::Scalar>) -> Self::Output {
+            Sum(vec![
+                Weighted {
+                    term: self,
+                    weight: G::Scalar::ONE,
+                },
+                Weighted {
+                    term: Term {
+                        scalar: super::ScalarTerm::Unit,
+                        elem: rhs.term,
+                    },
+                    weight: rhs.weight,
+                },
+            ])
+        }
+    }
+
+    impl<G: Group> Add<Weighted<GroupVar<G>, G::Scalar>> for Sum<Weighted<Term<G>, G::Scalar>> {
+        type Output = Sum<Weighted<Term<G>, G::Scalar>>;
+
+        fn add(mut self, rhs: Weighted<GroupVar<G>, G::Scalar>) -> Self::Output {
+            self.0.push(Weighted {
+                term: Term {
+                    scalar: super::ScalarTerm::Unit,
+                    elem: rhs.term,
+                },
+                weight: rhs.weight,
+            });
+            self
+        }
+    }
 }
 
 mod mul {

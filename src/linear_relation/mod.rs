@@ -761,10 +761,7 @@ where
     /// let proof = nizk.prove_batchable(&vec![x], &mut OsRng).unwrap();
     /// assert!(nizk.verify_batchable(&proof).is_ok());
     /// ```
-    pub fn into_nizk(
-        self,
-        session_identifier: &[u8],
-    ) -> Nizk<SchnorrProof<G>, ShakeCodec<G>>
+    pub fn into_nizk(self, session_identifier: &[u8]) -> Nizk<SchnorrProof<G>, ShakeCodec<G>>
     where
         G: group::GroupEncoding,
     {
