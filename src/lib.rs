@@ -28,7 +28,7 @@
 //!
 //! 1. Define your mathematical relation using [`LinearRelation`]
 //! 2. Create a Sigma protocol with [`schnorr_protocol::SchnorrProof`]
-//! 3. Convert to non-interactive using [`fiat_shamir::NISigmaProtocol`]
+//! 3. Convert to non-interactive using [`fiat_shamir::Nizk`]
 //! 4. Generate and verify proofs using the protocol interface
 //!
 //! ---
@@ -37,7 +37,7 @@
 //!
 //! - **[`traits::SigmaProtocol`]**: The fundamental three-move protocol interface
 //! - **[`linear_relation::LinearRelation`]**: Express mathematical relations over groups
-//! - **[`fiat_shamir::NISigmaProtocol`]**: Convert interactive proofs to standalone proofs
+//! - **[`fiat_shamir::Nizk`]**: Convert interactive proofs to standalone proofs
 //! - **[`composition::Protocol`]**: Combine multiple proofs together
 //! - **[`codec`]**: Hash function backends for proof generation
 //!
@@ -64,5 +64,5 @@ pub mod duplex_sponge;
 #[cfg(test)]
 pub mod tests;
 
-pub use fiat_shamir::NISigmaProtocol;
+pub use fiat_shamir::Nizk;
 pub use linear_relation::LinearRelation;
