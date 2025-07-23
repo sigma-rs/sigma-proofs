@@ -6,6 +6,7 @@ use crate::fiat_shamir::Nizk;
 use crate::tests::test_utils::{
     bbs_blind_commitment_computation, discrete_logarithm, dleq, pedersen_commitment,
     pedersen_commitment_dleq, translated_discrete_logarithm, translated_dleq,
+    user_specific_linear_combination,
 };
 use crate::{codec::ShakeCodec, schnorr_protocol::SchnorrProof};
 
@@ -43,6 +44,12 @@ fn test_pedersen_commitment() {
         Scalar::random(&mut rng),
         Scalar::random(&mut rng),
     );
+}
+
+#[test]
+fn test_user_specific_linear_combination() {
+    let mut rng = OsRng;
+    user_specific_linear_combination(G::random(&mut rng), Scalar::random(&mut rng));
 }
 
 #[test]
@@ -201,6 +208,34 @@ fn noninteractive_pedersen_commitment() {
     let protocol = SchnorrProof::from(relation);
     // Fiat-Shamir wrapper
     let domain_sep = b"test-fiat-shamir-pedersen-commitment";
+    let nizk = Nizk::<SchnorrProof<G>, ShakeCodec<G>>::new(domain_sep, protocol);
+
+    // Batchable and compact proofs
+    let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
+    let proof_compact_bytes = nizk.prove_compact(&witness, &mut rng).unwrap();
+    // Verify proofs
+    let verified_batchable = nizk.verify_batchable(&proof_batchable_bytes).is_ok();
+    let verified_compact = nizk.verify_compact(&proof_compact_bytes).is_ok();
+    assert!(
+        verified_batchable,
+        "Fiat-Shamir Schnorr proof verification failed"
+    );
+    assert!(
+        verified_compact,
+        "Fiat-Shamir Schnorr proof verification failed"
+    );
+}
+
+#[test]
+fn noninteractive_user_specific_linear_combination() {
+    let mut rng = OsRng;
+    let (relation, witness) =
+        user_specific_linear_combination(G::random(&mut rng), Scalar::random(&mut rng));
+
+    // The SigmaProtocol induced by relation
+    let protocol = SchnorrProof::from(relation);
+    // Fiat-Shamir wrapper
+    let domain_sep = b"test-fiat-shamir-user-specific-linear-combination";
     let nizk = Nizk::<SchnorrProof<G>, ShakeCodec<G>>::new(domain_sep, protocol);
 
     // Batchable and compact proofs

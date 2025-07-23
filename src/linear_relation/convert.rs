@@ -140,3 +140,10 @@ impl<T, F: Field> From<Sum<T>> for Sum<Weighted<T, F>> {
         Self(sum.0.into_iter().map(|x| x.into()).collect())
     }
 }
+
+// Manual implementation for ScalarTerm sum conversion
+impl<G: Group> From<ScalarTerm<G>> for Sum<Weighted<ScalarTerm<G>, G::Scalar>> {
+    fn from(value: ScalarTerm<G>) -> Self {
+        Sum(vec![value.into()])
+    }
+}

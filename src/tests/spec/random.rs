@@ -1,8 +1,8 @@
-use group::{Group, GroupEncoding};
+use group::{prime::PrimeGroup, Group};
 use num_bigint::BigUint;
 use rand::{CryptoRng, Rng};
 
-pub trait SInput: Group + GroupEncoding {
+pub trait SInput: PrimeGroup {
     fn scalar_from_hex_be(hex_str: &str) -> Option<Self::Scalar>;
 }
 

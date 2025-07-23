@@ -1,15 +1,13 @@
 //! Definitions used in tests for this crate.
 
 use ff::Field;
-use group::{Group, GroupEncoding};
+use group::{prime::PrimeGroup, Group};
 
 use crate::linear_relation::{msm_pr, LinearRelation};
 
 /// LinearMap for knowledge of a discrete logarithm relative to a fixed basepoint.
 #[allow(non_snake_case)]
-pub fn discrete_logarithm<G: Group + GroupEncoding>(
-    x: G::Scalar,
-) -> (LinearRelation<G>, Vec<G::Scalar>) {
+pub fn discrete_logarithm<G: PrimeGroup>(x: G::Scalar) -> (LinearRelation<G>, Vec<G::Scalar>) {
     let mut relation: LinearRelation<G> = LinearRelation::new();
 
     let var_x = relation.allocate_scalar();
@@ -28,7 +26,7 @@ pub fn discrete_logarithm<G: Group + GroupEncoding>(
 
 /// LinearMap for knowledge of a translated discrete logarithm relative to a fixed basepoint.
 #[allow(non_snake_case)]
-pub fn translated_discrete_logarithm<G: Group + GroupEncoding>(
+pub fn translated_discrete_logarithm<G: PrimeGroup>(
     x: G::Scalar,
 ) -> (LinearRelation<G>, Vec<G::Scalar>) {
     let mut relation: LinearRelation<G> = LinearRelation::new();
@@ -49,7 +47,7 @@ pub fn translated_discrete_logarithm<G: Group + GroupEncoding>(
 
 /// LinearMap for knowledge of a discrete logarithm equality between two pairs.
 #[allow(non_snake_case)]
-pub fn dleq<G: Group + GroupEncoding>(H: G, x: G::Scalar) -> (LinearRelation<G>, Vec<G::Scalar>) {
+pub fn dleq<G: PrimeGroup>(H: G, x: G::Scalar) -> (LinearRelation<G>, Vec<G::Scalar>) {
     let mut relation: LinearRelation<G> = LinearRelation::new();
 
     let var_x = relation.allocate_scalar();
@@ -71,10 +69,7 @@ pub fn dleq<G: Group + GroupEncoding>(H: G, x: G::Scalar) -> (LinearRelation<G>,
 
 /// LinearMap for knowledge of a translated dleq.
 #[allow(non_snake_case)]
-pub fn translated_dleq<G: Group + GroupEncoding>(
-    H: G,
-    x: G::Scalar,
-) -> (LinearRelation<G>, Vec<G::Scalar>) {
+pub fn translated_dleq<G: PrimeGroup>(H: G, x: G::Scalar) -> (LinearRelation<G>, Vec<G::Scalar>) {
     let mut relation: LinearRelation<G> = LinearRelation::new();
 
     let var_x = relation.allocate_scalar();
@@ -96,7 +91,7 @@ pub fn translated_dleq<G: Group + GroupEncoding>(
 
 /// LinearMap for knowledge of an opening to a Pedersen commitment.
 #[allow(non_snake_case)]
-pub fn pedersen_commitment<G: Group + GroupEncoding>(
+pub fn pedersen_commitment<G: PrimeGroup>(
     H: G,
     x: G::Scalar,
     r: G::Scalar,
@@ -120,7 +115,7 @@ pub fn pedersen_commitment<G: Group + GroupEncoding>(
 
 /// LinearMap for knowledge of equal openings to two distinct Pedersen commitments.
 #[allow(non_snake_case)]
-pub fn pedersen_commitment_dleq<G: Group + GroupEncoding>(
+pub fn pedersen_commitment_dleq<G: PrimeGroup>(
     generators: [G; 4],
     witness: [G::Scalar; 2],
 ) -> (LinearRelation<G>, Vec<G::Scalar>) {
@@ -150,7 +145,7 @@ pub fn pedersen_commitment_dleq<G: Group + GroupEncoding>(
 /// LinearMap for knowledge of an opening for use in a BBS commitment.
 // BBS message length is 3
 #[allow(non_snake_case)]
-pub fn bbs_blind_commitment_computation<G: Group + GroupEncoding>(
+pub fn bbs_blind_commitment_computation<G: PrimeGroup>(
     [Q_2, J_1, J_2, J_3]: [G; 4],
     [msg_1, msg_2, msg_3]: [G::Scalar; 3],
     secret_prover_blind: G::Scalar,
@@ -187,7 +182,7 @@ pub fn bbs_blind_commitment_computation<G: Group + GroupEncoding>(
 
 /// Test function with the requested LinearRelation code
 #[allow(non_snake_case)]
-pub fn test_linear_relation_example<G: Group + GroupEncoding>() -> LinearRelation<G> {
+pub fn test_linear_relation_example<G: PrimeGroup>() -> LinearRelation<G> {
     use ff::Field;
 
     let mut sigma__lr = LinearRelation::<G>::new();
@@ -199,3 +194,30 @@ pub fn test_linear_relation_example<G: Group + GroupEncoding>() -> LinearRelatio
     sigma__lr
 }
 
+/// LinearMap for the user's specific relation: A * 1 + gen__disj1_x_r * B
+#[allow(non_snake_case)]
+pub fn user_specific_linear_combination<G: PrimeGroup>(
+    B: G,
+    gen__disj1_x_r: G::Scalar,
+) -> (LinearRelation<G>, Vec<G::Scalar>) {
+    let mut sigma__lr = LinearRelation::<G>::new();
+
+    let gen__disj1_x_r_var = sigma__lr.allocate_scalar();
+    let A = sigma__lr.allocate_element();
+    let B_var = sigma__lr.allocate_element();
+
+    let sigma__eq1 =
+        sigma__lr.allocate_eq(A * <G::Scalar as ff::Field>::ONE + gen__disj1_x_r_var * B_var);
+
+    // Set the group elements
+    sigma__lr.set_elements([(A, G::generator()), (B_var, B)]);
+    sigma__lr.compute_image(&[gen__disj1_x_r]).unwrap();
+
+    let result = sigma__lr.linear_map.group_elements.get(sigma__eq1).unwrap();
+
+    // Verify the relation computes correctly
+    let expected = G::generator() + B * gen__disj1_x_r;
+    assert_eq!(result, expected);
+
+    (sigma__lr, vec![gen__disj1_x_r])
+}
