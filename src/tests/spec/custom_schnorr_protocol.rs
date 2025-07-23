@@ -11,6 +11,15 @@ use crate::traits::{SigmaProtocol, SigmaProtocolSimulator};
 
 pub struct SchnorrProtocolCustom<G: SRandom + GroupEncoding>(pub LinearRelation<G>);
 
+impl<G> From<LinearRelation<G>> for SchnorrProtocolCustom<G>
+where
+    G: SRandom + GroupEncoding,
+{
+    fn from(value: LinearRelation<G>) -> Self {
+        Self(value)
+    }
+}
+
 impl<G: SRandom + GroupEncoding> SchnorrProtocolCustom<G> {
     pub fn witness_len(&self) -> usize {
         self.0.linear_map.num_scalars

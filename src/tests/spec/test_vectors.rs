@@ -24,7 +24,7 @@ macro_rules! generate_ni_function {
             let mut rng = TestDRNG::new(seed);
             let (instance, witness) = $test_fn($(generate_ni_function!(@arg rng, $param)),*);
 
-            let protocol = SchnorrProtocolCustom(instance);
+            let protocol = SchnorrProtocolCustom::from(instance);
             let nizk = NIProtocol::from_iv(iv, protocol);
 
             let proof_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
