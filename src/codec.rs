@@ -56,7 +56,7 @@ where
 const WORD_SIZE: usize = 4;
 
 fn length_to_bytes(x: usize) -> [u8; WORD_SIZE] {
-    (x as u32).to_le_bytes()
+    (x as u32).to_be_bytes()
 }
 
 impl<G, H> Codec for ByteSchnorrCodec<G, H>
