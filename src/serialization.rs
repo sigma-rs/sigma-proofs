@@ -56,11 +56,19 @@ pub fn deserialize_elements<G: Group + GroupEncoding>(data: &[u8], count: usize)
 
 /// Serialize a slice of scalar field elements into a byte vector.
 ///
+/// This function is equivalent to
+///
+/// ```ignore
+///      I2OSP(byte, 1) + I2OSP(x, self.field_bytes_length)
+/// ```
+///
+/// with I2OSP as described in RFC8017.
+///
 /// # Parameters
 /// - `scalars`: A slice of scalar field elements to serialize.
 ///
 /// # Returns
-/// - A `Vec<u8>` containing the scalar bytes in little-endian order.
+/// - A `Vec<u8>` containing the scalar bytes in big-endian order.
 pub fn serialize_scalars<G: Group>(scalars: &[G::Scalar]) -> Vec<u8> {
     let mut bytes = Vec::new();
     for scalar in scalars {
