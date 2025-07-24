@@ -99,8 +99,15 @@ where
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
-        // If the relation being proven is trivial, refuse to prove the statement.
-        if self.0.image.iter().any(|&x| x == G::identity()) {
+        // If the image is the identity, then the relation must be
+        // trivial, or else the proof will be unsound
+        if self
+            .0
+            .image
+            .iter()
+            .zip(self.0.linear_combinations.iter())
+            .any(|(&x, c)| x == G::identity() && !c.is_empty())
+        {
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
