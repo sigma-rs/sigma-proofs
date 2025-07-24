@@ -399,9 +399,7 @@ impl<G: PrimeGroup> SigmaProtocol for Protocol<G> {
                 Ok(ProtocolResponse::And(responses))
             }
             Protocol::Or(ps) => {
-                let ch_bytes_len = <G::Scalar as PrimeField>::Repr::default()
-                    .as_ref()
-                    .len();
+                let ch_bytes_len = <G::Scalar as PrimeField>::Repr::default().as_ref().len();
                 let mut cursor = 0;
                 let mut challenges = Vec::with_capacity(ps.len());
                 let mut responses = Vec::with_capacity(ps.len());

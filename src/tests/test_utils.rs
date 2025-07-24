@@ -158,8 +158,13 @@ pub fn bbs_blind_commitment_computation<G: PrimeGroup>(
     // This is the part that needs to be changed in the specification of blind bbs.
     let [var_secret_prover_blind, var_msg_1, var_msg_2, var_msg_3] = relation.allocate_scalars();
 
+    // Match Sage's allocation order: allocate all elements in the same order
     let [var_Q_2, var_J_1, var_J_2, var_J_3] = relation.allocate_elements();
-    let var_C = relation.allocate_eq(
+    let var_C = relation.allocate_element(); // Allocate var_C separately, giving it index 4
+
+    // Now append the equation separately (like Sage's append_equation)
+    relation.append_equation(
+        var_C,
         var_secret_prover_blind * var_Q_2
             + var_msg_1 * var_J_1
             + var_msg_2 * var_J_2
@@ -188,8 +193,7 @@ pub fn test_linear_relation_example<G: PrimeGroup>() -> LinearRelation<G> {
     let mut sigma__lr = LinearRelation::<G>::new();
     let x = sigma__lr.allocate_scalar();
     let B = sigma__lr.allocate_element();
-    let _sigma__eq1 =
-        sigma__lr.allocate_eq((x + (-<G::Scalar as Field>::ONE)) * B + (-B));
+    let _sigma__eq1 = sigma__lr.allocate_eq((x + (-<G::Scalar as Field>::ONE)) * B + (-B));
 
     sigma__lr
 }
