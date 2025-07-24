@@ -16,7 +16,7 @@ use std::marker::PhantomData;
 use ff::Field;
 use group::{Group, GroupEncoding};
 
-use crate::codec::ShakeCodec;
+use crate::codec::Shake128DuplexSponge;
 use crate::errors::Error;
 use crate::schnorr_protocol::SchnorrProof;
 use crate::Nizk;
@@ -224,7 +224,7 @@ impl<G: Group> FromIterator<(GroupVar<G>, G)> for GroupMap<G> {
 #[derive(Clone, Default, Debug)]
 pub struct LinearMap<G: Group> {
     /// The set of linear combination constraints (equations).
-    pub constraints: Vec<LinearCombination<G>>,
+    pub linear_combinations: Vec<LinearCombination<G>>,
     /// The list of group elements referenced in the linear map.
     ///
     /// Uninitialized group elements are presented with `None`.
@@ -263,7 +263,7 @@ impl<G: Group> LinearMap<G> {
     /// and zero allocated scalars and elements.
     pub fn new() -> Self {
         Self {
-            constraints: Vec::new(),
+            linear_combinations: Vec::new(),
             group_elements: GroupMap::default(),
             num_scalars: 0,
             num_elements: 0,
@@ -272,7 +272,7 @@ impl<G: Group> LinearMap<G> {
 
     /// Returns the number of constraints (equations) in this linear map.
     pub fn num_constraints(&self) -> usize {
-        self.constraints.len()
+        self.linear_combinations.len()
     }
 
     /// Adds a new linear combination constraint to the linear map.
@@ -280,7 +280,7 @@ impl<G: Group> LinearMap<G> {
     /// # Parameters
     /// - `lc`: The [`LinearCombination`] to add.
     pub fn append(&mut self, lc: LinearCombination<G>) {
-        self.constraints.push(lc);
+        self.linear_combinations.push(lc);
     }
 
     /// Evaluates all linear combinations in the linear map with the provided scalars.
@@ -292,7 +292,7 @@ impl<G: Group> LinearMap<G> {
     ///
     /// A vector of group elements, each being the result of evaluating one linear combination with the scalars.
     pub fn evaluate(&self, scalars: &[<G as Group>::Scalar]) -> Result<Vec<G>, Error> {
-        self.constraints
+        self.linear_combinations
             .iter()
             .map(|lc| {
                 // TODO: The multiplication by the (public) weight is potentially wasteful in the
@@ -343,7 +343,7 @@ pub struct CanonicalLinearRelation<G: Group + GroupEncoding> {
     pub image: Vec<G>,
     /// The constraints, where each constraint is a vector of (scalar_var, group_var) pairs
     /// representing the right-hand side of the equation
-    pub constraints: Vec<Vec<(ScalarVar<G>, GroupVar<G>)>>,
+    pub linear_combinations: Vec<Vec<(ScalarVar<G>, GroupVar<G>)>>,
     /// The group elements map
     pub group_elements: GroupMap<G>,
     /// Number of scalar variables
@@ -355,7 +355,7 @@ impl<G: Group + GroupEncoding> CanonicalLinearRelation<G> {
     pub fn new() -> Self {
         Self {
             image: Vec::new(),
-            constraints: Vec::new(),
+            linear_combinations: Vec::new(),
             group_elements: GroupMap::default(),
             num_scalars: 0,
         }
@@ -435,7 +435,7 @@ impl<G: Group + GroupEncoding> CanonicalLinearRelation<G> {
 
         // Only include constraints that are non-trivial (not zero constraints)
         self.image.push(canonical_image);
-        self.constraints.push(rhs_terms);
+        self.linear_combinations.push(rhs_terms);
 
         Ok(())
     }
@@ -471,7 +471,7 @@ impl<G: Group + GroupEncoding> CanonicalLinearRelation<G> {
         // Build constraint data in the same order as original
         let mut constraint_data = Vec::new();
 
-        for (image_elem, constraint_terms) in iter::zip(&self.image, &self.constraints) {
+        for (image_elem, constraint_terms) in iter::zip(&self.image, &self.linear_combinations) {
             // First, add the left-hand side (image) element
             let lhs_index = repr_index(image_elem.to_bytes());
 
@@ -520,7 +520,7 @@ impl<G: Group + GroupEncoding> TryFrom<LinearRelation<G>> for CanonicalLinearRel
     fn try_from(relation: LinearRelation<G>) -> Result<Self, Self::Error> {
         assert_eq!(
             relation.image.len(),
-            relation.linear_map.constraints.len(),
+            relation.linear_map.linear_combinations.len(),
             "Number of equations and image variables must match"
         );
 
@@ -532,7 +532,7 @@ impl<G: Group + GroupEncoding> TryFrom<LinearRelation<G>> for CanonicalLinearRel
             HashMap::new();
 
         // Process each constraint using the modular helper method
-        for (image_var, equation) in iter::zip(&relation.image, &relation.linear_map.constraints) {
+        for (image_var, equation) in iter::zip(&relation.image, &relation.linear_map.linear_combinations) {
             canonical.process_constraint(
                 *image_var,
                 equation,
@@ -683,7 +683,7 @@ where
         }
 
         for (lc, lhs) in iter::zip(
-            self.linear_map.constraints.as_slice(),
+            self.linear_map.linear_combinations.as_slice(),
             self.image.as_slice(),
         ) {
             // TODO: The multiplication by the (public) weight is potentially wasteful in the
@@ -761,7 +761,7 @@ where
     /// let proof = nizk.prove_batchable(&vec![x], &mut OsRng).unwrap();
     /// assert!(nizk.verify_batchable(&proof).is_ok());
     /// ```
-    pub fn into_nizk(self, session_identifier: &[u8]) -> Nizk<SchnorrProof<G>, ShakeCodec<G>>
+    pub fn into_nizk(self, session_identifier: &[u8]) -> Nizk<SchnorrProof<G>, Shake128DuplexSponge<G>>
     where
         G: group::GroupEncoding,
     {

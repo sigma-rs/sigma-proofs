@@ -9,7 +9,7 @@ pub trait SInput: PrimeGroup {
 pub trait SRandom: Group {
     fn randint_big(l: &BigUint, h: &BigUint, rng: &mut (impl Rng + CryptoRng)) -> BigUint;
 
-    fn srandom(rng: &mut (impl Rng + CryptoRng)) -> Self::Scalar;
+    fn random_scalar_elt(rng: &mut (impl Rng + CryptoRng)) -> Self::Scalar;
 
-    fn prandom(rng: &mut (impl Rng + CryptoRng)) -> Self;
+    fn random_group_elt(rng: &mut (impl Rng + CryptoRng)) -> Self;
 }

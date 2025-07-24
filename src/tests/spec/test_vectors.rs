@@ -69,50 +69,50 @@ macro_rules! generate_ni_function_session {
     };
 }
 
-generate_ni_function_iv!(NI_discrete_logarithm_iv, discrete_logarithm, srandom);
-generate_ni_function_iv!(NI_dleq_iv, dleq, prandom, srandom);
+generate_ni_function_iv!(NI_discrete_logarithm_iv, discrete_logarithm, random_scalar_elt);
+generate_ni_function_iv!(NI_dleq_iv, dleq, random_group_elt, random_scalar_elt);
 generate_ni_function_iv!(
     NI_pedersen_commitment_iv,
     pedersen_commitment,
-    prandom,
-    srandom,
-    srandom
+    random_group_elt,
+    random_scalar_elt,
+    random_scalar_elt
 );
 generate_ni_function_iv!(
     NI_pedersen_commitment_dleq_iv,
     pedersen_commitment_dleq,
-    [prandom; 4],
-    [srandom; 2]
+    [random_group_elt; 4],
+    [random_scalar_elt; 2]
 );
 generate_ni_function_iv!(
     NI_bbs_blind_commitment_computation_iv,
     bbs_blind_commitment_computation,
-    [prandom; 4],
-    [srandom; 3],
-    srandom
+    [random_group_elt; 4],
+    [random_scalar_elt; 3],
+    random_scalar_elt
 );
 
-generate_ni_function_session!(NI_discrete_logarithm_session, discrete_logarithm, srandom);
-generate_ni_function_session!(NI_dleq_session, dleq, prandom, srandom);
+generate_ni_function_session!(NI_discrete_logarithm_session, discrete_logarithm, random_scalar_elt);
+generate_ni_function_session!(NI_dleq_session, dleq, random_group_elt, random_scalar_elt);
 generate_ni_function_session!(
     NI_pedersen_commitment_session,
     pedersen_commitment,
-    prandom,
-    srandom,
-    srandom
+    random_group_elt,
+    random_scalar_elt,
+    random_scalar_elt
 );
 generate_ni_function_session!(
     NI_pedersen_commitment_dleq_session,
     pedersen_commitment_dleq,
-    [prandom; 4],
-    [srandom; 2]
+    [random_group_elt; 4],
+    [random_scalar_elt; 2]
 );
 generate_ni_function_session!(
     NI_bbs_blind_commitment_computation_session,
     bbs_blind_commitment_computation,
-    [prandom; 4],
-    [srandom; 3],
-    srandom
+    [random_group_elt; 4],
+    [random_scalar_elt; 3],
+    random_scalar_elt
 );
 
 #[allow(clippy::type_complexity)]

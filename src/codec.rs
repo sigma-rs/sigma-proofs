@@ -118,4 +118,4 @@ where
 pub type KeccakByteSchnorrCodec<G> = ByteSchnorrCodec<G, KeccakDuplexSponge>;
 
 /// Type alias for a SHAKE-based ByteSchnorrCodec.
-pub type ShakeCodec<G> = ByteSchnorrCodec<G, ShakeDuplexSponge>;
+pub type Shake128DuplexSponge<G> = ByteSchnorrCodec<G, ShakeDuplexSponge>;

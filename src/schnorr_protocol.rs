@@ -33,13 +33,13 @@ impl<G: Group + GroupEncoding> SchnorrProof<G> {
     }
 
     pub fn commitment_length(&self) -> usize {
-        self.0.constraints.len()
+        self.0.linear_combinations.len()
     }
 
     /// Evaluate the canonical linear relation with the provided scalars
     fn evaluate(&self, scalars: &[G::Scalar]) -> Result<Vec<G>, Error> {
         self.0
-            .constraints
+            .linear_combinations
             .iter()
             .map(|constraint| {
                 let mut result = G::identity();

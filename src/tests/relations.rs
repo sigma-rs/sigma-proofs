@@ -5,312 +5,131 @@ use rand::rngs::OsRng;
 use crate::fiat_shamir::Nizk;
 use crate::tests::test_utils::{
     bbs_blind_commitment_computation, discrete_logarithm, dleq, pedersen_commitment,
-    pedersen_commitment_dleq, translated_discrete_logarithm, translated_dleq,
+    pedersen_commitment_dleq, shifted_discrete_logarithm, shifted_dleq,
     user_specific_linear_combination,
 };
-use crate::{codec::ShakeCodec, schnorr_protocol::SchnorrProof};
+use crate::{codec::Shake128DuplexSponge, schnorr_protocol::SchnorrProof, LinearRelation};
 
-/// This part tests the functioning of linear maps
-/// as well as the implementation of LinearRelation
-#[test]
-fn test_discrete_logarithm() {
-    discrete_logarithm::<G>(Scalar::random(&mut OsRng));
+/// Generic helper function to test both relation correctness and NIZK functionality
+fn test_relation_and_nizk<F>(relation_generator: F, test_name: &str)
+where
+    F: Fn() -> (LinearRelation<G>, Vec<Scalar>),
+{
+    let (relation, witness) = relation_generator();
+
+    // Test the relation itself by computing its image
+    let image_result = relation.image();
+    assert!(image_result.is_ok(), "Failed to compute relation image for {}", test_name);
+
+    // Test the NIZK protocol
+    let protocol = SchnorrProof::from(relation);
+    let domain_sep = format!("test-fiat-shamir-{}", test_name).as_bytes().to_vec();
+    let nizk = Nizk::<SchnorrProof<G>, Shake128DuplexSponge<G>>::new(&domain_sep, protocol);
+
+    // Test both proof types
+    let proof_batchable = nizk.prove_batchable(&witness, &mut OsRng)
+        .expect(&format!("Failed to create batchable proof for {}", test_name));
+    let proof_compact = nizk.prove_compact(&witness, &mut OsRng)
+        .expect(&format!("Failed to create compact proof for {}", test_name));
+
+    // Verify both proof types
+    assert!(
+        nizk.verify_batchable(&proof_batchable).is_ok(),
+        "Batchable proof verification failed for {}", test_name
+    );
+    assert!(
+        nizk.verify_compact(&proof_compact).is_ok(),
+        "Compact proof verification failed for {}", test_name
+    );
 }
 
 #[test]
-fn test_translated_discrete_logarithm() {
-    translated_discrete_logarithm::<G>(Scalar::random(&mut OsRng));
+fn test_discrete_logarithm() {
+    test_relation_and_nizk(
+        || discrete_logarithm(Scalar::random(&mut OsRng)),
+        "discrete-logarithm"
+    );
+}
+
+#[test]
+fn test_shifted_discrete_logarithm() {
+    test_relation_and_nizk(
+        || shifted_discrete_logarithm(Scalar::random(&mut OsRng)),
+        "shifted-discrete-logarithm"
+    );
 }
 
 #[test]
 fn test_dleq() {
-    dleq(G::random(&mut OsRng), Scalar::random(&mut OsRng));
+    test_relation_and_nizk(
+        || dleq(G::random(&mut OsRng), Scalar::random(&mut OsRng)),
+        "dleq"
+    );
 }
 
 #[test]
-fn test_translated_dleq() {
-    dleq(G::random(&mut OsRng), Scalar::random(&mut OsRng));
+fn test_shifted_dleq() {
+    test_relation_and_nizk(
+        || shifted_dleq(G::random(&mut OsRng), Scalar::random(&mut OsRng)),
+        "shifted-dleq"
+    );
 }
 
 #[test]
 fn test_pedersen_commitment() {
-    pedersen_commitment(
-        G::random(&mut OsRng),
-        Scalar::random(&mut OsRng),
-        Scalar::random(&mut OsRng),
+    test_relation_and_nizk(
+        || pedersen_commitment(
+            G::random(&mut OsRng),
+            Scalar::random(&mut OsRng),
+            Scalar::random(&mut OsRng),
+        ),
+        "pedersen-commitment"
     );
 }
 
 #[test]
 fn test_user_specific_linear_combination() {
-    user_specific_linear_combination(G::random(&mut OsRng), Scalar::random(&mut OsRng));
+    test_relation_and_nizk(
+        || user_specific_linear_combination(G::random(&mut OsRng), Scalar::random(&mut OsRng)),
+        "user-specific-linear-combination"
+    );
 }
 
 #[test]
 fn test_pedersen_commitment_dleq() {
-    pedersen_commitment_dleq(
-        (0..4)
-            .map(|_| G::random(&mut OsRng))
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap(),
-        (0..2)
-            .map(|_| Scalar::random(&mut OsRng))
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap(),
+    test_relation_and_nizk(
+        || pedersen_commitment_dleq(
+            (0..4)
+                .map(|_| G::random(&mut OsRng))
+                .collect::<Vec<_>>()
+                .try_into()
+                .unwrap(),
+            (0..2)
+                .map(|_| Scalar::random(&mut OsRng))
+                .collect::<Vec<_>>()
+                .try_into()
+                .unwrap(),
+        ),
+        "pedersen-commitment-dleq"
     );
 }
 
 #[test]
 fn test_bbs_blind_commitment_computation() {
-    bbs_blind_commitment_computation(
-        (0..4)
-            .map(|_| G::random(&mut OsRng))
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap(),
-        (0..3)
-            .map(|_| Scalar::random(&mut OsRng))
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap(),
-        Scalar::random(&mut OsRng),
-    );
-}
-
-/// This part tests the implementation of the SigmaProtocol trait for the
-/// SchnorrProof structure as well as the Fiat-Shamir Nizk transform
-#[test]
-fn noninteractive_discrete_logarithm() {
-    let (relation, witness) = discrete_logarithm(Scalar::random(&mut OsRng));
-
-    // The SigmaProtocol induced by relation
-    let protocol = SchnorrProof::from(relation);
-    // Fiat-Shamir wrapper
-    let domain_sep = b"test-fiat-shamir-schnorr";
-    let nizk = Nizk::<SchnorrProof<G>, ShakeCodec<G>>::new(domain_sep, protocol);
-
-    // Batchable and compact proofs
-    let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut OsRng).unwrap();
-    let proof_compact_bytes = nizk.prove_compact(&witness, &mut OsRng).unwrap();
-    // Verify proofs
-    let verified_batchable = nizk.verify_batchable(&proof_batchable_bytes).is_ok();
-    let verified_compact = nizk.verify_compact(&proof_compact_bytes).is_ok();
-    assert!(
-        verified_batchable,
-        "Fiat-Shamir Schnorr proof verification failed"
-    );
-    assert!(
-        verified_compact,
-        "Fiat-Shamir Schnorr proof verification failed"
-    );
-}
-
-#[test]
-fn noninteractive_translated_discrete_logarithm() {
-    let (relation, witness) = translated_discrete_logarithm(Scalar::random(&mut OsRng));
-
-    // The SigmaProtocol induced by relation
-    let protocol = SchnorrProof::from(relation);
-    // Fiat-Shamir wrapper
-    let domain_sep = b"test-fiat-shamir-translated-schnorr";
-    let nizk = Nizk::<SchnorrProof<G>, ShakeCodec<G>>::new(domain_sep, protocol);
-
-    // Batchable and compact proofs
-    let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut OsRng).unwrap();
-    let proof_compact_bytes = nizk.prove_compact(&witness, &mut OsRng).unwrap();
-    // Verify proofs
-    assert!(
-        nizk.verify_batchable(&proof_batchable_bytes).is_ok(),
-        "Fiat-Shamir Schnorr proof verification failed"
-    );
-    assert!(
-        nizk.verify_compact(&proof_compact_bytes).is_ok(),
-        "Fiat-Shamir Schnorr proof verification failed"
-    );
-}
-
-#[test]
-fn noninteractive_dleq() {
-    let (relation, witness) = dleq(G::random(&mut OsRng), Scalar::random(&mut OsRng));
-
-    // The SigmaProtocol induced by relation
-    let protocol = SchnorrProof::from(relation);
-    // Fiat-Shamir wrapper
-    let domain_sep = b"test-fiat-shamir-DLEQ";
-    let nizk = Nizk::<SchnorrProof<G>, ShakeCodec<G>>::new(domain_sep, protocol);
-
-    // Batchable and compact proofs
-    let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut OsRng).unwrap();
-    let proof_compact_bytes = nizk.prove_compact(&witness, &mut OsRng).unwrap();
-    // Verify proofs
-    let verified_batchable = nizk.verify_batchable(&proof_batchable_bytes).is_ok();
-    let verified_compact = nizk.verify_compact(&proof_compact_bytes).is_ok();
-    assert!(
-        verified_batchable,
-        "Fiat-Shamir Schnorr proof verification failed"
-    );
-    assert!(
-        verified_compact,
-        "Fiat-Shamir Schnorr proof verification failed"
-    );
-}
-
-#[test]
-fn noninteractive_translated_dleq() {
-    let (relation, witness) = translated_dleq(G::random(&mut OsRng), Scalar::random(&mut OsRng));
-
-    // The SigmaProtocol induced by relation
-    let protocol = SchnorrProof::from(relation);
-    // Fiat-Shamir wrapper
-    let domain_sep = b"test-fiat-shamir-translated-DLEQ";
-    let nizk = Nizk::<SchnorrProof<G>, ShakeCodec<G>>::new(domain_sep, protocol);
-
-    // Batchable and compact proofs
-    let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut OsRng).unwrap();
-    let proof_compact_bytes = nizk.prove_compact(&witness, &mut OsRng).unwrap();
-    // Verify proofs
-    let verified_batchable = nizk.verify_batchable(&proof_batchable_bytes).is_ok();
-    let verified_compact = nizk.verify_compact(&proof_compact_bytes).is_ok();
-    assert!(
-        verified_batchable,
-        "Fiat-Shamir Schnorr proof verification failed"
-    );
-    assert!(
-        verified_compact,
-        "Fiat-Shamir Schnorr proof verification failed"
-    );
-}
-
-#[test]
-fn noninteractive_pedersen_commitment() {
-    let (relation, witness) = pedersen_commitment(
-        G::random(&mut OsRng),
-        Scalar::random(&mut OsRng),
-        Scalar::random(&mut OsRng),
-    );
-
-    // The SigmaProtocol induced by relation
-    let protocol = SchnorrProof::from(relation);
-    // Fiat-Shamir wrapper
-    let domain_sep = b"test-fiat-shamir-pedersen-commitment";
-    let nizk = Nizk::<SchnorrProof<G>, ShakeCodec<G>>::new(domain_sep, protocol);
-
-    // Batchable and compact proofs
-    let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut OsRng).unwrap();
-    let proof_compact_bytes = nizk.prove_compact(&witness, &mut OsRng).unwrap();
-    // Verify proofs
-    let verified_batchable = nizk.verify_batchable(&proof_batchable_bytes).is_ok();
-    let verified_compact = nizk.verify_compact(&proof_compact_bytes).is_ok();
-    assert!(
-        verified_batchable,
-        "Fiat-Shamir Schnorr proof verification failed"
-    );
-    assert!(
-        verified_compact,
-        "Fiat-Shamir Schnorr proof verification failed"
-    );
-}
-
-#[test]
-fn noninteractive_user_specific_linear_combination() {
-    let (relation, witness) =
-        user_specific_linear_combination(G::random(&mut OsRng), Scalar::random(&mut OsRng));
-
-    // The SigmaProtocol induced by relation
-    let protocol = SchnorrProof::from(relation);
-    // Fiat-Shamir wrapper
-    let domain_sep = b"test-fiat-shamir-user-specific-linear-combination";
-    let nizk = Nizk::<SchnorrProof<G>, ShakeCodec<G>>::new(domain_sep, protocol);
-
-    // Batchable and compact proofs
-    let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut OsRng).unwrap();
-    let proof_compact_bytes = nizk.prove_compact(&witness, &mut OsRng).unwrap();
-    // Verify proofs
-    let verified_batchable = nizk.verify_batchable(&proof_batchable_bytes).is_ok();
-    let verified_compact = nizk.verify_compact(&proof_compact_bytes).is_ok();
-    assert!(
-        verified_batchable,
-        "Fiat-Shamir Schnorr proof verification failed"
-    );
-    assert!(
-        verified_compact,
-        "Fiat-Shamir Schnorr proof verification failed"
-    );
-}
-
-#[test]
-fn noninteractive_pedersen_commitment_dleq() {
-    let (relation, witness) = pedersen_commitment_dleq(
-        (0..4)
-            .map(|_| G::random(&mut OsRng))
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap(),
-        (0..2)
-            .map(|_| Scalar::random(&mut OsRng))
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap(),
-    );
-
-    // The SigmaProtocol induced by relation
-    let protocol = SchnorrProof::from(relation);
-    // Fiat-Shamir wrapper
-    let domain_sep = b"test-fiat-shamir-pedersen-commitment-DLEQ";
-    let nizk = Nizk::<SchnorrProof<G>, ShakeCodec<G>>::new(domain_sep, protocol);
-
-    // Batchable and compact proofs
-    let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut OsRng).unwrap();
-    let proof_compact_bytes = nizk.prove_compact(&witness, &mut OsRng).unwrap();
-    // Verify proofs
-    let verified_batchable = nizk.verify_batchable(&proof_batchable_bytes).is_ok();
-    let verified_compact = nizk.verify_compact(&proof_compact_bytes).is_ok();
-    assert!(
-        verified_batchable,
-        "Fiat-Shamir Schnorr proof verification failed"
-    );
-    assert!(
-        verified_compact,
-        "Fiat-Shamir Schnorr proof verification failed"
-    );
-}
-
-#[test]
-fn noninteractive_bbs_blind_commitment_computation() {
-    let (relation, witness) = bbs_blind_commitment_computation(
-        (0..4)
-            .map(|_| G::random(&mut OsRng))
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap(),
-        (0..3)
-            .map(|_| Scalar::random(&mut OsRng))
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap(),
-        Scalar::random(&mut OsRng),
-    );
-
-    // The SigmaProtocol induced by relation
-    let protocol = SchnorrProof::from(relation);
-    // Fiat-Shamir wrapper
-    let domain_sep = b"test-fiat-shamir-bbs-blind-commitment-computation";
-    let nizk = Nizk::<SchnorrProof<G>, ShakeCodec<G>>::new(domain_sep, protocol);
-
-    // Batchable and compact proofs
-    let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut OsRng).unwrap();
-    let proof_compact_bytes = nizk.prove_compact(&witness, &mut OsRng).unwrap();
-    // Verify proofs
-    let verified_batchable = nizk.verify_batchable(&proof_batchable_bytes).is_ok();
-    let verified_compact = nizk.verify_compact(&proof_compact_bytes).is_ok();
-    assert!(
-        verified_batchable,
-        "Fiat-Shamir Schnorr proof verification failed"
-    );
-    assert!(
-        verified_compact,
-        "Fiat-Shamir Schnorr proof verification failed"
+    test_relation_and_nizk(
+        || bbs_blind_commitment_computation(
+            (0..4)
+                .map(|_| G::random(&mut OsRng))
+                .collect::<Vec<_>>()
+                .try_into()
+                .unwrap(),
+            (0..3)
+                .map(|_| Scalar::random(&mut OsRng))
+                .collect::<Vec<_>>()
+                .try_into()
+                .unwrap(),
+            Scalar::random(&mut OsRng),
+        ),
+        "bbs-blind-commitment-computation"
     );
 }

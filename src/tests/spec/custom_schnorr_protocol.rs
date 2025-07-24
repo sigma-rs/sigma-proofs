@@ -47,7 +47,7 @@ where
 
         let mut nonces: Vec<G::Scalar> = Vec::new();
         for _i in 0..self.0.linear_map.num_scalars {
-            nonces.push(<G as SRandom>::srandom(rng));
+            nonces.push(<G as SRandom>::random_scalar_elt(rng));
         }
         let prover_state = (nonces.clone(), witness.clone());
         let commitment = self.0.linear_map.evaluate(&nonces)?;
@@ -153,7 +153,7 @@ impl<G: SRandom + GroupEncoding> SigmaProtocolSimulator for SchnorrProtocolCusto
 
     fn simulate_response<R: Rng + CryptoRng>(&self, rng: &mut R) -> Self::Response {
         (0..self.0.linear_map.num_scalars)
-            .map(|_| <G as SRandom>::srandom(rng))
+            .map(|_| <G as SRandom>::random_scalar_elt(rng))
             .collect()
     }
 
@@ -161,7 +161,7 @@ impl<G: SRandom + GroupEncoding> SigmaProtocolSimulator for SchnorrProtocolCusto
         &self,
         rng: &mut R,
     ) -> Result<(Self::Commitment, Self::Challenge, Self::Response), Error> {
-        let challenge = <G as SRandom>::srandom(rng);
+        let challenge = <G as SRandom>::random_scalar_elt(rng);
         let response = self.simulate_response(rng);
         let commitment = self.simulate_commitment(&challenge, &response)?;
         Ok((commitment, challenge, response))

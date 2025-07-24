@@ -24,9 +24,9 @@ pub fn discrete_logarithm<G: PrimeGroup>(x: G::Scalar) -> (LinearRelation<G>, Ve
     (relation, vec![x])
 }
 
-/// LinearMap for knowledge of a translated discrete logarithm relative to a fixed basepoint.
+/// LinearMap for knowledge of a shifted discrete logarithm relative to a fixed basepoint.
 #[allow(non_snake_case)]
-pub fn translated_discrete_logarithm<G: PrimeGroup>(
+pub fn shifted_discrete_logarithm<G: PrimeGroup>(
     x: G::Scalar,
 ) -> (LinearRelation<G>, Vec<G::Scalar>) {
     let mut relation: LinearRelation<G> = LinearRelation::new();
@@ -67,9 +67,9 @@ pub fn dleq<G: PrimeGroup>(H: G, x: G::Scalar) -> (LinearRelation<G>, Vec<G::Sca
     (relation, vec![x])
 }
 
-/// LinearMap for knowledge of a translated dleq.
+/// LinearMap for knowledge of a shifted dleq.
 #[allow(non_snake_case)]
-pub fn translated_dleq<G: PrimeGroup>(H: G, x: G::Scalar) -> (LinearRelation<G>, Vec<G::Scalar>) {
+pub fn shifted_dleq<G: PrimeGroup>(H: G, x: G::Scalar) -> (LinearRelation<G>, Vec<G::Scalar>) {
     let mut relation: LinearRelation<G> = LinearRelation::new();
 
     let var_x = relation.allocate_scalar();
