@@ -147,3 +147,15 @@ impl<G: Group> From<ScalarTerm<G>> for Sum<Weighted<ScalarTerm<G>, G::Scalar>> {
         Sum(vec![value.into()])
     }
 }
+
+// Convert a Sum with a single Weighted<GroupVar, Scalar> to Weighted<Term, Scalar>
+impl<G: Group> From<Sum<Weighted<GroupVar<G>, G::Scalar>>> for Weighted<Term<G>, G::Scalar> {
+    fn from(sum: Sum<Weighted<GroupVar<G>, G::Scalar>>) -> Self {
+        assert_eq!(
+            sum.0.len(),
+            1,
+            "Can only convert Sum with exactly one element to Weighted<Term>"
+        );
+        sum.0.into_iter().next().unwrap().into()
+    }
+}

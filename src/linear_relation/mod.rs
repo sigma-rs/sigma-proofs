@@ -320,8 +320,7 @@ impl<G: PrimeGroup> LinearMap<G> {
 /// - A list of group elements and linear equations (held in the [`LinearMap`] field),
 /// - A list of [`GroupVar`] indices (`image`) that specify the expected output for each constraint.
 #[derive(Clone, Default, Debug)]
-pub struct LinearRelation<G: PrimeGroup>
-{
+pub struct LinearRelation<G: PrimeGroup> {
     /// The underlying linear map describing the structure of the statement.
     pub linear_map: LinearMap<G>,
     /// Indices pointing to elements representing the "target" images for each constraint.
@@ -329,12 +328,10 @@ pub struct LinearRelation<G: PrimeGroup>
 }
 
 /// A normalized form of the [LinearRelation], which is used for serialization into the transcript.
-
-/// A canonical linear relation that holds only scalars and group elements,
-/// without weights or extra scalars.
 ///
 /// This struct represents a normalized form of a linear relation where each
 /// constraint is of the form: image[i] = Σ (scalar_j * group_element_k)
+/// without weights or extra scalars.
 #[derive(Clone, Debug, Default)]
 pub struct CanonicalLinearRelation<G: PrimeGroup> {
     /// The image group elements (left-hand side of equations)
@@ -383,7 +380,7 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
         let new_var = self.group_elements.push(weighted_group);
 
         // Cache the mapping for this group_var and weight
-        entry.push((weight.clone(), new_var));
+        entry.push((*weight, new_var));
 
         Ok(new_var)
     }
@@ -427,7 +424,7 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
                     .linear_map
                     .group_elements
                     .get(weighted_term.term.elem)?;
-                canonical_image -= group_val * &weighted_term.weight;
+                canonical_image -= group_val * weighted_term.weight;
             }
         }
 
@@ -526,11 +523,12 @@ impl<G: PrimeGroup> TryFrom<LinearRelation<G>> for CanonicalLinearRelation<G> {
         canonical.num_scalars = relation.linear_map.num_scalars;
 
         // Cache for deduplicating weighted group elements
-        let mut weighted_group_cache: HashMap<GroupVar<G>, Vec<(G::Scalar, GroupVar<G>)>> =
-            HashMap::new();
+        let mut weighted_group_cache = HashMap::new();
 
         // Process each constraint using the modular helper method
-        for (image_var, equation) in iter::zip(&relation.image, &relation.linear_map.linear_combinations) {
+        for (image_var, equation) in
+            iter::zip(&relation.image, &relation.linear_map.linear_combinations)
+        {
             canonical.process_constraint(
                 *image_var,
                 equation,
@@ -543,8 +541,7 @@ impl<G: PrimeGroup> TryFrom<LinearRelation<G>> for CanonicalLinearRelation<G> {
     }
 }
 
-impl<G: PrimeGroup> LinearRelation<G>
-{
+impl<G: PrimeGroup> LinearRelation<G> {
     /// Create a new empty [`LinearRelation`].
     pub fn new() -> Self {
         Self {
@@ -760,8 +757,7 @@ impl<G: PrimeGroup> LinearRelation<G>
     pub fn into_nizk(
         self,
         session_identifier: &[u8],
-    ) -> Nizk<SchnorrProof<G>, Shake128DuplexSponge<G>>
-    {
+    ) -> Nizk<SchnorrProof<G>, Shake128DuplexSponge<G>> {
         let schnorr = SchnorrProof::from(self);
         Nizk::new(session_identifier, schnorr)
     }

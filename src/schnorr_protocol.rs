@@ -54,8 +54,7 @@ impl<G: PrimeGroup> SchnorrProof<G> {
     }
 }
 
-impl<G: PrimeGroup> From<LinearRelation<G>> for SchnorrProof<G>
-{
+impl<G: PrimeGroup> From<LinearRelation<G>> for SchnorrProof<G> {
     fn from(value: LinearRelation<G>) -> Self {
         Self(
             value
