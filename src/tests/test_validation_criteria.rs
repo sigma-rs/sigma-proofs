@@ -79,6 +79,30 @@ mod instance_validation {
         assert!(result.is_err());
     }
 
+    /// Test function with the requested LinearRelation code
+    #[test]
+    #[allow(non_snake_case)]
+    pub fn test_degenerate_equation() {
+        use ff::Field;
+
+        // This relation should fail for two reasons:
+        // 1. because B is not assigned
+        let mut relation = LinearRelation::<G>::new();
+        let x = relation.allocate_scalar();
+        let B = relation.allocate_element();
+        let _eq = relation.allocate_eq((x + (-Scalar::ONE)) * B + (-B));
+
+        assert!(CanonicalLinearRelation::try_from(&relation).is_err());
+
+        // 2. because the equation is void
+        let mut relation = LinearRelation::<G>::new();
+        let x = relation.allocate_scalar();
+        let B = relation.allocate_element();
+        let _eq = relation.allocate_eq((x + (-Scalar::ONE)) * B + (-B));
+        relation.set_element(B, G::generator());
+        assert!(CanonicalLinearRelation::try_from(&relation).is_err());
+    }
+
     #[test]
     fn test_inconsistent_equation_count() {
         // Create a relation with mismatched equations and image elements

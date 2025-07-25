@@ -160,9 +160,15 @@ impl<G: PrimeGroup> GroupMap<G> {
     ///
     /// Returns [`Error::UnassignedGroupVar`] if a value is not assigned.
     pub fn get(&self, var: GroupVar<G>) -> Result<G, Error> {
-        self.0[var.0].ok_or(Error::UnassignedGroupVar {
-            var_debug: format!("{var:?}"),
-        })
+        match self.0.get(var.0) {
+            Some(Some(elem)) => Ok(*elem),
+            Some(None) => Err(Error::UnassignedGroupVar {
+                var_debug: format!("{var:?}"),
+            }),
+            None => Err(Error::UnassignedGroupVar {
+                var_debug: format!("{var:?}"),
+            }),
+        }
     }
 
     /// Iterate over the assigned variable and group element pairs in this mapping.

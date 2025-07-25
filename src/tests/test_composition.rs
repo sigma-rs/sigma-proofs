@@ -1,9 +1,7 @@
 use curve25519_dalek::ristretto::RistrettoPoint;
 use rand::rngs::OsRng;
 
-use super::test_utils::{
-    bbs_blind_commitment, discrete_logarithm, dleq, pedersen_commitment, pedersen_commitment_dleq,
-};
+use super::test_relations::*;
 use crate::codec::Shake128DuplexSponge;
 use crate::composition::{ComposedRelation, ProtocolWitness};
 use crate::fiat_shamir::Nizk;
