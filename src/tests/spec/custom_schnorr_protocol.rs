@@ -123,7 +123,7 @@ where
             .ok_or(Error::VerificationFailure)
     }
     fn instance_label(&self) -> impl AsRef<[u8]> {
-        self.0.label()
+        Vec::<u8>::new()
     }
 
     fn protocol_identifier(&self) -> impl AsRef<[u8]> {

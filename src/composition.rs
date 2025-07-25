@@ -60,7 +60,10 @@ where
     G: PrimeGroup,
 {
     fn from(value: LinearRelation<G>) -> Self {
-        Self::from(SchnorrProof::from(value))
+        Self::Simple(
+            SchnorrProof::try_from(value)
+                .expect("Failed to convert LinearRelation to SchnorrProof"),
+        )
     }
 }
 

@@ -435,7 +435,7 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
         Ok(())
     }
 
-    /// Serialize the canonical linear relation to bytes.
+    /// Serialize the linear relation to bytes.
     ///
     /// The output format is:
     /// - [Ne: u32] number of equations
@@ -444,7 +444,7 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
     ///   - [Nt: u32] number of terms
     ///   - Nt × [scalar_index: u32, group_index: u32] term entries
     /// - Followed by all group elements in serialized form
-    pub fn label(&self) -> Result<Vec<u8>, Error> {
+    pub fn label(&self) -> Vec<u8> {
         let mut out = Vec::new();
 
         // Replicate the original LinearRelationReprBuilder ordering behavior
@@ -473,7 +473,10 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
             // Build the RHS terms
             let mut rhs_terms = Vec::new();
             for (scalar_var, group_var) in constraint_terms {
-                let group_elem = self.group_elements.get(*group_var)?;
+                let group_elem = self
+                    .group_elements
+                    .get(*group_var)
+                    .expect("Group element not found");
                 let group_index = repr_index(group_elem.to_bytes());
                 rhs_terms.push((scalar_var.0 as u32, group_index));
             }
@@ -505,19 +508,32 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
             out.extend_from_slice(elem_repr.as_ref());
         }
 
-        Ok(out)
+        out
     }
 }
 
-impl<G: PrimeGroup> TryFrom<LinearRelation<G>> for CanonicalLinearRelation<G> {
+impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
     type Error = Error;
 
-    fn try_from(relation: LinearRelation<G>) -> Result<Self, Self::Error> {
-        assert_eq!(
-            relation.image.len(),
-            relation.linear_map.linear_combinations.len(),
-            "Number of equations and image variables must match"
-        );
+    fn try_from(relation: &LinearRelation<G>) -> Result<Self, Self::Error> {
+        // Number of equations and image variables must match
+        if relation.image.len() != relation.linear_map.linear_combinations.len() {
+            return Err(Error::InvalidInstanceWitnessPair);
+        }
+
+        // If the image is the identity, then the relation must be trivial, or else the proof will be unsound
+        if !relation.image().is_ok_and(|img| img.iter().all(|&x| x != G::identity())) {
+            return Err(Error::InvalidInstanceWitnessPair);
+        }
+
+        // Empty relations (without constraints) cannot be proven
+        if relation.linear_map.linear_combinations.is_empty() {
+            return Err(Error::InvalidInstanceWitnessPair);
+        }
+
+        if relation.linear_map.linear_combinations.iter().any(|lc| lc.0.is_empty()) {
+            return Err(Error::InvalidInstanceWitnessPair);
+        }
 
         let mut canonical = CanonicalLinearRelation::new();
         canonical.num_scalars = relation.linear_map.num_scalars;
@@ -532,7 +548,7 @@ impl<G: PrimeGroup> TryFrom<LinearRelation<G>> for CanonicalLinearRelation<G> {
             canonical.process_constraint(
                 *image_var,
                 equation,
-                &relation,
+                relation,
                 &mut weighted_group_cache,
             )?;
         }
@@ -709,20 +725,6 @@ impl<G: PrimeGroup> LinearRelation<G> {
             .collect()
     }
 
-    /// Returns a binary label describing the linear map.
-    ///
-    /// The format is:
-    /// - [Ne: u32] number of equations
-    /// - For each equation:
-    ///   - [output_point_index: u32]
-    ///   - [Nt: u32] number of terms
-    ///   - Nt × [scalar_index: u32, point_index: u32] term entries
-    pub fn label(&self) -> Vec<u8> {
-        // XXX. We should return an error if the group elements are not assigned, instead of panicking.
-        let canonical: CanonicalLinearRelation<G> = self.clone().try_into().unwrap();
-        canonical.label().unwrap()
-    }
-
     /// Convert this LinearRelation into a non-interactive zero-knowledge protocol
     /// using the ShakeCodec and a specified context/domain separator.
     ///
@@ -758,7 +760,8 @@ impl<G: PrimeGroup> LinearRelation<G> {
         self,
         session_identifier: &[u8],
     ) -> Nizk<SchnorrProof<G>, Shake128DuplexSponge<G>> {
-        let schnorr = SchnorrProof::from(self);
+        let schnorr =
+            SchnorrProof::try_from(self).expect("Failed to convert LinearRelation to SchnorrProof");
         Nizk::new(session_identifier, schnorr)
     }
 }

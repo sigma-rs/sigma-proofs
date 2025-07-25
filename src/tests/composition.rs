@@ -1,5 +1,4 @@
 use curve25519_dalek::ristretto::RistrettoPoint;
-use group::Group;
 use rand::rngs::OsRng;
 
 use super::test_utils::{
@@ -26,55 +25,25 @@ fn composition_proof_correct() {
     let domain_sep = b"hello world";
 
     // definitions of the underlying protocols
-    let (relation1, witness1) = dleq(
-        G::random(&mut OsRng),
-        <G as Group>::Scalar::random(&mut OsRng),
-    );
-    let (relation2, _) = pedersen_commitment(
-        G::random(&mut OsRng),
-        <G as Group>::Scalar::random(&mut OsRng),
-        <G as Group>::Scalar::random(&mut OsRng),
-    );
-    let (relation3, witness3) = discrete_logarithm(<G as Group>::Scalar::random(&mut OsRng));
-    let (relation4, witness4) = pedersen_commitment_dleq(
-        (0..4)
-            .map(|_| G::random(&mut OsRng))
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap(),
-        (0..2)
-            .map(|_| <G as Group>::Scalar::random(&mut OsRng))
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap(),
-    );
-    let (relation5, witness5) = bbs_blind_commitment_computation(
-        (0..4)
-            .map(|_| G::random(&mut OsRng))
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap(),
-        (0..3)
-            .map(|_| <G as Group>::Scalar::random(&mut OsRng))
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap(),
-        <G as Group>::Scalar::random(&mut OsRng),
-    );
+    let (relation1, witness1) = dleq::<G>();
+    let (relation2, _) = pedersen_commitment::<G>();
+    let (relation3, witness3) = discrete_logarithm::<G>();
+    let (relation4, witness4) = pedersen_commitment_dleq::<G>();
+    let (relation5, witness5) = bbs_blind_commitment_computation::<G>();
 
     // second layer protocol definitions
     let or_protocol1 = Protocol::Or(vec![
-        Protocol::Simple(SchnorrProof::from(relation1)),
-        Protocol::Simple(SchnorrProof::from(relation2)),
+        Protocol::Simple(SchnorrProof(relation1)),
+        Protocol::Simple(SchnorrProof(relation2)),
     ]);
     let or_witness1 = ProtocolWitness::Or(0, vec![ProtocolWitness::Simple(witness1)]);
 
-    let simple_protocol1 = Protocol::from(relation3);
+    let simple_protocol1 = Protocol::Simple(SchnorrProof(relation3));
     let simple_witness1 = ProtocolWitness::Simple(witness3);
 
     let and_protocol1 = Protocol::And(vec![
-        Protocol::Simple(SchnorrProof::from(relation4)),
-        Protocol::Simple(SchnorrProof::from(relation5)),
+        Protocol::Simple(SchnorrProof(relation4)),
+        Protocol::Simple(SchnorrProof(relation5)),
     ]);
     let and_witness1 = ProtocolWitness::And(vec![
         ProtocolWitness::Simple(witness4),
@@ -91,10 +60,6 @@ fn composition_proof_correct() {
     let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut OsRng).unwrap();
     let proof_compact_bytes = nizk.prove_compact(&witness, &mut OsRng).unwrap();
     // Verify proofs
-    let verified_batchable = nizk.verify_batchable(&proof_batchable_bytes).is_ok();
-    let verified_compact = nizk.verify_compact(&proof_compact_bytes).is_ok();
-    assert!(
-        verified_batchable & verified_compact,
-        "Fiat-Shamir Schnorr proof verification failed"
-    );
+    assert!(nizk.verify_batchable(&proof_batchable_bytes).is_ok());
+    assert!(nizk.verify_compact(&proof_compact_bytes).is_ok());
 }

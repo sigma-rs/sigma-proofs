@@ -54,13 +54,12 @@ impl<G: PrimeGroup> SchnorrProof<G> {
     }
 }
 
-impl<G: PrimeGroup> From<LinearRelation<G>> for SchnorrProof<G> {
-    fn from(value: LinearRelation<G>) -> Self {
-        Self(
-            value
-                .try_into()
-                .expect("Failed to convert LinearRelation to CanonicalLinearRelation"),
-        )
+impl<G: PrimeGroup> TryFrom<LinearRelation<G>> for SchnorrProof<G> {
+    type Error = Error;
+
+    fn try_from(linear_relation: LinearRelation<G>) -> Result<Self, Self::Error> {
+        let canonical_linear_relation = (&linear_relation).try_into()?;
+        Ok(Self(canonical_linear_relation))
     }
 }
 
@@ -108,9 +107,9 @@ where
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
-        let nonces: Vec<G::Scalar> = (0..self.witness_length())
+        let nonces = (0..self.witness_length())
             .map(|_| G::Scalar::random(&mut *rng))
-            .collect();
+            .collect::<Vec<_>>();
         let commitment = self.evaluate(&nonces)?;
         let prover_state = (nonces, witness.clone());
         Ok((commitment, prover_state))
@@ -280,7 +279,7 @@ where
     }
 
     fn instance_label(&self) -> impl AsRef<[u8]> {
-        self.0.label().unwrap_or_default()
+        self.0.label()
     }
 
     fn protocol_identifier(&self) -> impl AsRef<[u8]> {

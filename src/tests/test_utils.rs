@@ -2,13 +2,15 @@
 
 use ff::Field;
 use group::prime::PrimeGroup;
+use rand::rngs::OsRng;
 
-use crate::linear_relation::{msm_pr, LinearRelation};
+use crate::linear_relation::{msm_pr, CanonicalLinearRelation, LinearRelation};
 
 /// LinearMap for knowledge of a discrete logarithm relative to a fixed basepoint.
 #[allow(non_snake_case)]
-pub fn discrete_logarithm<G: PrimeGroup>(x: G::Scalar) -> (LinearRelation<G>, Vec<G::Scalar>) {
-    let mut relation: LinearRelation<G> = LinearRelation::new();
+pub fn discrete_logarithm<G: PrimeGroup>() -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
+    let x = G::Scalar::random(&mut OsRng);
+    let mut relation = LinearRelation::new();
 
     let var_x = relation.allocate_scalar();
     let var_G = relation.allocate_element();
@@ -21,15 +23,16 @@ pub fn discrete_logarithm<G: PrimeGroup>(x: G::Scalar) -> (LinearRelation<G>, Ve
     let X = relation.linear_map.group_elements.get(var_X).unwrap();
 
     assert_eq!(X, G::generator() * x);
-    (relation, vec![x])
+    let witness = vec![x];
+    let instance = (&relation).try_into().unwrap();
+    (instance, witness)
 }
 
 /// LinearMap for knowledge of a shifted discrete logarithm relative to a fixed basepoint.
 #[allow(non_snake_case)]
-pub fn shifted_discrete_logarithm<G: PrimeGroup>(
-    x: G::Scalar,
-) -> (LinearRelation<G>, Vec<G::Scalar>) {
-    let mut relation: LinearRelation<G> = LinearRelation::new();
+pub fn shifted_discrete_logarithm<G: PrimeGroup>() -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
+    let x = G::Scalar::random(&mut OsRng);
+    let mut relation = LinearRelation::new();
 
     let var_x = relation.allocate_scalar();
     let var_G = relation.allocate_element();
@@ -42,13 +45,17 @@ pub fn shifted_discrete_logarithm<G: PrimeGroup>(
     let X = relation.linear_map.group_elements.get(var_X).unwrap();
 
     assert!(vec![X] == relation.linear_map.evaluate(&[x]).unwrap());
-    (relation, vec![x])
+    let witness = vec![x];
+    let instance = (&relation).try_into().unwrap();
+    (instance, witness)
 }
 
 /// LinearMap for knowledge of a discrete logarithm equality between two pairs.
 #[allow(non_snake_case)]
-pub fn dleq<G: PrimeGroup>(H: G, x: G::Scalar) -> (LinearRelation<G>, Vec<G::Scalar>) {
-    let mut relation: LinearRelation<G> = LinearRelation::new();
+pub fn dleq<G: PrimeGroup>() -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
+    let H = G::random(&mut OsRng);
+    let x = G::Scalar::random(&mut OsRng);
+    let mut relation = LinearRelation::new();
 
     let var_x = relation.allocate_scalar();
     let [var_G, var_H] = relation.allocate_elements();
@@ -64,13 +71,17 @@ pub fn dleq<G: PrimeGroup>(H: G, x: G::Scalar) -> (LinearRelation<G>, Vec<G::Sca
 
     assert_eq!(X, G::generator() * x);
     assert_eq!(Y, H * x);
-    (relation, vec![x])
+    let witness = vec![x];
+    let instance = (&relation).try_into().unwrap();
+    (instance, witness)
 }
 
 /// LinearMap for knowledge of a shifted dleq.
 #[allow(non_snake_case)]
-pub fn shifted_dleq<G: PrimeGroup>(H: G, x: G::Scalar) -> (LinearRelation<G>, Vec<G::Scalar>) {
-    let mut relation: LinearRelation<G> = LinearRelation::new();
+pub fn shifted_dleq<G: PrimeGroup>() -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
+    let H = G::random(&mut OsRng);
+    let x = G::Scalar::random(&mut OsRng);
+    let mut relation = LinearRelation::new();
 
     let var_x = relation.allocate_scalar();
     let [var_G, var_H] = relation.allocate_elements();
@@ -86,17 +97,18 @@ pub fn shifted_dleq<G: PrimeGroup>(H: G, x: G::Scalar) -> (LinearRelation<G>, Ve
 
     assert_eq!(X, G::generator() * x + H);
     assert_eq!(Y, H * x + G::generator());
-    (relation, vec![x])
+    let witness = vec![x];
+    let instance = (&relation).try_into().unwrap();
+    (instance, witness)
 }
 
 /// LinearMap for knowledge of an opening to a Pedersen commitment.
 #[allow(non_snake_case)]
-pub fn pedersen_commitment<G: PrimeGroup>(
-    H: G,
-    x: G::Scalar,
-    r: G::Scalar,
-) -> (LinearRelation<G>, Vec<G::Scalar>) {
-    let mut relation: LinearRelation<G> = LinearRelation::new();
+pub fn pedersen_commitment<G: PrimeGroup>() -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
+    let H = G::random(&mut OsRng);
+    let x = G::Scalar::random(&mut OsRng);
+    let r = G::Scalar::random(&mut OsRng);
+    let mut relation = LinearRelation::new();
 
     let [var_x, var_r] = relation.allocate_scalars();
     let [var_G, var_H] = relation.allocate_elements();
@@ -110,16 +122,21 @@ pub fn pedersen_commitment<G: PrimeGroup>(
 
     let witness = vec![x, r];
     assert_eq!(C, G::generator() * x + H * r);
-    (relation, witness)
+    let instance = (&relation).try_into().unwrap();
+    (instance, witness)
 }
 
 /// LinearMap for knowledge of equal openings to two distinct Pedersen commitments.
 #[allow(non_snake_case)]
-pub fn pedersen_commitment_dleq<G: PrimeGroup>(
-    generators: [G; 4],
-    witness: [G::Scalar; 2],
-) -> (LinearRelation<G>, Vec<G::Scalar>) {
-    let mut relation: LinearRelation<G> = LinearRelation::new();
+pub fn pedersen_commitment_dleq<G: PrimeGroup>() -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
+    let generators = [
+        G::random(&mut OsRng),
+        G::random(&mut OsRng),
+        G::random(&mut OsRng),
+        G::random(&mut OsRng),
+    ];
+    let witness = [G::Scalar::random(&mut OsRng), G::Scalar::random(&mut OsRng)];
+    let mut relation = LinearRelation::new();
 
     let X = msm_pr::<G>(&witness, &[generators[0], generators[1]]);
     let Y = msm_pr::<G>(&witness, &[generators[2], generators[3]]);
@@ -139,17 +156,28 @@ pub fn pedersen_commitment_dleq<G: PrimeGroup>(
     relation.set_elements([(var_X, X), (var_Y, Y)]);
 
     assert!(vec![X, Y] == relation.linear_map.evaluate(&witness).unwrap());
-    (relation, witness.to_vec())
+    let witness_vec = witness.to_vec();
+    let instance = (&relation).try_into().unwrap();
+    (instance, witness_vec)
 }
 
 /// LinearMap for knowledge of an opening for use in a BBS commitment.
 // BBS message length is 3
 #[allow(non_snake_case)]
 pub fn bbs_blind_commitment_computation<G: PrimeGroup>(
-    [Q_2, J_1, J_2, J_3]: [G; 4],
-    [msg_1, msg_2, msg_3]: [G::Scalar; 3],
-    secret_prover_blind: G::Scalar,
-) -> (LinearRelation<G>, Vec<G::Scalar>) {
+) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
+    let [Q_2, J_1, J_2, J_3] = [
+        G::random(&mut OsRng),
+        G::random(&mut OsRng),
+        G::random(&mut OsRng),
+        G::random(&mut OsRng),
+    ];
+    let [msg_1, msg_2, msg_3] = [
+        G::Scalar::random(&mut OsRng),
+        G::Scalar::random(&mut OsRng),
+        G::Scalar::random(&mut OsRng),
+    ];
+    let secret_prover_blind = G::Scalar::random(&mut OsRng);
     let mut relation = LinearRelation::new();
 
     // these are computed before the proof in the specification
@@ -182,7 +210,8 @@ pub fn bbs_blind_commitment_computation<G: PrimeGroup>(
     let witness = vec![secret_prover_blind, msg_1, msg_2, msg_3];
 
     assert!(vec![C] == relation.linear_map.evaluate(&witness).unwrap());
-    (relation, witness)
+    let instance = (&relation).try_into().unwrap();
+    (instance, witness)
 }
 
 /// Test function with the requested LinearRelation code
@@ -201,10 +230,10 @@ pub fn test_linear_relation_example<G: PrimeGroup>() -> LinearRelation<G> {
 /// LinearMap for the user's specific relation: A * 1 + gen__disj1_x_r * B
 #[allow(non_snake_case)]
 pub fn user_specific_linear_combination<G: PrimeGroup>(
-    B: G,
-    gen__disj1_x_r: G::Scalar,
-) -> (LinearRelation<G>, Vec<G::Scalar>) {
-    let mut sigma__lr = LinearRelation::<G>::new();
+) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
+    let B = G::random(&mut OsRng);
+    let gen__disj1_x_r = G::Scalar::random(&mut OsRng);
+    let mut sigma__lr = LinearRelation::new();
 
     let gen__disj1_x_r_var = sigma__lr.allocate_scalar();
     let A = sigma__lr.allocate_element();
@@ -223,5 +252,7 @@ pub fn user_specific_linear_combination<G: PrimeGroup>(
     let expected = G::generator() + B * gen__disj1_x_r;
     assert_eq!(result, expected);
 
-    (sigma__lr, vec![gen__disj1_x_r])
+    let witness = vec![gen__disj1_x_r];
+    let instance = (&sigma__lr).try_into().unwrap();
+    (instance, witness)
 }
