@@ -4,7 +4,7 @@
 //! byte representations using canonical encodings.
 
 use ff::PrimeField;
-use group::{Group, GroupEncoding};
+use group::prime::PrimeGroup;
 
 /// Serialize a slice of group elements into a byte vector.
 ///
@@ -13,7 +13,7 @@ use group::{Group, GroupEncoding};
 ///
 /// # Returns
 /// - A `Vec<u8>` containing the concatenated canonical compressed byte representations.
-pub fn serialize_elements<G: Group + GroupEncoding>(elements: &[G]) -> Vec<u8> {
+pub fn serialize_elements<G: PrimeGroup>(elements: &[G]) -> Vec<u8> {
     let mut bytes = Vec::new();
     for element in elements {
         bytes.extend_from_slice(element.to_bytes().as_ref());
@@ -30,7 +30,7 @@ pub fn serialize_elements<G: Group + GroupEncoding>(elements: &[G]) -> Vec<u8> {
 /// # Returns
 /// - `Some(Vec<G>)`: The deserialized group elements if all are valid.
 /// - `None`: If the byte slice length is incorrect or any element is invalid.
-pub fn deserialize_elements<G: Group + GroupEncoding>(data: &[u8], count: usize) -> Option<Vec<G>> {
+pub fn deserialize_elements<G: PrimeGroup>(data: &[u8], count: usize) -> Option<Vec<G>> {
     let element_len = G::Repr::default().as_ref().len();
     let expected_len = count * element_len;
 
@@ -69,7 +69,7 @@ pub fn deserialize_elements<G: Group + GroupEncoding>(data: &[u8], count: usize)
 ///
 /// # Returns
 /// - A `Vec<u8>` containing the scalar bytes in big-endian order.
-pub fn serialize_scalars<G: Group>(scalars: &[G::Scalar]) -> Vec<u8> {
+pub fn serialize_scalars<G: PrimeGroup>(scalars: &[G::Scalar]) -> Vec<u8> {
     let mut bytes = Vec::new();
     for scalar in scalars {
         let mut scalar_bytes = scalar.to_repr().as_ref().to_vec();
@@ -88,7 +88,7 @@ pub fn serialize_scalars<G: Group>(scalars: &[G::Scalar]) -> Vec<u8> {
 /// # Returns
 /// - `Some(Vec<G::Scalar>)`: The deserialized scalars if all are valid.
 /// - `None`: If the byte slice length is incorrect or any scalar is invalid.
-pub fn deserialize_scalars<G: Group>(data: &[u8], count: usize) -> Option<Vec<G::Scalar>> {
+pub fn deserialize_scalars<G: PrimeGroup>(data: &[u8], count: usize) -> Option<Vec<G::Scalar>> {
     #[allow(clippy::manual_div_ceil)]
     let scalar_len = (G::Scalar::NUM_BITS as usize + 7) / 8;
     let expected_len = count * scalar_len;

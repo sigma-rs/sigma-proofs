@@ -3,7 +3,7 @@
 pub use crate::duplex_sponge::keccak::KeccakDuplexSponge;
 use crate::duplex_sponge::{shake::ShakeDuplexSponge, DuplexSpongeInterface};
 use ff::PrimeField;
-use group::{Group, GroupEncoding};
+use group::prime::PrimeGroup;
 use num_bigint::BigUint;
 use num_traits::identities::One;
 
@@ -46,7 +46,7 @@ fn cardinal<F: PrimeField>() -> BigUint {
 #[derive(Clone)]
 pub struct ByteSchnorrCodec<G, H>
 where
-    G: Group + GroupEncoding,
+    G: PrimeGroup,
     H: DuplexSpongeInterface,
 {
     hasher: H,
@@ -61,10 +61,10 @@ fn length_to_bytes(x: usize) -> [u8; WORD_SIZE] {
 
 impl<G, H> Codec for ByteSchnorrCodec<G, H>
 where
-    G: Group + GroupEncoding,
+    G: PrimeGroup,
     H: DuplexSpongeInterface,
 {
-    type Challenge = <G as Group>::Scalar;
+    type Challenge = G::Scalar;
 
     fn new(protocol_id: &[u8], session_id: &[u8], instance_label: &[u8]) -> Self {
         let iv = {

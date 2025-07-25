@@ -1,4 +1,4 @@
-use group::{Group, GroupEncoding};
+use group::prime::PrimeGroup;
 use rand::{CryptoRng, Rng};
 
 use crate::errors::Error;
@@ -9,18 +9,18 @@ use crate::serialization::{
 use crate::tests::spec::random::SRandom;
 use crate::traits::{SigmaProtocol, SigmaProtocolSimulator};
 
-pub struct SchnorrProtocolCustom<G: SRandom + GroupEncoding>(pub LinearRelation<G>);
+pub struct SchnorrProtocolCustom<G: SRandom + PrimeGroup>(pub LinearRelation<G>);
 
 impl<G> From<LinearRelation<G>> for SchnorrProtocolCustom<G>
 where
-    G: SRandom + GroupEncoding,
+    G: SRandom + PrimeGroup,
 {
     fn from(value: LinearRelation<G>) -> Self {
         Self(value)
     }
 }
 
-impl<G: SRandom + GroupEncoding> SchnorrProtocolCustom<G> {
+impl<G: SRandom + PrimeGroup> SchnorrProtocolCustom<G> {
     pub fn witness_len(&self) -> usize {
         self.0.linear_map.num_scalars
     }
@@ -28,13 +28,13 @@ impl<G: SRandom + GroupEncoding> SchnorrProtocolCustom<G> {
 
 impl<G> SigmaProtocol for SchnorrProtocolCustom<G>
 where
-    G: SRandom + GroupEncoding,
+    G: SRandom + PrimeGroup,
 {
     type Commitment = Vec<G>;
-    type ProverState = (Vec<<G as Group>::Scalar>, Vec<<G as Group>::Scalar>);
-    type Response = Vec<<G as Group>::Scalar>;
-    type Witness = Vec<<G as Group>::Scalar>;
-    type Challenge = <G as Group>::Scalar;
+    type ProverState = (Vec<G::Scalar>, Vec<G::Scalar>);
+    type Response = Vec<G::Scalar>;
+    type Witness = Vec<G::Scalar>;
+    type Challenge = G::Scalar;
 
     fn prover_commit(
         &self,
@@ -131,7 +131,7 @@ where
     }
 }
 
-impl<G: SRandom + GroupEncoding> SigmaProtocolSimulator for SchnorrProtocolCustom<G> {
+impl<G: SRandom + PrimeGroup> SigmaProtocolSimulator for SchnorrProtocolCustom<G> {
     fn simulate_commitment(
         &self,
         challenge: &Self::Challenge,

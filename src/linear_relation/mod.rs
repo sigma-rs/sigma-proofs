@@ -14,7 +14,7 @@ use std::iter;
 use std::marker::PhantomData;
 
 use ff::Field;
-use group::{Group, GroupEncoding};
+use group::prime::PrimeGroup;
 
 use crate::codec::Shake128DuplexSponge;
 use crate::errors::Error;
@@ -68,7 +68,7 @@ pub enum ScalarTerm<G> {
     Unit,
 }
 
-impl<G: Group> ScalarTerm<G> {
+impl<G: PrimeGroup> ScalarTerm<G> {
     // NOTE: This function is private intentionally as it would be replaced if a ScalarMap struct
     // were to be added.
     fn value(self, scalars: &[G::Scalar]) -> G::Scalar {
@@ -112,13 +112,13 @@ impl<T> Sum<T> {
 /// - `w_i` are the constant weight scalars
 ///
 /// The indices refer to external lists managed by the containing LinearMap.
-pub type LinearCombination<G> = Sum<Weighted<Term<G>, <G as Group>::Scalar>>;
+pub type LinearCombination<G> = Sum<Weighted<Term<G>, <G as group::Group>::Scalar>>;
 
 /// Ordered mapping of [GroupVar] to group elements assignments.
 #[derive(Clone, Debug)]
 pub struct GroupMap<G>(Vec<Option<G>>);
 
-impl<G: Group> GroupMap<G> {
+impl<G: PrimeGroup> GroupMap<G> {
     /// Assign a group element value to a point variable.
     ///
     /// # Parameters
@@ -207,7 +207,7 @@ impl<G> Default for GroupMap<G> {
     }
 }
 
-impl<G: Group> FromIterator<(GroupVar<G>, G)> for GroupMap<G> {
+impl<G: PrimeGroup> FromIterator<(GroupVar<G>, G)> for GroupMap<G> {
     fn from_iter<T: IntoIterator<Item = (GroupVar<G>, G)>>(iter: T) -> Self {
         iter.into_iter()
             .fold(Self::default(), |mut instance, (var, val)| {
@@ -222,7 +222,7 @@ impl<G: Group> FromIterator<(GroupVar<G>, G)> for GroupMap<G> {
 /// It supports dynamic allocation of scalars and elements,
 /// and evaluates by performing multi-scalar multiplications.
 #[derive(Clone, Default, Debug)]
-pub struct LinearMap<G: Group> {
+pub struct LinearMap<G: PrimeGroup> {
     /// The set of linear combination constraints (equations).
     pub linear_combinations: Vec<LinearCombination<G>>,
     /// The list of group elements referenced in the linear map.
@@ -246,7 +246,7 @@ pub struct LinearMap<G: Group> {
 ///
 /// # Returns
 /// The group element result of the MSM.
-pub fn msm_pr<G: Group>(scalars: &[G::Scalar], bases: &[G]) -> G {
+pub fn msm_pr<G: PrimeGroup>(scalars: &[G::Scalar], bases: &[G]) -> G {
     let mut acc = G::identity();
     for (s, p) in scalars.iter().zip(bases.iter()) {
         acc += *p * s;
@@ -254,7 +254,7 @@ pub fn msm_pr<G: Group>(scalars: &[G::Scalar], bases: &[G]) -> G {
     acc
 }
 
-impl<G: Group> LinearMap<G> {
+impl<G: PrimeGroup> LinearMap<G> {
     /// Creates a new empty [`LinearMap`].
     ///
     /// # Returns
@@ -291,7 +291,7 @@ impl<G: Group> LinearMap<G> {
     /// # Returns
     ///
     /// A vector of group elements, each being the result of evaluating one linear combination with the scalars.
-    pub fn evaluate(&self, scalars: &[<G as Group>::Scalar]) -> Result<Vec<G>, Error> {
+    pub fn evaluate(&self, scalars: &[G::Scalar]) -> Result<Vec<G>, Error> {
         self.linear_combinations
             .iter()
             .map(|lc| {
@@ -320,9 +320,7 @@ impl<G: Group> LinearMap<G> {
 /// - A list of group elements and linear equations (held in the [`LinearMap`] field),
 /// - A list of [`GroupVar`] indices (`image`) that specify the expected output for each constraint.
 #[derive(Clone, Default, Debug)]
-pub struct LinearRelation<G>
-where
-    G: Group + GroupEncoding,
+pub struct LinearRelation<G: PrimeGroup>
 {
     /// The underlying linear map describing the structure of the statement.
     pub linear_map: LinearMap<G>,
@@ -338,7 +336,7 @@ where
 /// This struct represents a normalized form of a linear relation where each
 /// constraint is of the form: image[i] = Σ (scalar_j * group_element_k)
 #[derive(Clone, Debug, Default)]
-pub struct CanonicalLinearRelation<G: Group + GroupEncoding> {
+pub struct CanonicalLinearRelation<G: PrimeGroup> {
     /// The image group elements (left-hand side of equations)
     pub image: Vec<G>,
     /// The constraints, where each constraint is a vector of (scalar_var, group_var) pairs
@@ -350,7 +348,7 @@ pub struct CanonicalLinearRelation<G: Group + GroupEncoding> {
     pub num_scalars: usize,
 }
 
-impl<G: Group + GroupEncoding> CanonicalLinearRelation<G> {
+impl<G: PrimeGroup> CanonicalLinearRelation<G> {
     /// Create a new empty canonical linear relation
     pub fn new() -> Self {
         Self {
@@ -514,7 +512,7 @@ impl<G: Group + GroupEncoding> CanonicalLinearRelation<G> {
     }
 }
 
-impl<G: Group + GroupEncoding> TryFrom<LinearRelation<G>> for CanonicalLinearRelation<G> {
+impl<G: PrimeGroup> TryFrom<LinearRelation<G>> for CanonicalLinearRelation<G> {
     type Error = Error;
 
     fn try_from(relation: LinearRelation<G>) -> Result<Self, Self::Error> {
@@ -545,9 +543,7 @@ impl<G: Group + GroupEncoding> TryFrom<LinearRelation<G>> for CanonicalLinearRel
     }
 }
 
-impl<G> LinearRelation<G>
-where
-    G: Group + GroupEncoding,
+impl<G: PrimeGroup> LinearRelation<G>
 {
     /// Create a new empty [`LinearRelation`].
     pub fn new() -> Self {
@@ -675,7 +671,7 @@ where
     ///
     /// Return `Ok` on success, and an error if unassigned elements prevent the image from being
     /// computed. Modifies the group elements assigned in the [LinearRelation].
-    pub fn compute_image(&mut self, scalars: &[<G as Group>::Scalar]) -> Result<(), Error> {
+    pub fn compute_image(&mut self, scalars: &[G::Scalar]) -> Result<(), Error> {
         if self.linear_map.num_constraints() != self.image.len() {
             // NOTE: This is a panic, rather than a returned error, because this can only happen if
             // this implementation has a bug.
@@ -761,9 +757,10 @@ where
     /// let proof = nizk.prove_batchable(&vec![x], &mut OsRng).unwrap();
     /// assert!(nizk.verify_batchable(&proof).is_ok());
     /// ```
-    pub fn into_nizk(self, session_identifier: &[u8]) -> Nizk<SchnorrProof<G>, Shake128DuplexSponge<G>>
-    where
-        G: group::GroupEncoding,
+    pub fn into_nizk(
+        self,
+        session_identifier: &[u8],
+    ) -> Nizk<SchnorrProof<G>, Shake128DuplexSponge<G>>
     {
         let schnorr = SchnorrProof::from(self);
         Nizk::new(session_identifier, schnorr)

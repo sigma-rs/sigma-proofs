@@ -14,7 +14,7 @@ use crate::{
 };
 
 use ff::Field;
-use group::{Group, GroupEncoding};
+use group::prime::PrimeGroup;
 use rand::{CryptoRng, Rng, RngCore};
 
 /// A Schnorr protocol proving knowledge of a witness for a linear group relation.
@@ -23,11 +23,11 @@ use rand::{CryptoRng, Rng, RngCore};
 /// a [`LinearRelation`], representing an abstract linear relation over the group.
 ///
 /// # Type Parameters
-/// - `G`: A cryptographic group implementing [`Group`] and [`GroupEncoding`].
+/// - `G`: A [`PrimeGroup`] instance.
 #[derive(Clone, Default, Debug)]
-pub struct SchnorrProof<G: Group + GroupEncoding>(pub CanonicalLinearRelation<G>);
+pub struct SchnorrProof<G: PrimeGroup>(pub CanonicalLinearRelation<G>);
 
-impl<G: Group + GroupEncoding> SchnorrProof<G> {
+impl<G: PrimeGroup> SchnorrProof<G> {
     pub fn witness_length(&self) -> usize {
         self.0.num_scalars
     }
@@ -54,9 +54,7 @@ impl<G: Group + GroupEncoding> SchnorrProof<G> {
     }
 }
 
-impl<G> From<LinearRelation<G>> for SchnorrProof<G>
-where
-    G: Group + GroupEncoding,
+impl<G: PrimeGroup> From<LinearRelation<G>> for SchnorrProof<G>
 {
     fn from(value: LinearRelation<G>) -> Self {
         Self(
@@ -69,13 +67,13 @@ where
 
 impl<G> SigmaProtocol for SchnorrProof<G>
 where
-    G: Group + GroupEncoding,
+    G: PrimeGroup,
 {
     type Commitment = Vec<G>;
-    type ProverState = (Vec<<G as Group>::Scalar>, Vec<<G as Group>::Scalar>);
-    type Response = Vec<<G as Group>::Scalar>;
-    type Witness = Vec<<G as Group>::Scalar>;
-    type Challenge = <G as Group>::Scalar;
+    type ProverState = (Vec<G::Scalar>, Vec<G::Scalar>);
+    type Response = Vec<G::Scalar>;
+    type Witness = Vec<G::Scalar>;
+    type Challenge = G::Scalar;
 
     /// Prover's first message: generates a commitment using random nonces.
     ///
@@ -293,7 +291,7 @@ where
 
 impl<G> SigmaProtocolSimulator for SchnorrProof<G>
 where
-    G: Group + GroupEncoding,
+    G: PrimeGroup,
 {
     /// Simulates a valid transcript for a given challenge without a witness.
     ///
