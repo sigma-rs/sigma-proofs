@@ -135,13 +135,16 @@ mod instance_validation {
     #[test]
     fn without_witness() {
         let B = G::generator();
-        let x = Scalar::from(42);
+        let A = G::generator() * Scalar::from(42);
+        let pub_scalar = Scalar::from(42);
 
         let mut linear_relation = LinearRelation::<G>::new();
         let B_var = linear_relation.allocate_element();
-        let _X_var = linear_relation.allocate_eq(B_var * x + B_var * Scalar::from(3));
+        let A_var = linear_relation.allocate_element();
+        let _X_var = linear_relation.allocate_eq(B_var * pub_scalar + A_var * Scalar::from(3));
 
         linear_relation.set_element(B_var, B);
+        linear_relation.set_element(A_var, A);
         let result = CanonicalLinearRelation::try_from(&linear_relation);
         assert!(result.is_err());
     }
