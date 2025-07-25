@@ -40,7 +40,7 @@ pub fn discrete_logarithm<G: PrimeGroup, R: rand::RngCore>(
 
 /// LinearMap for knowledge of a shifted discrete logarithm relative to a fixed basepoint.
 #[allow(non_snake_case)]
-pub fn shifted_discrete_logarithm<G: PrimeGroup, R: RngCore>(
+pub fn shifted_dlog<G: PrimeGroup, R: RngCore>(
     rng: &mut R,
 ) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
     let x = G::Scalar::random(rng);
@@ -49,14 +49,14 @@ pub fn shifted_discrete_logarithm<G: PrimeGroup, R: RngCore>(
     let var_x = relation.allocate_scalar();
     let var_G = relation.allocate_element();
 
-    let var_X = relation.allocate_eq((var_x + <G::Scalar as Field>::ONE) * var_G);
+    let var_X = relation.allocate_eq(var_G * var_x + var_G * <G::Scalar as Field>::ONE);
+    // another way of writing this is:
+    relation.append_equation(var_X, (var_x + <G::Scalar as Field>::ONE) * var_G);
+
 
     relation.set_element(var_G, G::generator());
     relation.compute_image(&[x]).unwrap();
 
-    let X = relation.linear_map.group_elements.get(var_X).unwrap();
-
-    assert!(vec![X] == relation.linear_map.evaluate(&[x]).unwrap());
     let witness = vec![x];
     let instance = (&relation).try_into().unwrap();
     (instance, witness)
@@ -305,26 +305,6 @@ fn subtractions_with_shift<G: PrimeGroup, R: RngCore>(
     (instance, witness)
 }
 
-#[allow(dead_code)]
-fn without_witness<G: PrimeGroup, R: RngCore>(
-    mut rng: &mut R,
-) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
-    let B = G::generator();
-    let x = G::Scalar::random(&mut rng);
-    // let X = B * (x + G::Scalar::from(3));
-
-    let mut linear_relation = LinearRelation::<G>::new();
-    let B_var = linear_relation.allocate_element();
-    // let X_var =
-    //    linear_relation.allocate_eq(B * x + B * G::Scalar::from_u128(3u128));
-
-    linear_relation.set_element(B_var, B);
-    // linear_relation.set_element(X_var, X);
-    let instance = (&linear_relation).try_into().unwrap();
-    let witness = vec![x];
-    (instance, witness)
-}
-
 /// Generic helper function to test both relation correctness and NIZK functionality
 #[test]
 fn test_common_relations() {
@@ -337,7 +317,7 @@ fn test_common_relations() {
     >::new();
 
     instance_generators.insert("dlog", Box::new(discrete_logarithm));
-    instance_generators.insert("shifted_dlog", Box::new(shifted_discrete_logarithm));
+    instance_generators.insert("shifted_dlog", Box::new(shifted_dlog));
     instance_generators.insert("dleq", Box::new(dleq));
     instance_generators.insert("shifted_dleq", Box::new(shifted_dleq));
     instance_generators.insert("pedersen_commitment", Box::new(pedersen_commitment));
