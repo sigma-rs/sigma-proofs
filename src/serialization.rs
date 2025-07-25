@@ -64,13 +64,8 @@ pub fn deserialize_elements<G: PrimeGroup>(data: &[u8], count: usize) -> Option<
 
 /// Serialize a slice of scalar field elements into a byte vector.
 ///
-/// This function is equivalent to
-///
-/// ```ignore
-///      I2OSP(byte, 1) + I2OSP(x, self.field_bytes_length)
-/// ```
-///
-/// with I2OSP as described in RFC8017.
+/// This method internally relies on the underlying group serialization function,
+/// and is meant to match the Internet Draft for point compression.
 ///
 /// # Parameters
 /// - `scalars`: A slice of scalar field elements to serialize.
