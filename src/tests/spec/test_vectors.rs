@@ -12,7 +12,6 @@ use crate::tests::spec::{custom_schnorr_protocol::DeterministicSchnorrProof, rng
 
 type SchnorrNizk = Nizk<DeterministicSchnorrProof<G>, KeccakByteSchnorrCodec<G>>;
 
-
 #[derive(Debug)]
 struct TestVector {
     ciphersuite: String,
