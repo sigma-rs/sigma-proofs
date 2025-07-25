@@ -234,9 +234,11 @@ impl<G: PrimeGroup> SigmaProtocol for ComposedRelation<G> {
         response: &Self::Response,
     ) -> Result<(), Error> {
         match (self, commitment, response) {
-            (ComposedRelation::Simple(p), ProtocolCommitment::Simple(c), ProtocolResponse::Simple(r)) => {
-                p.verifier(c, challenge, r)
-            }
+            (
+                ComposedRelation::Simple(p),
+                ProtocolCommitment::Simple(c),
+                ProtocolResponse::Simple(r),
+            ) => p.verifier(c, challenge, r),
             (
                 ComposedRelation::And(ps),
                 ProtocolCommitment::And(commitments),
@@ -267,7 +269,9 @@ impl<G: PrimeGroup> SigmaProtocol for ComposedRelation<G> {
 
     fn serialize_commitment(&self, commitment: &Self::Commitment) -> Vec<u8> {
         match (self, commitment) {
-            (ComposedRelation::Simple(p), ProtocolCommitment::Simple(c)) => p.serialize_commitment(c),
+            (ComposedRelation::Simple(p), ProtocolCommitment::Simple(c)) => {
+                p.serialize_commitment(c)
+            }
             (ComposedRelation::And(ps), ProtocolCommitment::And(commitments))
             | (ComposedRelation::Or(ps), ProtocolCommitment::Or(commitments)) => ps
                 .iter()
@@ -432,9 +436,9 @@ impl<G: PrimeGroup> SigmaProtocolSimulator for ComposedRelation<G> {
         response: &Self::Response,
     ) -> Result<Self::Commitment, Error> {
         match (self, response) {
-            (ComposedRelation::Simple(p), ProtocolResponse::Simple(r)) => Ok(ProtocolCommitment::Simple(
-                p.simulate_commitment(challenge, r)?,
-            )),
+            (ComposedRelation::Simple(p), ProtocolResponse::Simple(r)) => Ok(
+                ProtocolCommitment::Simple(p.simulate_commitment(challenge, r)?),
+            ),
             (ComposedRelation::And(ps), ProtocolResponse::And(rs)) => {
                 let commitments = ps
                     .iter()

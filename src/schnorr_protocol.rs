@@ -311,7 +311,7 @@ where
     }
 
     fn protocol_identifier(&self) -> impl AsRef<[u8]> {
-        b"SchnorrProof"
+        b"draft-zkproof-fiat-shamir"
     }
 }
 

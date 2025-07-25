@@ -2,8 +2,7 @@ use curve25519_dalek::ristretto::RistrettoPoint;
 use rand::rngs::OsRng;
 
 use super::test_utils::{
-    bbs_blind_commitment_computation, discrete_logarithm, dleq, pedersen_commitment,
-    pedersen_commitment_dleq,
+    bbs_blind_commitment, discrete_logarithm, dleq, pedersen_commitment, pedersen_commitment_dleq,
 };
 use crate::codec::Shake128DuplexSponge;
 use crate::composition::{ComposedRelation, ProtocolWitness};
@@ -30,7 +29,7 @@ fn composition_proof_correct() {
     let (relation2, _) = pedersen_commitment::<G, _>(&mut rng);
     let (relation3, witness3) = discrete_logarithm::<G, _>(&mut rng);
     let (relation4, witness4) = pedersen_commitment_dleq::<G, _>(&mut rng);
-    let (relation5, witness5) = bbs_blind_commitment_computation::<G, _>(&mut rng);
+    let (relation5, witness5) = bbs_blind_commitment::<G, _>(&mut rng);
 
     // second layer protocol definitions
     let or_protocol1 = ComposedRelation::Or(vec![
@@ -55,7 +54,9 @@ fn composition_proof_correct() {
     let protocol = ComposedRelation::And(vec![or_protocol1, simple_protocol1, and_protocol1]);
     let witness = ProtocolWitness::And(vec![or_witness1, simple_witness1, and_witness1]);
 
-    let nizk = Nizk::<ComposedRelation<RistrettoPoint>, Shake128DuplexSponge<G>>::new(domain_sep, protocol);
+    let nizk = Nizk::<ComposedRelation<RistrettoPoint>, Shake128DuplexSponge<G>>::new(
+        domain_sep, protocol,
+    );
 
     // Batchable and compact proofs
     let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut OsRng).unwrap();

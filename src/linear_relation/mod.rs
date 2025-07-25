@@ -510,6 +510,154 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
 
         out
     }
+
+    /// Parse a canonical linear relation from its label representation
+    pub fn from_label(data: &[u8]) -> Result<Self, Error> {
+        use crate::errors::InvalidInstance;
+        use crate::serialization::group_elt_serialized_len;
+
+        let mut offset = 0;
+
+        // Read number of equations (4 bytes, little endian)
+        if data.len() < 4 {
+            return Err(InvalidInstance::new("Invalid label: too short for equation count").into());
+        }
+        let num_equations = u32::from_le_bytes([data[0], data[1], data[2], data[3]]) as usize;
+        offset += 4;
+
+        // Parse constraints and collect unique group element indices
+        let mut constraint_data = Vec::new();
+        let mut max_scalar_index = 0u32;
+        let mut max_group_index = 0u32;
+
+        for _ in 0..num_equations {
+            // Read LHS index (4 bytes)
+            if offset + 4 > data.len() {
+                return Err(InvalidInstance::new("Invalid label: truncated LHS index").into());
+            }
+            let lhs_index = u32::from_le_bytes([
+                data[offset],
+                data[offset + 1],
+                data[offset + 2],
+                data[offset + 3],
+            ]);
+            offset += 4;
+            max_group_index = max_group_index.max(lhs_index);
+
+            // Read number of RHS terms (4 bytes)
+            if offset + 4 > data.len() {
+                return Err(InvalidInstance::new("Invalid label: truncated RHS count").into());
+            }
+            let num_rhs_terms = u32::from_le_bytes([
+                data[offset],
+                data[offset + 1],
+                data[offset + 2],
+                data[offset + 3],
+            ]) as usize;
+            offset += 4;
+
+            // Read RHS terms
+            let mut rhs_terms = Vec::new();
+            for _ in 0..num_rhs_terms {
+                // Read scalar index (4 bytes)
+                if offset + 4 > data.len() {
+                    return Err(
+                        InvalidInstance::new("Invalid label: truncated scalar index").into(),
+                    );
+                }
+                let scalar_index = u32::from_le_bytes([
+                    data[offset],
+                    data[offset + 1],
+                    data[offset + 2],
+                    data[offset + 3],
+                ]);
+                offset += 4;
+                max_scalar_index = max_scalar_index.max(scalar_index);
+
+                // Read group index (4 bytes)
+                if offset + 4 > data.len() {
+                    return Err(InvalidInstance::new("Invalid label: truncated group index").into());
+                }
+                let group_index = u32::from_le_bytes([
+                    data[offset],
+                    data[offset + 1],
+                    data[offset + 2],
+                    data[offset + 3],
+                ]);
+                offset += 4;
+                max_group_index = max_group_index.max(group_index);
+
+                rhs_terms.push((scalar_index, group_index));
+            }
+
+            constraint_data.push((lhs_index, rhs_terms));
+        }
+
+        // Calculate expected number of group elements
+        let num_group_elements = (max_group_index + 1) as usize;
+        let group_element_size = group_elt_serialized_len::<G>();
+        let expected_remaining = num_group_elements * group_element_size;
+
+        if data.len() - offset != expected_remaining {
+            return Err(InvalidInstance::new(format!(
+                "Invalid label: expected {} bytes for {} group elements, got {}",
+                expected_remaining,
+                num_group_elements,
+                data.len() - offset
+            ))
+            .into());
+        }
+
+        // Parse group elements
+        let mut group_elements_ordered = Vec::new();
+        for i in 0..num_group_elements {
+            let start = offset + i * group_element_size;
+            let end = start + group_element_size;
+            let elem_bytes = &data[start..end];
+
+            let mut repr = G::Repr::default();
+            repr.as_mut().copy_from_slice(elem_bytes);
+
+            let elem = Option::<G>::from(G::from_bytes(&repr)).ok_or_else(|| {
+                Error::from(InvalidInstance::new(format!(
+                    "Invalid group element at index {}",
+                    i
+                )))
+            })?;
+
+            group_elements_ordered.push(elem);
+        }
+
+        // Build the canonical relation
+        let mut canonical = Self::new();
+        canonical.num_scalars = (max_scalar_index + 1) as usize;
+
+        // Add all group elements to the map
+        let mut group_var_map = Vec::new();
+        for elem in &group_elements_ordered {
+            let var = canonical.group_elements.push(*elem);
+            group_var_map.push(var);
+        }
+
+        // Build constraints
+        for (lhs_index, rhs_terms) in constraint_data {
+            // Add image element
+            canonical
+                .image
+                .push(group_elements_ordered[lhs_index as usize]);
+
+            // Build linear combination
+            let mut linear_combination = Vec::new();
+            for (scalar_index, group_index) in rhs_terms {
+                let scalar_var = ScalarVar(scalar_index as usize, PhantomData);
+                let group_var = group_var_map[group_index as usize];
+                linear_combination.push((scalar_var, group_var));
+            }
+            canonical.linear_combinations.push(linear_combination);
+        }
+
+        Ok(canonical)
+    }
 }
 
 impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {

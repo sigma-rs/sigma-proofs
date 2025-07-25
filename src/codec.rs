@@ -59,6 +59,25 @@ fn length_to_bytes(x: usize) -> [u8; WORD_SIZE] {
     (x as u32).to_be_bytes()
 }
 
+/// Compute the initialization vector (IV) for a protocol instance.
+///
+/// This function computes a deterministic IV from the protocol identifier,
+/// session identifier, and instance label using the specified duplex sponge.
+pub fn compute_iv<H: DuplexSpongeInterface>(
+    protocol_id: &[u8],
+    session_id: &[u8],
+    instance_label: &[u8],
+) -> [u8; 32] {
+    let mut tmp = H::new([0u8; 32]);
+    tmp.absorb(&length_to_bytes(protocol_id.len()));
+    tmp.absorb(protocol_id);
+    tmp.absorb(&length_to_bytes(session_id.len()));
+    tmp.absorb(session_id);
+    tmp.absorb(&length_to_bytes(instance_label.len()));
+    tmp.absorb(instance_label);
+    tmp.squeeze(32).try_into().unwrap()
+}
+
 impl<G, H> Codec for ByteSchnorrCodec<G, H>
 where
     G: PrimeGroup,
@@ -67,17 +86,7 @@ where
     type Challenge = G::Scalar;
 
     fn new(protocol_id: &[u8], session_id: &[u8], instance_label: &[u8]) -> Self {
-        let iv = {
-            let mut tmp = H::new([0u8; 32]);
-            tmp.absorb(&length_to_bytes(protocol_id.len()));
-            tmp.absorb(protocol_id);
-            tmp.absorb(&length_to_bytes(session_id.len()));
-            tmp.absorb(session_id);
-            tmp.absorb(&length_to_bytes(instance_label.len()));
-            tmp.absorb(instance_label);
-            tmp.squeeze(32).try_into().unwrap()
-        };
-
+        let iv = compute_iv::<H>(protocol_id, session_id, instance_label);
         Self::from_iv(iv)
     }
 

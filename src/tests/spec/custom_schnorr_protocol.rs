@@ -26,8 +26,7 @@ impl<G: PrimeGroup> From<CanonicalLinearRelation<G>> for DeterministicSchnorrPro
 
 impl<G: PrimeGroup> DeterministicSchnorrProof<G> {}
 
-impl<G: SRandom + PrimeGroup> SigmaProtocol for DeterministicSchnorrProof<G>
-{
+impl<G: SRandom + PrimeGroup> SigmaProtocol for DeterministicSchnorrProof<G> {
     type Commitment = Vec<G>;
     type ProverState = (Vec<G::Scalar>, Vec<G::Scalar>);
     type Response = Vec<G::Scalar>;

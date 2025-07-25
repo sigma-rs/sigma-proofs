@@ -3,9 +3,8 @@ use rand::rngs::OsRng;
 
 use crate::fiat_shamir::Nizk;
 use crate::tests::test_utils::{
-    bbs_blind_commitment_computation, discrete_logarithm, dleq, pedersen_commitment,
-    pedersen_commitment_dleq, shifted_discrete_logarithm, shifted_dleq,
-    user_specific_linear_combination,
+    bbs_blind_commitment, discrete_logarithm, dleq, pedersen_commitment, pedersen_commitment_dleq,
+    shifted_discrete_logarithm, shifted_dleq, user_specific_linear_combination,
 };
 use crate::{
     codec::Shake128DuplexSponge, linear_relation::CanonicalLinearRelation,
@@ -99,7 +98,7 @@ fn test_pedersen_commitment_dleq() {
 #[test]
 fn test_bbs_blind_commitment_computation() {
     test_relation_and_nizk(
-        |rng| bbs_blind_commitment_computation::<G, _>(rng),
+        |rng| bbs_blind_commitment::<G, _>(rng),
         "bbs-blind-commitment-computation",
     );
 }

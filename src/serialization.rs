@@ -6,6 +6,14 @@
 use ff::PrimeField;
 use group::prime::PrimeGroup;
 
+/// Get the serialized length of a group element in bytes.
+///
+/// # Returns
+/// The number of bytes required to serialize a group element.
+pub fn group_elt_serialized_len<G: PrimeGroup>() -> usize {
+    G::Repr::default().as_ref().len()
+}
+
 /// Serialize a slice of group elements into a byte vector.
 ///
 /// # Parameters
@@ -31,7 +39,7 @@ pub fn serialize_elements<G: PrimeGroup>(elements: &[G]) -> Vec<u8> {
 /// - `Some(Vec<G>)`: The deserialized group elements if all are valid.
 /// - `None`: If the byte slice length is incorrect or any element is invalid.
 pub fn deserialize_elements<G: PrimeGroup>(data: &[u8], count: usize) -> Option<Vec<G>> {
-    let element_len = G::Repr::default().as_ref().len();
+    let element_len = group_elt_serialized_len::<G>();
     let expected_len = count * element_len;
 
     if data.len() < expected_len {

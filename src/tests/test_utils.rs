@@ -176,7 +176,7 @@ pub fn pedersen_commitment_dleq<G: PrimeGroup, R: RngCore>(
 /// LinearMap for knowledge of an opening for use in a BBS commitment.
 // BBS message length is 3
 #[allow(non_snake_case)]
-pub fn bbs_blind_commitment_computation<G: PrimeGroup, R: RngCore>(
+pub fn bbs_blind_commitment<G: PrimeGroup, R: RngCore>(
     rng: &mut R,
 ) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
     let [Q_2, J_1, J_2, J_3] = [

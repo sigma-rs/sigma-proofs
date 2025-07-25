@@ -61,5 +61,4 @@ impl SRandom for G1Projective {
         }
         G1Projective::scalar_from_hex_be(&hex_string).unwrap()
     }
-
 }
