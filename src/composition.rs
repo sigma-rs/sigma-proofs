@@ -69,48 +69,48 @@ where
 
 // Structure representing the Commitment type of Protocol as SigmaProtocol
 #[derive(Clone)]
-pub enum ProtocolCommitment<G: PrimeGroup> {
+pub enum ComposedCommitment<G: PrimeGroup> {
     Simple(<SchnorrProof<G> as SigmaProtocol>::Commitment),
-    And(Vec<ProtocolCommitment<G>>),
-    Or(Vec<ProtocolCommitment<G>>),
+    And(Vec<ComposedCommitment<G>>),
+    Or(Vec<ComposedCommitment<G>>),
 }
 
 // Structure representing the ProverState type of Protocol as SigmaProtocol
 #[derive(Clone)]
-pub enum ProtocolProverState<G: PrimeGroup> {
+pub enum ComposedProverState<G: PrimeGroup> {
     Simple(<SchnorrProof<G> as SigmaProtocol>::ProverState),
-    And(Vec<ProtocolProverState<G>>),
+    And(Vec<ComposedProverState<G>>),
     Or(
         usize,                                                 // real index
-        Vec<ProtocolProverState<G>>,                           // real ProverState
-        (Vec<ProtocolChallenge<G>>, Vec<ProtocolResponse<G>>), // simulated transcripts
+        Vec<ComposedProverState<G>>,                           // real ProverState
+        (Vec<ComposedChallenge<G>>, Vec<ComposedResponse<G>>), // simulated transcripts
     ),
 }
 
 // Structure representing the Response type of Protocol as SigmaProtocol
 #[derive(Clone)]
-pub enum ProtocolResponse<G: PrimeGroup> {
+pub enum ComposedResponse<G: PrimeGroup> {
     Simple(<SchnorrProof<G> as SigmaProtocol>::Response),
-    And(Vec<ProtocolResponse<G>>),
-    Or(Vec<ProtocolChallenge<G>>, Vec<ProtocolResponse<G>>),
+    And(Vec<ComposedResponse<G>>),
+    Or(Vec<ComposedChallenge<G>>, Vec<ComposedResponse<G>>),
 }
 
 // Structure representing the Witness type of Protocol as SigmaProtocol
-pub enum ProtocolWitness<G: PrimeGroup> {
+pub enum ComposedWitness<G: PrimeGroup> {
     Simple(<SchnorrProof<G> as SigmaProtocol>::Witness),
-    And(Vec<ProtocolWitness<G>>),
-    Or(usize, Vec<ProtocolWitness<G>>),
+    And(Vec<ComposedWitness<G>>),
+    Or(usize, Vec<ComposedWitness<G>>),
 }
 
 // Structure representing the Challenge type of Protocol as SigmaProtocol
-type ProtocolChallenge<G> = <SchnorrProof<G> as SigmaProtocol>::Challenge;
+type ComposedChallenge<G> = <SchnorrProof<G> as SigmaProtocol>::Challenge;
 
 impl<G: PrimeGroup> SigmaProtocol for ComposedRelation<G> {
-    type Commitment = ProtocolCommitment<G>;
-    type ProverState = ProtocolProverState<G>;
-    type Response = ProtocolResponse<G>;
-    type Witness = ProtocolWitness<G>;
-    type Challenge = ProtocolChallenge<G>;
+    type Commitment = ComposedCommitment<G>;
+    type ProverState = ComposedProverState<G>;
+    type Response = ComposedResponse<G>;
+    type Witness = ComposedWitness<G>;
+    type Challenge = ComposedChallenge<G>;
 
     fn prover_commit(
         &self,
@@ -118,15 +118,15 @@ impl<G: PrimeGroup> SigmaProtocol for ComposedRelation<G> {
         rng: &mut (impl rand::Rng + rand::CryptoRng),
     ) -> Result<(Self::Commitment, Self::ProverState), Error> {
         match (self, witness) {
-            (ComposedRelation::Simple(p), ProtocolWitness::Simple(w)) => {
+            (ComposedRelation::Simple(p), ComposedWitness::Simple(w)) => {
                 p.prover_commit(w, rng).map(|(c, s)| {
                     (
-                        ProtocolCommitment::Simple(c),
-                        ProtocolProverState::Simple(s),
+                        ComposedCommitment::Simple(c),
+                        ComposedProverState::Simple(s),
                     )
                 })
             }
-            (ComposedRelation::And(ps), ProtocolWitness::And(ws)) => {
+            (ComposedRelation::And(ps), ComposedWitness::And(ws)) => {
                 if ps.len() != ws.len() {
                     return Err(Error::InvalidInstanceWitnessPair);
                 }
@@ -140,11 +140,11 @@ impl<G: PrimeGroup> SigmaProtocol for ComposedRelation<G> {
                 }
 
                 Ok((
-                    ProtocolCommitment::And(commitments),
-                    ProtocolProverState::And(prover_states),
+                    ComposedCommitment::And(commitments),
+                    ComposedProverState::And(prover_states),
                 ))
             }
-            (ComposedRelation::Or(ps), ProtocolWitness::Or(w_index, w)) => {
+            (ComposedRelation::Or(ps), ComposedWitness::Or(w_index, w)) => {
                 let mut commitments = Vec::new();
                 let mut simulated_challenges = Vec::new();
                 let mut simulated_responses = Vec::new();
@@ -160,8 +160,8 @@ impl<G: PrimeGroup> SigmaProtocol for ComposedRelation<G> {
                 commitments.insert(*w_index, real_commitment);
 
                 Ok((
-                    ProtocolCommitment::Or(commitments),
-                    ProtocolProverState::Or(
+                    ComposedCommitment::Or(commitments),
+                    ComposedProverState::Or(
                         *w_index,
                         vec![real_state],
                         (simulated_challenges, simulated_responses),
@@ -178,10 +178,10 @@ impl<G: PrimeGroup> SigmaProtocol for ComposedRelation<G> {
         challenge: &Self::Challenge,
     ) -> Result<Self::Response, Error> {
         match (self, state) {
-            (ComposedRelation::Simple(p), ProtocolProverState::Simple(state)) => p
+            (ComposedRelation::Simple(p), ComposedProverState::Simple(state)) => p
                 .prover_response(state, challenge)
-                .map(ProtocolResponse::Simple),
-            (ComposedRelation::And(ps), ProtocolProverState::And(states)) => {
+                .map(ComposedResponse::Simple),
+            (ComposedRelation::And(ps), ComposedProverState::And(states)) => {
                 if ps.len() != states.len() {
                     return Err(Error::InvalidInstanceWitnessPair);
                 }
@@ -191,11 +191,11 @@ impl<G: PrimeGroup> SigmaProtocol for ComposedRelation<G> {
                     .map(|(p, s)| p.prover_response(s, challenge))
                     .collect();
 
-                Ok(ProtocolResponse::And(responses?))
+                Ok(ComposedResponse::And(responses?))
             }
             (
                 ComposedRelation::Or(ps),
-                ProtocolProverState::Or(
+                ComposedProverState::Or(
                     w_index,
                     real_state,
                     (simulated_challenges, simulated_responses),
@@ -221,7 +221,7 @@ impl<G: PrimeGroup> SigmaProtocol for ComposedRelation<G> {
                         responses.push(simulated_responses[simulated_index].clone());
                     }
                 }
-                Ok(ProtocolResponse::Or(challenges, responses))
+                Ok(ComposedResponse::Or(challenges, responses))
             }
             _ => panic!(),
         }
@@ -236,13 +236,13 @@ impl<G: PrimeGroup> SigmaProtocol for ComposedRelation<G> {
         match (self, commitment, response) {
             (
                 ComposedRelation::Simple(p),
-                ProtocolCommitment::Simple(c),
-                ProtocolResponse::Simple(r),
+                ComposedCommitment::Simple(c),
+                ComposedResponse::Simple(r),
             ) => p.verifier(c, challenge, r),
             (
                 ComposedRelation::And(ps),
-                ProtocolCommitment::And(commitments),
-                ProtocolResponse::And(responses),
+                ComposedCommitment::And(commitments),
+                ComposedResponse::And(responses),
             ) => ps
                 .iter()
                 .zip(commitments)
@@ -250,8 +250,8 @@ impl<G: PrimeGroup> SigmaProtocol for ComposedRelation<G> {
                 .try_for_each(|((p, c), r)| p.verifier(c, challenge, r)),
             (
                 ComposedRelation::Or(ps),
-                ProtocolCommitment::Or(commitments),
-                ProtocolResponse::Or(challenges, responses),
+                ComposedCommitment::Or(commitments),
+                ComposedResponse::Or(challenges, responses),
             ) => {
                 let mut expected_difference = *challenge;
                 for (i, p) in ps.iter().enumerate() {
@@ -269,11 +269,11 @@ impl<G: PrimeGroup> SigmaProtocol for ComposedRelation<G> {
 
     fn serialize_commitment(&self, commitment: &Self::Commitment) -> Vec<u8> {
         match (self, commitment) {
-            (ComposedRelation::Simple(p), ProtocolCommitment::Simple(c)) => {
+            (ComposedRelation::Simple(p), ComposedCommitment::Simple(c)) => {
                 p.serialize_commitment(c)
             }
-            (ComposedRelation::And(ps), ProtocolCommitment::And(commitments))
-            | (ComposedRelation::Or(ps), ProtocolCommitment::Or(commitments)) => ps
+            (ComposedRelation::And(ps), ComposedCommitment::And(commitments))
+            | (ComposedRelation::Or(ps), ComposedCommitment::Or(commitments)) => ps
                 .iter()
                 .zip(commitments)
                 .flat_map(|(p, c)| p.serialize_commitment(c))
@@ -339,15 +339,15 @@ impl<G: PrimeGroup> SigmaProtocol for ComposedRelation<G> {
 
     fn serialize_response(&self, response: &Self::Response) -> Vec<u8> {
         match (self, response) {
-            (ComposedRelation::Simple(p), ProtocolResponse::Simple(r)) => p.serialize_response(r),
-            (ComposedRelation::And(ps), ProtocolResponse::And(responses)) => {
+            (ComposedRelation::Simple(p), ComposedResponse::Simple(r)) => p.serialize_response(r),
+            (ComposedRelation::And(ps), ComposedResponse::And(responses)) => {
                 let mut bytes = Vec::new();
                 for (i, p) in ps.iter().enumerate() {
                     bytes.extend(p.serialize_response(&responses[i]));
                 }
                 bytes
             }
-            (ComposedRelation::Or(ps), ProtocolResponse::Or(challenges, responses)) => {
+            (ComposedRelation::Or(ps), ComposedResponse::Or(challenges, responses)) => {
                 let mut bytes = Vec::new();
                 for (i, p) in ps.iter().enumerate() {
                     bytes.extend(&serialize_scalars::<G>(&[challenges[i]]));
@@ -363,7 +363,7 @@ impl<G: PrimeGroup> SigmaProtocol for ComposedRelation<G> {
         match self {
             ComposedRelation::Simple(p) => {
                 let c = p.deserialize_commitment(data)?;
-                Ok(ProtocolCommitment::Simple(c))
+                Ok(ComposedCommitment::Simple(c))
             }
             ComposedRelation::And(ps) | ComposedRelation::Or(ps) => {
                 let mut cursor = 0;
@@ -377,8 +377,8 @@ impl<G: PrimeGroup> SigmaProtocol for ComposedRelation<G> {
                 }
 
                 Ok(match self {
-                    ComposedRelation::And(_) => ProtocolCommitment::And(commitments),
-                    ComposedRelation::Or(_) => ProtocolCommitment::Or(commitments),
+                    ComposedRelation::And(_) => ComposedCommitment::And(commitments),
+                    ComposedRelation::Or(_) => ComposedCommitment::Or(commitments),
                     _ => unreachable!(),
                 })
             }
@@ -394,7 +394,7 @@ impl<G: PrimeGroup> SigmaProtocol for ComposedRelation<G> {
         match self {
             ComposedRelation::Simple(p) => {
                 let r = p.deserialize_response(data)?;
-                Ok(ProtocolResponse::Simple(r))
+                Ok(ComposedResponse::Simple(r))
             }
             ComposedRelation::And(ps) => {
                 let mut cursor = 0;
@@ -405,7 +405,7 @@ impl<G: PrimeGroup> SigmaProtocol for ComposedRelation<G> {
                     cursor += size;
                     responses.push(r);
                 }
-                Ok(ProtocolResponse::And(responses))
+                Ok(ComposedResponse::And(responses))
             }
             ComposedRelation::Or(ps) => {
                 let ch_bytes_len = <G::Scalar as PrimeField>::Repr::default().as_ref().len();
@@ -423,7 +423,7 @@ impl<G: PrimeGroup> SigmaProtocol for ComposedRelation<G> {
                     challenges.push(ch);
                     responses.push(r);
                 }
-                Ok(ProtocolResponse::Or(challenges, responses))
+                Ok(ComposedResponse::Or(challenges, responses))
             }
         }
     }
@@ -436,25 +436,25 @@ impl<G: PrimeGroup> SigmaProtocolSimulator for ComposedRelation<G> {
         response: &Self::Response,
     ) -> Result<Self::Commitment, Error> {
         match (self, response) {
-            (ComposedRelation::Simple(p), ProtocolResponse::Simple(r)) => Ok(
-                ProtocolCommitment::Simple(p.simulate_commitment(challenge, r)?),
+            (ComposedRelation::Simple(p), ComposedResponse::Simple(r)) => Ok(
+                ComposedCommitment::Simple(p.simulate_commitment(challenge, r)?),
             ),
-            (ComposedRelation::And(ps), ProtocolResponse::And(rs)) => {
+            (ComposedRelation::And(ps), ComposedResponse::And(rs)) => {
                 let commitments = ps
                     .iter()
                     .zip(rs)
                     .map(|(p, r)| p.simulate_commitment(challenge, r))
                     .collect::<Result<Vec<_>, _>>()?;
-                Ok(ProtocolCommitment::And(commitments))
+                Ok(ComposedCommitment::And(commitments))
             }
-            (ComposedRelation::Or(ps), ProtocolResponse::Or(challenges, rs)) => {
+            (ComposedRelation::Or(ps), ComposedResponse::Or(challenges, rs)) => {
                 let commitments = ps
                     .iter()
                     .zip(challenges)
                     .zip(rs)
                     .map(|((p, ch), r)| p.simulate_commitment(ch, r))
                     .collect::<Result<Vec<_>, _>>()?;
-                Ok(ProtocolCommitment::Or(commitments))
+                Ok(ComposedCommitment::Or(commitments))
             }
             _ => panic!(),
         }
@@ -462,9 +462,9 @@ impl<G: PrimeGroup> SigmaProtocolSimulator for ComposedRelation<G> {
 
     fn simulate_response<R: rand::Rng + rand::CryptoRng>(&self, rng: &mut R) -> Self::Response {
         match self {
-            ComposedRelation::Simple(p) => ProtocolResponse::Simple(p.simulate_response(rng)),
+            ComposedRelation::Simple(p) => ComposedResponse::Simple(p.simulate_response(rng)),
             ComposedRelation::And(ps) => {
-                ProtocolResponse::And(ps.iter().map(|p| p.simulate_response(rng)).collect())
+                ComposedResponse::And(ps.iter().map(|p| p.simulate_response(rng)).collect())
             }
             ComposedRelation::Or(ps) => {
                 let mut challenges = Vec::with_capacity(ps.len());
@@ -475,7 +475,7 @@ impl<G: PrimeGroup> SigmaProtocolSimulator for ComposedRelation<G> {
                 for p in ps.iter() {
                     responses.push(p.simulate_response(&mut *rng));
                 }
-                ProtocolResponse::Or(challenges, responses)
+                ComposedResponse::Or(challenges, responses)
             }
         }
     }
@@ -488,9 +488,9 @@ impl<G: PrimeGroup> SigmaProtocolSimulator for ComposedRelation<G> {
             ComposedRelation::Simple(p) => {
                 let (c, ch, r) = p.simulate_transcript(rng)?;
                 Ok((
-                    ProtocolCommitment::Simple(c),
+                    ComposedCommitment::Simple(c),
                     ch,
-                    ProtocolResponse::Simple(r),
+                    ComposedResponse::Simple(r),
                 ))
             }
             ComposedRelation::And(ps) => {
@@ -506,9 +506,9 @@ impl<G: PrimeGroup> SigmaProtocolSimulator for ComposedRelation<G> {
                     .collect::<Result<Vec<_>, Error>>()?;
 
                 Ok((
-                    ProtocolCommitment::And(commitments),
+                    ComposedCommitment::And(commitments),
                     challenge,
-                    ProtocolResponse::And(responses),
+                    ComposedResponse::And(responses),
                 ))
             }
             ComposedRelation::Or(ps) => {
@@ -524,9 +524,9 @@ impl<G: PrimeGroup> SigmaProtocolSimulator for ComposedRelation<G> {
                 }
                 let challenge = challenges.iter().sum();
                 Ok((
-                    ProtocolCommitment::Or(commitments),
+                    ComposedCommitment::Or(commitments),
                     challenge,
-                    ProtocolResponse::Or(challenges, responses),
+                    ComposedResponse::Or(challenges, responses),
                 ))
             }
         }

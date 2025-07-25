@@ -3,7 +3,7 @@ use rand::rngs::OsRng;
 
 use super::test_relations::*;
 use crate::codec::Shake128DuplexSponge;
-use crate::composition::{ComposedRelation, ProtocolWitness};
+use crate::composition::{ComposedRelation, ComposedWitness};
 use crate::fiat_shamir::Nizk;
 use crate::schnorr_protocol::SchnorrProof;
 
@@ -34,23 +34,23 @@ fn composition_proof_correct() {
         ComposedRelation::Simple(SchnorrProof(relation1)),
         ComposedRelation::Simple(SchnorrProof(relation2)),
     ]);
-    let or_witness1 = ProtocolWitness::Or(0, vec![ProtocolWitness::Simple(witness1)]);
+    let or_witness1 = ComposedWitness::Or(0, vec![ComposedWitness::Simple(witness1)]);
 
     let simple_protocol1 = ComposedRelation::Simple(SchnorrProof(relation3));
-    let simple_witness1 = ProtocolWitness::Simple(witness3);
+    let simple_witness1 = ComposedWitness::Simple(witness3);
 
     let and_protocol1 = ComposedRelation::And(vec![
         ComposedRelation::Simple(SchnorrProof(relation4)),
         ComposedRelation::Simple(SchnorrProof(relation5)),
     ]);
-    let and_witness1 = ProtocolWitness::And(vec![
-        ProtocolWitness::Simple(witness4),
-        ProtocolWitness::Simple(witness5),
+    let and_witness1 = ComposedWitness::And(vec![
+        ComposedWitness::Simple(witness4),
+        ComposedWitness::Simple(witness5),
     ]);
 
     // definition of the final protocol
     let protocol = ComposedRelation::And(vec![or_protocol1, simple_protocol1, and_protocol1]);
-    let witness = ProtocolWitness::And(vec![or_witness1, simple_witness1, and_witness1]);
+    let witness = ComposedWitness::And(vec![or_witness1, simple_witness1, and_witness1]);
 
     let nizk = Nizk::<ComposedRelation<RistrettoPoint>, Shake128DuplexSponge<G>>::new(
         domain_sep, protocol,

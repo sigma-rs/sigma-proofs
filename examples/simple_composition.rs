@@ -6,7 +6,7 @@ use group::Group;
 use rand::rngs::OsRng;
 use sigma_rs::{
     codec::Shake128DuplexSponge,
-    composition::{ComposedRelation, ProtocolWitness},
+    composition::{ComposedRelation, ComposedWitness},
     errors::Error,
     LinearRelation, Nizk,
 };
@@ -53,7 +53,7 @@ fn prove(P1: G, x2: Scalar, H: G) -> ProofResult<Vec<u8>> {
     let Q = H * x2;
 
     let instance = create_relation(P1, P2, Q, H);
-    let witness = ProtocolWitness::Or(1, vec![ProtocolWitness::Simple(vec![x2])]);
+    let witness = ComposedWitness::Or(1, vec![ComposedWitness::Simple(vec![x2])]);
     let nizk = Nizk::<_, Shake128DuplexSponge<G>>::new(b"or_proof_example", instance);
 
     nizk.prove_batchable(&witness, &mut OsRng)
