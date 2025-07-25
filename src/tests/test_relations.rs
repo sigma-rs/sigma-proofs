@@ -5,12 +5,12 @@ use group::prime::PrimeGroup;
 use rand::rngs::OsRng;
 use rand::RngCore;
 
-use ff::PrimeField;
 use crate::fiat_shamir::Nizk;
 use crate::{
     codec::Shake128DuplexSponge, linear_relation::CanonicalLinearRelation,
     schnorr_protocol::SchnorrProof,
 };
+use ff::PrimeField;
 
 use crate::linear_relation::{msm_pr, LinearRelation};
 
@@ -235,7 +235,6 @@ pub fn bbs_blind_commitment<G: PrimeGroup, R: RngCore>(
     (instance, witness)
 }
 
-
 /// LinearMap for the user's specific relation: A * 1 + gen__disj1_x_r * B
 #[allow(non_snake_case)]
 pub fn weird_linear_combination<G: PrimeGroup, R: RngCore>(
@@ -267,7 +266,6 @@ pub fn weird_linear_combination<G: PrimeGroup, R: RngCore>(
     (instance, witness)
 }
 
-
 fn simple_subtractions<G: PrimeGroup, R: RngCore>(
     mut rng: &mut R,
 ) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
@@ -278,8 +276,7 @@ fn simple_subtractions<G: PrimeGroup, R: RngCore>(
     let mut linear_relation = LinearRelation::<G>::new();
     let x_var = linear_relation.allocate_scalar();
     let B_var = linear_relation.allocate_element();
-    let X_var = linear_relation
-        .allocate_eq((x_var + (-G::Scalar::from_u128(1u128))) * B_var);
+    let X_var = linear_relation.allocate_eq((x_var + (-G::Scalar::from_u128(1u128))) * B_var);
     linear_relation.set_element(B_var, B);
     linear_relation.set_element(X_var, X);
 
@@ -291,7 +288,6 @@ fn simple_subtractions<G: PrimeGroup, R: RngCore>(
 fn subtractions_with_shift<G: PrimeGroup, R: RngCore>(
     mut rng: &mut R,
 ) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
-
     let B = G::generator();
     let x = G::Scalar::random(&mut rng);
     let X = B * (x - G::Scalar::from(2));
@@ -299,11 +295,31 @@ fn subtractions_with_shift<G: PrimeGroup, R: RngCore>(
     let mut linear_relation = LinearRelation::<G>::new();
     let x_var = linear_relation.allocate_scalar();
     let B_var = linear_relation.allocate_element();
-    let X_var = linear_relation
-        .allocate_eq((x_var + (-G::Scalar::from_u128(1u128))) * B_var + (-B_var));
+    let X_var =
+        linear_relation.allocate_eq((x_var + (-G::Scalar::from_u128(1u128))) * B_var + (-B_var));
 
     linear_relation.set_element(B_var, B);
     linear_relation.set_element(X_var, X);
+    let instance = (&linear_relation).try_into().unwrap();
+    let witness = vec![x];
+    (instance, witness)
+}
+
+#[allow(dead_code)]
+fn without_witness<G: PrimeGroup, R: RngCore>(
+    mut rng: &mut R,
+) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
+    let B = G::generator();
+    let x = G::Scalar::random(&mut rng);
+    // let X = B * (x + G::Scalar::from(3));
+
+    let mut linear_relation = LinearRelation::<G>::new();
+    let B_var = linear_relation.allocate_element();
+    // let X_var =
+    //    linear_relation.allocate_eq(B * x + B * G::Scalar::from_u128(3u128));
+
+    linear_relation.set_element(B_var, B);
+    // linear_relation.set_element(X_var, X);
     let instance = (&linear_relation).try_into().unwrap();
     let witness = vec![x];
     (instance, witness)
