@@ -40,22 +40,22 @@ use crate::{
 /// # Type Parameters
 /// - `G`: A cryptographic group implementing [`Group`] and [`GroupEncoding`].
 #[derive(Clone)]
-pub enum Protocol<G: PrimeGroup> {
+pub enum ComposedRelation<G: PrimeGroup> {
     Simple(SchnorrProof<G>),
-    And(Vec<Protocol<G>>),
-    Or(Vec<Protocol<G>>),
+    And(Vec<ComposedRelation<G>>),
+    Or(Vec<ComposedRelation<G>>),
 }
 
-impl<G> From<SchnorrProof<G>> for Protocol<G>
+impl<G> From<SchnorrProof<G>> for ComposedRelation<G>
 where
     G: PrimeGroup,
 {
     fn from(value: SchnorrProof<G>) -> Self {
-        Protocol::Simple(value)
+        ComposedRelation::Simple(value)
     }
 }
 
-impl<G> From<LinearRelation<G>> for Protocol<G>
+impl<G> From<LinearRelation<G>> for ComposedRelation<G>
 where
     G: PrimeGroup,
 {
@@ -105,7 +105,7 @@ pub enum ProtocolWitness<G: PrimeGroup> {
 // Structure representing the Challenge type of Protocol as SigmaProtocol
 type ProtocolChallenge<G> = <SchnorrProof<G> as SigmaProtocol>::Challenge;
 
-impl<G: PrimeGroup> SigmaProtocol for Protocol<G> {
+impl<G: PrimeGroup> SigmaProtocol for ComposedRelation<G> {
     type Commitment = ProtocolCommitment<G>;
     type ProverState = ProtocolProverState<G>;
     type Response = ProtocolResponse<G>;
@@ -118,7 +118,7 @@ impl<G: PrimeGroup> SigmaProtocol for Protocol<G> {
         rng: &mut (impl rand::Rng + rand::CryptoRng),
     ) -> Result<(Self::Commitment, Self::ProverState), Error> {
         match (self, witness) {
-            (Protocol::Simple(p), ProtocolWitness::Simple(w)) => {
+            (ComposedRelation::Simple(p), ProtocolWitness::Simple(w)) => {
                 p.prover_commit(w, rng).map(|(c, s)| {
                     (
                         ProtocolCommitment::Simple(c),
@@ -126,7 +126,7 @@ impl<G: PrimeGroup> SigmaProtocol for Protocol<G> {
                     )
                 })
             }
-            (Protocol::And(ps), ProtocolWitness::And(ws)) => {
+            (ComposedRelation::And(ps), ProtocolWitness::And(ws)) => {
                 if ps.len() != ws.len() {
                     return Err(Error::InvalidInstanceWitnessPair);
                 }
@@ -144,7 +144,7 @@ impl<G: PrimeGroup> SigmaProtocol for Protocol<G> {
                     ProtocolProverState::And(prover_states),
                 ))
             }
-            (Protocol::Or(ps), ProtocolWitness::Or(w_index, w)) => {
+            (ComposedRelation::Or(ps), ProtocolWitness::Or(w_index, w)) => {
                 let mut commitments = Vec::new();
                 let mut simulated_challenges = Vec::new();
                 let mut simulated_responses = Vec::new();
@@ -178,10 +178,10 @@ impl<G: PrimeGroup> SigmaProtocol for Protocol<G> {
         challenge: &Self::Challenge,
     ) -> Result<Self::Response, Error> {
         match (self, state) {
-            (Protocol::Simple(p), ProtocolProverState::Simple(state)) => p
+            (ComposedRelation::Simple(p), ProtocolProverState::Simple(state)) => p
                 .prover_response(state, challenge)
                 .map(ProtocolResponse::Simple),
-            (Protocol::And(ps), ProtocolProverState::And(states)) => {
+            (ComposedRelation::And(ps), ProtocolProverState::And(states)) => {
                 if ps.len() != states.len() {
                     return Err(Error::InvalidInstanceWitnessPair);
                 }
@@ -194,7 +194,7 @@ impl<G: PrimeGroup> SigmaProtocol for Protocol<G> {
                 Ok(ProtocolResponse::And(responses?))
             }
             (
-                Protocol::Or(ps),
+                ComposedRelation::Or(ps),
                 ProtocolProverState::Or(
                     w_index,
                     real_state,
@@ -234,11 +234,11 @@ impl<G: PrimeGroup> SigmaProtocol for Protocol<G> {
         response: &Self::Response,
     ) -> Result<(), Error> {
         match (self, commitment, response) {
-            (Protocol::Simple(p), ProtocolCommitment::Simple(c), ProtocolResponse::Simple(r)) => {
+            (ComposedRelation::Simple(p), ProtocolCommitment::Simple(c), ProtocolResponse::Simple(r)) => {
                 p.verifier(c, challenge, r)
             }
             (
-                Protocol::And(ps),
+                ComposedRelation::And(ps),
                 ProtocolCommitment::And(commitments),
                 ProtocolResponse::And(responses),
             ) => ps
@@ -247,7 +247,7 @@ impl<G: PrimeGroup> SigmaProtocol for Protocol<G> {
                 .zip(responses)
                 .try_for_each(|((p, c), r)| p.verifier(c, challenge, r)),
             (
-                Protocol::Or(ps),
+                ComposedRelation::Or(ps),
                 ProtocolCommitment::Or(commitments),
                 ProtocolResponse::Or(challenges, responses),
             ) => {
@@ -267,9 +267,9 @@ impl<G: PrimeGroup> SigmaProtocol for Protocol<G> {
 
     fn serialize_commitment(&self, commitment: &Self::Commitment) -> Vec<u8> {
         match (self, commitment) {
-            (Protocol::Simple(p), ProtocolCommitment::Simple(c)) => p.serialize_commitment(c),
-            (Protocol::And(ps), ProtocolCommitment::And(commitments))
-            | (Protocol::Or(ps), ProtocolCommitment::Or(commitments)) => ps
+            (ComposedRelation::Simple(p), ProtocolCommitment::Simple(c)) => p.serialize_commitment(c),
+            (ComposedRelation::And(ps), ProtocolCommitment::And(commitments))
+            | (ComposedRelation::Or(ps), ProtocolCommitment::Or(commitments)) => ps
                 .iter()
                 .zip(commitments)
                 .flat_map(|(p, c)| p.serialize_commitment(c))
@@ -284,18 +284,18 @@ impl<G: PrimeGroup> SigmaProtocol for Protocol<G> {
 
     fn instance_label(&self) -> impl AsRef<[u8]> {
         match self {
-            Protocol::Simple(p) => {
+            ComposedRelation::Simple(p) => {
                 let label = p.instance_label();
                 label.as_ref().to_vec()
             }
-            Protocol::And(ps) => {
+            ComposedRelation::And(ps) => {
                 let mut bytes = Vec::new();
                 for p in ps {
                     bytes.extend(p.instance_label().as_ref());
                 }
                 bytes
             }
-            Protocol::Or(ps) => {
+            ComposedRelation::Or(ps) => {
                 let mut bytes = Vec::new();
                 for p in ps {
                     bytes.extend(p.instance_label().as_ref());
@@ -309,19 +309,19 @@ impl<G: PrimeGroup> SigmaProtocol for Protocol<G> {
         let mut hasher = Sha3_256::new();
 
         match self {
-            Protocol::Simple(p) => {
+            ComposedRelation::Simple(p) => {
                 // take the digest of the simple protocol id
                 hasher.update([0u8; 32]);
                 hasher.update(p.protocol_identifier());
             }
-            Protocol::And(protocols) => {
+            ComposedRelation::And(protocols) => {
                 let mut hasher = Sha3_256::new();
                 hasher.update([1u8; 32]);
                 for p in protocols {
                     hasher.update(p.protocol_identifier());
                 }
             }
-            Protocol::Or(protocols) => {
+            ComposedRelation::Or(protocols) => {
                 let mut hasher = Sha3_256::new();
                 hasher.update([2u8; 32]);
                 for p in protocols {
@@ -335,15 +335,15 @@ impl<G: PrimeGroup> SigmaProtocol for Protocol<G> {
 
     fn serialize_response(&self, response: &Self::Response) -> Vec<u8> {
         match (self, response) {
-            (Protocol::Simple(p), ProtocolResponse::Simple(r)) => p.serialize_response(r),
-            (Protocol::And(ps), ProtocolResponse::And(responses)) => {
+            (ComposedRelation::Simple(p), ProtocolResponse::Simple(r)) => p.serialize_response(r),
+            (ComposedRelation::And(ps), ProtocolResponse::And(responses)) => {
                 let mut bytes = Vec::new();
                 for (i, p) in ps.iter().enumerate() {
                     bytes.extend(p.serialize_response(&responses[i]));
                 }
                 bytes
             }
-            (Protocol::Or(ps), ProtocolResponse::Or(challenges, responses)) => {
+            (ComposedRelation::Or(ps), ProtocolResponse::Or(challenges, responses)) => {
                 let mut bytes = Vec::new();
                 for (i, p) in ps.iter().enumerate() {
                     bytes.extend(&serialize_scalars::<G>(&[challenges[i]]));
@@ -357,11 +357,11 @@ impl<G: PrimeGroup> SigmaProtocol for Protocol<G> {
 
     fn deserialize_commitment(&self, data: &[u8]) -> Result<Self::Commitment, Error> {
         match self {
-            Protocol::Simple(p) => {
+            ComposedRelation::Simple(p) => {
                 let c = p.deserialize_commitment(data)?;
                 Ok(ProtocolCommitment::Simple(c))
             }
-            Protocol::And(ps) | Protocol::Or(ps) => {
+            ComposedRelation::And(ps) | ComposedRelation::Or(ps) => {
                 let mut cursor = 0;
                 let mut commitments = Vec::with_capacity(ps.len());
 
@@ -373,8 +373,8 @@ impl<G: PrimeGroup> SigmaProtocol for Protocol<G> {
                 }
 
                 Ok(match self {
-                    Protocol::And(_) => ProtocolCommitment::And(commitments),
-                    Protocol::Or(_) => ProtocolCommitment::Or(commitments),
+                    ComposedRelation::And(_) => ProtocolCommitment::And(commitments),
+                    ComposedRelation::Or(_) => ProtocolCommitment::Or(commitments),
                     _ => unreachable!(),
                 })
             }
@@ -388,11 +388,11 @@ impl<G: PrimeGroup> SigmaProtocol for Protocol<G> {
 
     fn deserialize_response(&self, data: &[u8]) -> Result<Self::Response, Error> {
         match self {
-            Protocol::Simple(p) => {
+            ComposedRelation::Simple(p) => {
                 let r = p.deserialize_response(data)?;
                 Ok(ProtocolResponse::Simple(r))
             }
-            Protocol::And(ps) => {
+            ComposedRelation::And(ps) => {
                 let mut cursor = 0;
                 let mut responses = Vec::with_capacity(ps.len());
                 for p in ps {
@@ -403,7 +403,7 @@ impl<G: PrimeGroup> SigmaProtocol for Protocol<G> {
                 }
                 Ok(ProtocolResponse::And(responses))
             }
-            Protocol::Or(ps) => {
+            ComposedRelation::Or(ps) => {
                 let ch_bytes_len = <G::Scalar as PrimeField>::Repr::default().as_ref().len();
                 let mut cursor = 0;
                 let mut challenges = Vec::with_capacity(ps.len());
@@ -425,17 +425,17 @@ impl<G: PrimeGroup> SigmaProtocol for Protocol<G> {
     }
 }
 
-impl<G: PrimeGroup> SigmaProtocolSimulator for Protocol<G> {
+impl<G: PrimeGroup> SigmaProtocolSimulator for ComposedRelation<G> {
     fn simulate_commitment(
         &self,
         challenge: &Self::Challenge,
         response: &Self::Response,
     ) -> Result<Self::Commitment, Error> {
         match (self, response) {
-            (Protocol::Simple(p), ProtocolResponse::Simple(r)) => Ok(ProtocolCommitment::Simple(
+            (ComposedRelation::Simple(p), ProtocolResponse::Simple(r)) => Ok(ProtocolCommitment::Simple(
                 p.simulate_commitment(challenge, r)?,
             )),
-            (Protocol::And(ps), ProtocolResponse::And(rs)) => {
+            (ComposedRelation::And(ps), ProtocolResponse::And(rs)) => {
                 let commitments = ps
                     .iter()
                     .zip(rs)
@@ -443,7 +443,7 @@ impl<G: PrimeGroup> SigmaProtocolSimulator for Protocol<G> {
                     .collect::<Result<Vec<_>, _>>()?;
                 Ok(ProtocolCommitment::And(commitments))
             }
-            (Protocol::Or(ps), ProtocolResponse::Or(challenges, rs)) => {
+            (ComposedRelation::Or(ps), ProtocolResponse::Or(challenges, rs)) => {
                 let commitments = ps
                     .iter()
                     .zip(challenges)
@@ -458,11 +458,11 @@ impl<G: PrimeGroup> SigmaProtocolSimulator for Protocol<G> {
 
     fn simulate_response<R: rand::Rng + rand::CryptoRng>(&self, rng: &mut R) -> Self::Response {
         match self {
-            Protocol::Simple(p) => ProtocolResponse::Simple(p.simulate_response(rng)),
-            Protocol::And(ps) => {
+            ComposedRelation::Simple(p) => ProtocolResponse::Simple(p.simulate_response(rng)),
+            ComposedRelation::And(ps) => {
                 ProtocolResponse::And(ps.iter().map(|p| p.simulate_response(rng)).collect())
             }
-            Protocol::Or(ps) => {
+            ComposedRelation::Or(ps) => {
                 let mut challenges = Vec::with_capacity(ps.len());
                 let mut responses = Vec::with_capacity(ps.len());
                 for _ in 0..ps.len() {
@@ -481,7 +481,7 @@ impl<G: PrimeGroup> SigmaProtocolSimulator for Protocol<G> {
         rng: &mut R,
     ) -> Result<(Self::Commitment, Self::Challenge, Self::Response), Error> {
         match self {
-            Protocol::Simple(p) => {
+            ComposedRelation::Simple(p) => {
                 let (c, ch, r) = p.simulate_transcript(rng)?;
                 Ok((
                     ProtocolCommitment::Simple(c),
@@ -489,7 +489,7 @@ impl<G: PrimeGroup> SigmaProtocolSimulator for Protocol<G> {
                     ProtocolResponse::Simple(r),
                 ))
             }
-            Protocol::And(ps) => {
+            ComposedRelation::And(ps) => {
                 let challenge = G::Scalar::random(&mut *rng);
                 let mut responses = Vec::with_capacity(ps.len());
                 for p in ps.iter() {
@@ -507,7 +507,7 @@ impl<G: PrimeGroup> SigmaProtocolSimulator for Protocol<G> {
                     ProtocolResponse::And(responses),
                 ))
             }
-            Protocol::Or(ps) => {
+            ComposedRelation::Or(ps) => {
                 let mut commitments = Vec::with_capacity(ps.len());
                 let mut challenges = Vec::with_capacity(ps.len());
                 let mut responses = Vec::with_capacity(ps.len());
@@ -529,7 +529,7 @@ impl<G: PrimeGroup> SigmaProtocolSimulator for Protocol<G> {
     }
 }
 
-impl<G: PrimeGroup> Protocol<G> {
+impl<G: PrimeGroup> ComposedRelation<G> {
     /// Convert this Protocol into a non-interactive zero-knowledge proof
     /// using the Shake128DuplexSponge codec and a specified session identifier.
     ///
@@ -544,7 +544,7 @@ impl<G: PrimeGroup> Protocol<G> {
     pub fn into_nizk(
         self,
         session_identifier: &[u8],
-    ) -> Nizk<Protocol<G>, Shake128DuplexSponge<G>> {
+    ) -> Nizk<ComposedRelation<G>, Shake128DuplexSponge<G>> {
         Nizk::new(session_identifier, self)
     }
 }

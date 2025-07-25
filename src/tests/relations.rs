@@ -15,9 +15,10 @@ use crate::{
 /// Generic helper function to test both relation correctness and NIZK functionality
 fn test_relation_and_nizk<F>(relation_generator: F, test_name: &str)
 where
-    F: Fn() -> (CanonicalLinearRelation<G>, Vec<Scalar>),
+    F: Fn(&mut OsRng) -> (CanonicalLinearRelation<G>, Vec<Scalar>),
 {
-    let (canonical_relation, witness) = relation_generator();
+    let mut rng = OsRng;
+    let (canonical_relation, witness) = relation_generator(&mut rng);
 
     // Test the NIZK protocol
     let protocol = SchnorrProof(canonical_relation);
@@ -50,36 +51,39 @@ where
 
 #[test]
 fn test_discrete_logarithm() {
-    test_relation_and_nizk(|| discrete_logarithm::<G>(), "discrete-logarithm");
+    test_relation_and_nizk(|rng| discrete_logarithm::<G, _>(rng), "discrete-logarithm");
 }
 
 #[test]
 fn test_shifted_discrete_logarithm() {
     test_relation_and_nizk(
-        || shifted_discrete_logarithm::<G>(),
+        |rng| shifted_discrete_logarithm::<G, _>(rng),
         "shifted-discrete-logarithm",
     );
 }
 
 #[test]
 fn test_dleq() {
-    test_relation_and_nizk(|| dleq::<G>(), "dleq");
+    test_relation_and_nizk(|rng| dleq::<G, _>(rng), "dleq");
 }
 
 #[test]
 fn test_shifted_dleq() {
-    test_relation_and_nizk(|| shifted_dleq::<G>(), "shifted-dleq");
+    test_relation_and_nizk(|rng| shifted_dleq::<G, _>(rng), "shifted-dleq");
 }
 
 #[test]
 fn test_pedersen_commitment() {
-    test_relation_and_nizk(|| pedersen_commitment::<G>(), "pedersen-commitment");
+    test_relation_and_nizk(
+        |rng| pedersen_commitment::<G, _>(rng),
+        "pedersen-commitment",
+    );
 }
 
 #[test]
 fn test_user_specific_linear_combination() {
     test_relation_and_nizk(
-        || user_specific_linear_combination::<G>(),
+        |rng| user_specific_linear_combination::<G, _>(rng),
         "user-specific-linear-combination",
     );
 }
@@ -87,7 +91,7 @@ fn test_user_specific_linear_combination() {
 #[test]
 fn test_pedersen_commitment_dleq() {
     test_relation_and_nizk(
-        || pedersen_commitment_dleq::<G>(),
+        |rng| pedersen_commitment_dleq::<G, _>(rng),
         "pedersen-commitment-dleq",
     );
 }
@@ -95,7 +99,7 @@ fn test_pedersen_commitment_dleq() {
 #[test]
 fn test_bbs_blind_commitment_computation() {
     test_relation_and_nizk(
-        || bbs_blind_commitment_computation::<G>(),
+        |rng| bbs_blind_commitment_computation::<G, _>(rng),
         "bbs-blind-commitment-computation",
     );
 }

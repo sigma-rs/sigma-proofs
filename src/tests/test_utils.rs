@@ -2,14 +2,16 @@
 
 use ff::Field;
 use group::prime::PrimeGroup;
-use rand::rngs::OsRng;
+use rand::RngCore;
 
 use crate::linear_relation::{msm_pr, CanonicalLinearRelation, LinearRelation};
 
 /// LinearMap for knowledge of a discrete logarithm relative to a fixed basepoint.
 #[allow(non_snake_case)]
-pub fn discrete_logarithm<G: PrimeGroup>() -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
-    let x = G::Scalar::random(&mut OsRng);
+pub fn discrete_logarithm<G: PrimeGroup, R: rand::RngCore>(
+    rng: &mut R,
+) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
+    let x = G::Scalar::random(rng);
     let mut relation = LinearRelation::new();
 
     let var_x = relation.allocate_scalar();
@@ -30,8 +32,10 @@ pub fn discrete_logarithm<G: PrimeGroup>() -> (CanonicalLinearRelation<G>, Vec<G
 
 /// LinearMap for knowledge of a shifted discrete logarithm relative to a fixed basepoint.
 #[allow(non_snake_case)]
-pub fn shifted_discrete_logarithm<G: PrimeGroup>() -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
-    let x = G::Scalar::random(&mut OsRng);
+pub fn shifted_discrete_logarithm<G: PrimeGroup, R: RngCore>(
+    rng: &mut R,
+) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
+    let x = G::Scalar::random(rng);
     let mut relation = LinearRelation::new();
 
     let var_x = relation.allocate_scalar();
@@ -52,9 +56,11 @@ pub fn shifted_discrete_logarithm<G: PrimeGroup>() -> (CanonicalLinearRelation<G
 
 /// LinearMap for knowledge of a discrete logarithm equality between two pairs.
 #[allow(non_snake_case)]
-pub fn dleq<G: PrimeGroup>() -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
-    let H = G::random(&mut OsRng);
-    let x = G::Scalar::random(&mut OsRng);
+pub fn dleq<G: PrimeGroup, R: RngCore>(
+    rng: &mut R,
+) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
+    let H = G::random(&mut *rng);
+    let x = G::Scalar::random(&mut *rng);
     let mut relation = LinearRelation::new();
 
     let var_x = relation.allocate_scalar();
@@ -78,9 +84,11 @@ pub fn dleq<G: PrimeGroup>() -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
 
 /// LinearMap for knowledge of a shifted dleq.
 #[allow(non_snake_case)]
-pub fn shifted_dleq<G: PrimeGroup>() -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
-    let H = G::random(&mut OsRng);
-    let x = G::Scalar::random(&mut OsRng);
+pub fn shifted_dleq<G: PrimeGroup, R: RngCore>(
+    rng: &mut R,
+) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
+    let H = G::random(&mut *rng);
+    let x = G::Scalar::random(&mut *rng);
     let mut relation = LinearRelation::new();
 
     let var_x = relation.allocate_scalar();
@@ -104,10 +112,12 @@ pub fn shifted_dleq<G: PrimeGroup>() -> (CanonicalLinearRelation<G>, Vec<G::Scal
 
 /// LinearMap for knowledge of an opening to a Pedersen commitment.
 #[allow(non_snake_case)]
-pub fn pedersen_commitment<G: PrimeGroup>() -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
-    let H = G::random(&mut OsRng);
-    let x = G::Scalar::random(&mut OsRng);
-    let r = G::Scalar::random(&mut OsRng);
+pub fn pedersen_commitment<G: PrimeGroup, R: RngCore>(
+    rng: &mut R,
+) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
+    let H = G::random(&mut *rng);
+    let x = G::Scalar::random(&mut *rng);
+    let r = G::Scalar::random(&mut *rng);
     let mut relation = LinearRelation::new();
 
     let [var_x, var_r] = relation.allocate_scalars();
@@ -128,14 +138,16 @@ pub fn pedersen_commitment<G: PrimeGroup>() -> (CanonicalLinearRelation<G>, Vec<
 
 /// LinearMap for knowledge of equal openings to two distinct Pedersen commitments.
 #[allow(non_snake_case)]
-pub fn pedersen_commitment_dleq<G: PrimeGroup>() -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
+pub fn pedersen_commitment_dleq<G: PrimeGroup, R: RngCore>(
+    rng: &mut R,
+) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
     let generators = [
-        G::random(&mut OsRng),
-        G::random(&mut OsRng),
-        G::random(&mut OsRng),
-        G::random(&mut OsRng),
+        G::random(&mut *rng),
+        G::random(&mut *rng),
+        G::random(&mut *rng),
+        G::random(&mut *rng),
     ];
-    let witness = [G::Scalar::random(&mut OsRng), G::Scalar::random(&mut OsRng)];
+    let witness = [G::Scalar::random(&mut *rng), G::Scalar::random(&mut *rng)];
     let mut relation = LinearRelation::new();
 
     let X = msm_pr::<G>(&witness, &[generators[0], generators[1]]);
@@ -164,20 +176,21 @@ pub fn pedersen_commitment_dleq<G: PrimeGroup>() -> (CanonicalLinearRelation<G>,
 /// LinearMap for knowledge of an opening for use in a BBS commitment.
 // BBS message length is 3
 #[allow(non_snake_case)]
-pub fn bbs_blind_commitment_computation<G: PrimeGroup>(
+pub fn bbs_blind_commitment_computation<G: PrimeGroup, R: RngCore>(
+    rng: &mut R,
 ) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
     let [Q_2, J_1, J_2, J_3] = [
-        G::random(&mut OsRng),
-        G::random(&mut OsRng),
-        G::random(&mut OsRng),
-        G::random(&mut OsRng),
+        G::random(&mut *rng),
+        G::random(&mut *rng),
+        G::random(&mut *rng),
+        G::random(&mut *rng),
     ];
     let [msg_1, msg_2, msg_3] = [
-        G::Scalar::random(&mut OsRng),
-        G::Scalar::random(&mut OsRng),
-        G::Scalar::random(&mut OsRng),
+        G::Scalar::random(&mut *rng),
+        G::Scalar::random(&mut *rng),
+        G::Scalar::random(&mut *rng),
     ];
-    let secret_prover_blind = G::Scalar::random(&mut OsRng);
+    let secret_prover_blind = G::Scalar::random(&mut *rng);
     let mut relation = LinearRelation::new();
 
     // these are computed before the proof in the specification
@@ -229,10 +242,11 @@ pub fn test_linear_relation_example<G: PrimeGroup>() -> LinearRelation<G> {
 
 /// LinearMap for the user's specific relation: A * 1 + gen__disj1_x_r * B
 #[allow(non_snake_case)]
-pub fn user_specific_linear_combination<G: PrimeGroup>(
+pub fn user_specific_linear_combination<G: PrimeGroup, R: RngCore>(
+    rng: &mut R,
 ) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
-    let B = G::random(&mut OsRng);
-    let gen__disj1_x_r = G::Scalar::random(&mut OsRng);
+    let B = G::random(&mut *rng);
+    let gen__disj1_x_r = G::Scalar::random(&mut *rng);
     let mut sigma__lr = LinearRelation::new();
 
     let gen__disj1_x_r_var = sigma__lr.allocate_scalar();

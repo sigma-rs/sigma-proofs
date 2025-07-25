@@ -2,33 +2,31 @@ use group::prime::PrimeGroup;
 use rand::{CryptoRng, Rng};
 
 use crate::errors::Error;
-use crate::linear_relation::LinearRelation;
-use crate::serialization::{
-    deserialize_elements, deserialize_scalars, serialize_elements, serialize_scalars,
-};
+use crate::linear_relation::{CanonicalLinearRelation, LinearRelation};
+use crate::schnorr_protocol::SchnorrProof;
 use crate::tests::spec::random::SRandom;
 use crate::traits::{SigmaProtocol, SigmaProtocolSimulator};
 
-pub struct SchnorrProtocolCustom<G: SRandom + PrimeGroup>(pub LinearRelation<G>);
+pub struct DeterministicSchnorrProof<G: PrimeGroup>(pub SchnorrProof<G>);
 
-impl<G> From<LinearRelation<G>> for SchnorrProtocolCustom<G>
-where
-    G: SRandom + PrimeGroup,
-{
-    fn from(value: LinearRelation<G>) -> Self {
-        Self(value)
+impl<G: PrimeGroup> TryFrom<LinearRelation<G>> for DeterministicSchnorrProof<G> {
+    type Error = Error;
+
+    fn try_from(linear_relation: LinearRelation<G>) -> Result<Self, Self::Error> {
+        let schnorr_proof = SchnorrProof::try_from(linear_relation)?;
+        Ok(Self(schnorr_proof))
     }
 }
 
-impl<G: SRandom + PrimeGroup> SchnorrProtocolCustom<G> {
-    pub fn witness_len(&self) -> usize {
-        self.0.linear_map.num_scalars
+impl<G: PrimeGroup> From<CanonicalLinearRelation<G>> for DeterministicSchnorrProof<G> {
+    fn from(canonical_relation: CanonicalLinearRelation<G>) -> Self {
+        Self(SchnorrProof(canonical_relation))
     }
 }
 
-impl<G> SigmaProtocol for SchnorrProtocolCustom<G>
-where
-    G: SRandom + PrimeGroup,
+impl<G: PrimeGroup> DeterministicSchnorrProof<G> {}
+
+impl<G: SRandom + PrimeGroup> SigmaProtocol for DeterministicSchnorrProof<G>
 {
     type Commitment = Vec<G>;
     type ProverState = (Vec<G::Scalar>, Vec<G::Scalar>);
@@ -41,17 +39,11 @@ where
         witness: &Self::Witness,
         rng: &mut (impl Rng + CryptoRng),
     ) -> Result<(Self::Commitment, Self::ProverState), Error> {
-        if witness.len() != self.witness_len() {
-            return Err(Error::InvalidInstanceWitnessPair);
-        }
-
         let mut nonces: Vec<G::Scalar> = Vec::new();
-        for _i in 0..self.0.linear_map.num_scalars {
+        for _i in 0..self.0.witness_length() {
             nonces.push(<G as SRandom>::random_scalar_elt(rng));
         }
-        let prover_state = (nonces.clone(), witness.clone());
-        let commitment = self.0.linear_map.evaluate(&nonces)?;
-        Ok((commitment, prover_state))
+        self.0.commit_with_nonces(witness, &nonces)
     }
 
     fn prover_response(
@@ -59,15 +51,7 @@ where
         state: Self::ProverState,
         challenge: &Self::Challenge,
     ) -> Result<Self::Response, Error> {
-        if state.0.len() != self.witness_len() || state.1.len() != self.witness_len() {
-            return Err(Error::InvalidInstanceWitnessPair);
-        }
-
-        let mut responses = Vec::new();
-        for i in 0..self.0.linear_map.num_scalars {
-            responses.push(state.0[i] + *challenge * state.1[i]);
-        }
-        Ok(responses)
+        self.0.prover_response(state, challenge)
     }
 
     fn verifier(
@@ -76,94 +60,58 @@ where
         challenge: &Self::Challenge,
         response: &Self::Response,
     ) -> Result<(), Error> {
-        let lhs = self.0.linear_map.evaluate(response)?;
-
-        let mut rhs = Vec::new();
-        for (i, g) in commitment
-            .iter()
-            .enumerate()
-            .take(self.0.linear_map.num_constraints())
-        {
-            rhs.push({
-                let image_var = self.0.image[i];
-                *g + self.0.linear_map.group_elements.get(image_var)? * *challenge
-            });
-        }
-
-        match lhs == rhs {
-            true => Ok(()),
-            false => Err(Error::VerificationFailure),
-        }
+        self.0.verifier(commitment, challenge, response)
     }
 
     fn serialize_commitment(&self, commitment: &Self::Commitment) -> Vec<u8> {
-        serialize_elements(&commitment[..self.0.linear_map.num_constraints()])
+        self.0.serialize_commitment(commitment)
     }
 
     fn serialize_challenge(&self, challenge: &Self::Challenge) -> Vec<u8> {
-        serialize_scalars::<G>(&[*challenge])
+        self.0.serialize_challenge(challenge)
     }
 
     fn serialize_response(&self, response: &Self::Response) -> Vec<u8> {
-        serialize_scalars::<G>(&response[..self.0.linear_map.num_scalars])
+        self.0.serialize_response(response)
     }
 
     fn deserialize_commitment(&self, data: &[u8]) -> Result<Self::Commitment, Error> {
-        deserialize_elements::<G>(data, self.0.linear_map.num_constraints())
-            .ok_or(Error::VerificationFailure)
+        self.0.deserialize_commitment(data)
     }
 
     fn deserialize_challenge(&self, data: &[u8]) -> Result<Self::Challenge, Error> {
-        let scalars = deserialize_scalars::<G>(data, 1).ok_or(Error::VerificationFailure)?;
-        Ok(scalars[0])
+        self.0.deserialize_challenge(data)
     }
 
     fn deserialize_response(&self, data: &[u8]) -> Result<Self::Response, Error> {
-        deserialize_scalars::<G>(data, self.0.linear_map.num_scalars)
-            .ok_or(Error::VerificationFailure)
+        self.0.deserialize_response(data)
     }
     fn instance_label(&self) -> impl AsRef<[u8]> {
-        Vec::<u8>::new()
+        self.0.instance_label()
     }
 
     fn protocol_identifier(&self) -> impl AsRef<[u8]> {
-        b"draft-zkproof-fiat-shamir"
+        self.0.protocol_identifier()
     }
 }
 
-impl<G: SRandom + PrimeGroup> SigmaProtocolSimulator for SchnorrProtocolCustom<G> {
-    fn simulate_commitment(
-        &self,
-        challenge: &Self::Challenge,
-        response: &Self::Response,
-    ) -> Result<Self::Commitment, Error> {
-        if response.len() != self.0.linear_map.num_scalars {
-            return Err(Error::InvalidInstanceWitnessPair);
-        }
-
-        let response_image = self.0.linear_map.evaluate(response)?;
-        let image = self.0.image()?;
-
-        let mut commitment = Vec::new();
-        for i in 0..image.len() {
-            commitment.push(response_image[i] - image[i] * challenge);
-        }
-        Ok(commitment)
-    }
-
+impl<G: SRandom + PrimeGroup> SigmaProtocolSimulator for DeterministicSchnorrProof<G> {
     fn simulate_response<R: Rng + CryptoRng>(&self, rng: &mut R) -> Self::Response {
-        (0..self.0.linear_map.num_scalars)
-            .map(|_| <G as SRandom>::random_scalar_elt(rng))
-            .collect()
+        self.0.simulate_response(rng)
     }
 
     fn simulate_transcript<R: Rng + CryptoRng>(
         &self,
         rng: &mut R,
     ) -> Result<(Self::Commitment, Self::Challenge, Self::Response), Error> {
-        let challenge = <G as SRandom>::random_scalar_elt(rng);
-        let response = self.simulate_response(rng);
-        let commitment = self.simulate_commitment(&challenge, &response)?;
-        Ok((commitment, challenge, response))
+        self.0.simulate_transcript(rng)
+    }
+
+    fn simulate_commitment(
+        &self,
+        challenge: &Self::Challenge,
+        response: &Self::Response,
+    ) -> Result<Self::Commitment, Error> {
+        self.0.simulate_commitment(challenge, response)
     }
 }

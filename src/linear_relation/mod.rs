@@ -522,7 +522,10 @@ impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
         }
 
         // If the image is the identity, then the relation must be trivial, or else the proof will be unsound
-        if !relation.image().is_ok_and(|img| img.iter().all(|&x| x != G::identity())) {
+        if !relation
+            .image()
+            .is_ok_and(|img| img.iter().all(|&x| x != G::identity()))
+        {
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
@@ -531,7 +534,12 @@ impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
-        if relation.linear_map.linear_combinations.iter().any(|lc| lc.0.is_empty()) {
+        if relation
+            .linear_map
+            .linear_combinations
+            .iter()
+            .any(|lc| lc.0.is_empty())
+        {
             return Err(Error::InvalidInstanceWitnessPair);
         }
 

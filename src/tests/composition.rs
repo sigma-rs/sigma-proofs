@@ -6,7 +6,7 @@ use super::test_utils::{
     pedersen_commitment_dleq,
 };
 use crate::codec::Shake128DuplexSponge;
-use crate::composition::{Protocol, ProtocolWitness};
+use crate::composition::{ComposedRelation, ProtocolWitness};
 use crate::fiat_shamir::Nizk;
 use crate::schnorr_protocol::SchnorrProof;
 
@@ -25,25 +25,26 @@ fn composition_proof_correct() {
     let domain_sep = b"hello world";
 
     // definitions of the underlying protocols
-    let (relation1, witness1) = dleq::<G>();
-    let (relation2, _) = pedersen_commitment::<G>();
-    let (relation3, witness3) = discrete_logarithm::<G>();
-    let (relation4, witness4) = pedersen_commitment_dleq::<G>();
-    let (relation5, witness5) = bbs_blind_commitment_computation::<G>();
+    let mut rng = OsRng;
+    let (relation1, witness1) = dleq::<G, _>(&mut rng);
+    let (relation2, _) = pedersen_commitment::<G, _>(&mut rng);
+    let (relation3, witness3) = discrete_logarithm::<G, _>(&mut rng);
+    let (relation4, witness4) = pedersen_commitment_dleq::<G, _>(&mut rng);
+    let (relation5, witness5) = bbs_blind_commitment_computation::<G, _>(&mut rng);
 
     // second layer protocol definitions
-    let or_protocol1 = Protocol::Or(vec![
-        Protocol::Simple(SchnorrProof(relation1)),
-        Protocol::Simple(SchnorrProof(relation2)),
+    let or_protocol1 = ComposedRelation::Or(vec![
+        ComposedRelation::Simple(SchnorrProof(relation1)),
+        ComposedRelation::Simple(SchnorrProof(relation2)),
     ]);
     let or_witness1 = ProtocolWitness::Or(0, vec![ProtocolWitness::Simple(witness1)]);
 
-    let simple_protocol1 = Protocol::Simple(SchnorrProof(relation3));
+    let simple_protocol1 = ComposedRelation::Simple(SchnorrProof(relation3));
     let simple_witness1 = ProtocolWitness::Simple(witness3);
 
-    let and_protocol1 = Protocol::And(vec![
-        Protocol::Simple(SchnorrProof(relation4)),
-        Protocol::Simple(SchnorrProof(relation5)),
+    let and_protocol1 = ComposedRelation::And(vec![
+        ComposedRelation::Simple(SchnorrProof(relation4)),
+        ComposedRelation::Simple(SchnorrProof(relation5)),
     ]);
     let and_witness1 = ProtocolWitness::And(vec![
         ProtocolWitness::Simple(witness4),
@@ -51,10 +52,10 @@ fn composition_proof_correct() {
     ]);
 
     // definition of the final protocol
-    let protocol = Protocol::And(vec![or_protocol1, simple_protocol1, and_protocol1]);
+    let protocol = ComposedRelation::And(vec![or_protocol1, simple_protocol1, and_protocol1]);
     let witness = ProtocolWitness::And(vec![or_witness1, simple_witness1, and_witness1]);
 
-    let nizk = Nizk::<Protocol<RistrettoPoint>, Shake128DuplexSponge<G>>::new(domain_sep, protocol);
+    let nizk = Nizk::<ComposedRelation<RistrettoPoint>, Shake128DuplexSponge<G>>::new(domain_sep, protocol);
 
     // Batchable and compact proofs
     let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut OsRng).unwrap();

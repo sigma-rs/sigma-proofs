@@ -52,6 +52,36 @@ impl<G: PrimeGroup> SchnorrProof<G> {
             })
             .collect()
     }
+
+    /// Internal method to commit using provided nonces (for deterministic testing)
+    pub fn commit_with_nonces(
+        &self,
+        witness: &[G::Scalar],
+        nonces: &[G::Scalar],
+    ) -> Result<(Vec<G>, (Vec<G::Scalar>, Vec<G::Scalar>)), Error> {
+        if witness.len() != self.witness_length() {
+            return Err(Error::InvalidInstanceWitnessPair);
+        }
+        if nonces.len() != self.witness_length() {
+            return Err(Error::InvalidInstanceWitnessPair);
+        }
+
+        // If the image is the identity, then the relation must be
+        // trivial, or else the proof will be unsound
+        if self
+            .0
+            .image
+            .iter()
+            .zip(self.0.linear_combinations.iter())
+            .any(|(&x, c)| x == G::identity() && !c.is_empty())
+        {
+            return Err(Error::InvalidInstanceWitnessPair);
+        }
+
+        let commitment = self.evaluate(nonces)?;
+        let prover_state = (nonces.to_vec(), witness.to_vec());
+        Ok((commitment, prover_state))
+    }
 }
 
 impl<G: PrimeGroup> TryFrom<LinearRelation<G>> for SchnorrProof<G> {
@@ -110,9 +140,7 @@ where
         let nonces = (0..self.witness_length())
             .map(|_| G::Scalar::random(&mut *rng))
             .collect::<Vec<_>>();
-        let commitment = self.evaluate(&nonces)?;
-        let prover_state = (nonces, witness.clone());
-        Ok((commitment, prover_state))
+        self.commit_with_nonces(witness, &nonces)
     }
 
     /// Computes the prover's response (second message) using the challenge.

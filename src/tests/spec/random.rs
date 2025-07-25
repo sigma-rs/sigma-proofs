@@ -10,6 +10,4 @@ pub trait SRandom: Group {
     fn randint_big(l: &BigUint, h: &BigUint, rng: &mut (impl Rng + CryptoRng)) -> BigUint;
 
     fn random_scalar_elt(rng: &mut (impl Rng + CryptoRng)) -> Self::Scalar;
-
-    fn random_group_elt(rng: &mut (impl Rng + CryptoRng)) -> Self;
 }
