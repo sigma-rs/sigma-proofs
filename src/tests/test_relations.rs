@@ -5,7 +5,7 @@ use group::prime::PrimeGroup;
 use rand::rngs::OsRng;
 use rand::RngCore;
 
-use crate::composition::ComposedRelation;
+use ff::PrimeField;
 use crate::fiat_shamir::Nizk;
 use crate::{
     codec::Shake128DuplexSponge, linear_relation::CanonicalLinearRelation,
@@ -268,11 +268,9 @@ pub fn weird_linear_combination<G: PrimeGroup, R: RngCore>(
 }
 
 
-fn test_relation_with_subtractions<G: PrimeGroup, R: RngCore>(
+fn simple_subtractions<G: PrimeGroup, R: RngCore>(
     mut rng: &mut R,
 ) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
-    use ff::PrimeField;
-
     let x = G::Scalar::random(&mut rng);
     let B = G::random(&mut rng);
     let X = B * (x - G::Scalar::from_u128(1u128));
@@ -289,6 +287,28 @@ fn test_relation_with_subtractions<G: PrimeGroup, R: RngCore>(
     let witness = vec![x];
     (instance, witness)
 }
+
+fn subtractions_with_shift<G: PrimeGroup, R: RngCore>(
+    mut rng: &mut R,
+) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
+
+    let B = G::generator();
+    let x = G::Scalar::random(&mut rng);
+    let X = B * (x - G::Scalar::from(2));
+
+    let mut linear_relation = LinearRelation::<G>::new();
+    let x_var = linear_relation.allocate_scalar();
+    let B_var = linear_relation.allocate_element();
+    let X_var = linear_relation
+        .allocate_eq((x_var + (-G::Scalar::from_u128(1u128))) * B_var + (-B_var));
+
+    linear_relation.set_element(B_var, B);
+    linear_relation.set_element(X_var, X);
+    let instance = (&linear_relation).try_into().unwrap();
+    let witness = vec![x];
+    (instance, witness)
+}
+
 /// Generic helper function to test both relation correctness and NIZK functionality
 #[test]
 fn test_common_relations() {
@@ -314,7 +334,8 @@ fn test_common_relations() {
         "weird_linear_combination",
         Box::new(weird_linear_combination),
     );
-    instance_generators.insert("test_relation_with_subtractions", Box::new(test_relation_with_subtractions));
+    instance_generators.insert("simple_subtractions", Box::new(simple_subtractions));
+    instance_generators.insert("subtractions_with_shift", Box::new(subtractions_with_shift));
 
     for (relation_name, relation_sampler) in instance_generators.iter() {
         let mut rng = OsRng;
