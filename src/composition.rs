@@ -24,7 +24,9 @@ use sha3::Digest;
 use sha3::Sha3_256;
 
 use crate::{
+    codec::Shake128DuplexSponge,
     errors::Error,
+    fiat_shamir::Nizk,
     linear_relation::LinearRelation,
     schnorr_protocol::SchnorrProof,
     serialization::{deserialize_scalars, serialize_scalars},
@@ -521,5 +523,25 @@ impl<G: PrimeGroup> SigmaProtocolSimulator for Protocol<G> {
                 ))
             }
         }
+    }
+}
+
+impl<G: PrimeGroup> Protocol<G> {
+    /// Convert this Protocol into a non-interactive zero-knowledge proof
+    /// using the Shake128DuplexSponge codec and a specified session identifier.
+    ///
+    /// This method provides a convenient way to create a NIZK from a Protocol
+    /// without exposing the specific codec type to the API caller.
+    ///
+    /// # Parameters
+    /// - `session_identifier`: Domain separator bytes for the Fiat-Shamir transform
+    ///
+    /// # Returns
+    /// A `Nizk` instance ready for proving and verification
+    pub fn into_nizk(
+        self,
+        session_identifier: &[u8],
+    ) -> Nizk<Protocol<G>, Shake128DuplexSponge<G>> {
+        Nizk::new(session_identifier, self)
     }
 }
