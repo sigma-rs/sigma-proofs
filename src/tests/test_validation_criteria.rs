@@ -139,8 +139,19 @@ mod instance_validation {
         let X = G::generator() * Scalar::from(4);
         let pub_scalar = Scalar::from(42);
 
+        // The following relation has no equation and should trigger a fail.
         let mut linear_relation = LinearRelation::<G>::new();
+        let B_var = linear_relation.allocate_element();
+        let A_var = linear_relation.allocate_element();
 
+        linear_relation.set_element(B_var, B);
+        linear_relation.set_element(A_var, A);
+        let result = CanonicalLinearRelation::try_from(&linear_relation);
+        assert!(result.is_err());
+
+        // The following relation does not have a witness and should trigger a fail.
+        // X = B * pub_scalar + A * 3
+        let mut linear_relation = LinearRelation::<G>::new();
         let B_var = linear_relation.allocate_element();
         let A_var = linear_relation.allocate_element();
         let X_var = linear_relation.allocate_eq(B_var * pub_scalar + A_var * Scalar::from(3));
@@ -149,12 +160,13 @@ mod instance_validation {
         linear_relation.set_element(A_var, A);
         linear_relation.set_element(X_var, X);
 
-        linear_relation.set_element(B_var, B);
-        linear_relation.set_element(A_var, A);
         let result = CanonicalLinearRelation::try_from(&linear_relation);
         assert!(result.is_err());
 
 
+        // The following relation is for
+        // X = B * x + B * pub_scalar + A * 3
+        // and should be considered a valid instance.
         let mut linear_relation = LinearRelation::<G>::new();
 
         let x_var = linear_relation.allocate_scalar();
@@ -166,11 +178,8 @@ mod instance_validation {
         linear_relation.set_element(A_var, A);
         linear_relation.set_element(X_var, X);
 
-        linear_relation.set_element(B_var, B);
-        linear_relation.set_element(A_var, A);
         let result = CanonicalLinearRelation::try_from(&linear_relation);
         assert!(result.is_ok());
-
     }
 }
 
