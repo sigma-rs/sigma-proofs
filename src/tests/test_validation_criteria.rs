@@ -136,17 +136,41 @@ mod instance_validation {
     fn without_witness() {
         let B = G::generator();
         let A = G::generator() * Scalar::from(42);
+        let X = G::generator() * Scalar::from(4);
         let pub_scalar = Scalar::from(42);
 
         let mut linear_relation = LinearRelation::<G>::new();
+
         let B_var = linear_relation.allocate_element();
         let A_var = linear_relation.allocate_element();
-        let _X_var = linear_relation.allocate_eq(B_var * pub_scalar + A_var * Scalar::from(3));
+        let X_var = linear_relation.allocate_eq(B_var * pub_scalar + A_var * Scalar::from(3));
+
+        linear_relation.set_element(B_var, B);
+        linear_relation.set_element(A_var, A);
+        linear_relation.set_element(X_var, X);
 
         linear_relation.set_element(B_var, B);
         linear_relation.set_element(A_var, A);
         let result = CanonicalLinearRelation::try_from(&linear_relation);
         assert!(result.is_err());
+
+
+        let mut linear_relation = LinearRelation::<G>::new();
+
+        let x_var = linear_relation.allocate_scalar();
+        let B_var = linear_relation.allocate_element();
+        let A_var = linear_relation.allocate_element();
+        let X_var = linear_relation.allocate_eq(B_var * x_var + B_var * pub_scalar + A_var * Scalar::from(3));
+
+        linear_relation.set_element(B_var, B);
+        linear_relation.set_element(A_var, A);
+        linear_relation.set_element(X_var, X);
+
+        linear_relation.set_element(B_var, B);
+        linear_relation.set_element(A_var, A);
+        let result = CanonicalLinearRelation::try_from(&linear_relation);
+        assert!(result.is_ok());
+
     }
 }
 

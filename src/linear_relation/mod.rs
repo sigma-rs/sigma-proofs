@@ -682,12 +682,12 @@ impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
         {
             return Err(Error::InvalidInstanceWitnessPair);
         }
-
         // Empty relations (without constraints) cannot be proven
         if relation.linear_map.linear_combinations.is_empty() {
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
+        // If any linear combination is empty, the relation is invalid
         if relation
             .linear_map
             .linear_combinations
@@ -696,6 +696,18 @@ impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
         {
             return Err(Error::InvalidInstanceWitnessPair);
         }
+
+        // If any linear combination has no witness variables, the relation is invalid
+        if relation
+            .linear_map
+            .linear_combinations
+            .iter()
+            .any(|lc| lc.0.iter().all(|weighted| matches!(weighted.term.scalar, ScalarTerm::Unit)))
+        {
+            return Err(Error::InvalidInstanceWitnessPair);
+        }
+
+
 
         let mut canonical = CanonicalLinearRelation::new();
         canonical.num_scalars = relation.linear_map.num_scalars;
