@@ -146,6 +146,14 @@ mod add {
         }
     }
 
+    impl<T, F: Field> Add<Sum<Weighted<T, F>>> for Weighted<T, F> {
+        type Output = Sum<Weighted<T, F>>;
+
+        fn add(self, rhs: Sum<Weighted<T, F>>) -> Self::Output {
+            rhs + self
+        }
+    }
+
     impl<G> Add<ScalarVar<G>> for ScalarTerm<G> {
         type Output = Sum<ScalarTerm<G>>;
 

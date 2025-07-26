@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use bls12_381::Scalar;
 use ff::Field;
 use group::prime::PrimeGroup;
 use rand::rngs::OsRng;
@@ -52,7 +51,7 @@ pub fn shifted_dlog<G: PrimeGroup, R: RngCore>(
 
     let var_X = relation.allocate_eq(var_G * var_x + var_G * <G::Scalar as Field>::ONE);
     // another way of writing this is:
-    relation.append_equation(var_X, (var_x + Scalar::from(1)) * var_G);
+    relation.append_equation(var_X, (var_x + G::Scalar::from(1)) * var_G);
 
     relation.set_element(var_G, G::generator());
     relation.compute_image(&[x]).unwrap();
@@ -156,15 +155,12 @@ pub fn twisted_pedersen_commitment<G: PrimeGroup, R: RngCore>(
     let [var_x, var_r] = relation.allocate_scalars();
     let [var_G, var_H] = relation.allocate_elements();
 
-    let var_C = relation.allocate_eq((var_x * Scalar::from(3)) * var_G + (var_r * Scalar::from(2) + Scalar::from(3)) * var_H);
+    relation.allocate_eq((var_x * G::Scalar::from(3)) * var_G + (var_r * G::Scalar::from(2) + G::Scalar::from(3)) * var_H);
 
     relation.set_elements([(var_H, H), (var_G, G::generator())]);
     relation.compute_image(&[x, r]).unwrap();
 
-    let C = relation.linear_map.group_elements.get(var_C).unwrap();
-
     let witness = vec![x, r];
-    assert_eq!(C, G::generator() * x + H * r);
     let instance = (&relation).try_into().unwrap();
     (instance, witness)
 }
@@ -272,13 +268,13 @@ pub fn weird_linear_combination<G: PrimeGroup, R: RngCore>(
 
     let gen__disj1_x_r_var = sigma__lr.allocate_scalar();
     let A = sigma__lr.allocate_element();
-    let B_var = sigma__lr.allocate_element();
+    let var_B = sigma__lr.allocate_element();
 
     let sigma__eq1 =
-        sigma__lr.allocate_eq(A * <G::Scalar as ff::Field>::ONE + gen__disj1_x_r_var * B_var);
+        sigma__lr.allocate_eq(A * G::Scalar::from(1) + gen__disj1_x_r_var * var_B);
 
     // Set the group elements
-    sigma__lr.set_elements([(A, G::generator()), (B_var, B)]);
+    sigma__lr.set_elements([(A, G::generator()), (var_B, B)]);
     sigma__lr.compute_image(&[gen__disj1_x_r]).unwrap();
 
     let result = sigma__lr.linear_map.group_elements.get(sigma__eq1).unwrap();
@@ -300,11 +296,11 @@ fn simple_subtractions<G: PrimeGroup, R: RngCore>(
     let X = B * (x - G::Scalar::from_u128(1u128));
 
     let mut linear_relation = LinearRelation::<G>::new();
-    let x_var = linear_relation.allocate_scalar();
-    let B_var = linear_relation.allocate_element();
-    let X_var = linear_relation.allocate_eq((x_var + (-G::Scalar::from_u128(1u128))) * B_var);
-    linear_relation.set_element(B_var, B);
-    linear_relation.set_element(X_var, X);
+    let var_x = linear_relation.allocate_scalar();
+    let var_B = linear_relation.allocate_element();
+    let var_X = linear_relation.allocate_eq((var_x + (-G::Scalar::from_u128(1u128))) * var_B);
+    linear_relation.set_element(var_B, B);
+    linear_relation.set_element(var_X, X);
 
     let instance = (&linear_relation).try_into().unwrap();
     let witness = vec![x];
@@ -319,13 +315,13 @@ fn subtractions_with_shift<G: PrimeGroup, R: RngCore>(
     let X = B * (x - G::Scalar::from(2));
 
     let mut linear_relation = LinearRelation::<G>::new();
-    let x_var = linear_relation.allocate_scalar();
-    let B_var = linear_relation.allocate_element();
-    let X_var =
-        linear_relation.allocate_eq((x_var + (-G::Scalar::from_u128(1u128))) * B_var + (-B_var));
+    let var_x = linear_relation.allocate_scalar();
+    let var_B = linear_relation.allocate_element();
+    let var_X =
+        linear_relation.allocate_eq((var_x + (-G::Scalar::from_u128(1u128))) * var_B + (-var_B));
 
-    linear_relation.set_element(B_var, B);
-    linear_relation.set_element(X_var, X);
+    linear_relation.set_element(var_B, B);
+    linear_relation.set_element(var_X, X);
     let instance = (&linear_relation).try_into().unwrap();
     let witness = vec![x];
     (instance, witness)
@@ -347,6 +343,7 @@ fn test_common_relations() {
     instance_generators.insert("dleq", Box::new(dleq));
     instance_generators.insert("shifted_dleq", Box::new(shifted_dleq));
     instance_generators.insert("pedersen_commitment", Box::new(pedersen_commitment));
+    instance_generators.insert("twisted_pedersen_commitment", Box::new(twisted_pedersen_commitment));
     instance_generators.insert(
         "pedersen_commitment_dleq",
         Box::new(pedersen_commitment_dleq),
