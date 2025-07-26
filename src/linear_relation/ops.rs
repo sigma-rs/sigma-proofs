@@ -745,9 +745,9 @@ mod tests {
 
         let diff = x - y;
         assert_eq!(diff.terms().len(), 2);
-        assert_eq!(diff.terms()[0].term, y.into());
+        assert_eq!(diff.terms()[0].term, y);
         assert_eq!(diff.terms()[0].weight, -Scalar::ONE);
-        assert_eq!(diff.terms()[1].term, x.into());
+        assert_eq!(diff.terms()[1].term, x);
         assert_eq!(diff.terms()[1].weight, Scalar::ONE);
     }
 

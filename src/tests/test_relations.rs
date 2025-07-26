@@ -309,10 +309,10 @@ fn simple_subtractions<G: PrimeGroup, R: RngCore>(
 }
 
 fn subtractions_with_shift<G: PrimeGroup, R: RngCore>(
-    mut rng: &mut R,
+    rng: &mut R,
 ) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
     let B = G::generator();
-    let x = G::Scalar::random(&mut rng);
+    let x = G::Scalar::random(rng);
     let X = B * (x - G::Scalar::from(2));
 
     let mut linear_relation = LinearRelation::<G>::new();
@@ -366,31 +366,27 @@ fn test_common_relations() {
 
         // Test the NIZK protocol
         let protocol = SchnorrProof(canonical_relation);
-        let domain_sep = format!("test-fiat-shamir-{}", relation_name)
+        let domain_sep = format!("test-fiat-shamir-{relation_name}")
             .as_bytes()
             .to_vec();
         let nizk = Nizk::<SchnorrProof<G>, Shake128DuplexSponge<G>>::new(&domain_sep, protocol);
 
         // Test both proof types
-        let proof_batchable = nizk.prove_batchable(&witness, &mut OsRng).expect(&format!(
-            "Failed to create batchable proof for {}",
-            relation_name
-        ));
-        let proof_compact = nizk.prove_compact(&witness, &mut OsRng).expect(&format!(
-            "Failed to create compact proof for {}",
-            relation_name
-        ));
+        let proof_batchable = nizk
+            .prove_batchable(&witness, &mut OsRng)
+            .unwrap_or_else(|_| panic!("Failed to create batchable proof for {relation_name}"));
+        let proof_compact = nizk
+            .prove_compact(&witness, &mut OsRng)
+            .unwrap_or_else(|_| panic!("Failed to create compact proof for {relation_name}"));
 
         // Verify both proof types
         assert!(
             nizk.verify_batchable(&proof_batchable).is_ok(),
-            "Batchable proof verification failed for {}",
-            relation_name
+            "Batchable proof verification failed for {relation_name}"
         );
         assert!(
             nizk.verify_compact(&proof_compact).is_ok(),
-            "Compact proof verification failed for {}",
-            relation_name
+            "Compact proof verification failed for {relation_name}"
         );
     }
 }

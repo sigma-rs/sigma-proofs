@@ -71,8 +71,7 @@ fn test_spec_testvectors() {
         assert_eq!(
             parsed_instance.label(),
             vector.statement,
-            "parsed statement doesn't match original for {}",
-            test_name
+            "parsed statement doesn't match original for {test_name}"
         );
 
         // Create NIZK with the session_id from the test vector
@@ -90,8 +89,7 @@ fn test_spec_testvectors() {
         assert_eq!(
             computed_iv,
             vector.iv.as_slice(),
-            "Computed IV doesn't match test vector IV for {}",
-            test_name
+            "Computed IV doesn't match test vector IV for {test_name}"
         );
 
         // Generate proof with the proof generation RNG
@@ -101,16 +99,14 @@ fn test_spec_testvectors() {
         // Verify the proof matches
         assert_eq!(
             proof_bytes, vector.proof,
-            "proof bytes for test vector {} do not match",
-            test_name
+            "proof bytes for test vector {test_name} do not match"
         );
 
         // Verify the proof is valid
         let verified = nizk.verify_batchable(&proof_bytes).is_ok();
         assert!(
             verified,
-            "Fiat-Shamir Schnorr proof verification failed for {}",
-            test_name
+            "Fiat-Shamir Schnorr proof verification failed for {test_name}"
         );
     }
 }
@@ -118,53 +114,51 @@ fn test_spec_testvectors() {
 fn extract_vectors_new(path: &str) -> Result<HashMap<String, TestVector>, String> {
     use std::collections::HashMap;
 
-    let content =
-        fs::read_to_string(path).map_err(|e| format!("Unable to read JSON file: {}", e))?;
-    let root: JsonValue =
-        json::parse(&content).map_err(|e| format!("JSON parsing error: {}", e))?;
+    let content = fs::read_to_string(path).map_err(|e| format!("Unable to read JSON file: {e}"))?;
+    let root: JsonValue = json::parse(&content).map_err(|e| format!("JSON parsing error: {e}"))?;
 
     let mut vectors = HashMap::new();
 
     for (name, obj) in root.entries() {
         let ciphersuite = obj["Ciphersuite"]
             .as_str()
-            .ok_or_else(|| format!("Ciphersuite field not found for {}", name))?
+            .ok_or_else(|| format!("Ciphersuite field not found for {name}"))?
             .to_string();
 
         let session_id = Vec::from_hex(
             obj["SessionId"]
                 .as_str()
-                .ok_or_else(|| format!("SessionId field not found for {}", name))?,
+                .ok_or_else(|| format!("SessionId field not found for {name}"))?,
         )
-        .map_err(|e| format!("Invalid hex in SessionId for {}: {}", name, e))?;
+        .map_err(|e| format!("Invalid hex in SessionId for {name}: {e}"))?;
 
         let statement = Vec::from_hex(
             obj["Statement"]
                 .as_str()
-                .ok_or_else(|| format!("Statement field not found for {}", name))?,
+                .ok_or_else(|| format!("Statement field not found for {name}"))?,
         )
-        .map_err(|e| format!("Invalid hex in Statement for {}: {}", name, e))?;
+        .map_err(|e| format!("Invalid hex in Statement for {name}: {e}"))?;
 
         let witness = Vec::from_hex(
             obj["Witness"]
                 .as_str()
-                .ok_or_else(|| format!("Witness field not found for {}", name))?,
+                .ok_or_else(|| format!("Witness field not found for {name}"))?,
         )
-        .map_err(|e| format!("Invalid hex in Witness for {}: {}", name, e))?;
+        .map_err(|e| format!("Invalid hex in Witness for {name}: {e}"))?;
 
         let iv = Vec::from_hex(
             obj["IV"]
                 .as_str()
-                .ok_or_else(|| format!("IV field not found for {}", name))?,
+                .ok_or_else(|| format!("IV field not found for {name}"))?,
         )
-        .map_err(|e| format!("Invalid hex in IV for {}: {}", name, e))?;
+        .map_err(|e| format!("Invalid hex in IV for {name}: {e}"))?;
 
         let proof = Vec::from_hex(
             obj["Proof"]
                 .as_str()
-                .ok_or_else(|| format!("Proof field not found for {}", name))?,
+                .ok_or_else(|| format!("Proof field not found for {name}"))?,
         )
-        .map_err(|e| format!("Invalid hex in Proof for {}: {}", name, e))?;
+        .map_err(|e| format!("Invalid hex in Proof for {name}: {e}"))?;
 
         vectors.insert(
             name.to_string(),
