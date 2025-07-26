@@ -371,9 +371,8 @@ fn cmz_wallet_spend_relation<G: PrimeGroup, R: RngCore>(
     (instance, witness)
 }
 
-/// Test that demonstrates the CMZ bug with scalar constants in linear relations
 #[test]
-fn test_cmz_scalar_constant_bug() {
+fn test_cmz_wallet_with_fee() {
     use group::Group;
     type G = bls12_381::G1Projective;
 
