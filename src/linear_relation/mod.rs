@@ -17,7 +17,7 @@ use ff::Field;
 use group::prime::PrimeGroup;
 
 use crate::codec::Shake128DuplexSponge;
-use crate::errors::Error;
+use crate::errors::{Error, InvalidInstance};
 use crate::schnorr_protocol::SchnorrProof;
 use crate::Nizk;
 
@@ -159,15 +159,11 @@ impl<G: PrimeGroup> GroupMap<G> {
     /// Get the element value assigned to the given point var.
     ///
     /// Returns [`Error::UnassignedGroupVar`] if a value is not assigned.
-    pub fn get(&self, var: GroupVar<G>) -> Result<G, Error> {
+    pub fn get(&self, var: GroupVar<G>) -> Result<G, InvalidInstance> {
         match self.0.get(var.0) {
             Some(Some(elem)) => Ok(*elem),
-            Some(None) => Err(Error::UnassignedGroupVar {
-                var_debug: format!("{var:?}"),
-            }),
-            None => Err(Error::UnassignedGroupVar {
-                var_debug: format!("{var:?}"),
-            }),
+            Some(None) => Err(InvalidInstance::new("unassigned group variable")),
+            None => Err(InvalidInstance::new("unassigned group variable")),
         }
     }
 
@@ -310,7 +306,7 @@ impl<G: PrimeGroup> LinearMap<G> {
                 let elements =
                     lc.0.iter()
                         .map(|weighted| self.group_elements.get(weighted.term.elem))
-                        .collect::<Result<Vec<_>, Error>>()?;
+                        .collect::<Result<Vec<_>, _>>()?;
                 Ok(msm_pr(&weighted_coefficients, &elements))
             })
             .collect()
@@ -369,7 +365,7 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
         weight: &G::Scalar,
         original_group_elements: &GroupMap<G>,
         weighted_group_cache: &mut HashMap<GroupVar<G>, Vec<(G::Scalar, GroupVar<G>)>>,
-    ) -> Result<GroupVar<G>, Error> {
+    ) -> Result<GroupVar<G>, InvalidInstance> {
         // Check if we already have this (weight, group_var) combination
         let entry = weighted_group_cache.entry(group_var).or_default();
 
@@ -398,7 +394,7 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
         equation: &LinearCombination<G>,
         original_relation: &LinearRelation<G>,
         weighted_group_cache: &mut HashMap<GroupVar<G>, Vec<(G::Scalar, GroupVar<G>)>>,
-    ) -> Result<(), Error> {
+    ) -> Result<(), InvalidInstance> {
         let mut rhs_terms = Vec::new();
 
         // Collect RHS terms that have scalar variables and apply weights
@@ -667,24 +663,28 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
 }
 
 impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
-    type Error = Error;
+    type Error = InvalidInstance;
 
     fn try_from(relation: &LinearRelation<G>) -> Result<Self, Self::Error> {
-        // Number of equations and image variables must match
         if relation.image.len() != relation.linear_map.linear_combinations.len() {
-            return Err(Error::InvalidInstanceWitnessPair);
+            return Err(InvalidInstance::new(
+                "Equations and image elements must match",
+            ));
         }
 
-        // If the image is the identity, then the relation must be trivial, or else the proof will be unsound
         if !relation
             .image()
             .is_ok_and(|img| img.iter().all(|&x| x != G::identity()))
         {
-            return Err(Error::InvalidInstanceWitnessPair);
+            return Err(InvalidInstance::new(
+                "Image contains identity element"
+            ));
         }
-        // Empty relations (without constraints) cannot be proven
+
         if relation.linear_map.linear_combinations.is_empty() {
-            return Err(Error::InvalidInstanceWitnessPair);
+            return Err(InvalidInstance::new(
+                "Empty relations cannot be proven"
+            ));
         }
 
         // If any linear combination is empty, the relation is invalid
@@ -694,20 +694,18 @@ impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
             .iter()
             .any(|lc| lc.0.is_empty())
         {
-            return Err(Error::InvalidInstanceWitnessPair);
+            return Err(InvalidInstance::new(
+                "Linear combinations cannot be empty",
+            ));
         }
 
         // If any linear combination has no witness variables, the relation is invalid
-        if relation
-            .linear_map
-            .linear_combinations
-            .iter()
-            .any(|lc| lc.0.iter().all(|weighted| matches!(weighted.term.scalar, ScalarTerm::Unit)))
-        {
-            return Err(Error::InvalidInstanceWitnessPair);
+        if relation.linear_map.linear_combinations.iter().any(|lc| {
+            lc.0.iter()
+                .all(|weighted| matches!(weighted.term.scalar, ScalarTerm::Unit))
+        }) {
+            return Err(InvalidInstance::new("A linear combination does not have any witness variables"));
         }
-
-
 
         let mut canonical = CanonicalLinearRelation::new();
         canonical.num_scalars = relation.linear_map.num_scalars;
@@ -878,7 +876,7 @@ impl<G: PrimeGroup> LinearRelation<G> {
             let elements =
                 lc.0.iter()
                     .map(|weighted| self.linear_map.group_elements.get(weighted.term.elem))
-                    .collect::<Result<Vec<_>, Error>>()?;
+                    .collect::<Result<Vec<_>, _>>()?;
             self.linear_map
                 .group_elements
                 .assign_element(*lhs, msm_pr(&weighted_coefficients, &elements))
@@ -892,7 +890,7 @@ impl<G: PrimeGroup> LinearRelation<G> {
     ///
     /// A vector of group elements (`Vec<G>`) representing the linear map's image.
     // TODO: Should this return GroupMap?
-    pub fn image(&self) -> Result<Vec<G>, Error> {
+    pub fn image(&self) -> Result<Vec<G>, InvalidInstance> {
         self.image
             .iter()
             .map(|&var| self.linear_map.group_elements.get(var))

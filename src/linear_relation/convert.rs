@@ -153,5 +153,4 @@ impl<G: Group> From<Sum<Weighted<GroupVar<G>, G::Scalar>>> for Sum<Weighted<Term
         let sum = sum.0.into_iter().map(|x| x.into()).collect::<Vec<_>>();
         Self(sum)
     }
-
 }

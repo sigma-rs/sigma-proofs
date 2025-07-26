@@ -268,6 +268,30 @@ mod add {
             rhs + self
         }
     }
+
+    impl<T: Field + Into<G::Scalar>, G: Group> Add<T> for Sum<ScalarVar<G>> {
+        type Output = Sum<Weighted<ScalarTerm<G>, G::Scalar>>;
+
+        fn add(self, rhs: T) -> Self::Output {
+            // Convert Sum<ScalarVar<G>> to Sum<Weighted<ScalarTerm<G>, G::Scalar>>
+            let mut weighted_terms = Vec::new();
+            for var in self.0 {
+                weighted_terms.push(Weighted {
+                    term: ScalarTerm::from(var),
+                    weight: G::Scalar::ONE,
+                });
+            }
+            let weighted_sum: Sum<Weighted<ScalarTerm<G>, G::Scalar>> = Sum(weighted_terms);
+
+            // Convert the scalar to a weighted term
+            let weighted_scalar = Weighted {
+                term: ScalarTerm::Unit,
+                weight: rhs.into(),
+            };
+
+            weighted_sum + weighted_scalar
+        }
+    }
 }
 
 mod mul {

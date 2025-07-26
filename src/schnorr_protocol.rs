@@ -4,7 +4,7 @@
 //! a Sigma protocol proving different types of discrete logarithm relations (eg. Schnorr, Pedersen's commitments)
 //! through a group morphism abstraction (see [Maurer09](https://crypto-test.ethz.ch/publications/files/Maurer09.pdf)).
 
-use crate::errors::Error;
+use crate::errors::{Error, InvalidInstance};
 use crate::linear_relation::{CanonicalLinearRelation, LinearRelation};
 use crate::{
     serialization::{
@@ -85,10 +85,10 @@ impl<G: PrimeGroup> SchnorrProof<G> {
 }
 
 impl<G: PrimeGroup> TryFrom<LinearRelation<G>> for SchnorrProof<G> {
-    type Error = Error;
+    type Error = InvalidInstance;
 
     fn try_from(linear_relation: LinearRelation<G>) -> Result<Self, Self::Error> {
-        let canonical_linear_relation = (&linear_relation).try_into()?;
+        let canonical_linear_relation = CanonicalLinearRelation::try_from(&linear_relation)?;
         Ok(Self(canonical_linear_relation))
     }
 }
