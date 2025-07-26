@@ -324,7 +324,7 @@ fn subtractions_with_shift<G: PrimeGroup, R: RngCore>(
     (instance, witness)
 }
 
-/// Fixed version of cmz wallet spend relation that properly handles the constant
+
 #[allow(non_snake_case)]
 fn cmz_wallet_spend_relation<G: PrimeGroup, R: RngCore>(
     mut rng: &mut R,
@@ -352,7 +352,6 @@ fn cmz_wallet_spend_relation<G: PrimeGroup, R: RngCore>(
     let var_A = relation.allocate_element();
 
     // C_show_Hattr_W_balance = (N.balance + I.price + fee) * P_W + z_w_balance * A
-    // Now fee is a variable, not a constant
     let var_C = relation
         .allocate_eq((var_n_balance + var_i_price + fee) * var_P_W + var_z_w_balance * var_A);
 
@@ -401,7 +400,7 @@ fn test_cmz_scalar_constant_bug() {
 
     // This equation has a scalar constant (fee) which causes the error
     let _var_C = relation.allocate_eq(
-        (var_n_balance + var_i_price + <G as Group>::Scalar::from(5u64)) * var_P_W
+        (var_n_balance + var_i_price + <G as Group>::Scalar::from(5)) * var_P_W
             + var_z_w_balance * var_A,
     );
 
