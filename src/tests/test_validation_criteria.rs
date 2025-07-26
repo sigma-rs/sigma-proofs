@@ -186,10 +186,12 @@ mod instance_validation {
 #[cfg(test)]
 mod proof_validation {
     use crate::codec::KeccakByteSchnorrCodec;
+    use crate::composition::{ComposedRelation, ComposedWitness};
     use crate::fiat_shamir::Nizk;
     use crate::linear_relation::{CanonicalLinearRelation, LinearRelation};
     use crate::schnorr_protocol::SchnorrProof;
     use bls12_381::{G1Projective as G, Scalar};
+    use ff::Field;
     use rand::{thread_rng, RngCore};
 
     type TestNizk = Nizk<SchnorrProof<G>, KeccakByteSchnorrCodec<G>>;
@@ -358,5 +360,76 @@ mod proof_validation {
             nizk.verify_batchable(&random_proof).is_err(),
             "Proof verification should fail for random bytes"
         );
+    }
+
+    #[test]
+    fn test_or_relation_wrong_branch() {
+        // This test reproduces the issue from sigma_compiler's simple_or test
+        // where an OR relation fails verification when using the wrong branch
+        let mut rng = thread_rng();
+        
+        // Create generators
+        // For this test, we'll use two different multiples of the generator
+        let B = G::generator();
+        let A = B * Scalar::from(42u64); // Different generator
+        
+        // Create scalars
+        let x = Scalar::random(&mut rng);
+        let y = Scalar::random(&mut rng);
+        
+        // Set C = y*B (so the second branch should be satisfied)
+        let C = B * y;
+        
+        // Create the first branch: C = x*A
+        let mut lr1 = LinearRelation::<G>::new();
+        let x_var = lr1.allocate_scalar();
+        let A_var = lr1.allocate_element();
+        let eq1 = lr1.allocate_eq(x_var * A_var);
+        lr1.set_element(A_var, A);
+        lr1.set_element(eq1, C);
+        
+        // Create the second branch: C = y*B
+        let mut lr2 = LinearRelation::<G>::new();
+        let y_var = lr2.allocate_scalar();
+        let B_var = lr2.allocate_element();
+        let eq2 = lr2.allocate_eq(y_var * B_var);
+        lr2.set_element(B_var, B);
+        lr2.set_element(eq2, C);
+        
+        // Create OR composition
+        let or_relation = ComposedRelation::Or(vec![
+            ComposedRelation::from(lr1),
+            ComposedRelation::from(lr2),
+        ]);
+        
+        // The issue from sigma_compiler: the witness is always using branch 0
+        // even when branch 1 should be used
+        let witness_wrong = ComposedWitness::Or(
+            0, // Always using branch 0
+            vec![
+                ComposedWitness::Simple(vec![x]),
+                ComposedWitness::Simple(vec![y]),
+            ],
+        );
+        
+        // Test the bug: using branch 0 when C = y*B (branch 1 should be used)
+        let nizk = Nizk::<_, KeccakByteSchnorrCodec<G>>::new(b"test_or_bug", or_relation);
+        let proof_result = nizk.prove_batchable(&witness_wrong, &mut rng);
+        
+        // This currently passes but should fail - this is the bug!
+        // The prover is using branch 0 (C = x*A) but C actually equals y*B
+        match proof_result {
+            Ok(proof) => {
+                let verify_result = nizk.verify_batchable(&proof);
+                println!("Bug reproduced: Proof with wrong branch verified: {:?}", verify_result.is_ok());
+                assert!(
+                    verify_result.is_err(),
+                    "BUG: Proof should fail when using wrong branch in OR relation, but it passed!"
+                );
+            }
+            Err(e) => {
+                println!("Proof generation failed as expected: {:?}", e);
+            }
+        }
     }
 }

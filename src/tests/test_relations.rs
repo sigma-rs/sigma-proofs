@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use bls12_381::Scalar;
 use ff::Field;
 use group::prime::PrimeGroup;
 use rand::rngs::OsRng;
@@ -51,8 +52,7 @@ pub fn shifted_dlog<G: PrimeGroup, R: RngCore>(
 
     let var_X = relation.allocate_eq(var_G * var_x + var_G * <G::Scalar as Field>::ONE);
     // another way of writing this is:
-    relation.append_equation(var_X, (var_x + <G::Scalar as Field>::ONE) * var_G);
-
+    relation.append_equation(var_X, (var_x + Scalar::from(1)) * var_G);
 
     relation.set_element(var_G, G::generator());
     relation.compute_image(&[x]).unwrap();
@@ -144,6 +144,31 @@ pub fn pedersen_commitment<G: PrimeGroup, R: RngCore>(
     (instance, witness)
 }
 
+#[allow(non_snake_case)]
+pub fn twisted_pedersen_commitment<G: PrimeGroup, R: RngCore>(
+    rng: &mut R,
+) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
+    let H = G::random(&mut *rng);
+    let x = G::Scalar::random(&mut *rng);
+    let r = G::Scalar::random(&mut *rng);
+    let mut relation = LinearRelation::new();
+
+    let [var_x, var_r] = relation.allocate_scalars();
+    let [var_G, var_H] = relation.allocate_elements();
+
+    let var_C = relation.allocate_eq((var_x * Scalar::from(3)) * var_G + (var_r * Scalar::from(2) + Scalar::from(3)) * var_H);
+
+    relation.set_elements([(var_H, H), (var_G, G::generator())]);
+    relation.compute_image(&[x, r]).unwrap();
+
+    let C = relation.linear_map.group_elements.get(var_C).unwrap();
+
+    let witness = vec![x, r];
+    assert_eq!(C, G::generator() * x + H * r);
+    let instance = (&relation).try_into().unwrap();
+    (instance, witness)
+}
+
 /// LinearMap for knowledge of equal openings to two distinct Pedersen commitments.
 #[allow(non_snake_case)]
 pub fn pedersen_commitment_dleq<G: PrimeGroup, R: RngCore>(
@@ -180,6 +205,7 @@ pub fn pedersen_commitment_dleq<G: PrimeGroup, R: RngCore>(
     let instance = (&relation).try_into().unwrap();
     (instance, witness_vec)
 }
+
 
 /// LinearMap for knowledge of an opening for use in a BBS commitment.
 // BBS message length is 3
