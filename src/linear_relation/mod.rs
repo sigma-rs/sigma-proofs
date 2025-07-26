@@ -339,7 +339,6 @@ pub struct LinearRelation<G: PrimeGroup> {
 /// constraint is of the form: image[i] = Σ (scalar_j * group_element_k)
 /// without weights or extra scalars.
 #[derive(Clone, Debug, Default)]
-#[warn(clippy::type_complexity)]
 pub struct CanonicalLinearRelation<G: PrimeGroup> {
     /// The image group elements (left-hand side of equations)
     pub image: Vec<G>,
