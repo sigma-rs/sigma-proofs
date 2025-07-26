@@ -4,7 +4,15 @@
 //! byte representations using canonical encodings.
 
 use ff::PrimeField;
-use group::{Group, GroupEncoding};
+use group::prime::PrimeGroup;
+
+/// Get the serialized length of a group element in bytes.
+///
+/// # Returns
+/// The number of bytes required to serialize a group element.
+pub fn group_elt_serialized_len<G: PrimeGroup>() -> usize {
+    G::Repr::default().as_ref().len()
+}
 
 /// Serialize a slice of group elements into a byte vector.
 ///
@@ -13,7 +21,7 @@ use group::{Group, GroupEncoding};
 ///
 /// # Returns
 /// - A `Vec<u8>` containing the concatenated canonical compressed byte representations.
-pub fn serialize_elements<G: Group + GroupEncoding>(elements: &[G]) -> Vec<u8> {
+pub fn serialize_elements<G: PrimeGroup>(elements: &[G]) -> Vec<u8> {
     let mut bytes = Vec::new();
     for element in elements {
         bytes.extend_from_slice(element.to_bytes().as_ref());
@@ -30,8 +38,8 @@ pub fn serialize_elements<G: Group + GroupEncoding>(elements: &[G]) -> Vec<u8> {
 /// # Returns
 /// - `Some(Vec<G>)`: The deserialized group elements if all are valid.
 /// - `None`: If the byte slice length is incorrect or any element is invalid.
-pub fn deserialize_elements<G: Group + GroupEncoding>(data: &[u8], count: usize) -> Option<Vec<G>> {
-    let element_len = G::Repr::default().as_ref().len();
+pub fn deserialize_elements<G: PrimeGroup>(data: &[u8], count: usize) -> Option<Vec<G>> {
+    let element_len = group_elt_serialized_len::<G>();
     let expected_len = count * element_len;
 
     if data.len() < expected_len {
@@ -56,12 +64,15 @@ pub fn deserialize_elements<G: Group + GroupEncoding>(data: &[u8], count: usize)
 
 /// Serialize a slice of scalar field elements into a byte vector.
 ///
+/// This method internally relies on the underlying group serialization function,
+/// and is meant to match the Internet Draft for point compression.
+///
 /// # Parameters
 /// - `scalars`: A slice of scalar field elements to serialize.
 ///
 /// # Returns
-/// - A `Vec<u8>` containing the scalar bytes in little-endian order.
-pub fn serialize_scalars<G: Group>(scalars: &[G::Scalar]) -> Vec<u8> {
+/// - A `Vec<u8>` containing the scalar bytes in big-endian order.
+pub fn serialize_scalars<G: PrimeGroup>(scalars: &[G::Scalar]) -> Vec<u8> {
     let mut bytes = Vec::new();
     for scalar in scalars {
         let mut scalar_bytes = scalar.to_repr().as_ref().to_vec();
@@ -80,7 +91,7 @@ pub fn serialize_scalars<G: Group>(scalars: &[G::Scalar]) -> Vec<u8> {
 /// # Returns
 /// - `Some(Vec<G::Scalar>)`: The deserialized scalars if all are valid.
 /// - `None`: If the byte slice length is incorrect or any scalar is invalid.
-pub fn deserialize_scalars<G: Group>(data: &[u8], count: usize) -> Option<Vec<G::Scalar>> {
+pub fn deserialize_scalars<G: PrimeGroup>(data: &[u8], count: usize) -> Option<Vec<G::Scalar>> {
     #[allow(clippy::manual_div_ceil)]
     let scalar_len = (G::Scalar::NUM_BITS as usize + 7) / 8;
     let expected_len = count * scalar_len;
@@ -95,7 +106,7 @@ pub fn deserialize_scalars<G: Group>(data: &[u8], count: usize) -> Option<Vec<G:
         let end = start + scalar_len;
         let slice = &data[start..end];
 
-        let mut repr = <<G as Group>::Scalar as PrimeField>::Repr::default();
+        let mut repr = <G::Scalar as PrimeField>::Repr::default();
         repr.as_mut().copy_from_slice(slice);
         repr.as_mut().reverse();
 

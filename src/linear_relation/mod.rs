@@ -14,12 +14,12 @@ use std::iter;
 use std::marker::PhantomData;
 
 use ff::Field;
-use group::{Group, GroupEncoding};
+use group::prime::PrimeGroup;
 
-use crate::codec::ShakeCodec;
+use crate::codec::Shake128DuplexSponge;
 use crate::errors::Error;
 use crate::schnorr_protocol::SchnorrProof;
-use crate::NISigmaProtocol;
+use crate::Nizk;
 
 /// Implementations of conversion operations such as From and FromIterator for var and term types.
 mod convert;
@@ -68,7 +68,7 @@ pub enum ScalarTerm<G> {
     Unit,
 }
 
-impl<G: Group> ScalarTerm<G> {
+impl<G: PrimeGroup> ScalarTerm<G> {
     // NOTE: This function is private intentionally as it would be replaced if a ScalarMap struct
     // were to be added.
     fn value(self, scalars: &[G::Scalar]) -> G::Scalar {
@@ -112,13 +112,13 @@ impl<T> Sum<T> {
 /// - `w_i` are the constant weight scalars
 ///
 /// The indices refer to external lists managed by the containing LinearMap.
-pub type LinearCombination<G> = Sum<Weighted<Term<G>, <G as Group>::Scalar>>;
+pub type LinearCombination<G> = Sum<Weighted<Term<G>, <G as group::Group>::Scalar>>;
 
 /// Ordered mapping of [GroupVar] to group elements assignments.
 #[derive(Clone, Debug)]
 pub struct GroupMap<G>(Vec<Option<G>>);
 
-impl<G: Group> GroupMap<G> {
+impl<G: PrimeGroup> GroupMap<G> {
     /// Assign a group element value to a point variable.
     ///
     /// # Parameters
@@ -160,9 +160,15 @@ impl<G: Group> GroupMap<G> {
     ///
     /// Returns [`Error::UnassignedGroupVar`] if a value is not assigned.
     pub fn get(&self, var: GroupVar<G>) -> Result<G, Error> {
-        self.0[var.0].ok_or(Error::UnassignedGroupVar {
-            var_debug: format!("{var:?}"),
-        })
+        match self.0.get(var.0) {
+            Some(Some(elem)) => Ok(*elem),
+            Some(None) => Err(Error::UnassignedGroupVar {
+                var_debug: format!("{var:?}"),
+            }),
+            None => Err(Error::UnassignedGroupVar {
+                var_debug: format!("{var:?}"),
+            }),
+        }
     }
 
     /// Iterate over the assigned variable and group element pairs in this mapping.
@@ -182,6 +188,23 @@ impl<G: Group> GroupMap<G> {
             .enumerate()
             .map(|(i, opt)| (GroupVar(i, PhantomData), opt.as_ref()))
     }
+
+    /// Add a new group element to the map and return its variable index
+    pub fn push(&mut self, element: G) -> GroupVar<G> {
+        let index = self.0.len();
+        self.0.push(Some(element));
+        GroupVar(index, PhantomData)
+    }
+
+    /// Get the number of elements in the map
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Check if the map is empty
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
 }
 
 impl<G> Default for GroupMap<G> {
@@ -190,7 +213,7 @@ impl<G> Default for GroupMap<G> {
     }
 }
 
-impl<G: Group> FromIterator<(GroupVar<G>, G)> for GroupMap<G> {
+impl<G: PrimeGroup> FromIterator<(GroupVar<G>, G)> for GroupMap<G> {
     fn from_iter<T: IntoIterator<Item = (GroupVar<G>, G)>>(iter: T) -> Self {
         iter.into_iter()
             .fold(Self::default(), |mut instance, (var, val)| {
@@ -205,9 +228,9 @@ impl<G: Group> FromIterator<(GroupVar<G>, G)> for GroupMap<G> {
 /// It supports dynamic allocation of scalars and elements,
 /// and evaluates by performing multi-scalar multiplications.
 #[derive(Clone, Default, Debug)]
-pub struct LinearMap<G: Group> {
+pub struct LinearMap<G: PrimeGroup> {
     /// The set of linear combination constraints (equations).
-    pub constraints: Vec<LinearCombination<G>>,
+    pub linear_combinations: Vec<LinearCombination<G>>,
     /// The list of group elements referenced in the linear map.
     ///
     /// Uninitialized group elements are presented with `None`.
@@ -229,7 +252,7 @@ pub struct LinearMap<G: Group> {
 ///
 /// # Returns
 /// The group element result of the MSM.
-pub fn msm_pr<G: Group>(scalars: &[G::Scalar], bases: &[G]) -> G {
+pub fn msm_pr<G: PrimeGroup>(scalars: &[G::Scalar], bases: &[G]) -> G {
     let mut acc = G::identity();
     for (s, p) in scalars.iter().zip(bases.iter()) {
         acc += *p * s;
@@ -237,7 +260,7 @@ pub fn msm_pr<G: Group>(scalars: &[G::Scalar], bases: &[G]) -> G {
     acc
 }
 
-impl<G: Group> LinearMap<G> {
+impl<G: PrimeGroup> LinearMap<G> {
     /// Creates a new empty [`LinearMap`].
     ///
     /// # Returns
@@ -246,7 +269,7 @@ impl<G: Group> LinearMap<G> {
     /// and zero allocated scalars and elements.
     pub fn new() -> Self {
         Self {
-            constraints: Vec::new(),
+            linear_combinations: Vec::new(),
             group_elements: GroupMap::default(),
             num_scalars: 0,
             num_elements: 0,
@@ -255,7 +278,7 @@ impl<G: Group> LinearMap<G> {
 
     /// Returns the number of constraints (equations) in this linear map.
     pub fn num_constraints(&self) -> usize {
-        self.constraints.len()
+        self.linear_combinations.len()
     }
 
     /// Adds a new linear combination constraint to the linear map.
@@ -263,7 +286,7 @@ impl<G: Group> LinearMap<G> {
     /// # Parameters
     /// - `lc`: The [`LinearCombination`] to add.
     pub fn append(&mut self, lc: LinearCombination<G>) {
-        self.constraints.push(lc);
+        self.linear_combinations.push(lc);
     }
 
     /// Evaluates all linear combinations in the linear map with the provided scalars.
@@ -274,8 +297,8 @@ impl<G: Group> LinearMap<G> {
     /// # Returns
     ///
     /// A vector of group elements, each being the result of evaluating one linear combination with the scalars.
-    pub fn evaluate(&self, scalars: &[<G as Group>::Scalar]) -> Result<Vec<G>, Error> {
-        self.constraints
+    pub fn evaluate(&self, scalars: &[G::Scalar]) -> Result<Vec<G>, Error> {
+        self.linear_combinations
             .iter()
             .map(|lc| {
                 // TODO: The multiplication by the (public) weight is potentially wasteful in the
@@ -303,10 +326,7 @@ impl<G: Group> LinearMap<G> {
 /// - A list of group elements and linear equations (held in the [`LinearMap`] field),
 /// - A list of [`GroupVar`] indices (`image`) that specify the expected output for each constraint.
 #[derive(Clone, Default, Debug)]
-pub struct LinearRelation<G>
-where
-    G: Group + GroupEncoding,
-{
+pub struct LinearRelation<G: PrimeGroup> {
     /// The underlying linear map describing the structure of the statement.
     pub linear_map: LinearMap<G>,
     /// Indices pointing to elements representing the "target" images for each constraint.
@@ -314,92 +334,404 @@ where
 }
 
 /// A normalized form of the [LinearRelation], which is used for serialization into the transcript.
-// NOTE: This is not intended to be exposed beyond this module.
-#[derive(Clone)]
-struct LinearRelationRepr<G: GroupEncoding> {
-    constraints: Vec<(u32, Vec<(u32, u32)>)>,
-    group_elements: Vec<G::Repr>,
+///
+/// This struct represents a normalized form of a linear relation where each
+/// constraint is of the form: image[i] = Σ (scalar_j * group_element_k)
+/// without weights or extra scalars.
+#[derive(Clone, Debug, Default)]
+pub struct CanonicalLinearRelation<G: PrimeGroup> {
+    /// The image group elements (left-hand side of equations)
+    pub image: Vec<G>,
+    /// The constraints, where each constraint is a vector of (scalar_var, group_var) pairs
+    /// representing the right-hand side of the equation
+    pub linear_combinations: Vec<Vec<(ScalarVar<G>, GroupVar<G>)>>,
+    /// The group elements map
+    pub group_elements: GroupMap<G>,
+    /// Number of scalar variables
+    pub num_scalars: usize,
 }
 
-impl<G: GroupEncoding> Default for LinearRelationRepr<G> {
-    fn default() -> Self {
+impl<G: PrimeGroup> CanonicalLinearRelation<G> {
+    /// Create a new empty canonical linear relation
+    pub fn new() -> Self {
         Self {
-            constraints: Default::default(),
-            group_elements: Default::default(),
+            image: Vec::new(),
+            linear_combinations: Vec::new(),
+            group_elements: GroupMap::default(),
+            num_scalars: 0,
         }
+    }
+
+    /// Get or create a GroupVar for a weighted group element, with deduplication
+    fn get_or_create_weighted_group_var(
+        &mut self,
+        group_var: GroupVar<G>,
+        weight: &G::Scalar,
+        original_group_elements: &GroupMap<G>,
+        weighted_group_cache: &mut HashMap<GroupVar<G>, Vec<(G::Scalar, GroupVar<G>)>>,
+    ) -> Result<GroupVar<G>, Error> {
+        // Check if we already have this (weight, group_var) combination
+        let entry = weighted_group_cache.entry(group_var).or_default();
+
+        // Find if we already have this weight for this group_var
+        if let Some((_, existing_var)) = entry.iter().find(|(w, _)| w == weight) {
+            return Ok(*existing_var);
+        }
+
+        // Create new weighted group element
+        let original_group_val = original_group_elements.get(group_var)?;
+        let weighted_group = original_group_val * weight;
+
+        // Add to our group elements with new index (length)
+        let new_var = self.group_elements.push(weighted_group);
+
+        // Cache the mapping for this group_var and weight
+        entry.push((*weight, new_var));
+
+        Ok(new_var)
+    }
+
+    /// Process a single constraint equation and add it to the canonical relation
+    fn process_constraint(
+        &mut self,
+        image_var: GroupVar<G>,
+        equation: &LinearCombination<G>,
+        original_relation: &LinearRelation<G>,
+        weighted_group_cache: &mut HashMap<GroupVar<G>, Vec<(G::Scalar, GroupVar<G>)>>,
+    ) -> Result<(), Error> {
+        let mut rhs_terms = Vec::new();
+
+        // Collect RHS terms that have scalar variables and apply weights
+        for weighted_term in equation.terms() {
+            if let ScalarTerm::Var(scalar_var) = weighted_term.term.scalar {
+                let group_var = weighted_term.term.elem;
+                let weight = &weighted_term.weight;
+
+                if weight.is_zero().into() {
+                    continue; // Skip zero weights
+                }
+
+                let canonical_group_var = self.get_or_create_weighted_group_var(
+                    group_var,
+                    weight,
+                    &original_relation.linear_map.group_elements,
+                    weighted_group_cache,
+                )?;
+
+                rhs_terms.push((scalar_var, canonical_group_var));
+            }
+        }
+
+        // Compute the canonical image by subtracting constant terms from the original image
+        let mut canonical_image = original_relation.linear_map.group_elements.get(image_var)?;
+        for weighted_term in equation.terms() {
+            if let ScalarTerm::Unit = weighted_term.term.scalar {
+                let group_val = original_relation
+                    .linear_map
+                    .group_elements
+                    .get(weighted_term.term.elem)?;
+                canonical_image -= group_val * weighted_term.weight;
+            }
+        }
+
+        // Only include constraints that are non-trivial (not zero constraints)
+        self.image.push(canonical_image);
+        self.linear_combinations.push(rhs_terms);
+
+        Ok(())
+    }
+
+    /// Serialize the linear relation to bytes.
+    ///
+    /// The output format is:
+    /// - [Ne: u32] number of equations
+    /// - Ne × equations:
+    ///   - [lhs_index: u32] output group element index
+    ///   - [Nt: u32] number of terms
+    ///   - Nt × [scalar_index: u32, group_index: u32] term entries
+    /// - Followed by all group elements in serialized form
+    pub fn label(&self) -> Vec<u8> {
+        let mut out = Vec::new();
+
+        // Replicate the original LinearRelationReprBuilder ordering behavior
+        let mut group_repr_mapping: HashMap<Box<[u8]>, u32> = HashMap::new();
+        let mut group_elements_ordered = Vec::new();
+
+        // Helper function to get or create index for a group element representation
+        let mut repr_index = |elem_repr: G::Repr| -> u32 {
+            if let Some(&index) = group_repr_mapping.get(elem_repr.as_ref()) {
+                return index;
+            }
+
+            let new_index = group_elements_ordered.len() as u32;
+            group_elements_ordered.push(elem_repr);
+            group_repr_mapping.insert(elem_repr.as_ref().into(), new_index);
+            new_index
+        };
+
+        // Build constraint data in the same order as original
+        let mut constraint_data = Vec::new();
+
+        for (image_elem, constraint_terms) in iter::zip(&self.image, &self.linear_combinations) {
+            // First, add the left-hand side (image) element
+            let lhs_index = repr_index(image_elem.to_bytes());
+
+            // Build the RHS terms
+            let mut rhs_terms = Vec::new();
+            for (scalar_var, group_var) in constraint_terms {
+                let group_elem = self
+                    .group_elements
+                    .get(*group_var)
+                    .expect("Group element not found");
+                let group_index = repr_index(group_elem.to_bytes());
+                rhs_terms.push((scalar_var.0 as u32, group_index));
+            }
+
+            constraint_data.push((lhs_index, rhs_terms));
+        }
+
+        // 1. Number of equations
+        let ne = constraint_data.len();
+        out.extend_from_slice(&(ne as u32).to_le_bytes());
+
+        // 2. Encode each equation
+        for (lhs_index, rhs_terms) in constraint_data {
+            // a. Output point index (LHS)
+            out.extend_from_slice(&lhs_index.to_le_bytes());
+
+            // b. Number of terms in the RHS linear combination
+            out.extend_from_slice(&(rhs_terms.len() as u32).to_le_bytes());
+
+            // c. Each term: scalar index and point index
+            for (scalar_index, group_index) in rhs_terms {
+                out.extend_from_slice(&scalar_index.to_le_bytes());
+                out.extend_from_slice(&group_index.to_le_bytes());
+            }
+        }
+
+        // Dump the group elements in the order they were first encountered
+        for elem_repr in group_elements_ordered {
+            out.extend_from_slice(elem_repr.as_ref());
+        }
+
+        out
+    }
+
+    /// Parse a canonical linear relation from its label representation
+    pub fn from_label(data: &[u8]) -> Result<Self, Error> {
+        use crate::errors::InvalidInstance;
+        use crate::serialization::group_elt_serialized_len;
+
+        let mut offset = 0;
+
+        // Read number of equations (4 bytes, little endian)
+        if data.len() < 4 {
+            return Err(InvalidInstance::new("Invalid label: too short for equation count").into());
+        }
+        let num_equations = u32::from_le_bytes([data[0], data[1], data[2], data[3]]) as usize;
+        offset += 4;
+
+        // Parse constraints and collect unique group element indices
+        let mut constraint_data = Vec::new();
+        let mut max_scalar_index = 0u32;
+        let mut max_group_index = 0u32;
+
+        for _ in 0..num_equations {
+            // Read LHS index (4 bytes)
+            if offset + 4 > data.len() {
+                return Err(InvalidInstance::new("Invalid label: truncated LHS index").into());
+            }
+            let lhs_index = u32::from_le_bytes([
+                data[offset],
+                data[offset + 1],
+                data[offset + 2],
+                data[offset + 3],
+            ]);
+            offset += 4;
+            max_group_index = max_group_index.max(lhs_index);
+
+            // Read number of RHS terms (4 bytes)
+            if offset + 4 > data.len() {
+                return Err(InvalidInstance::new("Invalid label: truncated RHS count").into());
+            }
+            let num_rhs_terms = u32::from_le_bytes([
+                data[offset],
+                data[offset + 1],
+                data[offset + 2],
+                data[offset + 3],
+            ]) as usize;
+            offset += 4;
+
+            // Read RHS terms
+            let mut rhs_terms = Vec::new();
+            for _ in 0..num_rhs_terms {
+                // Read scalar index (4 bytes)
+                if offset + 4 > data.len() {
+                    return Err(
+                        InvalidInstance::new("Invalid label: truncated scalar index").into(),
+                    );
+                }
+                let scalar_index = u32::from_le_bytes([
+                    data[offset],
+                    data[offset + 1],
+                    data[offset + 2],
+                    data[offset + 3],
+                ]);
+                offset += 4;
+                max_scalar_index = max_scalar_index.max(scalar_index);
+
+                // Read group index (4 bytes)
+                if offset + 4 > data.len() {
+                    return Err(InvalidInstance::new("Invalid label: truncated group index").into());
+                }
+                let group_index = u32::from_le_bytes([
+                    data[offset],
+                    data[offset + 1],
+                    data[offset + 2],
+                    data[offset + 3],
+                ]);
+                offset += 4;
+                max_group_index = max_group_index.max(group_index);
+
+                rhs_terms.push((scalar_index, group_index));
+            }
+
+            constraint_data.push((lhs_index, rhs_terms));
+        }
+
+        // Calculate expected number of group elements
+        let num_group_elements = (max_group_index + 1) as usize;
+        let group_element_size = group_elt_serialized_len::<G>();
+        let expected_remaining = num_group_elements * group_element_size;
+
+        if data.len() - offset != expected_remaining {
+            return Err(InvalidInstance::new(format!(
+                "Invalid label: expected {} bytes for {} group elements, got {}",
+                expected_remaining,
+                num_group_elements,
+                data.len() - offset
+            ))
+            .into());
+        }
+
+        // Parse group elements
+        let mut group_elements_ordered = Vec::new();
+        for i in 0..num_group_elements {
+            let start = offset + i * group_element_size;
+            let end = start + group_element_size;
+            let elem_bytes = &data[start..end];
+
+            let mut repr = G::Repr::default();
+            repr.as_mut().copy_from_slice(elem_bytes);
+
+            let elem = Option::<G>::from(G::from_bytes(&repr)).ok_or_else(|| {
+                Error::from(InvalidInstance::new(format!(
+                    "Invalid group element at index {}",
+                    i
+                )))
+            })?;
+
+            group_elements_ordered.push(elem);
+        }
+
+        // Build the canonical relation
+        let mut canonical = Self::new();
+        canonical.num_scalars = (max_scalar_index + 1) as usize;
+
+        // Add all group elements to the map
+        let mut group_var_map = Vec::new();
+        for elem in &group_elements_ordered {
+            let var = canonical.group_elements.push(*elem);
+            group_var_map.push(var);
+        }
+
+        // Build constraints
+        for (lhs_index, rhs_terms) in constraint_data {
+            // Add image element
+            canonical
+                .image
+                .push(group_elements_ordered[lhs_index as usize]);
+
+            // Build linear combination
+            let mut linear_combination = Vec::new();
+            for (scalar_index, group_index) in rhs_terms {
+                let scalar_var = ScalarVar(scalar_index as usize, PhantomData);
+                let group_var = group_var_map[group_index as usize];
+                linear_combination.push((scalar_var, group_var));
+            }
+            canonical.linear_combinations.push(linear_combination);
+        }
+
+        Ok(canonical)
     }
 }
 
-// A utility struct used to build the LinearRelationRepr.
-#[derive(Clone)]
-struct LinearRelationReprBuilder<G: Group + GroupEncoding> {
-    repr: LinearRelationRepr<G>,
-    /// Mapping from the serialized group representation to its index in the repr.
-    /// Acts as a reverse index into the group_elements.
-    group_repr_mapping: HashMap<Box<[u8]>, u32>,
-    /// A mapping from GroupVar index and weight to repr index, to avoid recomputing the scalar mul
-    /// of the group element multiple times.
-    weighted_group_cache: HashMap<GroupVar<G>, Vec<(G::Scalar, u32)>>,
-}
+impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
+    type Error = Error;
 
-impl<G: Group + GroupEncoding> Default for LinearRelationReprBuilder<G> {
-    fn default() -> Self {
-        Self {
-            repr: Default::default(),
-            group_repr_mapping: Default::default(),
-            weighted_group_cache: Default::default(),
-        }
-    }
-}
-
-impl<G: Group + GroupEncoding> LinearRelationReprBuilder<G> {
-    fn repr_index(&mut self, elem: &G::Repr) -> u32 {
-        if let Some(index) = self.group_repr_mapping.get(elem.as_ref()) {
-            return *index;
+    fn try_from(relation: &LinearRelation<G>) -> Result<Self, Self::Error> {
+        // Number of equations and image variables must match
+        if relation.image.len() != relation.linear_map.linear_combinations.len() {
+            return Err(Error::InvalidInstanceWitnessPair);
         }
 
-        let new_index = self.repr.group_elements.len() as u32;
-        self.repr.group_elements.push(*elem);
-        self.group_repr_mapping
-            .insert(elem.as_ref().into(), new_index);
-        new_index
-    }
-
-    fn weighted_group_var_index(&mut self, var: GroupVar<G>, weight: &G::Scalar, elem: &G) -> u32 {
-        let entry = self.weighted_group_cache.entry(var).or_default();
-
-        // If the (weight, group_var) pair is already in the cache, use it.
-        if let Some(index) = entry
-            .iter()
-            .find_map(|(entry_weight, index)| (weight == entry_weight).then_some(index))
+        // If the image is the identity, then the relation must be trivial, or else the proof will be unsound
+        if !relation
+            .image()
+            .is_ok_and(|img| img.iter().all(|&x| x != G::identity()))
         {
-            return *index;
+            return Err(Error::InvalidInstanceWitnessPair);
+        }
+        // Empty relations (without constraints) cannot be proven
+        if relation.linear_map.linear_combinations.is_empty() {
+            return Err(Error::InvalidInstanceWitnessPair);
         }
 
-        // Compute the scalar mul of the element and the weight, then the representation.
-        let weighted_elem_repr = (*elem * weight).to_bytes();
-        // Lookup or assign the index to the representation.
-        let index = self.repr_index(&weighted_elem_repr);
+        // If any linear combination is empty, the relation is invalid
+        if relation
+            .linear_map
+            .linear_combinations
+            .iter()
+            .any(|lc| lc.0.is_empty())
+        {
+            return Err(Error::InvalidInstanceWitnessPair);
+        }
 
-        // Add the index to the cache.
-        // NOTE: entry is dropped earlier to satisfy borrow-check rules.
-        self.weighted_group_cache
-            .get_mut(&var)
-            .unwrap()
-            .push((*weight, index));
+        // If any linear combination has no witness variables, the relation is invalid
+        if relation
+            .linear_map
+            .linear_combinations
+            .iter()
+            .any(|lc| lc.0.iter().all(|weighted| matches!(weighted.term.scalar, ScalarTerm::Unit)))
+        {
+            return Err(Error::InvalidInstanceWitnessPair);
+        }
 
-        index
-    }
 
-    fn finalize(self) -> LinearRelationRepr<G> {
-        self.repr
+
+        let mut canonical = CanonicalLinearRelation::new();
+        canonical.num_scalars = relation.linear_map.num_scalars;
+
+        // Cache for deduplicating weighted group elements
+        let mut weighted_group_cache = HashMap::new();
+
+        // Process each constraint using the modular helper method
+        for (image_var, equation) in
+            iter::zip(&relation.image, &relation.linear_map.linear_combinations)
+        {
+            canonical.process_constraint(
+                *image_var,
+                equation,
+                relation,
+                &mut weighted_group_cache,
+            )?;
+        }
+
+        Ok(canonical)
     }
 }
 
-impl<G> LinearRelation<G>
-where
-    G: Group + GroupEncoding,
-{
+impl<G: PrimeGroup> LinearRelation<G> {
     /// Create a new empty [`LinearRelation`].
     pub fn new() -> Self {
         Self {
@@ -526,7 +858,7 @@ where
     ///
     /// Return `Ok` on success, and an error if unassigned elements prevent the image from being
     /// computed. Modifies the group elements assigned in the [LinearRelation].
-    pub fn compute_image(&mut self, scalars: &[<G as Group>::Scalar]) -> Result<(), Error> {
+    pub fn compute_image(&mut self, scalars: &[G::Scalar]) -> Result<(), Error> {
         if self.linear_map.num_constraints() != self.image.len() {
             // NOTE: This is a panic, rather than a returned error, because this can only happen if
             // this implementation has a bug.
@@ -534,7 +866,7 @@ where
         }
 
         for (lc, lhs) in iter::zip(
-            self.linear_map.constraints.as_slice(),
+            self.linear_map.linear_combinations.as_slice(),
             self.image.as_slice(),
         ) {
             // TODO: The multiplication by the (public) weight is potentially wasteful in the
@@ -567,102 +899,6 @@ where
             .collect()
     }
 
-    /// Returns a binary label describing the linear map.
-    ///
-    /// The format is:
-    /// - [Ne: u32] number of equations
-    /// - For each equation:
-    ///   - [output_point_index: u32]
-    ///   - [Nt: u32] number of terms
-    ///   - Nt × [scalar_index: u32, point_index: u32] term entries
-    pub fn label(&self) -> Vec<u8> {
-        let mut out = Vec::new();
-        // XXX. We should return an error if the group elements are not assigned, instead of panicking.
-        let repr = self.standard_repr().unwrap();
-
-        // 1. Number of equations
-        let ne = repr.constraints.len();
-        out.extend_from_slice(&(ne as u32).to_le_bytes());
-
-        // 2. Encode each equation
-        for (output_index, constraint) in repr.constraints {
-            // a. Output point index (LHS)
-            out.extend_from_slice(&output_index.to_le_bytes());
-
-            // b. Number of terms in the RHS linear combination
-            out.extend_from_slice(&(constraint.len() as u32).to_le_bytes());
-
-            // c. Each term: scalar index and point index
-            for (scalar_index, group_index) in constraint {
-                out.extend_from_slice(&scalar_index.to_le_bytes());
-                out.extend_from_slice(&group_index.to_le_bytes());
-            }
-        }
-
-        // Dump the group elements.
-        // TODO batch serialization of group elements should not require allocation of a new vector in this case and should be part of a Group trait.
-        for elem in repr.group_elements {
-            out.extend_from_slice(elem.as_ref());
-        }
-
-        out
-    }
-
-    /// Construct an equivalent linear relation in the standardized form, without weights and with
-    /// a single group var on the left-hand side.
-    fn standard_repr(&self) -> Result<LinearRelationRepr<G>, Error> {
-        assert_eq!(
-            self.image.len(),
-            self.linear_map.constraints.len(),
-            "Number of equations and image variables must match"
-        );
-
-        let mut repr_builder = LinearRelationReprBuilder::default();
-
-        // Iterate through the constraints, applying to remapping to weighed group variables and
-        // casting scalar vars to u32.
-        for (image_var, equation) in iter::zip(&self.image, &self.linear_map.constraints) {
-            // Construct the right-hand side, omitting any terms that no not include a scalar, as
-            // they will be moved to the left-hand side.
-            let rhs: Vec<(u32, u32)> = equation
-                .terms()
-                .iter()
-                .filter_map(|weighted_term| match weighted_term.term.scalar {
-                    ScalarTerm::Var(var) => {
-                        Some((var, weighted_term.term.elem, weighted_term.weight))
-                    }
-                    ScalarTerm::Unit => None,
-                })
-                .map(|(scalar_var, group_var, weight)| {
-                    let group_val = self.linear_map.group_elements.get(group_var)?;
-                    let group_index =
-                        repr_builder.weighted_group_var_index(group_var, &weight, &group_val);
-                    Ok((scalar_var.0 as u32, group_index))
-                })
-                .collect::<Result<_, _>>()?;
-
-            // Construct the left-hand side, subtracting all the terms on the right that don't have
-            // a variable scalar term.
-            let image_val = self.linear_map.group_elements.get(*image_var)?;
-            let lhs_val = equation
-                .terms()
-                .iter()
-                .filter_map(|weighted_term| match weighted_term.term.scalar {
-                    ScalarTerm::Unit => Some((weighted_term.term.elem, weighted_term.weight)),
-                    ScalarTerm::Var(_) => None,
-                })
-                .try_fold(image_val, |sum, (group_var, weight)| {
-                    let group_val = self.linear_map.group_elements.get(group_var)?;
-                    Ok(sum - group_val * weight)
-                })?;
-            let lhs_index = repr_builder.repr_index(&lhs_val.to_bytes());
-
-            repr_builder.repr.constraints.push((lhs_index, rhs));
-        }
-
-        Ok(repr_builder.finalize())
-    }
-
     /// Convert this LinearRelation into a non-interactive zero-knowledge protocol
     /// using the ShakeCodec and a specified context/domain separator.
     ///
@@ -670,11 +906,11 @@ where
     /// - `context`: Domain separator bytes for the Fiat-Shamir transform
     ///
     /// # Returns
-    /// A `NISigmaProtocol` instance ready for proving and verification
+    /// A `Nizk` instance ready for proving and verification
     ///
     /// # Example
     /// ```
-    /// # use sigma_rs::{LinearRelation, NISigmaProtocol};
+    /// # use sigma_rs::{LinearRelation, Nizk};
     /// # use curve25519_dalek::RistrettoPoint as G;
     /// # use curve25519_dalek::scalar::Scalar;
     /// # use rand::rngs::OsRng;
@@ -697,11 +933,9 @@ where
     pub fn into_nizk(
         self,
         session_identifier: &[u8],
-    ) -> NISigmaProtocol<SchnorrProof<G>, ShakeCodec<G>>
-    where
-        G: group::GroupEncoding,
-    {
-        let schnorr = SchnorrProof::from(self);
-        NISigmaProtocol::new(session_identifier, schnorr)
+    ) -> Nizk<SchnorrProof<G>, Shake128DuplexSponge<G>> {
+        let schnorr =
+            SchnorrProof::try_from(self).expect("Failed to convert LinearRelation to SchnorrProof");
+        Nizk::new(session_identifier, schnorr)
     }
 }

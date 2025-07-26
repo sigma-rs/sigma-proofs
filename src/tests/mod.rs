@@ -1,4 +1,5 @@
-mod composition;
-mod relations;
 mod spec;
-pub mod test_utils;
+
+mod test_composition;
+mod test_relations;
+mod test_validation_criteria;

@@ -5,10 +5,10 @@ use curve25519_dalek::scalar::Scalar;
 use group::Group;
 use rand::rngs::OsRng;
 use sigma_rs::{
-    codec::ShakeCodec,
-    composition::{Protocol, ProtocolWitness},
+    codec::Shake128DuplexSponge,
+    composition::{ComposedRelation, ComposedWitness},
     errors::Error,
-    LinearRelation, NISigmaProtocol,
+    LinearRelation, Nizk,
 };
 
 type G = RistrettoPoint;
@@ -18,7 +18,7 @@ type ProofResult<T> = Result<T, Error>;
 /// 1. Knowledge of discrete log: P1 = x1 * G
 /// 2. Knowledge of DLEQ: (P2 = x2 * G, Q = x2 * H)
 #[allow(non_snake_case)]
-fn create_relation(P1: G, P2: G, Q: G, H: G) -> Protocol<G> {
+fn create_relation(P1: G, P2: G, Q: G, H: G) -> ComposedRelation<G> {
     // First relation: discrete logarithm P1 = x1 * G
     let mut rel1 = LinearRelation::<G>::new();
     let x1 = rel1.allocate_scalar();
@@ -40,44 +40,40 @@ fn create_relation(P1: G, P2: G, Q: G, H: G) -> Protocol<G> {
     rel2.set_element(Q_var, Q);
 
     // Compose into OR protocol
-    let proto1 = Protocol::from(rel1);
-    let proto2 = Protocol::from(rel2);
-    Protocol::Or(vec![proto1, proto2])
+    let proto1 = ComposedRelation::from(rel1);
+    let proto2 = ComposedRelation::from(rel2);
+    ComposedRelation::Or(vec![proto1, proto2])
 }
 
 /// Prove knowledge of one of the witnesses (we know x2 for the DLEQ)
 #[allow(non_snake_case)]
 fn prove(P1: G, x2: Scalar, H: G) -> ProofResult<Vec<u8>> {
-    let mut rng = OsRng;
-
     // Compute public values
     let P2 = G::generator() * x2;
     let Q = H * x2;
 
-    let protocol = create_relation(P1, P2, Q, H);
-    let witness = ProtocolWitness::from((1, ProtocolWitness::Simple(vec![x2])));
-    let nizk = NISigmaProtocol::<_, ShakeCodec<G>>::new(b"or_proof_example", protocol);
+    let instance = create_relation(P1, P2, Q, H);
+    let witness = ComposedWitness::from((1, ComposedWitness::Simple(vec![x2])));
+    let nizk = Nizk::<_, Shake128DuplexSponge<G>>::new(b"or_proof_example", instance);
 
-    nizk.prove_batchable(&witness, &mut rng)
+    nizk.prove_batchable(&witness, &mut OsRng)
 }
 
 /// Verify an OR proof given the public values
 #[allow(non_snake_case)]
 fn verify(P1: G, P2: G, Q: G, H: G, proof: &[u8]) -> ProofResult<()> {
     let protocol = create_relation(P1, P2, Q, H);
-    let nizk = NISigmaProtocol::<_, ShakeCodec<G>>::new(b"or_proof_example", protocol);
+    let nizk = Nizk::<_, Shake128DuplexSponge<G>>::new(b"or_proof_example", protocol);
 
     nizk.verify_batchable(proof)
 }
 
 #[allow(non_snake_case)]
 fn main() {
-    let mut rng = OsRng;
-
     // Setup: We don't know x1, but we do know x2
-    let x1 = Scalar::random(&mut rng);
-    let x2 = Scalar::random(&mut rng);
-    let H = G::random(&mut rng);
+    let x1 = Scalar::random(&mut OsRng);
+    let x2 = Scalar::random(&mut OsRng);
+    let H = G::random(&mut OsRng);
 
     // Compute public values
     let P1 = G::generator() * x1; // We don't actually know x1 in the proof

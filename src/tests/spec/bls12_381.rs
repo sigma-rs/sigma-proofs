@@ -47,7 +47,7 @@ impl SRandom for G1Projective {
         }
     }
 
-    fn srandom(rng: &mut (impl Rng + CryptoRng)) -> Self::Scalar {
+    fn random_scalar_elt(rng: &mut (impl Rng + CryptoRng)) -> Self::Scalar {
         let low = BigUint::parse_bytes(b"1", 10).unwrap();
         let high = BigUint::parse_bytes(
             b"73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000000",
@@ -60,9 +60,5 @@ impl SRandom for G1Projective {
             hex_string = format!("{hex_string:0>64}");
         }
         G1Projective::scalar_from_hex_be(&hex_string).unwrap()
-    }
-
-    fn prandom(rng: &mut (impl Rng + CryptoRng)) -> Self {
-        Self::generator() * Self::srandom(rng)
     }
 }

@@ -1,115 +1,183 @@
-use bls12_381::{G1Projective as G, Scalar};
+use bls12_381::G1Projective as G;
 use core::str;
 use hex::FromHex;
 use json::JsonValue;
+use std::collections::HashMap;
 use std::fs;
 
 use crate::codec::KeccakByteSchnorrCodec;
-use crate::fiat_shamir::NISigmaProtocol;
-use crate::tests::spec::{
-    custom_schnorr_protocol::SchnorrProtocolCustom, random::SRandom, rng::TestDRNG,
-};
-use crate::tests::test_utils::{
-    bbs_blind_commitment_computation, discrete_logarithm, dleq, pedersen_commitment,
-    pedersen_commitment_dleq,
-};
+use crate::fiat_shamir::Nizk;
+use crate::linear_relation::CanonicalLinearRelation;
+use crate::tests::spec::{custom_schnorr_protocol::DeterministicSchnorrProof, rng::TestDRNG};
 
-type NIProtocol = NISigmaProtocol<SchnorrProtocolCustom<G>, KeccakByteSchnorrCodec<G>>;
+type SchnorrNizk = Nizk<DeterministicSchnorrProof<G>, KeccakByteSchnorrCodec<G>>;
 
-/// Macro to generate non-interactive sigma protocols test functions
-macro_rules! generate_ni_function {
-    ($name:ident, $test_fn:ident, $($param:tt),*) => {
-        #[allow(non_snake_case)]
-        fn $name(seed: &[u8], iv: [u8; 32]) -> (Vec<Scalar>, Vec<u8>) {
-            let mut rng = TestDRNG::new(seed);
-            let (instance, witness) = $test_fn($(generate_ni_function!(@arg rng, $param)),*);
-
-            let protocol = SchnorrProtocolCustom(instance);
-            let nizk = NIProtocol::from_iv(iv, protocol);
-
-            let proof_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
-            let verified = nizk.verify_batchable(&proof_bytes).is_ok();
-            assert!(verified, "Fiat-Shamir Schnorr proof verification failed");
-            (witness, proof_bytes)
-        }
-    };
-
-    (@arg $rng:ident, $type:ident) => {
-        G::$type(&mut $rng)
-    };
-    (@arg $rng:ident, [$type:ident; $count:expr]) => {
-        (0..$count).map(|_| G::$type(&mut $rng)).collect::<Vec<_>>().try_into().unwrap()
-    };
+#[derive(Debug)]
+struct TestVector {
+    ciphersuite: String,
+    session_id: Vec<u8>,
+    statement: Vec<u8>,
+    witness: Vec<u8>,
+    iv: Vec<u8>,
+    proof: Vec<u8>,
 }
-
-generate_ni_function!(NI_discrete_logarithm, discrete_logarithm, srandom);
-generate_ni_function!(NI_dleq, dleq, prandom, srandom);
-generate_ni_function!(
-    NI_pedersen_commitment,
-    pedersen_commitment,
-    prandom,
-    srandom,
-    srandom
-);
-generate_ni_function!(
-    NI_pedersen_commitment_dleq,
-    pedersen_commitment_dleq,
-    [prandom; 4],
-    [srandom; 2]
-);
-generate_ni_function!(
-    NI_bbs_blind_commitment_computation,
-    bbs_blind_commitment_computation,
-    [prandom; 4],
-    [srandom; 3],
-    srandom
-);
 
 #[allow(clippy::type_complexity)]
 #[allow(non_snake_case)]
 #[test]
 fn test_spec_testvectors() {
-    let seed = b"hello world";
-    let iv = *b"yellow submarineyellow submarine";
-    let vectors = extract_vectors("src/tests/spec/vectors/allVectors.json").unwrap();
+    let proof_generation_rng_seed = b"proof_generation_seed";
+    let vectors = extract_vectors_new("src/tests/spec/vectors/testSigmaProtocols.json").unwrap();
 
-    let functions: [fn(&[u8], [u8; 32]) -> (Vec<Scalar>, Vec<u8>); 5] = [
-        NI_discrete_logarithm,
-        NI_dleq,
-        NI_pedersen_commitment,
-        NI_pedersen_commitment_dleq,
-        NI_bbs_blind_commitment_computation,
+    // Define supported ciphersuites
+    let mut supported_ciphersuites = HashMap::new();
+    supported_ciphersuites.insert(
+        "sigma/OWKeccak1600+Bls12381".to_string(),
+        "BLS12-381 with Keccak-based sponge",
+    );
+
+    // Order of test names to match JSON vector order
+    let test_names = [
+        "bbs_blind_commitment_computation",
+        "discrete_logarithm",
+        "dleq",
+        "pedersen_commitment",
+        "pedersen_commitment_dleq",
     ];
 
-    for (i, f) in functions.iter().enumerate() {
-        let (_, proof_bytes) = f(seed, iv);
+    for test_name in test_names.iter() {
+        let vector = &vectors[*test_name];
+
+        // Verify the ciphersuite is supported
+        assert!(
+            supported_ciphersuites.contains_key(&vector.ciphersuite),
+            "Unsupported ciphersuite '{}' in test vector {}",
+            vector.ciphersuite,
+            test_name
+        );
+
+        // Parse the statement from the test vector
+        let parsed_instance = CanonicalLinearRelation::<G>::from_label(&vector.statement)
+            .expect("Failed to parse statement");
+
+        // Decode the witness from the test vector
+        let witness = crate::serialization::deserialize_scalars::<G>(
+            &vector.witness,
+            parsed_instance.num_scalars,
+        )
+        .expect("Failed to deserialize witness");
+
+        // Verify the parsed instance can be re-serialized to the same label
         assert_eq!(
-            iv.as_slice(),
-            vectors[i].0.as_slice(),
-            "context for test vector {i} does not match"
+            parsed_instance.label(),
+            vector.statement,
+            "parsed statement doesn't match original for {}",
+            test_name
+        );
+
+        // Create NIZK with the session_id from the test vector
+        let protocol = DeterministicSchnorrProof::from(parsed_instance.clone());
+        let nizk = SchnorrNizk::new(&vector.session_id, protocol);
+
+        // Verify that the computed IV matches the test vector IV
+        let protocol_id = b"draft-zkproof-fiat-shamir";
+        let instance_label = parsed_instance.label();
+        let computed_iv = crate::codec::compute_iv::<crate::codec::KeccakDuplexSponge>(
+            protocol_id,
+            &vector.session_id,
+            &instance_label,
         );
         assert_eq!(
-            proof_bytes, vectors[i].1,
-            "proof bytes for test vector {i} does not match"
+            computed_iv,
+            vector.iv.as_slice(),
+            "Computed IV doesn't match test vector IV for {}",
+            test_name
+        );
+
+        // Generate proof with the proof generation RNG
+        let mut proof_rng = TestDRNG::new(proof_generation_rng_seed);
+        let proof_bytes = nizk.prove_batchable(&witness, &mut proof_rng).unwrap();
+
+        // Verify the proof matches
+        assert_eq!(
+            proof_bytes, vector.proof,
+            "proof bytes for test vector {} do not match",
+            test_name
+        );
+
+        // Verify the proof is valid
+        let verified = nizk.verify_batchable(&proof_bytes).is_ok();
+        assert!(
+            verified,
+            "Fiat-Shamir Schnorr proof verification failed for {}",
+            test_name
         );
     }
 }
 
-fn extract_vectors(path: &str) -> json::Result<Vec<(Vec<u8>, Vec<u8>)>> {
-    let content = fs::read_to_string(path).expect("Unable to read JSON file");
-    let root: JsonValue = json::parse(&content).expect("JSON parsing error");
-    root.entries()
-        .map(|(_, obj)| {
-            let context_hex = obj["Context"]
+fn extract_vectors_new(path: &str) -> Result<HashMap<String, TestVector>, String> {
+    use std::collections::HashMap;
+
+    let content =
+        fs::read_to_string(path).map_err(|e| format!("Unable to read JSON file: {}", e))?;
+    let root: JsonValue =
+        json::parse(&content).map_err(|e| format!("JSON parsing error: {}", e))?;
+
+    let mut vectors = HashMap::new();
+
+    for (name, obj) in root.entries() {
+        let ciphersuite = obj["Ciphersuite"]
+            .as_str()
+            .ok_or_else(|| format!("Ciphersuite field not found for {}", name))?
+            .to_string();
+
+        let session_id = Vec::from_hex(
+            obj["SessionId"]
                 .as_str()
-                .expect("Context field not found or not a string");
-            let proof_hex = obj["Proof"]
+                .ok_or_else(|| format!("SessionId field not found for {}", name))?,
+        )
+        .map_err(|e| format!("Invalid hex in SessionId for {}: {}", name, e))?;
+
+        let statement = Vec::from_hex(
+            obj["Statement"]
                 .as_str()
-                .expect("Proof field not found or not a string");
-            Ok((
-                Vec::from_hex(context_hex).unwrap(),
-                Vec::from_hex(proof_hex).unwrap(),
-            ))
-        })
-        .collect()
+                .ok_or_else(|| format!("Statement field not found for {}", name))?,
+        )
+        .map_err(|e| format!("Invalid hex in Statement for {}: {}", name, e))?;
+
+        let witness = Vec::from_hex(
+            obj["Witness"]
+                .as_str()
+                .ok_or_else(|| format!("Witness field not found for {}", name))?,
+        )
+        .map_err(|e| format!("Invalid hex in Witness for {}: {}", name, e))?;
+
+        let iv = Vec::from_hex(
+            obj["IV"]
+                .as_str()
+                .ok_or_else(|| format!("IV field not found for {}", name))?,
+        )
+        .map_err(|e| format!("Invalid hex in IV for {}: {}", name, e))?;
+
+        let proof = Vec::from_hex(
+            obj["Proof"]
+                .as_str()
+                .ok_or_else(|| format!("Proof field not found for {}", name))?,
+        )
+        .map_err(|e| format!("Invalid hex in Proof for {}: {}", name, e))?;
+
+        vectors.insert(
+            name.to_string(),
+            TestVector {
+                ciphersuite,
+                session_id,
+                statement,
+                witness,
+                iv,
+                proof,
+            },
+        );
+    }
+
+    Ok(vectors)
 }

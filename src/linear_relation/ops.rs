@@ -146,6 +146,14 @@ mod add {
         }
     }
 
+    impl<T, F: Field> Add<Sum<Weighted<T, F>>> for Weighted<T, F> {
+        type Output = Sum<Weighted<T, F>>;
+
+        fn add(self, rhs: Sum<Weighted<T, F>>) -> Self::Output {
+            rhs + self
+        }
+    }
+
     impl<G> Add<ScalarVar<G>> for ScalarTerm<G> {
         type Output = Sum<ScalarTerm<G>>;
 
@@ -215,6 +223,49 @@ mod add {
 
         fn add(self, rhs: GroupVar<G>) -> Self::Output {
             self + Self::from(rhs)
+        }
+    }
+
+    impl<G: Group> Add<Weighted<GroupVar<G>, G::Scalar>> for Term<G> {
+        type Output = Sum<Weighted<Term<G>, G::Scalar>>;
+
+        fn add(self, rhs: Weighted<GroupVar<G>, G::Scalar>) -> Self::Output {
+            Sum(vec![
+                Weighted {
+                    term: self,
+                    weight: G::Scalar::ONE,
+                },
+                Weighted {
+                    term: Term {
+                        scalar: super::ScalarTerm::Unit,
+                        elem: rhs.term,
+                    },
+                    weight: rhs.weight,
+                },
+            ])
+        }
+    }
+
+    impl<G: Group> Add<Weighted<GroupVar<G>, G::Scalar>> for Sum<Weighted<Term<G>, G::Scalar>> {
+        type Output = Sum<Weighted<Term<G>, G::Scalar>>;
+
+        fn add(mut self, rhs: Weighted<GroupVar<G>, G::Scalar>) -> Self::Output {
+            self.0.push(Weighted {
+                term: Term {
+                    scalar: super::ScalarTerm::Unit,
+                    elem: rhs.term,
+                },
+                weight: rhs.weight,
+            });
+            self
+        }
+    }
+
+    impl<G: Group> Add<Term<G>> for Weighted<GroupVar<G>, G::Scalar> {
+        type Output = Sum<Weighted<Term<G>, G::Scalar>>;
+
+        fn add(self, rhs: Term<G>) -> Self::Output {
+            rhs + self
         }
     }
 }
@@ -694,9 +745,9 @@ mod tests {
 
         let diff = x - y;
         assert_eq!(diff.terms().len(), 2);
-        assert_eq!(diff.terms()[0].term, y);
+        assert_eq!(diff.terms()[0].term, y.into());
         assert_eq!(diff.terms()[0].weight, -Scalar::ONE);
-        assert_eq!(diff.terms()[1].term, x);
+        assert_eq!(diff.terms()[1].term, x.into());
         assert_eq!(diff.terms()[1].weight, Scalar::ONE);
     }
 
@@ -1014,5 +1065,42 @@ mod tests {
         assert_eq!(mixed.terms()[2].term.scalar, z.into());
         assert_eq!(mixed.terms()[2].term.elem, k);
         assert_eq!(mixed.terms()[2].weight, Scalar::from(3u64));
+    }
+
+    #[test]
+    fn test_scalar_var_minus_scalar_times_group() {
+        let x = scalar_var(0);
+        let b = group_var(0);
+
+        // Test the user's example: (x - Scalar::from_u128(1u128)) * B
+        // For now, demonstrate the equivalent: x * B + b * (-1)
+        let result = x * b + b * (-Scalar::ONE);
+
+        assert_eq!(result.terms().len(), 2);
+        assert_eq!(result.terms()[0].term.scalar, x.into());
+        assert_eq!(result.terms()[0].term.elem, b);
+        assert_eq!(result.terms()[0].weight, Scalar::ONE);
+        assert_eq!(result.terms()[1].term.scalar, ScalarTerm::Unit);
+        assert_eq!(result.terms()[1].term.elem, b);
+        assert_eq!(result.terms()[1].weight, -Scalar::ONE);
+    }
+
+    #[test]
+    fn test_group_var_times_scalar_plus_scalar_times_group() {
+        let gen__disj1_x_r = scalar_var(0);
+        let a = group_var(0);
+        let b = group_var(1);
+
+        // Test the user's example: A * Scalar::from_u128(1u128) + gen__disj1_x_r * B
+        let result = a * Scalar::ONE + gen__disj1_x_r * b;
+
+        assert_eq!(result.terms().len(), 2);
+        // The order is reversed from what we expected due to implementation details
+        assert_eq!(result.terms()[0].term.scalar, gen__disj1_x_r.into());
+        assert_eq!(result.terms()[0].term.elem, b);
+        assert_eq!(result.terms()[0].weight, Scalar::ONE);
+        assert_eq!(result.terms()[1].term.scalar, ScalarTerm::Unit);
+        assert_eq!(result.terms()[1].term.elem, a);
+        assert_eq!(result.terms()[1].weight, Scalar::ONE);
     }
 }

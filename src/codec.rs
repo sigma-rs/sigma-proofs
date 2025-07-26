@@ -3,7 +3,7 @@
 pub use crate::duplex_sponge::keccak::KeccakDuplexSponge;
 use crate::duplex_sponge::{shake::ShakeDuplexSponge, DuplexSpongeInterface};
 use ff::PrimeField;
-use group::{Group, GroupEncoding};
+use group::prime::PrimeGroup;
 use num_bigint::BigUint;
 use num_traits::identities::One;
 
@@ -46,41 +46,47 @@ fn cardinal<F: PrimeField>() -> BigUint {
 #[derive(Clone)]
 pub struct ByteSchnorrCodec<G, H>
 where
-    G: Group + GroupEncoding,
+    G: PrimeGroup,
     H: DuplexSpongeInterface,
 {
     hasher: H,
     _marker: core::marker::PhantomData<G>,
 }
 
-const WORD_SIZE: usize = 32;
+const WORD_SIZE: usize = 4;
 
 fn length_to_bytes(x: usize) -> [u8; WORD_SIZE] {
-    let mut bytes = [0u8; WORD_SIZE];
-    let x_bytes = x.to_be_bytes();
-    bytes[WORD_SIZE - x_bytes.len()..].copy_from_slice(&x_bytes);
-    bytes
+    (x as u32).to_be_bytes()
+}
+
+/// Compute the initialization vector (IV) for a protocol instance.
+///
+/// This function computes a deterministic IV from the protocol identifier,
+/// session identifier, and instance label using the specified duplex sponge.
+pub fn compute_iv<H: DuplexSpongeInterface>(
+    protocol_id: &[u8],
+    session_id: &[u8],
+    instance_label: &[u8],
+) -> [u8; 32] {
+    let mut tmp = H::new([0u8; 32]);
+    tmp.absorb(&length_to_bytes(protocol_id.len()));
+    tmp.absorb(protocol_id);
+    tmp.absorb(&length_to_bytes(session_id.len()));
+    tmp.absorb(session_id);
+    tmp.absorb(&length_to_bytes(instance_label.len()));
+    tmp.absorb(instance_label);
+    tmp.squeeze(32).try_into().unwrap()
 }
 
 impl<G, H> Codec for ByteSchnorrCodec<G, H>
 where
-    G: Group + GroupEncoding,
+    G: PrimeGroup,
     H: DuplexSpongeInterface,
 {
-    type Challenge = <G as Group>::Scalar;
+    type Challenge = G::Scalar;
 
     fn new(protocol_id: &[u8], session_id: &[u8], instance_label: &[u8]) -> Self {
-        let iv = {
-            let mut tmp = H::new([0u8; 32]);
-            tmp.absorb(&length_to_bytes(protocol_id.len()));
-            tmp.absorb(protocol_id);
-            tmp.absorb(&length_to_bytes(session_id.len()));
-            tmp.absorb(session_id);
-            tmp.absorb(&length_to_bytes(instance_label.len()));
-            tmp.absorb(instance_label);
-            tmp.squeeze(32).try_into().unwrap()
-        };
-
+        let iv = compute_iv::<H>(protocol_id, session_id, instance_label);
         Self::from_iv(iv)
     }
 
@@ -109,10 +115,10 @@ where
         bytes[start..].copy_from_slice(&reduced_bytes);
         bytes.reverse();
 
-        let mut repr = <<G as Group>::Scalar as PrimeField>::Repr::default();
+        let mut repr = <G::Scalar as PrimeField>::Repr::default();
         repr.as_mut().copy_from_slice(&bytes);
 
-        <<G as Group>::Scalar as PrimeField>::from_repr(repr).expect("Error")
+        <G::Scalar as PrimeField>::from_repr(repr).expect("Error")
     }
 }
 
@@ -121,4 +127,4 @@ where
 pub type KeccakByteSchnorrCodec<G> = ByteSchnorrCodec<G, KeccakDuplexSponge>;
 
 /// Type alias for a SHAKE-based ByteSchnorrCodec.
-pub type ShakeCodec<G> = ByteSchnorrCodec<G, ShakeDuplexSponge>;
+pub type Shake128DuplexSponge<G> = ByteSchnorrCodec<G, ShakeDuplexSponge>;

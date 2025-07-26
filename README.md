@@ -9,8 +9,8 @@ This library provides a flexible framework for creating zero-knowledge proofs fo
 ## Quick Example
 
 ```rust
-use sigma_rs::{LinearRelation, Protocol, ProtocolWitness, NISigmaProtocol};
-use sigma_rs::codec::ShakeCodec;
+use sigma_rs::{LinearRelation, Protocol, ProtocolWitness, Nizk};
+use sigma_rs::codec::Shake128DuplexSponge;
 use curve25519_dalek::RistrettoPoint as G;
 
 // Prove knowledge of (x, r) such that C = x·G + r·H (Pedersen commitment)

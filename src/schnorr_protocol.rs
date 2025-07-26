@@ -5,7 +5,7 @@
 //! through a group morphism abstraction (see [Maurer09](https://crypto-test.ethz.ch/publications/files/Maurer09.pdf)).
 
 use crate::errors::Error;
-use crate::linear_relation::LinearRelation;
+use crate::linear_relation::{CanonicalLinearRelation, LinearRelation};
 use crate::{
     serialization::{
         deserialize_elements, deserialize_scalars, serialize_elements, serialize_scalars,
@@ -14,7 +14,7 @@ use crate::{
 };
 
 use ff::Field;
-use group::{Group, GroupEncoding};
+use group::prime::PrimeGroup;
 use rand::{CryptoRng, Rng, RngCore};
 
 /// A Schnorr protocol proving knowledge of a witness for a linear group relation.
@@ -23,38 +23,85 @@ use rand::{CryptoRng, Rng, RngCore};
 /// a [`LinearRelation`], representing an abstract linear relation over the group.
 ///
 /// # Type Parameters
-/// - `G`: A cryptographic group implementing [`Group`] and [`GroupEncoding`].
+/// - `G`: A [`PrimeGroup`] instance.
 #[derive(Clone, Default, Debug)]
-pub struct SchnorrProof<G: Group + GroupEncoding>(pub LinearRelation<G>);
+pub struct SchnorrProof<G: PrimeGroup>(pub CanonicalLinearRelation<G>);
 
-impl<G: Group + GroupEncoding> SchnorrProof<G> {
+impl<G: PrimeGroup> SchnorrProof<G> {
     pub fn witness_length(&self) -> usize {
-        self.0.linear_map.num_scalars
+        self.0.num_scalars
     }
 
     pub fn commitment_length(&self) -> usize {
-        self.0.linear_map.num_constraints()
+        self.0.linear_combinations.len()
+    }
+
+    /// Evaluate the canonical linear relation with the provided scalars
+    fn evaluate(&self, scalars: &[G::Scalar]) -> Result<Vec<G>, Error> {
+        self.0
+            .linear_combinations
+            .iter()
+            .map(|constraint| {
+                let mut result = G::identity();
+                for (scalar_var, group_var) in constraint {
+                    let scalar_val = scalars[scalar_var.index()];
+                    let group_val = self.0.group_elements.get(*group_var)?;
+                    result += group_val * scalar_val;
+                }
+                Ok(result)
+            })
+            .collect()
+    }
+
+    /// Internal method to commit using provided nonces (for deterministic testing)
+    pub fn commit_with_nonces(
+        &self,
+        witness: &[G::Scalar],
+        nonces: &[G::Scalar],
+    ) -> Result<(Vec<G>, (Vec<G::Scalar>, Vec<G::Scalar>)), Error> {
+        if witness.len() != self.witness_length() {
+            return Err(Error::InvalidInstanceWitnessPair);
+        }
+        if nonces.len() != self.witness_length() {
+            return Err(Error::InvalidInstanceWitnessPair);
+        }
+
+        // If the image is the identity, then the relation must be
+        // trivial, or else the proof will be unsound
+        if self
+            .0
+            .image
+            .iter()
+            .zip(self.0.linear_combinations.iter())
+            .any(|(&x, c)| x == G::identity() && !c.is_empty())
+        {
+            return Err(Error::InvalidInstanceWitnessPair);
+        }
+
+        let commitment = self.evaluate(nonces)?;
+        let prover_state = (nonces.to_vec(), witness.to_vec());
+        Ok((commitment, prover_state))
     }
 }
 
-impl<G> From<LinearRelation<G>> for SchnorrProof<G>
-where
-    G: Group + GroupEncoding,
-{
-    fn from(value: LinearRelation<G>) -> Self {
-        Self(value)
+impl<G: PrimeGroup> TryFrom<LinearRelation<G>> for SchnorrProof<G> {
+    type Error = Error;
+
+    fn try_from(linear_relation: LinearRelation<G>) -> Result<Self, Self::Error> {
+        let canonical_linear_relation = (&linear_relation).try_into()?;
+        Ok(Self(canonical_linear_relation))
     }
 }
 
 impl<G> SigmaProtocol for SchnorrProof<G>
 where
-    G: Group + GroupEncoding,
+    G: PrimeGroup,
 {
     type Commitment = Vec<G>;
-    type ProverState = (Vec<<G as Group>::Scalar>, Vec<<G as Group>::Scalar>);
-    type Response = Vec<<G as Group>::Scalar>;
-    type Witness = Vec<<G as Group>::Scalar>;
-    type Challenge = <G as Group>::Scalar;
+    type ProverState = (Vec<G::Scalar>, Vec<G::Scalar>);
+    type Response = Vec<G::Scalar>;
+    type Witness = Vec<G::Scalar>;
+    type Challenge = G::Scalar;
 
     /// Prover's first message: generates a commitment using random nonces.
     ///
@@ -72,23 +119,28 @@ where
     fn prover_commit(
         &self,
         witness: &Self::Witness,
-        mut rng: &mut (impl RngCore + CryptoRng),
+        rng: &mut (impl RngCore + CryptoRng),
     ) -> Result<(Self::Commitment, Self::ProverState), Error> {
         if witness.len() != self.witness_length() {
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
-        // If the relation being proven is trivial, refuse to prove the statement.
-        if self.0.image()?.iter().any(|&x| x == G::identity()) {
+        // If the image is the identity, then the relation must be
+        // trivial, or else the proof will be unsound
+        if self
+            .0
+            .image
+            .iter()
+            .zip(self.0.linear_combinations.iter())
+            .any(|(&x, c)| x == G::identity() && !c.is_empty())
+        {
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
-        let nonces: Vec<G::Scalar> = (0..self.witness_length())
-            .map(|_| G::Scalar::random(&mut rng))
-            .collect();
-        let commitment = self.0.linear_map.evaluate(&nonces)?;
-        let prover_state = (nonces, witness.clone());
-        Ok((commitment, prover_state))
+        let nonces = (0..self.witness_length())
+            .map(|_| G::Scalar::random(&mut *rng))
+            .collect::<Vec<_>>();
+        self.commit_with_nonces(witness, &nonces)
     }
 
     /// Computes the prover's response (second message) using the challenge.
@@ -146,15 +198,10 @@ where
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
-        let lhs = self.0.linear_map.evaluate(response)?;
-        let zero_vec = vec![<<G as Group>::Scalar as Field>::ZERO; self.0.linear_map.num_scalars];
-        let zero_image = self.0.linear_map.evaluate(&zero_vec)?;
+        let lhs = self.evaluate(response)?;
         let mut rhs = Vec::new();
         for (i, g) in commitment.iter().enumerate() {
-            rhs.push({
-                let image_var = self.0.image[i];
-                (self.0.linear_map.group_elements.get(image_var)? - zero_image[i]) * challenge + g
-            });
+            rhs.push(self.0.image[i] * challenge + g);
         }
         if lhs == rhs {
             Ok(())
@@ -264,13 +311,13 @@ where
     }
 
     fn protocol_identifier(&self) -> impl AsRef<[u8]> {
-        b"SchnorrProof"
+        b"draft-zkproof-fiat-shamir"
     }
 }
 
 impl<G> SigmaProtocolSimulator for SchnorrProof<G>
 where
-    G: Group + GroupEncoding,
+    G: PrimeGroup,
 {
     /// Simulates a valid transcript for a given challenge without a witness.
     ///
@@ -280,9 +327,9 @@ where
     ///
     /// # Returns
     /// - A commitment and response forming a valid proof for the given challenge.
-    fn simulate_response<R: Rng + CryptoRng>(&self, mut rng: &mut R) -> Self::Response {
+    fn simulate_response<R: Rng + CryptoRng>(&self, rng: &mut R) -> Self::Response {
         let response: Vec<G::Scalar> = (0..self.witness_length())
-            .map(|_| G::Scalar::random(&mut rng))
+            .map(|_| G::Scalar::random(&mut *rng))
             .collect();
         response
     }
@@ -324,16 +371,13 @@ where
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
-        let zero_vec = vec![<<G as Group>::Scalar as Field>::ZERO; self.0.linear_map.num_scalars];
-        let zero_image = self.0.linear_map.evaluate(&zero_vec)?;
-        let response_image = self.0.linear_map.evaluate(response)?;
-        let image = self.0.image()?;
+        let response_image = self.evaluate(response)?;
+        let image = &self.0.image;
 
         let commitment = response_image
             .iter()
-            .zip(&image)
-            .zip(&zero_image)
-            .map(|((res, img), z_img)| *res - (*img - *z_img) * challenge)
+            .zip(image)
+            .map(|(res, img)| *res - *img * challenge)
             .collect::<Vec<_>>();
         Ok(commitment)
     }
