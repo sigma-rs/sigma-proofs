@@ -34,7 +34,7 @@ fn composition_proof_correct() {
         ComposedRelation::Simple(SchnorrProof(relation1)),
         ComposedRelation::Simple(SchnorrProof(relation2)),
     ]);
-    let or_witness1 = ComposedWitness::Or(0, vec![ComposedWitness::Simple(witness1)]);
+    let or_witness1 = ComposedWitness::from((0, ComposedWitness::Simple(witness1)));
 
     let simple_protocol1 = ComposedRelation::Simple(SchnorrProof(relation3));
     let simple_witness1 = ComposedWitness::Simple(witness3);
@@ -43,14 +43,14 @@ fn composition_proof_correct() {
         ComposedRelation::Simple(SchnorrProof(relation4)),
         ComposedRelation::Simple(SchnorrProof(relation5)),
     ]);
-    let and_witness1 = ComposedWitness::And(vec![
+    let and_witness1 = ComposedWitness::from(vec![
         ComposedWitness::Simple(witness4),
         ComposedWitness::Simple(witness5),
     ]);
 
     // definition of the final protocol
     let protocol = ComposedRelation::And(vec![or_protocol1, simple_protocol1, and_protocol1]);
-    let witness = ComposedWitness::And(vec![or_witness1, simple_witness1, and_witness1]);
+    let witness = ComposedWitness::from(vec![or_witness1, simple_witness1, and_witness1]);
 
     let nizk = Nizk::<ComposedRelation<RistrettoPoint>, Shake128DuplexSponge<G>>::new(
         domain_sep, protocol,

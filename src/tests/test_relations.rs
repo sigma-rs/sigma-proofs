@@ -155,7 +155,10 @@ pub fn twisted_pedersen_commitment<G: PrimeGroup, R: RngCore>(
     let [var_x, var_r] = relation.allocate_scalars();
     let [var_G, var_H] = relation.allocate_elements();
 
-    relation.allocate_eq((var_x * G::Scalar::from(3)) * var_G + (var_r * G::Scalar::from(2) + G::Scalar::from(3)) * var_H);
+    relation.allocate_eq(
+        (var_x * G::Scalar::from(3)) * var_G
+            + (var_r * G::Scalar::from(2) + G::Scalar::from(3)) * var_H,
+    );
 
     relation.set_elements([(var_H, H), (var_G, G::generator())]);
     relation.compute_image(&[x, r]).unwrap();
@@ -201,7 +204,6 @@ pub fn pedersen_commitment_dleq<G: PrimeGroup, R: RngCore>(
     let instance = (&relation).try_into().unwrap();
     (instance, witness_vec)
 }
-
 
 /// LinearMap for knowledge of an opening for use in a BBS commitment.
 // BBS message length is 3
@@ -270,8 +272,7 @@ pub fn weird_linear_combination<G: PrimeGroup, R: RngCore>(
     let A = sigma__lr.allocate_element();
     let var_B = sigma__lr.allocate_element();
 
-    let sigma__eq1 =
-        sigma__lr.allocate_eq(A * G::Scalar::from(1) + gen__disj1_x_r_var * var_B);
+    let sigma__eq1 = sigma__lr.allocate_eq(A * G::Scalar::from(1) + gen__disj1_x_r_var * var_B);
 
     // Set the group elements
     sigma__lr.set_elements([(A, G::generator()), (var_B, B)]);
@@ -343,7 +344,10 @@ fn test_common_relations() {
     instance_generators.insert("dleq", Box::new(dleq));
     instance_generators.insert("shifted_dleq", Box::new(shifted_dleq));
     instance_generators.insert("pedersen_commitment", Box::new(pedersen_commitment));
-    instance_generators.insert("twisted_pedersen_commitment", Box::new(twisted_pedersen_commitment));
+    instance_generators.insert(
+        "twisted_pedersen_commitment",
+        Box::new(twisted_pedersen_commitment),
+    );
     instance_generators.insert(
         "pedersen_commitment_dleq",
         Box::new(pedersen_commitment_dleq),
