@@ -27,6 +27,8 @@ use rand::{CryptoRng, Rng, RngCore};
 #[derive(Clone, Default, Debug)]
 pub struct SchnorrProof<G: PrimeGroup>(pub CanonicalLinearRelation<G>);
 
+type CommitResult<Commit, Scalar> = (Commit, (Scalar, Scalar));
+
 impl<G: PrimeGroup> SchnorrProof<G> {
     pub fn witness_length(&self) -> usize {
         self.0.num_scalars
@@ -58,7 +60,7 @@ impl<G: PrimeGroup> SchnorrProof<G> {
         &self,
         witness: &[G::Scalar],
         nonces: &[G::Scalar],
-    ) -> Result<(Vec<G>, (Vec<G::Scalar>, Vec<G::Scalar>)), Error> {
+    ) -> Result<CommitResult<Vec<G>, Vec<G::Scalar>>, Error> {
         if witness.len() != self.witness_length() {
             return Err(Error::InvalidInstanceWitnessPair);
         }

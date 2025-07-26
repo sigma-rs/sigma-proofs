@@ -339,6 +339,7 @@ pub struct LinearRelation<G: PrimeGroup> {
 /// constraint is of the form: image[i] = Σ (scalar_j * group_element_k)
 /// without weights or extra scalars.
 #[derive(Clone, Debug, Default)]
+#[warn(clippy::type_complexity)]
 pub struct CanonicalLinearRelation<G: PrimeGroup> {
     /// The image group elements (left-hand side of equations)
     pub image: Vec<G>,
@@ -350,6 +351,8 @@ pub struct CanonicalLinearRelation<G: PrimeGroup> {
     /// Number of scalar variables
     pub num_scalars: usize,
 }
+
+type WeightedCache<A, B> = HashMap<B, Vec<(A, B)>>;
 
 impl<G: PrimeGroup> CanonicalLinearRelation<G> {
     /// Create a new empty canonical linear relation
@@ -368,7 +371,7 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
         group_var: GroupVar<G>,
         weight: &G::Scalar,
         original_group_elements: &GroupMap<G>,
-        weighted_group_cache: &mut HashMap<GroupVar<G>, Vec<(G::Scalar, GroupVar<G>)>>,
+        weighted_group_cache: &mut WeightedCache<G::Scalar, GroupVar<G>>,
     ) -> Result<GroupVar<G>, Error> {
         // Check if we already have this (weight, group_var) combination
         let entry = weighted_group_cache.entry(group_var).or_default();
@@ -397,7 +400,7 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
         image_var: GroupVar<G>,
         equation: &LinearCombination<G>,
         original_relation: &LinearRelation<G>,
-        weighted_group_cache: &mut HashMap<GroupVar<G>, Vec<(G::Scalar, GroupVar<G>)>>,
+        weighted_group_cache: &mut WeightedCache<G::Scalar, GroupVar<G>>,
     ) -> Result<(), Error> {
         let mut rhs_terms = Vec::new();
 
