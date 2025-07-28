@@ -5,7 +5,7 @@
 
 #[cfg(test)]
 mod instance_validation {
-    use crate::{linear_relation::{CanonicalLinearRelation, LinearRelation}, tests::spec::rng};
+    use crate::linear_relation::{CanonicalLinearRelation, LinearRelation};
     use bls12_381::{G1Projective as G, Scalar};
 
     #[test]
@@ -129,6 +129,16 @@ mod instance_validation {
         // Try to convert - should fail due to inconsistency
         let result = CanonicalLinearRelation::try_from(&relation);
         assert!(result.is_err());
+    }
+
+
+    #[test]
+    fn test_empty_string() {
+        let rng = &mut rand::thread_rng();
+        let relation = LinearRelation::<G>::new();
+        let nizk = relation.into_nizk(b"test_session").unwrap();
+        let narg_string = nizk.prove_batchable(&vec![], rng).unwrap();
+        assert!(narg_string.is_empty());
     }
 
     #[test]

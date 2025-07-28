@@ -681,12 +681,6 @@ impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
             ));
         }
 
-        // if relation.linear_map.linear_combinations.is_empty() {
-        //     return Err(InvalidInstance::new(
-        //         "Empty relations cannot be proven"
-        //     ));
-        // }
-
         // If any linear combination is empty, the relation is invalid
         if relation
             .linear_map
