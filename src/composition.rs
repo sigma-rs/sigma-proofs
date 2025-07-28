@@ -26,7 +26,6 @@ use sha3::Digest;
 use sha3::Sha3_256;
 use subtle::CtOption;
 
-use crate::errors::InvalidInstance;
 use crate::{
     codec::Shake128DuplexSponge,
     errors::Error,
@@ -86,8 +85,8 @@ pub enum ComposedProverState<G: PrimeGroup> {
     And(Vec<ComposedProverState<G>>),
     Or(
         Vec<CtOption<ComposedProverState<G>>>,                 // all states (real and dummy)
-        Vec<ComposedChallenge<G>>,                             // all challenges
-        Vec<ComposedResponse<G>>,                              // all responses
+        Vec<CtOption<ComposedChallenge<G>>>,                             // all challenges
+        Vec<CtOption<ComposedResponse<G>>>,                              // all responses
     ),
 }
 
@@ -200,7 +199,9 @@ impl<G: PrimeGroup> ComposedRelation<G> {
             // Use map and or_else for constant-time branching
             let state = w_opt
                 .map(|w| {
-                    p.prover_commit(&w, rng).unwrap()
+                    let (commitment, state) = p.prover_commit(&w, rng).unwrap();
+
+
                 })
                 .unwrap_or_else(|| p.simulate_transcript(rng).unwrap());
         }
