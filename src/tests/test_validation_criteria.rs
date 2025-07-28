@@ -55,11 +55,7 @@ mod instance_validation {
 
         // Try to convert to canonical form
         let result = CanonicalLinearRelation::try_from(&relation);
-
-        // The conversion might succeed, but we should verify the image contains zero
-        if let Ok(canonical) = result {
-            assert!(canonical.image.iter().any(|&elem| elem == G::identity()));
-        }
+        assert!(result.is_err())
     }
 
     #[test]
