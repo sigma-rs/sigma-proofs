@@ -409,7 +409,7 @@ fn test_cmz_wallet_with_fee() {
         .unwrap();
 
     // Try to convert to CanonicalLinearRelation - this should fail
-    let nizk = relation.into_nizk(b"session_identifier");
+    let nizk = relation.into_nizk(b"session_identifier").unwrap();
     let result = nizk.prove_batchable(&vec![n_balance, i_price, z_w_balance], &mut OsRng);
     assert!(result.is_ok());
     let proof = result.unwrap();

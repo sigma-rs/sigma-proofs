@@ -681,11 +681,11 @@ impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
             ));
         }
 
-        if relation.linear_map.linear_combinations.is_empty() {
-            return Err(InvalidInstance::new(
-                "Empty relations cannot be proven"
-            ));
-        }
+        // if relation.linear_map.linear_combinations.is_empty() {
+        //     return Err(InvalidInstance::new(
+        //         "Empty relations cannot be proven"
+        //     ));
+        // }
 
         // If any linear combination is empty, the relation is invalid
         if relation
@@ -924,16 +924,14 @@ impl<G: PrimeGroup> LinearRelation<G> {
     /// relation.compute_image(&[x]).unwrap();
     ///
     /// // Convert to NIZK with custom context
-    /// let nizk = relation.into_nizk(b"my-protocol-v1");
+    /// let nizk = relation.into_nizk(b"my-protocol-v1").unwrap();
     /// let proof = nizk.prove_batchable(&vec![x], &mut OsRng).unwrap();
     /// assert!(nizk.verify_batchable(&proof).is_ok());
     /// ```
     pub fn into_nizk(
         self,
         session_identifier: &[u8],
-    ) -> Nizk<SchnorrProof<G>, Shake128DuplexSponge<G>> {
-        let schnorr =
-            SchnorrProof::try_from(self).expect("Failed to convert LinearRelation to SchnorrProof");
-        Nizk::new(session_identifier, schnorr)
+    ) -> Result<Nizk<SchnorrProof<G>, Shake128DuplexSponge<G>>, InvalidInstance> {
+        Ok(Nizk::new(session_identifier, self.try_into()?))
     }
 }

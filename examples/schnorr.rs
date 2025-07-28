@@ -35,14 +35,14 @@ fn create_relation(P: RistrettoPoint) -> LinearRelation<RistrettoPoint> {
 #[allow(non_snake_case)]
 fn prove(x: Scalar, P: RistrettoPoint) -> ProofResult<Vec<u8>> {
     let nizk = create_relation(P).into_nizk(b"sigma-rs::examples");
-    nizk.prove_batchable(&vec![x], &mut OsRng)
+    nizk?.prove_batchable(&vec![x], &mut OsRng)
 }
 
 /// Verify a proof of knowledge of discrete logarithm for the given public key P
 #[allow(non_snake_case)]
 fn verify(P: RistrettoPoint, proof: &[u8]) -> ProofResult<()> {
     let nizk = create_relation(P).into_nizk(b"sigma-rs::examples");
-    nizk.verify_batchable(proof)
+    nizk?.verify_batchable(proof)
 }
 
 #[allow(non_snake_case)]

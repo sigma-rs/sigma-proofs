@@ -5,7 +5,7 @@
 
 #[cfg(test)]
 mod instance_validation {
-    use crate::linear_relation::{CanonicalLinearRelation, LinearRelation};
+    use crate::{linear_relation::{CanonicalLinearRelation, LinearRelation}, tests::spec::rng};
     use bls12_381::{G1Projective as G, Scalar};
 
     #[test]
@@ -64,14 +64,18 @@ mod instance_validation {
 
     #[test]
     fn test_empty_instance() {
+        let rng = &mut rand::thread_rng();
         // Create an empty linear relation
         let relation = LinearRelation::<G>::new();
 
         // Try to convert empty relation to canonical form
-        let result = CanonicalLinearRelation::try_from(&relation);
+        let result = relation.into_nizk(b"test empty instance");
 
-        // Empty relations should be rejected
-        assert!(result.is_err());
+        // Empty relations should be accepted as valid, and the proof be the empty string.
+        assert!(result.is_ok());
+        let proof = result.unwrap().prove_batchable(&vec![], rng);
+        assert!(proof.is_ok());
+        assert!(proof.unwrap().is_empty());
     }
 
     /// Test function with the requested LinearRelation code
@@ -133,16 +137,6 @@ mod instance_validation {
         let A = G::generator() * Scalar::from(42);
         let X = G::generator() * Scalar::from(4);
         let pub_scalar = Scalar::from(42);
-
-        // The following relation has no equation and should trigger a fail.
-        let mut linear_relation = LinearRelation::<G>::new();
-        let B_var = linear_relation.allocate_element();
-        let A_var = linear_relation.allocate_element();
-
-        linear_relation.set_element(B_var, B);
-        linear_relation.set_element(A_var, A);
-        let result = CanonicalLinearRelation::try_from(&linear_relation);
-        assert!(result.is_err());
 
         // The following relation does not have a witness and should trigger a fail.
         // X = B * pub_scalar + A * 3
