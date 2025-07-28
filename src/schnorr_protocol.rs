@@ -27,7 +27,7 @@ use rand::{CryptoRng, Rng, RngCore};
 #[derive(Clone, Default, Debug)]
 pub struct SchnorrProof<G: PrimeGroup>(pub CanonicalLinearRelation<G>);
 
-struct ProverState<G: PrimeGroup>(Vec<G::Scalar>, Vec<G::Scalar>);
+pub struct ProverState<G: PrimeGroup>(Vec<G::Scalar>, Vec<G::Scalar>);
 
 impl<G: PrimeGroup> SchnorrProof<G> {
     pub fn witness_length(&self) -> usize {
@@ -95,10 +95,7 @@ impl<G: PrimeGroup> TryFrom<LinearRelation<G>> for SchnorrProof<G> {
     }
 }
 
-impl<G> SigmaProtocol for SchnorrProof<G>
-where
-    G: PrimeGroup,
-{
+impl<G: PrimeGroup> SigmaProtocol for SchnorrProof<G> {
     type Commitment = Vec<G>;
     type ProverState = ProverState<G>;
     type Response = Vec<G::Scalar>;
@@ -162,10 +159,6 @@ where
         challenge: &Self::Challenge,
     ) -> Result<Self::Response, Error> {
         let ProverState(nonces, witness) = prover_state;
-
-        if nonces.len() != self.witness_length() || witness.len() != self.witness_length() {
-            return Err(Error::InvalidInstanceWitnessPair);
-        }
 
         let responses = nonces
             .into_iter()
@@ -237,8 +230,8 @@ where
     ///
     /// # Returns
     /// A `Vec<u8>` containing the serialized scalar.
-    fn serialize_challenge(&self, challenge: &Self::Challenge) -> Vec<u8> {
-        serialize_scalars::<G>(&[*challenge])
+    fn serialize_challenge(&self, &challenge: &Self::Challenge) -> Vec<u8> {
+        serialize_scalars::<G>(&[challenge])
     }
 
     /// Serializes the prover's response vector into a byte format.
