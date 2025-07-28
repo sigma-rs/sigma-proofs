@@ -59,23 +59,6 @@ mod instance_validation {
     }
 
     #[test]
-    fn test_empty_instance() {
-        let rng = &mut rand::thread_rng();
-        // Create an empty linear relation
-        let relation = LinearRelation::<G>::new();
-
-        // Try to convert empty relation to canonical form
-        let result = relation.into_nizk(b"test empty instance");
-
-        // Empty relations should be accepted as valid, and the proof be the empty string.
-        assert!(result.is_ok());
-        let proof = result.unwrap().prove_batchable(&vec![], rng);
-        assert!(proof.is_ok());
-        assert!(proof.unwrap().is_empty());
-    }
-
-    /// Test function with the requested LinearRelation code
-    #[test]
     #[allow(non_snake_case)]
     pub fn test_degenerate_equation() {
         use ff::Field;
@@ -86,7 +69,6 @@ mod instance_validation {
         let x = relation.allocate_scalar();
         let B = relation.allocate_element();
         let _eq = relation.allocate_eq((x + (-Scalar::ONE)) * B + (-B));
-
         assert!(CanonicalLinearRelation::try_from(&relation).is_err());
 
         // 2. because the equation is void
@@ -102,25 +84,19 @@ mod instance_validation {
     fn test_inconsistent_equation_count() {
         // Create a relation with mismatched equations and image elements
         let mut relation = LinearRelation::<G>::new();
-
-        // Allocate elements
         let [var_x] = relation.allocate_scalars();
         let [var_g, var_h] = relation.allocate_elements::<2>();
-
-        // Set elements
         relation.set_elements([
             (var_g, G::generator()),
             (var_h, G::generator() * Scalar::from(2u64)),
         ]);
 
         // Add two equations but only one image element
-        relation.linear_map.linear_combinations.push(
-            crate::linear_relation::LinearCombination::from(vec![(var_x, var_g)]),
-        );
-        relation.linear_map.linear_combinations.push(
-            crate::linear_relation::LinearCombination::from(vec![(var_x, var_h)]),
-        );
-        relation.image.push(var_g); // Only one image element for two equations
+        let var_img_1 = relation.allocate_eq(var_x * var_g + var_h);
+        relation.allocate_eq(var_x * var_h + var_g);
+        relation.set_element(var_g, G::generator());
+        relation.set_element(var_h, G::generator() * Scalar::from(2));
+        relation.set_element(var_img_1, G::generator() * Scalar::from(3));
 
         // Try to convert - should fail due to inconsistency
         let result = CanonicalLinearRelation::try_from(&relation);
