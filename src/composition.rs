@@ -74,14 +74,12 @@ pub enum ComposedCommitment<G: PrimeGroup> {
 pub enum ComposedProverState<G: PrimeGroup> {
     Simple(<SchnorrProof<G> as SigmaProtocol>::ProverState),
     And(Vec<ComposedProverState<G>>),
-    Or(ComposedOrProverState<G>),
+    Or(
+        Vec<CtOption<ComposedProverState<G>>>,                 // all states (real and dummy)
+        Vec<CtOption<ComposedChallenge<G>>>,                             // all challenges
+        Vec<CtOption<ComposedResponse<G>>>,                              // all responses
+    ),
 }
-
-type ComposedOrProverState<G> = (
-    Vec<Option<ComposedProverState<G>>>,
-    Vec<Option<ComposedChallenge<G>>>,
-    Vec<Option<ComposedResponse<G>>>,
-);
 
 // Structure representing the Response type of Protocol as SigmaProtocol
 #[derive(Clone)]
@@ -182,32 +180,22 @@ impl<G: PrimeGroup> ComposedRelation<G> {
 
         let mut simulated_challenges = Vec::new();
         let mut simulated_responses = Vec::new();
-        let mut commitments = Vec::<ComposedCommitment<G>>::with_capacity(instances.len());
-        let mut prover_states = Vec::new();
 
-        for (i, witness) in witnesses.iter().enumerate() {
-            // let (simulated_commitment, simulated_challenge, simulated_response) = instances[i].simulate_transcript(rng)?;
-            let witness = witness.clone().into_option();
-            match witness {
-                Some(w) => {
-                    let (commitment, prover_state) = instances[i].prover_commit(&w, rng)?;
-                    commitments.push(commitment);
-                    prover_states.push(Some(prover_state));
-                    simulated_challenges.push(None);
-                    simulated_responses.push(None);
-                }
-                None => {
-                    let (simulated_commitment, simulated_challenge, simulated_response) =
-                        instances[i].simulate_transcript(rng)?;
-                    commitments.push(simulated_commitment);
-                    prover_states.push(None);
-                    simulated_challenges.push(Some(simulated_challenge));
-                    simulated_responses.push(Some(simulated_response));
-                }
-            }
+        // Process each witness using constant-time operations
+        for (p, w_opt) in protocols.iter().zip(witnesses.iter()) {
+            // Use map and or_else for constant-time branching
+            let state = w_opt
+                .map(|w| {
+                    let (commitment, state) = p.prover_commit(&w, rng).unwrap();
+
+
+                })
+                .unwrap_or_else(|| p.simulate_transcript(rng).unwrap());
         }
-        let prover_state: ComposedOrProverState<G> =
-            (prover_states, simulated_challenges, simulated_responses);
+
+        let real_idx = real_index.ok_or(Error::InvalidInstanceWitnessPair)?;
+        let real_prover_state = real_state.ok_or(Error::InvalidInstanceWitnessPair)?;
+
         Ok((
             ComposedCommitment::Or(commitments),
             ComposedProverState::Or(prover_state),
