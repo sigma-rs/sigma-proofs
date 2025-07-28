@@ -676,9 +676,7 @@ impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
             .image()
             .is_ok_and(|img| img.iter().all(|&x| x != G::identity()))
         {
-            return Err(InvalidInstance::new(
-                "Image contains identity element"
-            ));
+            return Err(InvalidInstance::new("Image contains identity element"));
         }
 
         // If any linear combination is empty, the relation is invalid
@@ -688,9 +686,7 @@ impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
             .iter()
             .any(|lc| lc.0.is_empty())
         {
-            return Err(InvalidInstance::new(
-                "Linear combinations cannot be empty",
-            ));
+            return Err(InvalidInstance::new("Linear combinations cannot be empty"));
         }
 
         // If any linear combination has no witness variables, the relation is invalid
@@ -698,7 +694,9 @@ impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
             lc.0.iter()
                 .all(|weighted| matches!(weighted.term.scalar, ScalarTerm::Unit))
         }) {
-            return Err(InvalidInstance::new("A linear combination does not have any witness variables"));
+            return Err(InvalidInstance::new(
+                "A linear combination does not have any witness variables",
+            ));
         }
 
         let mut canonical = CanonicalLinearRelation::new();

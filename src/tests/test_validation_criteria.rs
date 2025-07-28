@@ -103,7 +103,6 @@ mod instance_validation {
         assert!(result.is_err());
     }
 
-
     #[test]
     fn test_empty_string() {
         let rng = &mut rand::thread_rng();
@@ -164,6 +163,7 @@ mod proof_validation {
     use bls12_381::{G1Projective as G, Scalar};
     use ff::Field;
     use rand::{thread_rng, RngCore};
+    use subtle::CtOption;
 
     type TestNizk = Nizk<SchnorrProof<G>, KeccakByteSchnorrCodec<G>>;
 
@@ -373,18 +373,27 @@ mod proof_validation {
             ComposedRelation::from(lr2),
         ]);
 
-        // The issue from sigma_compiler: the witness is always using branch 0
-        // even when branch 1 should be used
-        let witness_wrong = ComposedWitness::Or(
-            1, // Always using branch 0
-            vec![
-                ComposedWitness::Simple(vec![x]),
-                ComposedWitness::Simple(vec![y]),
-            ],
+        let nizk = Nizk::<_, KeccakByteSchnorrCodec<G>>::new(b"test_or_bug", or_relation);
+
+        // Create a correct witness for branch 1 (C = y*B)
+        let witness_correct = ComposedWitness::Or(vec![
+            CtOption::new(ComposedWitness::Simple(vec![x]), 0u8.into()), // branch 0 not used
+            CtOption::new(ComposedWitness::Simple(vec![y]), 1u8.into()), // branch 1 is real
+        ]);
+
+        // This should succeed since branch 1 is correct
+        let proof = nizk.prove_batchable(&witness_correct, &mut rng).unwrap();
+        assert!(
+            nizk.verify_batchable(&proof).is_ok(),
+            "Valid proof should verify"
         );
 
-        // Test the bug: using branch 0 when C = y*B (branch 1 should be used)
-        let nizk = Nizk::<_, KeccakByteSchnorrCodec<G>>::new(b"test_or_bug", or_relation);
+        // Now test with wrong witness: using branch 0 when it's not satisfied
+        // Branch 0 requires C = x*A, but C = y*B and A ≠ B, so x would need to be y/42
+        let witness_wrong = ComposedWitness::Or(vec![
+            CtOption::new(ComposedWitness::Simple(vec![x]), 1u8.into()), // branch 0 is real (but wrong!)
+            CtOption::new(ComposedWitness::Simple(vec![y]), 0u8.into()), // branch 1 not used
+        ]);
         let proof_result = nizk.prove_batchable(&witness_wrong, &mut rng);
 
         match proof_result {

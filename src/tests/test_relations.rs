@@ -324,7 +324,6 @@ fn subtractions_with_shift<G: PrimeGroup, R: RngCore>(
     (instance, witness)
 }
 
-
 #[allow(non_snake_case)]
 fn cmz_wallet_spend_relation<G: PrimeGroup, R: RngCore>(
     mut rng: &mut R,

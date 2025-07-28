@@ -161,10 +161,6 @@ where
     ) -> Result<Self::Response, Error> {
         let (nonces, witness) = prover_state;
 
-        if nonces.len() != self.witness_length() || witness.len() != self.witness_length() {
-            return Err(Error::InvalidInstanceWitnessPair);
-        }
-
         let responses = nonces
             .into_iter()
             .zip(witness)
