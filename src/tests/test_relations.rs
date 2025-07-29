@@ -458,31 +458,27 @@ fn test_relations() {
 
         // Test the NIZK protocol
         let protocol = SchnorrProof(canonical_relation);
-        let domain_sep = format!("test-fiat-shamir-{}", relation_name)
+        let domain_sep = format!("test-fiat-shamir-{relation_name}")
             .as_bytes()
             .to_vec();
         let nizk = Nizk::<SchnorrProof<G>, Shake128DuplexSponge<G>>::new(&domain_sep, protocol);
 
         // Test both proof types
         let proof_batchable = nizk.prove_batchable(&witness, &mut OsRng).expect(&format!(
-            "Failed to create batchable proof for {}",
-            relation_name
+            "Failed to create batchable proof for {relation_name}"
         ));
         let proof_compact = nizk.prove_compact(&witness, &mut OsRng).expect(&format!(
-            "Failed to create compact proof for {}",
-            relation_name
+            "Failed to create compact proof for {relation_name}"
         ));
 
         // Verify both proof types
         assert!(
             nizk.verify_batchable(&proof_batchable).is_ok(),
-            "Batchable proof verification failed for {}",
-            relation_name
+            "Batchable proof verification failed for {relation_name}"
         );
         assert!(
             nizk.verify_compact(&proof_compact).is_ok(),
-            "Compact proof verification failed for {}",
-            relation_name
+            "Compact proof verification failed for {relation_name}"
         );
     }
 }

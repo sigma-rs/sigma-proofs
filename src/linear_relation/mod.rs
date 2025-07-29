@@ -602,9 +602,7 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
 
         if data.len() - offset != expected_remaining {
             return Err(InvalidInstance::new(format!(
-                "Invalid label: expected {} bytes for {} group elements, got {}",
-                expected_remaining,
-                num_group_elements,
+                "Invalid label: expected {expected_remaining} bytes for {num_group_elements} group elements, got {}",
                 data.len() - offset
             ))
             .into());
@@ -622,8 +620,7 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
 
             let elem = Option::<G>::from(G::from_bytes(&repr)).ok_or_else(|| {
                 Error::from(InvalidInstance::new(format!(
-                    "Invalid group element at index {}",
-                    i
+                    "Invalid group element at index {i}"
                 )))
             })?;
 
