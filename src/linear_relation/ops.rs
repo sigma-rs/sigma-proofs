@@ -246,6 +246,21 @@ mod add {
         }
     }
 
+    impl<G: Group> Add<Sum<Weighted<Term<G>, G::Scalar>>> for Weighted<GroupVar<G>, G::Scalar> {
+        type Output = Sum<Weighted<Term<G>, G::Scalar>>;
+
+        fn add(self, rhs: Sum<Weighted<Term<G>, G::Scalar>>) -> Self::Output {
+            let weighted_term = Weighted {
+                term: Term {
+                    scalar: super::ScalarTerm::Unit,
+                    elem: self.term,
+                },
+                weight: self.weight,
+            };
+            rhs + weighted_term
+        }
+    }
+
     impl<G: Group> Add<Weighted<GroupVar<G>, G::Scalar>> for Sum<Weighted<Term<G>, G::Scalar>> {
         type Output = Sum<Weighted<Term<G>, G::Scalar>>;
 

@@ -370,6 +370,32 @@ fn cmz_wallet_spend_relation<G: PrimeGroup, R: RngCore>(
     (instance, witness)
 }
 
+
+fn nested_affine_relation<G: PrimeGroup, R: RngCore>(
+    mut rng: &mut R,
+) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
+    let mut instance = LinearRelation::<G>::new();
+    let var_r = instance.allocate_scalar();
+    let var_A = instance.allocate_element();
+    let var_B = instance.allocate_element();
+    let eq1 = instance.allocate_eq(
+        var_A * G::Scalar::from(4) + (var_r * G::Scalar::from(2) + G::Scalar::from(3)) * var_B,
+    );
+
+    let A = G::random(&mut rng);
+    let B = G::random(&mut rng);
+    let r = G::Scalar::random(&mut rng);
+    let C = A * G::Scalar::from(4) + B * (r * G::Scalar::from(2) + G::Scalar::from(3));
+    instance.set_element(var_A, A);
+    instance.set_element(var_B, B);
+    instance.set_element(eq1, C);
+
+    let witness = vec![r];
+    let instance = CanonicalLinearRelation::try_from(&instance).unwrap();
+    (instance, witness)
+}
+
+
 #[test]
 fn test_cmz_wallet_with_fee() {
     use group::Group;
@@ -450,6 +476,7 @@ fn test_relations() {
             "cmz_wallet_spend_relation",
             Box::new(cmz_wallet_spend_relation),
         ),
+        ("nested_affine_relation", Box::new(nested_affine_relation)),
     ];
 
     for (relation_name, relation_sampler) in instance_generators.iter() {
