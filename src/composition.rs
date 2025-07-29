@@ -1,6 +1,6 @@
 //! # Protocol Composition with AND/OR Logic
 //!
-//! This module defines the [`Protocol`] enum, which generalizes the [`SchnorrProof`]
+//! This module defines the [`ComposedRelation`] enum, which generalizes the [`SchnorrProof`]
 //! by enabling compositional logic between multiple proof instances.
 //!
 //! Specifically, it supports:
@@ -38,7 +38,7 @@ use crate::{
 /// This implementation generalizes [`SchnorrProof`] by using AND/OR links.
 ///
 /// # Type Parameters
-/// - `G`: A cryptographic group implementing [`Group`] and [`GroupEncoding`].
+/// - `G`: A cryptographic group implementing [`group::Group`] and [`group::GroupEncoding`].
 #[derive(Clone)]
 pub enum ComposedRelation<G: PrimeGroup> {
     Simple(SchnorrProof<G>),

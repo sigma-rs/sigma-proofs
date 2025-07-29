@@ -1,6 +1,6 @@
 //! Keccak-based duplex sponge implementation
 //!
-//! This module implements a duplex sponge construction using the Keccak-f[1600] permutation.
+//! This module implements a duplex sponge construction using the Keccak-f\[1600\] permutation.
 //! It is designed to match test vectors from the original Sage implementation.
 
 use crate::duplex_sponge::DuplexSpongeInterface;
@@ -9,7 +9,7 @@ use zerocopy::IntoBytes;
 const RATE: usize = 136;
 const LENGTH: usize = 136 + 64;
 
-/// Low-level Keccak-f[1600] state representation.
+/// Low-level Keccak-f\[1600\] state representation.
 #[derive(Clone, Default)]
 pub struct KeccakPermutationState([u64; LENGTH / 8]);
 
@@ -37,7 +37,7 @@ impl AsMut<[u8]> for KeccakPermutationState {
     }
 }
 
-/// Duplex sponge construction using Keccak-f[1600].
+/// Duplex sponge construction using Keccak-f\[1600\].
 #[derive(Clone)]
 pub struct KeccakDuplexSponge {
     state: KeccakPermutationState,

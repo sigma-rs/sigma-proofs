@@ -10,10 +10,10 @@ use crate::errors::{Error, InvalidInstance};
 use super::{ScalarVar, GroupVar, GroupMap, LinearRelation, LinearCombination, ScalarTerm};
 
 
-/// A normalized form of the [`LinearRelation``], which is used for serialization into the transcript.
+/// A normalized form of the [`LinearRelation`], which is used for serialization into the transcript.
 ///
 /// This struct represents a normalized form of a linear relation where each
-/// constraint is of the form: image[i] = Σ (scalar_j * group_element_k)
+/// constraint is of the form: image_i = Σ (scalar_j * group_element_k)
 /// without weights or extra scalars.
 #[derive(Clone, Debug, Default)]
 pub struct CanonicalLinearRelation<G: PrimeGroup> {
