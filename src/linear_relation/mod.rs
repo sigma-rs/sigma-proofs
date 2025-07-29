@@ -390,7 +390,7 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
     /// Process a single constraint equation and add it to the canonical relation
     fn process_constraint(
         &mut self,
-        image_var: GroupVar<G>,
+        &image_var: &GroupVar<G>,
         equation: &LinearCombination<G>,
         original_relation: &LinearRelation<G>,
         weighted_group_cache: &mut HashMap<GroupVar<G>, Vec<(G::Scalar, GroupVar<G>)>>,
@@ -679,26 +679,6 @@ impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
             return Err(InvalidInstance::new("Image contains identity element"));
         }
 
-        // If any linear combination is empty, the relation is invalid
-        if relation
-            .linear_map
-            .linear_combinations
-            .iter()
-            .any(|lc| lc.0.is_empty())
-        {
-            return Err(InvalidInstance::new("Linear combinations cannot be empty"));
-        }
-
-        // If any linear combination has no witness variables, the relation is invalid
-        if relation.linear_map.linear_combinations.iter().any(|lc| {
-            lc.0.iter()
-                .all(|weighted| matches!(weighted.term.scalar, ScalarTerm::Unit))
-        }) {
-            return Err(InvalidInstance::new(
-                "A linear combination does not have any witness variables",
-            ));
-        }
-
         let mut canonical = CanonicalLinearRelation::new();
         canonical.num_scalars = relation.linear_map.num_scalars;
 
@@ -706,12 +686,41 @@ impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
         let mut weighted_group_cache = HashMap::new();
 
         // Process each constraint using the modular helper method
-        for (image_var, equation) in
+        for (lhs, rhs) in
             iter::zip(&relation.image, &relation.linear_map.linear_combinations)
         {
+
+            // If the linear combination is empty, skip it
+            if rhs.0.is_empty() {
+                continue;
+            }
+
+            // If the linear combination is trivial, check it directly and skip processing.
+            if !rhs.0.is_empty() && rhs.0.iter().all(|weighted| matches!(weighted.term.scalar, ScalarTerm::Unit)) {
+                let lhs_value = relation
+                    .linear_map
+                    .group_elements
+                    .get(*lhs)
+                    .map_err(|_| InvalidInstance::new("Unassigned group variable in image"))?;
+
+                let rhs_value = rhs.0.iter().fold(G::identity(), |acc, weighted| {
+                    acc + relation
+                        .linear_map
+                        .group_elements
+                        .get(weighted.term.elem)
+                        .unwrap_or_else(|_| panic!("Unassigned group variable in linear combination"))
+                        * weighted.weight
+                });
+                if lhs_value != rhs_value {
+                    return Err(InvalidInstance::new("Trivial linear combination does not match image"));
+                } else {
+                    continue; // Skip processing trivial constraints
+                }
+            }
+
             canonical.process_constraint(
-                *image_var,
-                equation,
+                lhs,
+                rhs,
                 relation,
                 &mut weighted_group_cache,
             )?;
