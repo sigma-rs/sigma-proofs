@@ -103,7 +103,6 @@ mod instance_validation {
         assert!(result.is_err());
     }
 
-
     #[test]
     fn test_empty_string() {
         let rng = &mut rand::thread_rng();
