@@ -1,4 +1,4 @@
-//! Implementation of the generic Schnorr Sigma Protocol over a [`Group`].
+//! Implementation of the generic Schnorr Sigma Protocol over a [`group::Group`].
 //!
 //! This module defines the [`SchnorrProof`] structure, which implements
 //! a Sigma protocol proving different types of discrete logarithm relations (eg. Schnorr, Pedersen's commitments)

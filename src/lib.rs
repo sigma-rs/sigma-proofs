@@ -38,7 +38,7 @@
 //! - **[`traits::SigmaProtocol`]**: The fundamental three-move protocol interface
 //! - **[`linear_relation::LinearRelation`]**: Express mathematical relations over groups
 //! - **[`fiat_shamir::Nizk`]**: Convert interactive proofs to standalone proofs
-//! - **[`composition::Protocol`]**: Combine multiple proofs together
+//! - **[`composition::ComposedRelation`]**: Combine multiple proofs together
 //! - **[`codec`]**: Hash function backends for proof generation
 //!
 //! ---
