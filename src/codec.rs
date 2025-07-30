@@ -1,7 +1,7 @@
 //! Encoding and decoding utilities for Fiat-Shamir and group operations.
 
-pub use crate::duplex_sponge::keccak::KeccakDuplexSponge;
-use crate::duplex_sponge::{shake::ShakeDuplexSponge, DuplexSpongeInterface};
+use crate::duplex_sponge::DuplexSpongeInterface;
+pub use crate::duplex_sponge::{keccak::KeccakDuplexSponge, shake::ShakeDuplexSponge};
 use ff::PrimeField;
 use group::prime::PrimeGroup;
 use num_bigint::BigUint;
@@ -101,7 +101,7 @@ where
         self.hasher.absorb(data);
     }
 
-    fn verifier_challenge(&mut self) -> G::Scalar {
+    fn verifier_challenge(&mut self) -> Self::Challenge {
         #[allow(clippy::manual_div_ceil)]
         let scalar_byte_length = (G::Scalar::NUM_BITS as usize + 7) / 8;
 

@@ -26,9 +26,7 @@ pub struct CanonicalLinearRelation<G: PrimeGroup> {
     pub num_scalars: usize,
 }
 
-
-type GroupExpr<G> =  Vec<(<G as group::Group>::Scalar, GroupVar<G>)>;
-
+type GroupExpr<G> = Vec<(<G as group::Group>::Scalar, GroupVar<G>)>;
 
 impl<G: PrimeGroup> CanonicalLinearRelation<G> {
     /// Create a new empty canonical linear relation
@@ -304,7 +302,9 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
             repr.as_mut().copy_from_slice(elem_bytes);
 
             let elem = Option::<G>::from(G::from_bytes(&repr)).ok_or_else(|| {
-                Error::from(InvalidInstance::new(format!("Invalid group element at index {i}")))
+                Error::from(InvalidInstance::new(format!(
+                    "Invalid group element at index {i}"
+                )))
             })?;
 
             group_elements_ordered.push(elem);

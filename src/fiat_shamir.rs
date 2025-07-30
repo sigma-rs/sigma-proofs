@@ -116,14 +116,6 @@ where
             .interactive_proof
             .prover_response(prover_state, &challenge)?;
 
-        // Local verification of the proof
-        if self
-            .interactive_proof
-            .verifier(&commitment, &challenge, &response)
-            .is_err()
-        {
-            return Err(Error::VerificationFailure);
-        }
         Ok((commitment, challenge, response))
     }
 
