@@ -225,18 +225,13 @@ impl<G: PrimeGroup> ComposedRelation<G> {
         // Calculate the real challenge by subtracting all simulated challenges
         let (child_states, simulated_challenges, simulated_responses) = prover_state;
 
-        let mut real_challenge = challenge;
-        for some_challenge in simulated_challenges.iter() {
-            if let Some(challenge) = some_challenge {
-                real_challenge -= challenge;
-            }
-        }
+        let real_challenge = challenge - simulated_challenges.iter().flatten().sum::<G::Scalar>();
 
         let it = instances
-            .into_iter()
-            .zip(child_states.into_iter())
-            .zip(simulated_challenges.into_iter())
-            .zip(simulated_responses.into_iter());
+            .iter()
+            .zip(child_states)
+            .zip(simulated_challenges)
+            .zip(simulated_responses);
         for (((i, prover_state), simulated_challenge), simulated_response) in it {
             if let Some(state) = prover_state {
                 // Real case: compute response with real challenge
@@ -310,7 +305,7 @@ impl<G: PrimeGroup> SigmaProtocol for ComposedRelation<G> {
                 ComposedRelation::Simple(p),
                 ComposedCommitment::Simple(c),
                 ComposedResponse::Simple(r),
-            ) => p.verifier(c, &challenge, r),
+            ) => p.verifier(c, challenge, r),
             (
                 ComposedRelation::And(ps),
                 ComposedCommitment::And(commitments),
@@ -328,10 +323,10 @@ impl<G: PrimeGroup> SigmaProtocol for ComposedRelation<G> {
                 let last_challenge = *challenge - challenges.iter().sum::<G::Scalar>();
                 ps.iter()
                     .zip(commitments)
-                    .zip(challenges.into_iter().chain(&Some(last_challenge)))
+                    .zip(challenges.iter().chain(&Some(last_challenge)))
                     .zip(responses)
                     .try_for_each(|(((p, commitment), challenge), response)| {
-                        p.verifier(commitment, &challenge, response)
+                        p.verifier(commitment, challenge, response)
                     })
             }
             _ => Err(Error::InvalidInstanceWitnessPair),
@@ -548,7 +543,7 @@ impl<G: PrimeGroup> SigmaProtocolSimulator for ComposedRelation<G> {
                 let mut challenges = Vec::with_capacity(ps.len());
                 let mut responses = Vec::with_capacity(ps.len());
                 for _ in 0..ps.len() {
-                    challenges.push(G::Scalar::random(&mut *rng).into());
+                    challenges.push(G::Scalar::random(&mut *rng));
                 }
                 for p in ps.iter() {
                     responses.push(p.simulate_response(&mut *rng));
