@@ -5,7 +5,7 @@
 
 #[cfg(test)]
 mod instance_validation {
-    use crate::linear_relation::{CanonicalLinearRelation, LinearRelation};
+    use crate::linear_relation::{CanonicalLinearRelation, LinearRelation, Sum, Term, Weighted};
     use bls12_381::{G1Projective as G, Scalar};
 
     #[test]
@@ -113,14 +113,34 @@ mod instance_validation {
     }
 
     #[test]
-    fn without_witness() {
-        let B = G::generator();
-        let A = G::generator() * Scalar::from(42);
-        let X = G::generator() * Scalar::from(4);
+    fn test_statement_without_witness() {
         let pub_scalar = Scalar::from(42);
+        let A = G::generator();
+        let B = G::generator() * Scalar::from(42);
+        let C = B * pub_scalar + A * Scalar::from(3);
 
-        // The following relation does not have a witness and should trigger a fail.
-        // X = B * pub_scalar + A * 3
+        let X = G::generator() * Scalar::from(4);
+
+        // The following relation is invalid and should trigger a fail.
+        let mut linear_relation = LinearRelation::<G>::new();
+        let B_var = linear_relation.allocate_element();
+        let C_var = linear_relation.allocate_eq(B_var);
+        linear_relation.set_element(B_var, B);
+        linear_relation.set_element(C_var, C);
+        let result = CanonicalLinearRelation::try_from(&linear_relation);
+        assert!(result.is_err());
+
+        // The following relation is valid and should pass.
+        let mut linear_relation = LinearRelation::<G>::new();
+        let B_var = linear_relation.allocate_element();
+        let C_var = linear_relation.allocate_eq(B_var);
+        linear_relation.set_element(B_var, B);
+        linear_relation.set_element(C_var, B);
+        let result = CanonicalLinearRelation::try_from(&linear_relation);
+        assert!(result.is_ok());
+
+        // The following relation is invalid and should trigger a fail.
+        // X != B * pub_scalar + A * 3
         let mut linear_relation = LinearRelation::<G>::new();
         let B_var = linear_relation.allocate_element();
         let A_var = linear_relation.allocate_element();
@@ -132,6 +152,20 @@ mod instance_validation {
 
         let result = CanonicalLinearRelation::try_from(&linear_relation);
         assert!(result.is_err());
+
+        // The following relation is valid and should pass.
+        // C = B * pub_scalar + A * 3
+        let mut linear_relation = LinearRelation::<G>::new();
+        let B_var = linear_relation.allocate_element();
+        let A_var = linear_relation.allocate_element();
+        let C_var = linear_relation.allocate_eq(B_var * pub_scalar + A_var * Scalar::from(3));
+
+        linear_relation.set_element(B_var, B);
+        linear_relation.set_element(A_var, A);
+        linear_relation.set_element(C_var, C);
+
+        let result = CanonicalLinearRelation::try_from(&linear_relation);
+        assert!(result.is_ok());
 
         // The following relation is for
         // X = B * x + B * pub_scalar + A * 3

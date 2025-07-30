@@ -370,14 +370,8 @@ impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
         for (lhs, rhs) in
             iter::zip(&relation.image, &relation.linear_map.linear_combinations)
         {
-
-            // If the linear combination is empty, skip it
-            if rhs.0.is_empty() {
-                continue;
-            }
-
             // If the linear combination is trivial, check it directly and skip processing.
-            if !rhs.0.is_empty() && rhs.0.iter().all(|weighted| matches!(weighted.term.scalar, ScalarTerm::Unit)) {
+            if rhs.0.iter().all(|weighted| matches!(weighted.term.scalar, ScalarTerm::Unit)) {
                 let lhs_value = relation
                     .linear_map
                     .group_elements
