@@ -1,4 +1,3 @@
-
 use std::collections::HashMap;
 use std::iter;
 use std::marker::PhantomData;
@@ -6,9 +5,8 @@ use std::marker::PhantomData;
 use ff::Field;
 use group::prime::PrimeGroup;
 
+use super::{GroupMap, GroupVar, LinearCombination, LinearRelation, ScalarTerm, ScalarVar};
 use crate::errors::{Error, InvalidInstance};
-use super::{ScalarVar, GroupVar, GroupMap, LinearRelation, LinearCombination, ScalarTerm};
-
 
 /// A normalized form of the [`LinearRelation`], which is used for serialization into the transcript.
 ///
@@ -28,6 +26,9 @@ pub struct CanonicalLinearRelation<G: PrimeGroup> {
     pub num_scalars: usize,
 }
 
+/// Private type alias used to simplify function signatures below.
+type WeightedGroupCache<G> = HashMap<GroupVar<G>, Vec<(<G as group::Group>::Scalar, GroupVar<G>)>>;
+
 impl<G: PrimeGroup> CanonicalLinearRelation<G> {
     /// Create a new empty canonical linear relation
     pub fn new() -> Self {
@@ -45,7 +46,7 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
         group_var: GroupVar<G>,
         weight: &G::Scalar,
         original_group_elements: &GroupMap<G>,
-        weighted_group_cache: &mut HashMap<GroupVar<G>, Vec<(G::Scalar, GroupVar<G>)>>,
+        weighted_group_cache: &mut WeightedGroupCache<G>,
     ) -> Result<GroupVar<G>, InvalidInstance> {
         // Check if we already have this (weight, group_var) combination
         let entry = weighted_group_cache.entry(group_var).or_default();
@@ -74,7 +75,7 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
         &image_var: &GroupVar<G>,
         equation: &LinearCombination<G>,
         original_relation: &LinearRelation<G>,
-        weighted_group_cache: &mut HashMap<GroupVar<G>, Vec<(G::Scalar, GroupVar<G>)>>,
+        weighted_group_cache: &mut WeightedGroupCache<G>,
     ) -> Result<(), InvalidInstance> {
         let mut rhs_terms = Vec::new();
 
@@ -367,11 +368,13 @@ impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
         let mut weighted_group_cache = HashMap::new();
 
         // Process each constraint using the modular helper method
-        for (lhs, rhs) in
-            iter::zip(&relation.image, &relation.linear_map.linear_combinations)
-        {
+        for (lhs, rhs) in iter::zip(&relation.image, &relation.linear_map.linear_combinations) {
             // If the linear combination is trivial, check it directly and skip processing.
-            if rhs.0.iter().all(|weighted| matches!(weighted.term.scalar, ScalarTerm::Unit)) {
+            if rhs
+                .0
+                .iter()
+                .all(|weighted| matches!(weighted.term.scalar, ScalarTerm::Unit))
+            {
                 let lhs_value = relation
                     .linear_map
                     .group_elements
@@ -383,22 +386,21 @@ impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
                         .linear_map
                         .group_elements
                         .get(weighted.term.elem)
-                        .unwrap_or_else(|_| panic!("Unassigned group variable in linear combination"))
+                        .unwrap_or_else(|_| {
+                            panic!("Unassigned group variable in linear combination")
+                        })
                         * weighted.weight
                 });
                 if lhs_value != rhs_value {
-                    return Err(InvalidInstance::new("Trivial linear combination does not match image"));
+                    return Err(InvalidInstance::new(
+                        "Trivial linear combination does not match image",
+                    ));
                 } else {
                     continue; // Skip processing trivial constraints
                 }
             }
 
-            canonical.process_constraint(
-                lhs,
-                rhs,
-                relation,
-                &mut weighted_group_cache,
-            )?;
+            canonical.process_constraint(lhs, rhs, relation, &mut weighted_group_cache)?;
         }
 
         Ok(canonical)
