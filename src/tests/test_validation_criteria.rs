@@ -107,7 +107,6 @@ mod instance_validation {
         let narg_string = nizk.prove_batchable(&vec![], rng).unwrap();
         assert!(narg_string.is_empty());
 
-
         let mut relation = LinearRelation::<G>::new();
         let var_B = relation.allocate_element();
         let var_C = relation.allocate_eq(var_B * Scalar::from(1));
