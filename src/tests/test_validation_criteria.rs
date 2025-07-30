@@ -249,9 +249,7 @@ mod proof_validation {
                 // Verification should fail
                 assert!(
                     nizk.verify_batchable(&proof).is_err(),
-                    "Proof verification should fail with bit {} flipped at position {}",
-                    bit,
-                    pos
+                    "Proof verification should fail with bit {bit} flipped at position {pos}"
                 );
 
                 // Restore original byte
@@ -282,8 +280,7 @@ mod proof_validation {
             // Verification should fail
             assert!(
                 nizk.verify_batchable(&proof).is_err(),
-                "Proof verification should fail with {} bytes appended",
-                size
+                "Proof verification should fail with {size} bytes appended"
             );
 
             // Restore original proof
@@ -311,8 +308,7 @@ mod proof_validation {
             // Verification should fail
             assert!(
                 nizk.verify_batchable(&prepended_proof).is_err(),
-                "Proof verification should fail with {} bytes prepended",
-                size
+                "Proof verification should fail with {size} bytes prepended"
             );
         }
     }
@@ -334,8 +330,7 @@ mod proof_validation {
                 // Verification should fail
                 assert!(
                     nizk.verify_batchable(truncated_proof).is_err(),
-                    "Proof verification should fail with {} bytes truncated",
-                    size
+                    "Proof verification should fail with {size} bytes truncated"
                 );
             }
         }
@@ -446,7 +441,7 @@ mod proof_validation {
                 );
             }
             Err(e) => {
-                println!("Proof generation failed as expected: {:?}", e);
+                println!("Proof generation failed as expected: {e:?}");
             }
         }
     }
