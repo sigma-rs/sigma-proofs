@@ -163,6 +163,15 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
         }
 
         // Only include constraints that are non-trivial (not zero constraints)
+        if rhs_terms.is_empty() {
+            if canonical_image.is_identity().into() {
+                return Ok(());
+            }
+            return Err(InvalidInstance::new(
+                "constraint has empty right-hand side and non-identity left-hand side",
+            ));
+        }
+
         self.image.push(canonical_image);
         self.linear_combinations.push(rhs_terms);
 
