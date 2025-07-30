@@ -1,11 +1,10 @@
 use curve25519_dalek::ristretto::RistrettoPoint;
+use group::Group;
 use rand::rngs::OsRng;
 use subtle::CtOption;
 
 use super::test_relations::*;
-use crate::codec::Shake128DuplexSponge;
 use crate::composition::{ComposedRelation, ComposedWitness};
-use crate::fiat_shamir::Nizk;
 use crate::schnorr_protocol::SchnorrProof;
 
 type G = RistrettoPoint;
@@ -24,20 +23,23 @@ fn test_composition_correctness() {
 
     // definitions of the underlying protocols
     let mut rng = OsRng;
-    let (relation1, witness1) = dleq::<G, _>(&mut rng);
-    let (relation2, witness2) = pedersen_commitment::<G, _>(&mut rng);
-    let (relation3, witness3) = discrete_logarithm::<G, _>(&mut rng);
-    let (relation4, witness4) = pedersen_commitment_dleq::<G, _>(&mut rng);
-    let (relation5, witness5) = bbs_blind_commitment::<G, _>(&mut rng);
+    let (relation1, witness1) = dleq(&mut rng);
+    let (relation2, witness2) = pedersen_commitment(&mut rng);
+    let (relation3, witness3) = discrete_logarithm(&mut rng);
+    let (relation4, witness4) = pedersen_commitment_dleq(&mut rng);
+    let (relation5, witness5) = bbs_blind_commitment(&mut rng);
 
+    let wrong_witness2 = (0..witness2.len())
+        .map(|_| <G as Group>::Scalar::random(&mut rng))
+        .collect::<Vec<_>>();
     // second layer protocol definitions
-    let or_protocol1 = ComposedRelation::Or(vec![
+    let or_protocol1 = ComposedRelation::<G>::Or(vec![
         ComposedRelation::Simple(SchnorrProof(relation1)),
         ComposedRelation::Simple(SchnorrProof(relation2)),
     ]);
     let or_witness1 = ComposedWitness::Or(vec![
         CtOption::new(ComposedWitness::Simple(witness1), 1u8.into()),
-        CtOption::new(ComposedWitness::Simple(witness2.clone()), 0u8.into()),
+        CtOption::new(ComposedWitness::Simple(wrong_witness2), 0u8.into()),
     ]);
 
     let simple_protocol1 = ComposedRelation::Simple(SchnorrProof(relation3));
@@ -53,12 +55,10 @@ fn test_composition_correctness() {
     ]);
 
     // definition of the final protocol
-    let protocol = ComposedRelation::And(vec![or_protocol1, simple_protocol1, and_protocol1]);
+    let instance = ComposedRelation::And(vec![or_protocol1, simple_protocol1, and_protocol1]);
     let witness = ComposedWitness::And(vec![or_witness1, simple_witness1, and_witness1]);
 
-    let nizk = Nizk::<ComposedRelation<RistrettoPoint>, Shake128DuplexSponge<G>>::new(
-        domain_sep, protocol,
-    );
+    let nizk = instance.into_nizk(domain_sep);
 
     // Batchable and compact proofs
     let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut OsRng).unwrap();
