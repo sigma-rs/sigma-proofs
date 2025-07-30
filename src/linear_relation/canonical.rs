@@ -27,6 +27,10 @@ pub struct CanonicalLinearRelation<G: PrimeGroup> {
 }
 
 /// Private type alias used to simplify function signatures below.
+///
+/// The cache is essentially a mapping (GroupVar, Scalar) => GroupVar, which maps the original
+/// weighted group vars to a new assignment, such that if a pair appears more than once, it will
+/// map to the same group variable in the canonical linear relation.
 type WeightedGroupCache<G> = HashMap<GroupVar<G>, Vec<(<G as group::Group>::Scalar, GroupVar<G>)>>;
 
 impl<G: PrimeGroup> CanonicalLinearRelation<G> {
@@ -131,7 +135,12 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
     pub fn label(&self) -> Vec<u8> {
         let mut out = Vec::new();
 
-        // Replicate the original LinearRelationReprBuilder ordering behavior
+        // Create an ordered list of unique group element representations. Elements are ordered
+        // based on the order they appear in the canonical linear relation, as seen by the loop
+        // below. Note that this is dependent on the building order in TryFrom<LinearRelation>.
+        // QUESTION: Does anything depend on this order being stable? This seems difficult to
+        // maintain across versions of this library, and changes to the relation definition may
+        // have difficult to predict effects on the order.
         let mut group_repr_mapping: HashMap<Box<[u8]>, u32> = HashMap::new();
         let mut group_elements_ordered = Vec::new();
 
@@ -147,8 +156,9 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
             new_index
         };
 
-        // Build constraint data in the same order as original
-        let mut constraint_data = Vec::new();
+        // Build constraint data in the same order as original, as a nested list of group and
+        // scalar indices. Note that the group indices are into group_elements_ordered.
+        let mut constraint_data = Vec::<(u32, Vec<(u32, u32)>)>::new();
 
         for (image_elem, constraint_terms) in iter::zip(&self.image, &self.linear_combinations) {
             // First, add the left-hand side (image) element
