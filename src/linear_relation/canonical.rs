@@ -26,6 +26,8 @@ pub struct CanonicalLinearRelation<G: PrimeGroup> {
     pub num_scalars: usize,
 }
 
+type GroupExpr<G> = Vec<(<G as group::Group>::Scalar, GroupVar<G>)>;
+
 impl<G: PrimeGroup> CanonicalLinearRelation<G> {
     /// Create a new empty canonical linear relation
     pub fn new() -> Self {
@@ -43,7 +45,7 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
         group_var: GroupVar<G>,
         weight: &G::Scalar,
         original_group_elements: &GroupMap<G>,
-        weighted_group_cache: &mut HashMap<GroupVar<G>, Vec<(G::Scalar, GroupVar<G>)>>,
+        weighted_group_cache: &mut HashMap<GroupVar<G>, GroupExpr<G>>,
     ) -> Result<GroupVar<G>, InvalidInstance> {
         // Check if we already have this (weight, group_var) combination
         let entry = weighted_group_cache.entry(group_var).or_default();
@@ -72,7 +74,7 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
         &image_var: &GroupVar<G>,
         equation: &LinearCombination<G>,
         original_relation: &LinearRelation<G>,
-        weighted_group_cache: &mut HashMap<GroupVar<G>, Vec<(G::Scalar, GroupVar<G>)>>,
+        weighted_group_cache: &mut HashMap<GroupVar<G>, GroupExpr<G>>,
     ) -> Result<(), InvalidInstance> {
         let mut rhs_terms = Vec::new();
 
@@ -301,8 +303,7 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
 
             let elem = Option::<G>::from(G::from_bytes(&repr)).ok_or_else(|| {
                 Error::from(InvalidInstance::new(format!(
-                    "Invalid group element at index {}",
-                    i
+                    "Invalid group element at index {i}"
                 )))
             })?;
 
@@ -351,13 +352,6 @@ impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
             ));
         }
 
-        if !relation
-            .image()
-            .is_ok_and(|img| img.iter().all(|&x| x != G::identity()))
-        {
-            return Err(InvalidInstance::new("Image contains identity element"));
-        }
-
         let mut canonical = CanonicalLinearRelation::new();
         canonical.num_scalars = relation.linear_map.num_scalars;
 
@@ -366,18 +360,18 @@ impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
 
         // Process each constraint using the modular helper method
         for (lhs, rhs) in iter::zip(&relation.image, &relation.linear_map.linear_combinations) {
+            let lhs_value = relation
+                .linear_map
+                .group_elements
+                .get(*lhs)
+                .map_err(|_| InvalidInstance::new("Unassigned group variable in image"))?;
+
             // If the linear combination is trivial, check it directly and skip processing.
             if rhs
                 .0
                 .iter()
                 .all(|weighted| matches!(weighted.term.scalar, ScalarTerm::Unit))
             {
-                let lhs_value = relation
-                    .linear_map
-                    .group_elements
-                    .get(*lhs)
-                    .map_err(|_| InvalidInstance::new("Unassigned group variable in image"))?;
-
                 let rhs_value = rhs.0.iter().fold(G::identity(), |acc, weighted| {
                     acc + relation
                         .linear_map
@@ -395,6 +389,10 @@ impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
                 } else {
                     continue; // Skip processing trivial constraints
                 }
+            }
+
+            if lhs_value == G::identity() {
+                return Err(InvalidInstance::new("Image contains identity element"));
             }
 
             canonical.process_constraint(lhs, rhs, relation, &mut weighted_group_cache)?;

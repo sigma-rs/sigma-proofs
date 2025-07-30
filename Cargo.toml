@@ -26,6 +26,7 @@ num-bigint = "0.4.6"
 num-traits = "0.2.19"
 rand = "0.8.5"
 sha3 = "0.10.8"
+subtle = "2.6.1"
 thiserror = "1"
 keccak = "0.1.5"
 zerocopy = "0.8"
@@ -40,7 +41,6 @@ json = "0.12.4"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
 sha2 = "0.10"
-subtle = "2.6.1"
 
 [profile.dev]
 # Makes tests run much faster at the cost of slightly longer builds and worse debug info.

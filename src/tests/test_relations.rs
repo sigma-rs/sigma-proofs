@@ -1,4 +1,4 @@
-use ff::{Field, PrimeField};
+use ff::Field;
 use group::prime::PrimeGroup;
 use rand::rngs::OsRng;
 use rand::RngCore;
@@ -290,12 +290,12 @@ fn simple_subtractions<G: PrimeGroup, R: RngCore>(
 ) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
     let x = G::Scalar::random(&mut rng);
     let B = G::random(&mut rng);
-    let X = B * (x - G::Scalar::from_u128(1u128));
+    let X = B * (x - G::Scalar::from(1));
 
     let mut linear_relation = LinearRelation::<G>::new();
     let var_x = linear_relation.allocate_scalar();
     let var_B = linear_relation.allocate_element();
-    let var_X = linear_relation.allocate_eq((var_x + (-G::Scalar::from_u128(1u128))) * var_B);
+    let var_X = linear_relation.allocate_eq((var_x + (-G::Scalar::from(1))) * var_B);
     linear_relation.set_element(var_B, B);
     linear_relation.set_element(var_X, X);
 
@@ -314,8 +314,7 @@ fn subtractions_with_shift<G: PrimeGroup, R: RngCore>(
     let mut linear_relation = LinearRelation::<G>::new();
     let var_x = linear_relation.allocate_scalar();
     let var_B = linear_relation.allocate_element();
-    let var_X =
-        linear_relation.allocate_eq((var_x + (-G::Scalar::from_u128(1u128))) * var_B + (-var_B));
+    let var_X = linear_relation.allocate_eq((var_x + (-G::Scalar::from(1))) * var_B + (-var_B));
 
     linear_relation.set_element(var_B, B);
     linear_relation.set_element(var_X, X);

@@ -5,7 +5,7 @@
 
 #[cfg(test)]
 mod instance_validation {
-    use crate::linear_relation::{CanonicalLinearRelation, LinearRelation, Sum, Term, Weighted};
+    use crate::linear_relation::{CanonicalLinearRelation, LinearRelation};
     use bls12_381::{G1Projective as G, Scalar};
 
     #[test]
@@ -30,32 +30,27 @@ mod instance_validation {
     }
 
     #[test]
-    fn test_zero_image_elements() {
+    fn test_zero_image() {
         // Create a linear relation with zero elements in the image
+        // 0 = x * G (which is invalid)
         let mut relation = LinearRelation::<G>::new();
-
-        // Allocate scalars and elements
         let [var_x] = relation.allocate_scalars();
-        let [var_g] = relation.allocate_elements::<1>();
-
-        // Set the group element
-        relation.set_elements([(var_g, G::generator())]);
-
-        // Create an equation that results in zero (identity element)
-        // This simulates a malformed relation where the image contains zero
-        let zero_element = G::identity();
-        let [var_zero] = relation.allocate_elements::<1>();
-        relation.set_elements([(var_zero, zero_element)]);
-
-        // Add equation: 0 = x * G (which is invalid)
-        relation.linear_map.linear_combinations.push(
-            crate::linear_relation::LinearCombination::from(vec![(var_x, var_g)]),
-        );
-        relation.image.push(var_zero);
-
-        // Try to convert to canonical form
+        let [var_G] = relation.allocate_elements();
+        let var_X = relation.allocate_eq(var_G * var_x);
+        relation.set_element(var_G, G::generator());
+        relation.set_element(var_X, G::identity());
         let result = CanonicalLinearRelation::try_from(&relation);
-        assert!(result.is_err())
+        assert!(result.is_err());
+
+        // Create a trivially valid linear relation with zero elements in the image
+        // 0 = 0*B  (which is invalid)
+        let mut relation = LinearRelation::<G>::new();
+        let [var_B] = relation.allocate_elements();
+        let var_X = relation.allocate_eq(var_B * Scalar::from(0));
+        relation.set_element(var_B, G::generator());
+        relation.set_element(var_X, G::identity());
+        let result = CanonicalLinearRelation::try_from(&relation);
+        assert!(result.is_ok());
     }
 
     #[test]
@@ -64,19 +59,20 @@ mod instance_validation {
         use ff::Field;
 
         // This relation should fail for two reasons:
-        // 1. because B is not assigned
+        // 1. because var_B is not assigned
         let mut relation = LinearRelation::<G>::new();
         let x = relation.allocate_scalar();
-        let B = relation.allocate_element();
-        let _eq = relation.allocate_eq((x + (-Scalar::ONE)) * B + (-B));
+        let var_B = relation.allocate_element();
+        let var_X = relation.allocate_eq((x + (-Scalar::ONE)) * var_B + (-var_B));
+        relation.set_element(var_X, G::identity());
         assert!(CanonicalLinearRelation::try_from(&relation).is_err());
 
-        // 2. because the equation is void
+        // 2. because var_X is not assigned
         let mut relation = LinearRelation::<G>::new();
         let x = relation.allocate_scalar();
-        let B = relation.allocate_element();
-        let _eq = relation.allocate_eq((x + (-Scalar::ONE)) * B + (-B));
-        relation.set_element(B, G::generator());
+        let var_B = relation.allocate_element();
+        let _var_X = relation.allocate_eq((x + (-Scalar::ONE)) * var_B + (-var_B));
+        relation.set_element(var_B, G::generator());
         assert!(CanonicalLinearRelation::try_from(&relation).is_err());
     }
 
@@ -110,6 +106,14 @@ mod instance_validation {
         let nizk = relation.into_nizk(b"test_session").unwrap();
         let narg_string = nizk.prove_batchable(&vec![], rng).unwrap();
         assert!(narg_string.is_empty());
+
+
+        let mut relation = LinearRelation::<G>::new();
+        let var_B = relation.allocate_element();
+        let var_C = relation.allocate_eq(var_B * Scalar::from(1));
+        relation.set_element(var_B, G::generator());
+        relation.set_element(var_C, G::generator());
+        assert!(CanonicalLinearRelation::try_from(&relation).is_ok());
     }
 
     #[test]
@@ -197,6 +201,7 @@ mod proof_validation {
     use bls12_381::{G1Projective as G, Scalar};
     use ff::Field;
     use rand::{thread_rng, RngCore};
+    use subtle::CtOption;
 
     type TestNizk = Nizk<SchnorrProof<G>, KeccakByteSchnorrCodec<G>>;
 
@@ -406,18 +411,27 @@ mod proof_validation {
             ComposedRelation::from(lr2),
         ]);
 
-        // The issue from sigma_compiler: the witness is always using branch 0
-        // even when branch 1 should be used
-        let witness_wrong = ComposedWitness::Or(
-            1, // Always using branch 0
-            vec![
-                ComposedWitness::Simple(vec![x]),
-                ComposedWitness::Simple(vec![y]),
-            ],
+        let nizk = Nizk::<_, KeccakByteSchnorrCodec<G>>::new(b"test_or_bug", or_relation);
+
+        // Create a correct witness for branch 1 (C = y*B)
+        let witness_correct = ComposedWitness::Or(vec![
+            CtOption::new(ComposedWitness::Simple(vec![x]), 0u8.into()), // branch 0 not used
+            CtOption::new(ComposedWitness::Simple(vec![y]), 1u8.into()), // branch 1 is real
+        ]);
+
+        // This should succeed since branch 1 is correct
+        let proof = nizk.prove_batchable(&witness_correct, &mut rng).unwrap();
+        assert!(
+            nizk.verify_batchable(&proof).is_ok(),
+            "Valid proof should verify"
         );
 
-        // Test the bug: using branch 0 when C = y*B (branch 1 should be used)
-        let nizk = Nizk::<_, KeccakByteSchnorrCodec<G>>::new(b"test_or_bug", or_relation);
+        // Now test with wrong witness: using branch 0 when it's not satisfied
+        // Branch 0 requires C = x*A, but C = y*B and A ≠ B, so x would need to be y/42
+        let witness_wrong = ComposedWitness::Or(vec![
+            CtOption::new(ComposedWitness::Simple(vec![x]), 1u8.into()), // branch 0 is real (but wrong!)
+            CtOption::new(ComposedWitness::Simple(vec![y]), 0u8.into()), // branch 1 not used
+        ]);
         let proof_result = nizk.prove_batchable(&witness_wrong, &mut rng);
 
         match proof_result {
