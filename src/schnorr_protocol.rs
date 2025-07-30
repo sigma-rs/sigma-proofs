@@ -158,7 +158,7 @@ impl<G: PrimeGroup> SigmaProtocol for SchnorrProof<G> {
         prover_state: Self::ProverState,
         challenge: &Self::Challenge,
     ) -> Result<Self::Response, Error> {
-        let (nonces, witness) = prover_state;
+        let ProverState(nonces, witness) = prover_state;
 
         let responses = nonces
             .into_iter()
