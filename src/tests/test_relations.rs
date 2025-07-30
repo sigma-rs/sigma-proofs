@@ -305,10 +305,10 @@ fn simple_subtractions<G: PrimeGroup, R: RngCore>(
 }
 
 fn subtractions_with_shift<G: PrimeGroup, R: RngCore>(
-    mut rng: &mut R,
+    rng: &mut R,
 ) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
     let B = G::generator();
-    let x = G::Scalar::random(&mut rng);
+    let x = G::Scalar::random(rng);
     let X = B * (x - G::Scalar::from(2));
 
     let mut linear_relation = LinearRelation::<G>::new();
@@ -444,11 +444,10 @@ fn test_cmz_wallet_with_fee() {
 fn test_relations() {
     use group::Group;
     type G = bls12_381::G1Projective;
+    type RelationGenerator<G> =
+        Box<dyn Fn(&mut OsRng) -> (CanonicalLinearRelation<G>, Vec<<G as Group>::Scalar>)>;
 
-    let instance_generators: Vec<(
-        &str,
-        Box<dyn Fn(&mut OsRng) -> (CanonicalLinearRelation<G>, Vec<<G as Group>::Scalar>)>,
-    )> = vec![
+    let instance_generators: Vec<(&str, RelationGenerator<G>)> = vec![
         ("dlog", Box::new(discrete_logarithm)),
         ("shifted_dlog", Box::new(shifted_dlog)),
         ("dleq", Box::new(dleq)),
@@ -488,12 +487,12 @@ fn test_relations() {
         let nizk = Nizk::<SchnorrProof<G>, Shake128DuplexSponge<G>>::new(&domain_sep, protocol);
 
         // Test both proof types
-        let proof_batchable = nizk.prove_batchable(&witness, &mut OsRng).expect(&format!(
-            "Failed to create batchable proof for {relation_name}"
-        ));
-        let proof_compact = nizk.prove_compact(&witness, &mut OsRng).expect(&format!(
-            "Failed to create compact proof for {relation_name}"
-        ));
+        let proof_batchable = nizk
+            .prove_batchable(&witness, &mut OsRng)
+            .unwrap_or_else(|_| panic!("Failed to create batchable proof for {relation_name}"));
+        let proof_compact = nizk
+            .prove_compact(&witness, &mut OsRng)
+            .unwrap_or_else(|_| panic!("Failed to create compact proof for {relation_name}"));
 
         // Verify both proof types
         assert!(

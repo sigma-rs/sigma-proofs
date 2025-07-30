@@ -102,7 +102,7 @@ pub enum ComposedWitness<G: PrimeGroup> {
 type ComposedChallenge<G> = <SchnorrProof<G> as SigmaProtocol>::Challenge;
 
 const fn composed_challenge_size<G: PrimeGroup>() -> usize {
-    (G::Scalar::NUM_BITS as usize + 7) / 8
+    (G::Scalar::NUM_BITS as usize).div_ceil(8)
 }
 
 impl<G: PrimeGroup> ComposedRelation<G> {
