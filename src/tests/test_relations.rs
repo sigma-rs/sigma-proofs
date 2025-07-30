@@ -6,7 +6,6 @@ use rand::RngCore;
 use crate::codec::Shake128DuplexSponge;
 use crate::fiat_shamir::Nizk;
 use crate::linear_relation::CanonicalLinearRelation;
-use crate::schnorr_protocol::SchnorrProof;
 
 use crate::linear_relation::{LinearRelation, VariableMultiScalarMul};
 

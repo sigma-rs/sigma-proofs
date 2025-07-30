@@ -31,7 +31,6 @@ use crate::{
     errors::Error,
     fiat_shamir::Nizk,
     linear_relation::LinearRelation,
-    schnorr_protocol::SchnorrProof,
     serialization::{deserialize_scalars, serialize_scalars},
     traits::{SigmaProtocol, SigmaProtocolSimulator},
 };

@@ -206,7 +206,6 @@ mod proof_validation {
     use crate::composition::{ComposedRelation, ComposedWitness};
     use crate::fiat_shamir::Nizk;
     use crate::linear_relation::{CanonicalLinearRelation, LinearRelation};
-    use crate::schnorr_protocol::SchnorrProof;
     use bls12_381::{G1Projective as G, Scalar};
     use ff::Field;
     use rand::{thread_rng, RngCore};

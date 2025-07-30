@@ -16,7 +16,6 @@ use group::prime::PrimeGroup;
 
 use crate::codec::Shake128DuplexSponge;
 use crate::errors::{Error, InvalidInstance};
-use crate::schnorr_protocol::SchnorrProof;
 use crate::Nizk;
 
 /// Implementations of conversion operations such as From and FromIterator for var and term types.
