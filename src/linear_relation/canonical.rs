@@ -314,8 +314,7 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
 
             let elem = Option::<G>::from(G::from_bytes(&repr)).ok_or_else(|| {
                 Error::from(InvalidInstance::new(format!(
-                    "Invalid group element at index {}",
-                    i
+                    "Invalid group element at index {i}"
                 )))
             })?;
 
