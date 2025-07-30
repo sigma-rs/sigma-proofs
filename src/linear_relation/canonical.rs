@@ -163,6 +163,8 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
         }
 
         // Only include constraints that are non-trivial (not zero constraints)
+        // QUESTION: Should this actually be done? In the 0 = [] case, this seems to be no loss. In
+        // the error case, this precludes including an always-false OR branch.
         if rhs_terms.is_empty() {
             if canonical_image.is_identity().into() {
                 return Ok(());
