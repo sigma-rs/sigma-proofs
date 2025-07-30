@@ -24,14 +24,12 @@ impl<G: PrimeGroup> From<CanonicalLinearRelation<G>> for DeterministicSchnorrPro
     }
 }
 
-impl<G: PrimeGroup> DeterministicSchnorrProof<G> {}
-
 impl<G: SRandom + PrimeGroup> SigmaProtocol for DeterministicSchnorrProof<G> {
-    type Commitment = Vec<G>;
-    type ProverState = (Vec<G::Scalar>, Vec<G::Scalar>);
-    type Response = Vec<G::Scalar>;
-    type Witness = Vec<G::Scalar>;
-    type Challenge = G::Scalar;
+    type Commitment = <SchnorrProof<G> as SigmaProtocol>::Commitment;
+    type ProverState = <SchnorrProof<G> as SigmaProtocol>::ProverState;
+    type Response = <SchnorrProof<G> as SigmaProtocol>::Response;
+    type Witness = <SchnorrProof<G> as SigmaProtocol>::Witness;
+    type Challenge = <SchnorrProof<G> as SigmaProtocol>::Challenge;
 
     fn prover_commit(
         &self,
