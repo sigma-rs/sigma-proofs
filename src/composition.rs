@@ -74,13 +74,14 @@ pub enum ComposedCommitment<G: PrimeGroup> {
 pub enum ComposedProverState<G: PrimeGroup> {
     Simple(<SchnorrProof<G> as SigmaProtocol>::ProverState),
     And(Vec<ComposedProverState<G>>),
-    Or {
-        real_index: CtOption<u64>,
-        states: Vec<ComposedProverState<G>>,
-        challenges: Vec<ComposedChallenge<G>>,
-        responses: Vec<ComposedResponse<G>>,
-    },
+    Or(ComposedOrProverState<G>),
 }
+
+type ComposedOrProverState<G> = (
+    Vec<Option<ComposedProverState<G>>>,
+    Vec<Option<ComposedChallenge<G>>>,
+    Vec<Option<ComposedResponse<G>>>,
+);
 
 // Structure representing the Response type of Protocol as SigmaProtocol
 #[derive(Clone)]
@@ -91,7 +92,6 @@ pub enum ComposedResponse<G: PrimeGroup> {
 }
 
 // Structure representing the Witness type of Protocol as SigmaProtocol
-#[derive(Clone)]
 #[derive(Clone)]
 pub enum ComposedWitness<G: PrimeGroup> {
     Simple(<SchnorrProof<G> as SigmaProtocol>::Witness),
@@ -106,8 +106,7 @@ const fn composed_challenge_size<G: PrimeGroup>() -> usize {
 }
 
 impl<G: PrimeGroup> ComposedRelation<G> {
-    // Private helper methods for Simple case
-    fn prover_commit_simple_impl(
+    fn prover_commit_simple(
         protocol: &SchnorrProof<G>,
         witness: &<SchnorrProof<G> as SigmaProtocol>::Witness,
         rng: &mut (impl rand::Rng + rand::CryptoRng),
@@ -120,8 +119,8 @@ impl<G: PrimeGroup> ComposedRelation<G> {
         })
     }
 
-    fn prover_response_simple_impl(
-        protocol: &SchnorrProof<G>,
+    fn prover_response_simple(
+        instance: &SchnorrProof<G>,
         state: <SchnorrProof<G> as SigmaProtocol>::ProverState,
         challenge: &<SchnorrProof<G> as SigmaProtocol>::Challenge,
     ) -> Result<ComposedResponse<G>, Error> {
@@ -130,8 +129,7 @@ impl<G: PrimeGroup> ComposedRelation<G> {
             .map(ComposedResponse::Simple)
     }
 
-    // Private helper methods for And case
-    fn prover_commit_and_impl(
+    fn prover_commit_and(
         protocols: &[ComposedRelation<G>],
         witnesses: &[ComposedWitness<G>],
         rng: &mut (impl rand::Rng + rand::CryptoRng),
@@ -155,9 +153,9 @@ impl<G: PrimeGroup> ComposedRelation<G> {
         ))
     }
 
-    fn prover_response_and_impl(
-        protocols: &[ComposedRelation<G>],
-        states: Vec<ComposedProverState<G>>,
+    fn prover_response_and(
+        instances: &[ComposedRelation<G>],
+        prover_state: Vec<ComposedProverState<G>>,
         challenge: &ComposedChallenge<G>,
     ) -> Result<ComposedResponse<G>, Error> {
         if instances.len() != prover_state.len() {
@@ -173,9 +171,8 @@ impl<G: PrimeGroup> ComposedRelation<G> {
         Ok(ComposedResponse::And(responses?))
     }
 
-    // Private helper methods for Or case
-    fn prover_commit_or_impl(
-        protocols: &[ComposedRelation<G>],
+    fn prover_commit_or(
+        instances: &[ComposedRelation<G>],
         witnesses: &[CtOption<ComposedWitness<G>>],
         rng: &mut (impl rand::Rng + rand::CryptoRng),
     ) -> Result<(ComposedCommitment<G>, ComposedProverState<G>), Error> {
@@ -183,174 +180,72 @@ impl<G: PrimeGroup> ComposedRelation<G> {
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
-        // Find which witness is real (if any)
-        let mut real_idx = None;
-        for (i, w_opt) in witnesses.iter().enumerate() {
-            if w_opt.is_some().unwrap_u8() == 1 {
-                real_idx = Some(i);
-                break;
+        let mut simulated_challenges = Vec::new();
+        let mut simulated_responses = Vec::new();
+        let mut commitments = Vec::<ComposedCommitment<G>>::with_capacity(instances.len());
+        let mut prover_states = Vec::new();
+
+        for (i, witness) in witnesses.iter().enumerate() {
+            // let (simulated_commitment, simulated_challenge, simulated_response) = instances[i].simulate_transcript(rng)?;
+            let witness = witness.clone().into_option();
+            match witness {
+                Some(w) => {
+                    let (commitment, prover_state) = instances[i].prover_commit(&w, rng)?;
+                    commitments.push(commitment);
+                    prover_states.push(Some(prover_state));
+                    simulated_challenges.push(None);
+                    simulated_responses.push(None);
+                }
+                None => {
+                    let (simulated_commitment, simulated_challenge, simulated_response) =
+                        instances[i].simulate_transcript(rng)?;
+                    commitments.push(simulated_commitment);
+                    prover_states.push(None);
+                    simulated_challenges.push(Some(simulated_challenge));
+                    simulated_responses.push(Some(simulated_response));
+                }
             }
         }
-
-        let mut commitments = Vec::with_capacity(protocols.len());
-        let mut states = Vec::with_capacity(protocols.len());
-        let mut challenges = Vec::with_capacity(protocols.len());
-        let mut responses = Vec::with_capacity(protocols.len());
-
-        // Process each protocol
-        for (i, p) in protocols.iter().enumerate() {
-            if real_idx == Some(i) {
-                // Real case: generate commitment and state
-                // Use a separate function to handle the witness extraction
-                // For the real witness, we need to clone it to avoid moving from borrowed reference
-                let w = witnesses[i].clone().unwrap();
-                let (c, s) = p.prover_commit(&w, rng)?;
-                commitments.push(c);
-                states.push(s);
-                challenges.push(G::Scalar::ZERO);
-                responses.push(p.simulate_response(rng));
-            } else {
-                // Simulated case: generate full transcript
-                let (c, ch, r) = p.simulate_transcript(rng)?;
-                commitments.push(c);
-                // Create a dummy state
-                let dummy_state = match p {
-                    ComposedRelation::Simple(_) => ComposedProverState::Simple((vec![], vec![])),
-                    ComposedRelation::And(_) => ComposedProverState::And(vec![]),
-                    ComposedRelation::Or(_) => ComposedProverState::Or {
-                        real_index: CtOption::new(0u64, 0u8.into()),
-                        states: vec![],
-                        challenges: vec![],
-                        responses: vec![],
-                    },
-                };
-                states.push(dummy_state);
-                challenges.push(ch);
-                responses.push(r);
-            }
-        }
-
+        let prover_state: ComposedOrProverState<G> =
+            (prover_states, simulated_challenges, simulated_responses);
         Ok((
             ComposedCommitment::Or(commitments),
-            ComposedProverState::Or {
-                real_index: CtOption::new(
-                    real_idx.map(|i| i as u64).unwrap_or(0),
-                    if real_idx.is_some() {
-                        1u8.into()
-                    } else {
-                        0u8.into()
-                    },
-                ),
-                states,
-                challenges,
-                responses,
-            },
+            ComposedProverState::Or(prover_state),
         ))
     }
 
-    fn prover_response_or_impl(
-        protocols: &[ComposedRelation<G>],
-        real_index: CtOption<u64>,
-        states: Vec<ComposedProverState<G>>,
-        pre_challenges: Vec<ComposedChallenge<G>>,
-        pre_responses: Vec<ComposedResponse<G>>,
-        challenge: &ComposedChallenge<G>,
+    fn prover_response_or(
+        instances: &[ComposedRelation<G>],
+        prover_state: ComposedOrProverState<G>,
+        &challenge: &ComposedChallenge<G>,
     ) -> Result<ComposedResponse<G>, Error> {
-        let mut final_challenges = Vec::with_capacity(protocols.len());
-        let mut final_responses = Vec::with_capacity(protocols.len());
+        let mut result_challenges = Vec::with_capacity(instances.len());
+        let mut result_responses = Vec::with_capacity(instances.len());
 
         // Calculate the real challenge by subtracting all simulated challenges
-        let mut real_challenge = *challenge;
-        let real_idx_value = if real_index.is_some().unwrap_u8() == 1 {
-            let idx = real_index.unwrap() as usize;
-            for (i, ch) in pre_challenges.iter().enumerate() {
-                if i != idx {
-                    real_challenge -= ch;
-                }
-            }
-            Some(idx)
-        } else {
-            None
-        };
+        let (child_states, simulated_challenges, simulated_responses) = prover_state;
 
-        // Process each protocol
-        for (i, p) in protocols.iter().enumerate() {
-            if real_idx_value == Some(i) {
+        let real_challenge = challenge - simulated_challenges.iter().flatten().sum::<G::Scalar>();
+
+        let it = instances
+            .iter()
+            .zip(child_states)
+            .zip(simulated_challenges)
+            .zip(simulated_responses);
+        for (((i, prover_state), simulated_challenge), simulated_response) in it {
+            if let Some(state) = prover_state {
                 // Real case: compute response with real challenge
-                let resp = p.prover_response(states[i].clone(), &real_challenge)?;
-                final_challenges.push(real_challenge);
-                final_responses.push(resp);
+                let response = i.prover_response(state, &real_challenge)?;
+                result_challenges.push(real_challenge);
+                result_responses.push(response);
             } else {
-                // Simulated case: use pre-computed values
-                final_challenges.push(pre_challenges[i]);
-                final_responses.push(pre_responses[i].clone());
+                result_challenges.push(simulated_challenge.unwrap());
+                result_responses.push(simulated_response.unwrap());
             }
         }
+        result_challenges.pop();
 
-        Ok(ComposedResponse::Or(final_challenges, final_responses))
-    }
-    /// Handle the Simple case for prover_commit
-    fn prover_commit_simple(
-        protocol: &SchnorrProof<G>,
-        witness: &<SchnorrProof<G> as SigmaProtocol>::Witness,
-        rng: &mut (impl rand::Rng + rand::CryptoRng),
-    ) -> Result<(ComposedCommitment<G>, ComposedProverState<G>), Error> {
-        Self::prover_commit_simple_impl(protocol, witness, rng)
-    }
-
-    /// Handle the Simple case for prover_response
-    fn prover_response_simple(
-        protocol: &SchnorrProof<G>,
-        state: <SchnorrProof<G> as SigmaProtocol>::ProverState,
-        challenge: &<SchnorrProof<G> as SigmaProtocol>::Challenge,
-    ) -> Result<ComposedResponse<G>, Error> {
-        Self::prover_response_simple_impl(protocol, state, challenge)
-    }
-
-    /// Handle the And case for prover_commit
-    fn prover_commit_and(
-        protocols: &[ComposedRelation<G>],
-        witnesses: &[ComposedWitness<G>],
-        rng: &mut (impl rand::Rng + rand::CryptoRng),
-    ) -> Result<(ComposedCommitment<G>, ComposedProverState<G>), Error> {
-        Self::prover_commit_and_impl(protocols, witnesses, rng)
-    }
-
-    /// Handle the And case for prover_response
-    fn prover_response_and(
-        protocols: &[ComposedRelation<G>],
-        states: Vec<ComposedProverState<G>>,
-        challenge: &ComposedChallenge<G>,
-    ) -> Result<ComposedResponse<G>, Error> {
-        Self::prover_response_and_impl(protocols, states, challenge)
-    }
-
-    /// Handle the Or case for prover_commit
-    fn prover_commit_or(
-        protocols: &[ComposedRelation<G>],
-        witnesses: &[CtOption<ComposedWitness<G>>],
-        rng: &mut (impl rand::Rng + rand::CryptoRng),
-    ) -> Result<(ComposedCommitment<G>, ComposedProverState<G>), Error> {
-        Self::prover_commit_or_impl(protocols, witnesses, rng)
-    }
-
-    /// Handle the Or case for prover_response
-    fn prover_response_or(
-        protocols: &[ComposedRelation<G>],
-        real_index: CtOption<u64>,
-        states: Vec<ComposedProverState<G>>,
-        pre_challenges: Vec<ComposedChallenge<G>>,
-        pre_responses: Vec<ComposedResponse<G>>,
-        challenge: &ComposedChallenge<G>,
-    ) -> Result<ComposedResponse<G>, Error> {
-        Self::prover_response_or_impl(
-            protocols,
-            real_index,
-            states,
-            pre_challenges,
-            pre_responses,
-            challenge,
-        )
+        Ok(ComposedResponse::Or(result_challenges, result_responses))
     }
 }
 
@@ -392,15 +287,9 @@ impl<G: PrimeGroup> SigmaProtocol for ComposedRelation<G> {
             (ComposedRelation::And(instances), ComposedProverState::And(prover_state)) => {
                 Self::prover_response_and(instances, prover_state, challenge)
             }
-            (
-                ComposedRelation::Or(ps),
-                ComposedProverState::Or {
-                    real_index,
-                    states,
-                    challenges,
-                    responses,
-                },
-            ) => Self::prover_response_or(ps, real_index, states, challenges, responses, challenge),
+            (ComposedRelation::Or(instances), ComposedProverState::Or(prover_state)) => {
+                Self::prover_response_or(instances, prover_state, challenge)
+            }
             _ => Err(Error::InvalidInstanceWitnessPair),
         }
     }
