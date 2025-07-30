@@ -371,7 +371,6 @@ impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
 
         // Process each constraint using the modular helper method
         for (lhs, rhs) in iter::zip(&relation.image, &relation.linear_map.linear_combinations) {
-
             let lhs_value = relation
                 .linear_map
                 .group_elements
@@ -384,7 +383,6 @@ impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
                 .iter()
                 .all(|weighted| matches!(weighted.term.scalar, ScalarTerm::Unit))
             {
-
                 let rhs_value = rhs.0.iter().fold(G::identity(), |acc, weighted| {
                     acc + relation
                         .linear_map
