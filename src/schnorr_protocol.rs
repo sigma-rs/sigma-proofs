@@ -27,6 +27,8 @@ use rand::{CryptoRng, Rng, RngCore};
 #[derive(Clone, Default, Debug)]
 pub struct SchnorrProof<G: PrimeGroup>(pub CanonicalLinearRelation<G>);
 
+struct ProverState<G: PrimeGroup>(Vec<G::Scalar>, Vec<G::Scalar>);
+
 impl<G: PrimeGroup> SchnorrProof<G> {
     pub fn witness_length(&self) -> usize {
         self.0.num_scalars
@@ -58,7 +60,7 @@ impl<G: PrimeGroup> SchnorrProof<G> {
         &self,
         witness: &[G::Scalar],
         nonces: &[G::Scalar],
-    ) -> Result<(Vec<G>, (Vec<G::Scalar>, Vec<G::Scalar>)), Error> {
+    ) -> Result<(Vec<G>, ProverState<G>), Error> {
         if witness.len() != self.witness_length() {
             return Err(Error::InvalidInstanceWitnessPair);
         }
@@ -79,7 +81,7 @@ impl<G: PrimeGroup> SchnorrProof<G> {
         }
 
         let commitment = self.evaluate(nonces)?;
-        let prover_state = (nonces.to_vec(), witness.to_vec());
+        let prover_state = ProverState(nonces.to_vec(), witness.to_vec());
         Ok((commitment, prover_state))
     }
 }
@@ -98,7 +100,7 @@ where
     G: PrimeGroup,
 {
     type Commitment = Vec<G>;
-    type ProverState = (Vec<G::Scalar>, Vec<G::Scalar>);
+    type ProverState = ProverState<G>;
     type Response = Vec<G::Scalar>;
     type Witness = Vec<G::Scalar>;
     type Challenge = G::Scalar;
@@ -159,7 +161,7 @@ where
         prover_state: Self::ProverState,
         challenge: &Self::Challenge,
     ) -> Result<Self::Response, Error> {
-        let (nonces, witness) = prover_state;
+        let ProverState(nonces, witness) = prover_state;
 
         if nonces.len() != self.witness_length() || witness.len() != self.witness_length() {
             return Err(Error::InvalidInstanceWitnessPair);

@@ -8,8 +8,8 @@
 //! - [`LinearMap`]: a collection of linear combinations acting on group elements.
 //! - [`LinearRelation`]: a higher-level structure managing linear maps and their associated images.
 
-use std::marker::PhantomData;
 use std::iter;
+use std::marker::PhantomData;
 
 use ff::Field;
 use group::prime::PrimeGroup;
@@ -23,7 +23,6 @@ use crate::Nizk;
 mod convert;
 /// Implementations of core ops for the linear combination types.
 mod ops;
-
 
 /// Implementation of canonical linear relation.
 mod canonical;

@@ -76,7 +76,6 @@ pub enum ComposedCommitment<G: PrimeGroup> {
 }
 
 // Structure representing the ProverState type of Protocol as SigmaProtocol
-#[derive(Clone)]
 pub enum ComposedProverState<G: PrimeGroup> {
     Simple(<SchnorrProof<G> as SigmaProtocol>::ProverState),
     And(Vec<ComposedProverState<G>>),
@@ -175,7 +174,7 @@ impl<G: PrimeGroup> SigmaProtocol for ComposedRelation<G> {
     fn prover_response(
         &self,
         state: Self::ProverState,
-        challenge: &Self::Challenge,
+        mut challenge: &Self::Challenge,
     ) -> Result<Self::Response, Error> {
         match (self, state) {
             (ComposedRelation::Simple(p), ComposedProverState::Simple(state)) => p
@@ -201,17 +200,12 @@ impl<G: PrimeGroup> SigmaProtocol for ComposedRelation<G> {
                     (simulated_challenges, simulated_responses),
                 ),
             ) => {
-                let mut challenges = Vec::with_capacity(ps.len());
-                let mut responses = Vec::with_capacity(ps.len());
-
-                let mut real_challenge = *challenge;
-                for ch in &simulated_challenges {
-                    real_challenge -= ch;
-                }
-                let real_response =
-                    ps[w_index].prover_response(real_state[0].clone(), &real_challenge)?;
+                let n = ps.len();
+                let mut challenges = Vec::with_capacity(n);
+                let mut responses = Vec::with_capacity(n);
 
                 for (i, _) in ps.iter().enumerate() {
+                    ps
                     if i == w_index {
                         challenges.push(real_challenge);
                         responses.push(real_response.clone());
