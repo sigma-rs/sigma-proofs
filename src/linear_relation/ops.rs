@@ -552,13 +552,13 @@ mod sub {
             impl<G, Rhs> Sub<Rhs> for $type
             where
                 Rhs: Neg,
-                <Rhs as Neg>::Output: Add<Self>,
+                Self: Add<<Rhs as Neg>::Output>,
             {
-                type Output = <<Rhs as Neg>::Output as Add<Self>>::Output;
+                type Output = <Self as Add<<Rhs as Neg>::Output>>::Output;
 
                 #[allow(clippy::suspicious_arithmetic_impl)]
                 fn sub(self, rhs: Rhs) -> Self::Output {
-                    rhs.neg() + self
+                    self + rhs.neg()
                 }
             }
             )+
@@ -788,6 +788,18 @@ mod tests {
         assert_eq!(diff.terms()[0].weight, -Scalar::ONE);
         assert_eq!(diff.terms()[1].term, x.into());
         assert_eq!(diff.terms()[1].weight, Scalar::ONE);
+    }
+
+    #[test]
+    fn test_scalar_var_subtraction_by_scalar() {
+        let x = scalar_var(0);
+
+        let diff = x - Scalar::ONE;
+        assert_eq!(diff.terms().len(), 2);
+        assert_eq!(diff.terms()[0].term, ScalarTerm::Var(x));
+        assert_eq!(diff.terms()[0].weight, Scalar::ONE);
+        assert_eq!(diff.terms()[1].term, ScalarTerm::Unit);
+        assert_eq!(diff.terms()[1].weight, -Scalar::ONE);
     }
 
     #[test]
