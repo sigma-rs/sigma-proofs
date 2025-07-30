@@ -160,7 +160,7 @@ impl<G: PrimeGroup> GroupMap<G> {
 
     /// Get the element value assigned to the given point var.
     ///
-    /// Returns [`Error::UnassignedGroupVar`] if a value is not assigned.
+    /// Returns [`InvalidInstance`] if a value is not assigned.
     pub fn get(&self, var: GroupVar<G>) -> Result<G, InvalidInstance> {
         match self.0.get(var.0) {
             Some(Some(elem)) => Ok(*elem),
