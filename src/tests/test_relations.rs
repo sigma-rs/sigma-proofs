@@ -370,7 +370,6 @@ fn cmz_wallet_spend_relation<G: PrimeGroup, R: RngCore>(
     (instance, witness)
 }
 
-
 fn nested_affine_relation<G: PrimeGroup, R: RngCore>(
     mut rng: &mut R,
 ) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
@@ -394,7 +393,6 @@ fn nested_affine_relation<G: PrimeGroup, R: RngCore>(
     let instance = CanonicalLinearRelation::try_from(&instance).unwrap();
     (instance, witness)
 }
-
 
 #[test]
 fn test_cmz_wallet_with_fee() {
