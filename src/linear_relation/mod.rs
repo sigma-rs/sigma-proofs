@@ -118,23 +118,24 @@ pub type LinearCombination<G> = Sum<Weighted<Term<G>, <G as group::Group>::Scala
 
 impl<G: PrimeGroup> LinearMap<G> {
     fn map(&self, scalars: &[G::Scalar]) -> Result<Vec<G>, InvalidInstance> {
-        self.linear_combinations.iter().map(
-            |lc| {
-             let weighted_coefficients =
-                lc.0.iter()
-                    .map(|weighted| weighted.term.scalar.value(scalars) * weighted.weight)
-                    .collect::<Vec<_>>();
-            let elements =
-                lc.0.iter()
-                    .map(|weighted| self.group_elements.get(weighted.term.elem))
-                    .collect::<Result<Vec<_>, InvalidInstance>>();
-            match elements {
-                Ok(elements) => Ok(msm_pr(&weighted_coefficients, &elements)),
-                Err(error) => Err(error),
-            }
-            }
-        ).
-    collect::<Result<Vec<_>, InvalidInstance>>().into()
+        self.linear_combinations
+            .iter()
+            .map(|lc| {
+                let weighted_coefficients =
+                    lc.0.iter()
+                        .map(|weighted| weighted.term.scalar.value(scalars) * weighted.weight)
+                        .collect::<Vec<_>>();
+                let elements =
+                    lc.0.iter()
+                        .map(|weighted| self.group_elements.get(weighted.term.elem))
+                        .collect::<Result<Vec<_>, InvalidInstance>>();
+                match elements {
+                    Ok(elements) => Ok(msm_pr(&weighted_coefficients, &elements)),
+                    Err(error) => Err(error),
+                }
+            })
+            .collect::<Result<Vec<_>, InvalidInstance>>()
+            .into()
     }
 }
 
@@ -489,11 +490,7 @@ impl<G: PrimeGroup> LinearRelation<G> {
 
         let mapped_scalars = self.linear_map.map(scalars)?;
 
-        for (mapped_scalar, lhs) in iter::zip(
-            mapped_scalars,
-            &self.image,
-        ) {
-
+        for (mapped_scalar, lhs) in iter::zip(mapped_scalars, &self.image) {
             self.linear_map
                 .group_elements
                 .assign_element(*lhs, mapped_scalar)

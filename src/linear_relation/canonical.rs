@@ -13,6 +13,9 @@ use crate::errors::{Error, InvalidInstance};
 /// This struct represents a normalized form of a linear relation where each
 /// constraint is of the form: image_i = Σ (scalar_j * group_element_k)
 /// without weights or extra scalars.
+///
+/// XXX. this definition is uncomfortably similar to LinearRelation, exception made for the weights.
+/// It'd be nice to squash the two together.
 #[derive(Clone, Debug, Default)]
 pub struct CanonicalLinearRelation<G: PrimeGroup> {
     /// The image group elements (left-hand side of equations)
@@ -35,13 +38,29 @@ type WeightedGroupCache<G> = HashMap<GroupVar<G>, Vec<(<G as group::Group>::Scal
 
 impl<G: PrimeGroup> CanonicalLinearRelation<G> {
     /// Create a new empty canonical linear relation
-    pub fn new() -> Self {
+    fn new() -> Self {
         Self {
             image: Vec::new(),
             linear_combinations: Vec::new(),
             group_elements: GroupMap::default(),
             num_scalars: 0,
         }
+    }
+
+    /// Evaluate the canonical linear relation with the provided scalars
+    pub fn evaluate(&self, scalars: &[G::Scalar]) -> Result<Vec<G>, Error> {
+        self.linear_combinations
+            .iter()
+            .map(|constraint| {
+                let mut result = G::identity();
+                for (scalar_var, group_var) in constraint {
+                    let scalar_val = scalars[scalar_var.index()];
+                    let group_val = self.group_elements.get(*group_var)?;
+                    result += group_val * scalar_val;
+                }
+                Ok(result)
+            })
+            .collect()
     }
 
     /// Get or create a GroupVar for a weighted group element, with deduplication
@@ -378,11 +397,10 @@ impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
                 .map_err(|_| InvalidInstance::new("Unassigned group variable in image"))?;
 
             // If the linear combination is trivial, check it directly and skip processing.
-            if rhs
-                .0
-                .iter()
-                .all(|weighted| matches!(weighted.term.scalar, ScalarTerm::Unit) || weighted.weight.is_zero_vartime())
-            {
+            if rhs.0.iter().all(|weighted| {
+                matches!(weighted.term.scalar, ScalarTerm::Unit)
+                    || weighted.weight.is_zero_vartime()
+            }) {
                 let rhs_value = rhs.0.iter().fold(G::identity(), |acc, weighted| {
                     acc + relation
                         .linear_map

@@ -38,23 +38,6 @@ impl<G: PrimeGroup> SchnorrProof<G> {
         self.0.linear_combinations.len()
     }
 
-    /// Evaluate the canonical linear relation with the provided scalars
-    fn evaluate(&self, scalars: &[G::Scalar]) -> Result<Vec<G>, Error> {
-        self.0
-            .linear_combinations
-            .iter()
-            .map(|constraint| {
-                let mut result = G::identity();
-                for (scalar_var, group_var) in constraint {
-                    let scalar_val = scalars[scalar_var.index()];
-                    let group_val = self.0.group_elements.get(*group_var)?;
-                    result += group_val * scalar_val;
-                }
-                Ok(result)
-            })
-            .collect()
-    }
-
     /// Internal method to commit using provided nonces (for deterministic testing)
     pub fn commit_with_nonces(
         &self,
@@ -80,7 +63,7 @@ impl<G: PrimeGroup> SchnorrProof<G> {
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
-        let commitment = self.evaluate(nonces)?;
+        let commitment = self.0.evaluate(nonces)?;
         let prover_state = ProverState(nonces.to_vec(), witness.to_vec());
         Ok((commitment, prover_state))
     }
@@ -193,7 +176,7 @@ impl<G: PrimeGroup> SigmaProtocol for SchnorrProof<G> {
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
-        let lhs = self.evaluate(response)?;
+        let lhs = self.0.evaluate(response)?;
         let mut rhs = Vec::new();
         for (i, g) in commitment.iter().enumerate() {
             rhs.push(self.0.image[i] * challenge + g);
@@ -366,7 +349,7 @@ where
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
-        let response_image = self.evaluate(response)?;
+        let response_image = self.0.evaluate(response)?;
         let image = &self.0.image;
 
         let commitment = response_image
