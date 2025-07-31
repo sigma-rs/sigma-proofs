@@ -7,6 +7,7 @@ use group::prime::PrimeGroup;
 
 use super::{GroupMap, GroupVar, LinearCombination, LinearRelation, ScalarTerm, ScalarVar};
 use crate::errors::{Error, InvalidInstance};
+use crate::linear_relation::msm_pr;
 
 /// A normalized form of the [`LinearRelation`], which is used for serialization into the transcript.
 ///
@@ -51,16 +52,12 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
     pub fn evaluate(&self, scalars: &[G::Scalar]) -> Result<Vec<G>, Error> {
         self.linear_combinations
             .iter()
-            .map(|constraint| {
-                let mut result = G::identity();
-                for (scalar_var, group_var) in constraint {
-                    let scalar_val = scalars[scalar_var.index()];
-                    let group_val = self.group_elements.get(*group_var)?;
-                    result += group_val * scalar_val;
-                }
-                Ok(result)
+            .map(|lc| {
+                let scalars = lc.iter().map(|(scalar_var, _)| scalars[scalar_var.index()]).collect::<Vec<_>>();
+                let bases = lc.iter().map(|(_, group_var)| self.group_elements.get(*group_var)).collect::<Result<Vec<_>, _>>()?;
+                Ok(msm_pr(&scalars, &bases))
             })
-            .collect()
+            .collect::<Result<Vec<_>, _>>().into()
     }
 
     /// Get or create a GroupVar for a weighted group element, with deduplication
