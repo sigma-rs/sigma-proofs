@@ -19,7 +19,7 @@ mod instance_validation {
 
         // Set only one element, leaving var_g unassigned
         let x_val = G::generator() * Scalar::from(42u64);
-        relation.set_elements([(var_x_g, x_val)]);
+        relation.set_element(var_x_g, x_val);
 
         // Add equation: X = x * G (but G is not set)
         relation.append_equation(var_x_g, var_x * var_g);
