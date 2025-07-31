@@ -15,7 +15,7 @@ mod instance_validation {
 
         // Allocate scalars and elements
         let [var_x] = relation.allocate_scalars();
-        let [var_g, var_x_g] = relation.allocate_elements::<2>();
+        let [var_g, var_x_g] = relation.allocate_elements();
 
         // Set only one element, leaving var_g unassigned
         let x_val = G::generator() * Scalar::from(42u64);
@@ -43,7 +43,7 @@ mod instance_validation {
         assert!(result.is_err());
 
         // Create a trivially valid linear relation with zero elements in the image
-        // 0 = 0*B  (which is invalid)
+        // 0 = 0*B
         let mut relation = LinearRelation::<G>::new();
         let [var_B] = relation.allocate_elements();
         let var_X = relation.allocate_eq(var_B * Scalar::from(0));
@@ -51,6 +51,18 @@ mod instance_validation {
         relation.set_element(var_X, G::identity());
         let result = CanonicalLinearRelation::try_from(&relation);
         assert!(result.is_ok());
+
+        // Create a valid linear relation with zero elements in the image
+        // 0 = 0*x*C
+        let mut relation = LinearRelation::<G>::new();
+        let [var_x] = relation.allocate_scalars();
+        let [var_C] = relation.allocate_elements();
+        let var_X = relation.allocate_eq(var_C * var_x * Scalar::from(0));
+        relation.set_element(var_C, G::generator());
+        relation.set_element(var_X, G::identity());
+        let result = CanonicalLinearRelation::try_from(&relation);
+        assert!(result.is_ok());
+
     }
 
     #[test]
@@ -81,7 +93,7 @@ mod instance_validation {
         // Create a relation with mismatched equations and image elements
         let mut relation = LinearRelation::<G>::new();
         let [var_x] = relation.allocate_scalars();
-        let [var_g, var_h] = relation.allocate_elements::<2>();
+        let [var_g, var_h] = relation.allocate_elements();
         relation.set_elements([
             (var_g, G::generator()),
             (var_h, G::generator() * Scalar::from(2u64)),
@@ -110,8 +122,7 @@ mod instance_validation {
         let mut relation = LinearRelation::<G>::new();
         let var_B = relation.allocate_element();
         let var_C = relation.allocate_eq(var_B * Scalar::from(1));
-        relation.set_element(var_B, G::generator());
-        relation.set_element(var_C, G::generator());
+        relation.set_elements([(var_B, G::generator()), (var_C, G::generator())]);
         assert!(CanonicalLinearRelation::try_from(&relation).is_ok());
     }
 
