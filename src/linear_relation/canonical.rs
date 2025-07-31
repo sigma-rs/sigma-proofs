@@ -378,11 +378,10 @@ impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
                 .map_err(|_| InvalidInstance::new("Unassigned group variable in image"))?;
 
             // If the linear combination is trivial, check it directly and skip processing.
-            if rhs
-                .0
-                .iter()
-                .all(|weighted| matches!(weighted.term.scalar, ScalarTerm::Unit) || weighted.weight.is_zero_vartime())
-            {
+            if rhs.0.iter().all(|weighted| {
+                matches!(weighted.term.scalar, ScalarTerm::Unit)
+                    || weighted.weight.is_zero_vartime()
+            }) {
                 let rhs_value = rhs.0.iter().fold(G::identity(), |acc, weighted| {
                     acc + relation
                         .linear_map

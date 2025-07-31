@@ -62,7 +62,6 @@ mod instance_validation {
         relation.set_element(var_X, G::identity());
         let result = CanonicalLinearRelation::try_from(&relation);
         assert!(result.is_ok());
-
     }
 
     #[test]
