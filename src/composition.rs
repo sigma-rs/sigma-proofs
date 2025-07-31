@@ -22,7 +22,9 @@ use ff::{Field, PrimeField};
 use group::prime::PrimeGroup;
 use sha3::Digest;
 use sha3::Sha3_256;
-use subtle::CtOption;
+use subtle::Choice;
+use subtle::ConditionallySelectable;
+use subtle::ConstantTimeEq;
 
 use crate::{
     codec::Shake128DuplexSponge,
@@ -71,17 +73,15 @@ pub enum ComposedCommitment<G: PrimeGroup> {
 }
 
 // Structure representing the ProverState type of Protocol as SigmaProtocol
-pub enum ComposedProverState<G: PrimeGroup> {
+pub enum ComposedProverState<G: PrimeGroup + ConstantTimeEq> {
     Simple(<SchnorrProof<G> as SigmaProtocol>::ProverState),
     And(Vec<ComposedProverState<G>>),
     Or(ComposedOrProverState<G>),
 }
 
-type ComposedOrProverState<G> = (
-    Vec<Option<ComposedProverState<G>>>,
-    Vec<Option<ComposedChallenge<G>>>,
-    Vec<Option<ComposedResponse<G>>>,
-);
+struct ComposedOrProverState<G: PrimeGroup + ConstantTimeEq> {
+    prover_states: Vec<(Choice, ComposedProverState<G>, ComposedChallenge<G>, ComposedResponse<G>)>,
+}
 
 // Structure representing the Response type of Protocol as SigmaProtocol
 #[derive(Clone)]
@@ -96,7 +96,7 @@ pub enum ComposedResponse<G: PrimeGroup> {
 pub enum ComposedWitness<G: PrimeGroup> {
     Simple(<SchnorrProof<G> as SigmaProtocol>::Witness),
     And(Vec<ComposedWitness<G>>),
-    Or(Vec<CtOption<ComposedWitness<G>>>),
+    Or(Vec<ComposedWitness<G>>),
 }
 
 type ComposedChallenge<G> = <SchnorrProof<G> as SigmaProtocol>::Challenge;
@@ -105,7 +105,30 @@ const fn composed_challenge_size<G: PrimeGroup>() -> usize {
     (G::Scalar::NUM_BITS as usize + 7) / 8
 }
 
-impl<G: PrimeGroup> ComposedRelation<G> {
+
+impl<G: PrimeGroup + ConstantTimeEq> ComposedRelation<G> {
+    fn is_witness_valid(&self, witness: &ComposedWitness<G>) -> Choice {
+        let validity_bit = Choice::from(0);
+        match (self, witness) {
+            (ComposedRelation::Simple(instance), ComposedWitness::Simple(witness)) => {
+                instance.0.is_witness_valid(witness)
+            }
+            (ComposedRelation::And(instances), ComposedWitness::And(witnesses)) => instances
+                .iter()
+                .zip(witnesses)
+                .fold(Choice::from(0), |bit, (instance, witness)| {
+                    bit & instance.is_witness_valid(witness)
+                }),
+            (ComposedRelation::Or(instances), ComposedWitness::Or(witnesses)) => instances
+                .iter()
+                .zip(witnesses)
+                .fold(Choice::from(0), |bit, (instance, witness)| {
+                    bit | instance.is_witness_valid(witness)
+                }),
+            _ => unreachable!(),
+        };
+        validity_bit
+    }
     fn prover_commit_simple(
         protocol: &SchnorrProof<G>,
         witness: &<SchnorrProof<G> as SigmaProtocol>::Witness,
@@ -173,45 +196,43 @@ impl<G: PrimeGroup> ComposedRelation<G> {
 
     fn prover_commit_or(
         instances: &[ComposedRelation<G>],
-        witnesses: &[CtOption<ComposedWitness<G>>],
+        witnesses: &[ComposedWitness<G>],
         rng: &mut (impl rand::Rng + rand::CryptoRng),
     ) -> Result<(ComposedCommitment<G>, ComposedProverState<G>), Error> {
         if instances.len() != witnesses.len() {
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
-        let mut simulated_challenges = Vec::new();
-        let mut simulated_responses = Vec::new();
-        let mut commitments = Vec::<ComposedCommitment<G>>::with_capacity(instances.len());
+        let mut commitments = Vec::new();
         let mut prover_states = Vec::new();
 
-        for (i, witness) in witnesses.iter().enumerate() {
-            // let (simulated_commitment, simulated_challenge, simulated_response) = instances[i].simulate_transcript(rng)?;
-            let witness = witness.clone().into_option();
-            match witness {
-                Some(w) => {
-                    let (commitment, prover_state) = instances[i].prover_commit(&w, rng)?;
-                    commitments.push(commitment);
-                    prover_states.push(Some(prover_state));
-                    simulated_challenges.push(None);
-                    simulated_responses.push(None);
-                }
-                None => {
-                    let (simulated_commitment, simulated_challenge, simulated_response) =
-                        instances[i].simulate_transcript(rng)?;
-                    commitments.push(simulated_commitment);
-                    prover_states.push(None);
-                    simulated_challenges.push(Some(simulated_challenge));
-                    simulated_responses.push(Some(simulated_response));
-                }
-            }
+        for (i, w) in witnesses.iter().enumerate() {
+            let (commitment, prover_state) = instances[i].prover_commit(&w, rng)?;
+            let (simulated_commitment, simulated_challenge, simulated_response) =
+                instances[i].simulate_transcript(rng)?;
+
+            let valid_witness = instances[i].is_witness_valid(&w);
+            commitments.push(if valid_witness.unwrap_u8() == 1 {commitment } else { simulated_commitment.clone()} );
+            prover_states.push((valid_witness, prover_state, simulated_challenge, simulated_response));
         }
-        let prover_state: ComposedOrProverState<G> =
-            (prover_states, simulated_challenges, simulated_responses);
-        Ok((
-            ComposedCommitment::Or(commitments),
-            ComposedProverState::Or(prover_state),
-        ))
+        // check that we have only one witness set
+        let witnesses_found = prover_states
+            .iter()
+            .map(|x| x.0.unwrap_u8() as usize)
+            .sum::<usize>();
+        let prover_state =
+            ComposedOrProverState {
+                prover_states,
+            };
+
+        if witnesses_found > 1 {
+            return Err(Error::InvalidInstanceWitnessPair);
+        } else {
+            Ok((
+                ComposedCommitment::Or(commitments),
+                ComposedProverState::Or(prover_state),
+            ))
+        }
     }
 
     fn prover_response_or(
@@ -222,34 +243,30 @@ impl<G: PrimeGroup> ComposedRelation<G> {
         let mut result_challenges = Vec::with_capacity(instances.len());
         let mut result_responses = Vec::with_capacity(instances.len());
 
-        // Calculate the real challenge by subtracting all simulated challenges
-        let (child_states, simulated_challenges, simulated_responses) = prover_state;
+        let ComposedOrProverState { prover_states } = prover_state;
 
-        let real_challenge = challenge - simulated_challenges.iter().flatten().sum::<G::Scalar>();
-
-        let it = instances
-            .iter()
-            .zip(child_states)
-            .zip(simulated_challenges)
-            .zip(simulated_responses);
-        for (((i, prover_state), simulated_challenge), simulated_response) in it {
-            if let Some(state) = prover_state {
-                // Real case: compute response with real challenge
-                let response = i.prover_response(state, &real_challenge)?;
-                result_challenges.push(real_challenge);
-                result_responses.push(response);
-            } else {
-                result_challenges.push(simulated_challenge.unwrap());
-                result_responses.push(simulated_response.unwrap());
-            }
+        let mut witness_challenge = challenge;
+        for (valid_witness, _prover_state, simulated_challenge, _simulated_response) in &prover_states {
+            let c = G::Scalar::conditional_select(&G::Scalar::ZERO, &simulated_challenge, *valid_witness);
+            witness_challenge -= c;
         }
-        result_challenges.pop();
+        for (instance, (valid_witness, prover_state, simulated_challenge, simulated_response)) in instances.iter().zip(prover_states) {
+            let challenge_i = G::Scalar::conditional_select(&witness_challenge, &simulated_challenge, valid_witness);
 
+            let real_response = instance.prover_response(prover_state, &challenge_i)?;
+
+            // let response_i = ComposedResponse::conditional_select(&real_response, &simulated_response, *witness_location);
+            let response_i = if valid_witness.unwrap_u8() == 1 { real_response } else { simulated_response };
+            result_challenges.push(challenge_i);
+            result_responses.push(response_i);
+        }
+
+        result_challenges.pop();
         Ok(ComposedResponse::Or(result_challenges, result_responses))
     }
 }
 
-impl<G: PrimeGroup> SigmaProtocol for ComposedRelation<G> {
+impl<G: PrimeGroup + ConstantTimeEq> SigmaProtocol for ComposedRelation<G> {
     type Commitment = ComposedCommitment<G>;
     type ProverState = ComposedProverState<G>;
     type Response = ComposedResponse<G>;
@@ -501,7 +518,7 @@ impl<G: PrimeGroup> SigmaProtocol for ComposedRelation<G> {
     }
 }
 
-impl<G: PrimeGroup> SigmaProtocolSimulator for ComposedRelation<G> {
+impl<G: PrimeGroup + ConstantTimeEq> SigmaProtocolSimulator for ComposedRelation<G> {
     fn simulate_commitment(
         &self,
         challenge: &Self::Challenge,
@@ -606,7 +623,7 @@ impl<G: PrimeGroup> SigmaProtocolSimulator for ComposedRelation<G> {
     }
 }
 
-impl<G: PrimeGroup> ComposedRelation<G> {
+impl<G: PrimeGroup + ConstantTimeEq> ComposedRelation<G> {
     /// Convert this Protocol into a non-interactive zero-knowledge proof
     /// using the Shake128DuplexSponge codec and a specified session identifier.
     ///

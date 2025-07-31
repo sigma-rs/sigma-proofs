@@ -63,7 +63,7 @@ impl<G: PrimeGroup> SchnorrProof<G> {
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
-        let commitment = self.0.evaluate(nonces)?;
+        let commitment = self.0.evaluate(nonces);
         let prover_state = ProverState(nonces.to_vec(), witness.to_vec());
         Ok((commitment, prover_state))
     }
@@ -176,7 +176,7 @@ impl<G: PrimeGroup> SigmaProtocol for SchnorrProof<G> {
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
-        let lhs = self.0.evaluate(response)?;
+        let lhs = self.0.evaluate(response);
         let mut rhs = Vec::new();
         for (i, g) in commitment.iter().enumerate() {
             rhs.push(self.0.image[i] * challenge + g);
@@ -349,7 +349,7 @@ where
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
-        let response_image = self.0.evaluate(response)?;
+        let response_image = self.0.evaluate(response);
         let image = &self.0.image;
 
         let commitment = response_image

@@ -210,7 +210,6 @@ mod proof_validation {
     use bls12_381::{G1Projective as G, Scalar};
     use ff::Field;
     use rand::{thread_rng, RngCore};
-    use subtle::CtOption;
 
     type TestNizk = Nizk<SchnorrProof<G>, KeccakByteSchnorrCodec<G>>;
 
@@ -419,8 +418,8 @@ mod proof_validation {
 
         // Create a correct witness for branch 1 (C = y*B)
         let witness_correct = ComposedWitness::Or(vec![
-            CtOption::new(ComposedWitness::Simple(vec![x]), 0u8.into()), // branch 0 not used
-            CtOption::new(ComposedWitness::Simple(vec![y]), 1u8.into()), // branch 1 is real
+            ComposedWitness::Simple(vec![x]),
+            ComposedWitness::Simple(vec![y]),
         ]);
 
         // This should succeed since branch 1 is correct
@@ -433,8 +432,8 @@ mod proof_validation {
         // Now test with wrong witness: using branch 0 when it's not satisfied
         // Branch 0 requires C = x*A, but C = y*B and A ≠ B, so x would need to be y/42
         let witness_wrong = ComposedWitness::Or(vec![
-            CtOption::new(ComposedWitness::Simple(vec![x]), 1u8.into()), // branch 0 is real (but wrong!)
-            CtOption::new(ComposedWitness::Simple(vec![y]), 0u8.into()), // branch 1 not used
+            ComposedWitness::Simple(vec![x]),
+            ComposedWitness::Simple(vec![y]),
         ]);
         let proof_result = nizk.prove_batchable(&witness_wrong, &mut rng);
 

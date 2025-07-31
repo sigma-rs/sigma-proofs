@@ -4,6 +4,7 @@ use std::marker::PhantomData;
 
 use ff::Field;
 use group::prime::PrimeGroup;
+use subtle::{Choice, ConstantTimeEq};
 
 use super::{GroupMap, GroupVar, LinearCombination, LinearRelation, ScalarTerm, ScalarVar};
 use crate::errors::{Error, InvalidInstance};
@@ -49,15 +50,21 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
     }
 
     /// Evaluate the canonical linear relation with the provided scalars
-    pub fn evaluate(&self, scalars: &[G::Scalar]) -> Result<Vec<G>, Error> {
+    pub fn evaluate(&self, scalars: &[G::Scalar]) -> Vec<G> {
         self.linear_combinations
             .iter()
             .map(|lc| {
-                let scalars = lc.iter().map(|(scalar_var, _)| scalars[scalar_var.index()]).collect::<Vec<_>>();
-                let bases = lc.iter().map(|(_, group_var)| self.group_elements.get(*group_var)).collect::<Result<Vec<_>, _>>()?;
-                Ok(msm_pr(&scalars, &bases))
+                let scalars = lc
+                    .iter()
+                    .map(|(scalar_var, _)| scalars[scalar_var.index()])
+                    .collect::<Vec<_>>();
+                let bases = lc
+                    .iter()
+                    .map(|(_, group_var)| self.group_elements.get(*group_var).unwrap())
+                    .collect::<Vec<_>>();
+                msm_pr(&scalars, &bases)
             })
-            .collect::<Result<Vec<_>, _>>().into()
+            .collect()
     }
 
     /// Get or create a GroupVar for a weighted group element, with deduplication
@@ -425,5 +432,15 @@ impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
         }
 
         Ok(canonical)
+    }
+}
+
+impl<G: PrimeGroup + ConstantTimeEq> CanonicalLinearRelation<G> {
+    pub fn is_witness_valid(&self, witness: &[G::Scalar]) -> Choice {
+        let got = self.evaluate(witness);
+        self.image
+            .iter()
+            .zip(got)
+            .fold(Choice::from(1), |acc, (lhs, rhs)| acc & lhs.ct_eq(&rhs))
     }
 }

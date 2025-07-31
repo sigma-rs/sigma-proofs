@@ -1,7 +1,6 @@
 use curve25519_dalek::ristretto::RistrettoPoint;
 use group::Group;
 use rand::rngs::OsRng;
-use subtle::CtOption;
 
 use super::test_relations::*;
 use crate::composition::{ComposedRelation, ComposedWitness};
@@ -38,8 +37,8 @@ fn test_composition_correctness() {
         ComposedRelation::Simple(SchnorrProof(relation2)),
     ]);
     let or_witness1 = ComposedWitness::Or(vec![
-        CtOption::new(ComposedWitness::Simple(witness1), 1u8.into()),
-        CtOption::new(ComposedWitness::Simple(wrong_witness2), 0u8.into()),
+        ComposedWitness::Simple(witness1),
+        ComposedWitness::Simple(wrong_witness2),
     ]);
 
     let simple_protocol1 = ComposedRelation::Simple(SchnorrProof(relation3));
