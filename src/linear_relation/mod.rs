@@ -116,6 +116,29 @@ impl<T> Sum<T> {
 /// The indices refer to external lists managed by the containing LinearMap.
 pub type LinearCombination<G> = Sum<Weighted<Term<G>, <G as group::Group>::Scalar>>;
 
+impl<G: PrimeGroup> LinearMap<G> {
+    fn map(&self, scalars: &[G::Scalar]) -> Result<Vec<G>, InvalidInstance> {
+        self.linear_combinations
+            .iter()
+            .map(|lc| {
+                let weighted_coefficients =
+                    lc.0.iter()
+                        .map(|weighted| weighted.term.scalar.value(scalars) * weighted.weight)
+                        .collect::<Vec<_>>();
+                let elements =
+                    lc.0.iter()
+                        .map(|weighted| self.group_elements.get(weighted.term.elem))
+                        .collect::<Result<Vec<_>, InvalidInstance>>();
+                match elements {
+                    Ok(elements) => Ok(msm_pr(&weighted_coefficients, &elements)),
+                    Err(error) => Err(error),
+                }
+            })
+            .collect::<Result<Vec<_>, InvalidInstance>>()
+            .into()
+    }
+}
+
 /// Ordered mapping of [GroupVar] to group elements assignments.
 #[derive(Clone, Debug)]
 pub struct GroupMap<G>(Vec<Option<G>>);
@@ -465,23 +488,12 @@ impl<G: PrimeGroup> LinearRelation<G> {
             panic!("invalid LinearRelation: different number of constraints and image variables");
         }
 
-        for (lc, lhs) in iter::zip(
-            self.linear_map.linear_combinations.as_slice(),
-            self.image.as_slice(),
-        ) {
-            // TODO: The multiplication by the (public) weight is potentially wasteful in the
-            // weight is most commonly 1, but multiplication is constant time.
-            let weighted_coefficients =
-                lc.0.iter()
-                    .map(|weighted| weighted.term.scalar.value(scalars) * weighted.weight)
-                    .collect::<Vec<_>>();
-            let elements =
-                lc.0.iter()
-                    .map(|weighted| self.linear_map.group_elements.get(weighted.term.elem))
-                    .collect::<Result<Vec<_>, _>>()?;
+        let mapped_scalars = self.linear_map.map(scalars)?;
+
+        for (mapped_scalar, lhs) in iter::zip(mapped_scalars, &self.image) {
             self.linear_map
                 .group_elements
-                .assign_element(*lhs, msm_pr(&weighted_coefficients, &elements))
+                .assign_element(*lhs, mapped_scalar)
         }
         Ok(())
     }
