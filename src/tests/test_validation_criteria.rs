@@ -435,8 +435,10 @@ mod proof_validation {
             ComposedWitness::Simple(vec![wrong_y]),
         ]);
         let proof_result = nizk.prove_batchable(&witness_wrong, &mut rng);
-        assert!(proof_result.is_err(), "Proof should fail with invalid witnesses");
-
+        assert!(
+            proof_result.is_err(),
+            "Proof should fail with invalid witnesses"
+        );
 
         // Create a correct witness for both branches
         let witness_correct = ComposedWitness::Or(vec![
@@ -448,6 +450,5 @@ mod proof_validation {
             nizk.verify_batchable(&proof).is_ok(),
             "Prover fails when all witnesses in an OR proof are valid"
         );
-
     }
 }
