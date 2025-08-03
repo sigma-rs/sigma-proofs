@@ -393,7 +393,7 @@ mod proof_validation {
         let C = B * y;
 
         // Create the first branch: C = x*A
-        let mut lr1 = LinearRelation::<G>::new();
+        let mut lr1 = LinearRelation::new();
         let x_var = lr1.allocate_scalar();
         let A_var = lr1.allocate_element();
         let eq1 = lr1.allocate_eq(x_var * A_var);
@@ -401,7 +401,7 @@ mod proof_validation {
         lr1.set_element(eq1, C);
 
         // Create the second branch: C = y*B
-        let mut lr2 = LinearRelation::<G>::new();
+        let mut lr2 = LinearRelation::new();
         let y_var = lr2.allocate_scalar();
         let B_var = lr2.allocate_element();
         let eq2 = lr2.allocate_eq(y_var * B_var);
@@ -414,7 +414,7 @@ mod proof_validation {
             ComposedRelation::from(lr2),
         ]);
 
-        let nizk = Nizk::<_, KeccakByteSchnorrCodec<G>>::new(b"test_or_bug", or_relation);
+        let nizk =or_relation.into_nizk(b"test_or_bug");
 
         // Create a correct witness for branch 1 (C = y*B)
         let witness_correct = ComposedWitness::Or(vec![
@@ -441,12 +441,12 @@ mod proof_validation {
             Ok(proof) => {
                 let verify_result = nizk.verify_batchable(&proof);
                 println!(
-                    "Bug reproduced: Proof with wrong branch verified: {:?}",
+                    "Proof with wrong branch verified: {:?}",
                     verify_result.is_ok()
                 );
                 assert!(
                     verify_result.is_err(),
-                    "BUG: Proof should fail when using wrong branch in OR relation, but it passed!"
+                    "Proof should fail when using wrong branch in OR relation, but it passed!"
                 );
             }
             Err(e) => {

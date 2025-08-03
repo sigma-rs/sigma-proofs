@@ -79,9 +79,13 @@ pub enum ComposedProverState<G: PrimeGroup + ConstantTimeEq> {
     Or(ComposedOrProverState<G>),
 }
 
-struct ComposedOrProverState<G: PrimeGroup + ConstantTimeEq> {
-    prover_states: Vec<(Choice, ComposedProverState<G>, ComposedChallenge<G>, ComposedResponse<G>)>,
-}
+pub type ComposedOrProverState<G> = Vec<ComposedOrProverStateEntry<G>>;
+pub struct ComposedOrProverStateEntry<G: PrimeGroup + ConstantTimeEq>(
+    Choice,
+    ComposedProverState<G>,
+    ComposedChallenge<G>,
+    ComposedResponse<G>,
+);
 
 // Structure representing the Response type of Protocol as SigmaProtocol
 #[derive(Clone)]
@@ -105,10 +109,8 @@ const fn composed_challenge_size<G: PrimeGroup>() -> usize {
     (G::Scalar::NUM_BITS as usize + 7) / 8
 }
 
-
 impl<G: PrimeGroup + ConstantTimeEq> ComposedRelation<G> {
     fn is_witness_valid(&self, witness: &ComposedWitness<G>) -> Choice {
-        let validity_bit = Choice::from(0);
         match (self, witness) {
             (ComposedRelation::Simple(instance), ComposedWitness::Simple(witness)) => {
                 instance.0.is_witness_valid(witness)
@@ -116,7 +118,7 @@ impl<G: PrimeGroup + ConstantTimeEq> ComposedRelation<G> {
             (ComposedRelation::And(instances), ComposedWitness::And(witnesses)) => instances
                 .iter()
                 .zip(witnesses)
-                .fold(Choice::from(0), |bit, (instance, witness)| {
+                .fold(Choice::from(1), |bit, (instance, witness)| {
                     bit & instance.is_witness_valid(witness)
                 }),
             (ComposedRelation::Or(instances), ComposedWitness::Or(witnesses)) => instances
@@ -125,10 +127,10 @@ impl<G: PrimeGroup + ConstantTimeEq> ComposedRelation<G> {
                 .fold(Choice::from(0), |bit, (instance, witness)| {
                     bit | instance.is_witness_valid(witness)
                 }),
-            _ => unreachable!(),
-        };
-        validity_bit
+            _ => Choice::from(0),
+        }
     }
+
     fn prover_commit_simple(
         protocol: &SchnorrProof<G>,
         witness: &<SchnorrProof<G> as SigmaProtocol>::Witness,
@@ -212,20 +214,26 @@ impl<G: PrimeGroup + ConstantTimeEq> ComposedRelation<G> {
                 instances[i].simulate_transcript(rng)?;
 
             let valid_witness = instances[i].is_witness_valid(&w);
-            commitments.push(if valid_witness.unwrap_u8() == 1 {commitment } else { simulated_commitment.clone()} );
-            prover_states.push((valid_witness, prover_state, simulated_challenge, simulated_response));
+            commitments.push(if valid_witness.unwrap_u8() == 1 {
+                commitment
+            } else {
+                simulated_commitment.clone()
+            });
+            prover_states.push(ComposedOrProverStateEntry(
+                valid_witness,
+                prover_state,
+                simulated_challenge,
+                simulated_response,
+            ));
         }
         // check that we have only one witness set
         let witnesses_found = prover_states
             .iter()
             .map(|x| x.0.unwrap_u8() as usize)
             .sum::<usize>();
-        let prover_state =
-            ComposedOrProverState {
-                prover_states,
-            };
+        let prover_state = prover_states;
 
-        if witnesses_found > 1 {
+        if witnesses_found != 1 {
             return Err(Error::InvalidInstanceWitnessPair);
         } else {
             Ok((
@@ -238,25 +246,52 @@ impl<G: PrimeGroup + ConstantTimeEq> ComposedRelation<G> {
     fn prover_response_or(
         instances: &[ComposedRelation<G>],
         prover_state: ComposedOrProverState<G>,
-        &challenge: &ComposedChallenge<G>,
+        challenge: &ComposedChallenge<G>,
     ) -> Result<ComposedResponse<G>, Error> {
         let mut result_challenges = Vec::with_capacity(instances.len());
         let mut result_responses = Vec::with_capacity(instances.len());
 
-        let ComposedOrProverState { prover_states } = prover_state;
+        let prover_states = prover_state;
 
-        let mut witness_challenge = challenge;
-        for (valid_witness, _prover_state, simulated_challenge, _simulated_response) in &prover_states {
-            let c = G::Scalar::conditional_select(&G::Scalar::ZERO, &simulated_challenge, *valid_witness);
-            witness_challenge -= c;
+        let mut witness_challenge = *challenge;
+        for ComposedOrProverStateEntry(
+            valid_witness,
+            _prover_state,
+            simulated_challenge,
+            _simulated_response,
+        ) in &prover_states
+        {
+            let c = G::Scalar::conditional_select(
+                &simulated_challenge,
+                &G::Scalar::ZERO,
+                *valid_witness,
+            );
+            witness_challenge = witness_challenge - c;
         }
-        for (instance, (valid_witness, prover_state, simulated_challenge, simulated_response)) in instances.iter().zip(prover_states) {
-            let challenge_i = G::Scalar::conditional_select(&witness_challenge, &simulated_challenge, valid_witness);
+        for (
+            instance,
+            ComposedOrProverStateEntry(
+                valid_witness,
+                prover_state,
+                simulated_challenge,
+                simulated_response,
+            ),
+        ) in instances.iter().zip(prover_states)
+        {
+            let challenge_i = G::Scalar::conditional_select(
+                &simulated_challenge,
+                &witness_challenge,
+                valid_witness,
+            );
 
             let real_response = instance.prover_response(prover_state, &challenge_i)?;
 
             // let response_i = ComposedResponse::conditional_select(&real_response, &simulated_response, *witness_location);
-            let response_i = if valid_witness.unwrap_u8() == 1 { real_response } else { simulated_response };
+            let response_i = if valid_witness.unwrap_u8() == 1 {
+                real_response
+            } else {
+                simulated_response
+            };
             result_challenges.push(challenge_i);
             result_responses.push(response_i);
         }
