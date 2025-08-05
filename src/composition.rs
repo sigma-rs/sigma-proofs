@@ -234,7 +234,7 @@ impl<G: PrimeGroup + ConstantTimeEq> ComposedRelation<G> {
         let prover_state = prover_states;
 
         if witnesses_found != 1 {
-            return Err(Error::InvalidInstanceWitnessPair);
+            Err(Error::InvalidInstanceWitnessPair)
         } else {
             Ok((
                 ComposedCommitment::Or(commitments),
@@ -266,7 +266,7 @@ impl<G: PrimeGroup + ConstantTimeEq> ComposedRelation<G> {
                 &G::Scalar::ZERO,
                 *valid_witness,
             );
-            witness_challenge = witness_challenge - c;
+            witness_challenge -= c;
         }
         for (
             instance,
