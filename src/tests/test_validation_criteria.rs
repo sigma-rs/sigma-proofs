@@ -210,7 +210,6 @@ mod proof_validation {
     use bls12_381::{G1Projective as G, Scalar};
     use ff::Field;
     use rand::{thread_rng, RngCore};
-    use subtle::CtOption;
 
     type TestNizk = Nizk<SchnorrProof<G>, KeccakByteSchnorrCodec<G>>;
 
@@ -394,15 +393,14 @@ mod proof_validation {
         let C = B * y;
 
         // Create the first branch: C = x*A
-        let mut lr1 = LinearRelation::<G>::new();
+        let mut lr1 = LinearRelation::new();
         let x_var = lr1.allocate_scalar();
         let A_var = lr1.allocate_element();
         let eq1 = lr1.allocate_eq(x_var * A_var);
         lr1.set_element(A_var, A);
         lr1.set_element(eq1, C);
-
         // Create the second branch: C = y*B
-        let mut lr2 = LinearRelation::<G>::new();
+        let mut lr2 = LinearRelation::new();
         let y_var = lr2.allocate_scalar();
         let B_var = lr2.allocate_element();
         let eq2 = lr2.allocate_eq(y_var * B_var);
@@ -414,45 +412,43 @@ mod proof_validation {
             ComposedRelation::from(lr1),
             ComposedRelation::from(lr2),
         ]);
-
-        let nizk = Nizk::<_, KeccakByteSchnorrCodec<G>>::new(b"test_or_bug", or_relation);
+        let nizk = or_relation.into_nizk(b"test_or_relation");
 
         // Create a correct witness for branch 1 (C = y*B)
+        // Note: x is NOT a valid witness for branch 0 because C ≠ x*A
         let witness_correct = ComposedWitness::Or(vec![
-            CtOption::new(ComposedWitness::Simple(vec![x]), 0u8.into()), // branch 0 not used
-            CtOption::new(ComposedWitness::Simple(vec![y]), 1u8.into()), // branch 1 is real
+            ComposedWitness::Simple(vec![x]),
+            ComposedWitness::Simple(vec![y]),
         ]);
-
-        // This should succeed since branch 1 is correct
         let proof = nizk.prove_batchable(&witness_correct, &mut rng).unwrap();
         assert!(
             nizk.verify_batchable(&proof).is_ok(),
             "Valid proof should verify"
         );
 
-        // Now test with wrong witness: using branch 0 when it's not satisfied
-        // Branch 0 requires C = x*A, but C = y*B and A ≠ B, so x would need to be y/42
+        // Now test with ONLY invalid witnesses (neither branch satisfied)
+        // Branch 0 requires C = x*A, but we use random x
+        // Branch 1 requires C = y*B, but we use a different random value
+        let wrong_y = Scalar::random(&mut rng);
         let witness_wrong = ComposedWitness::Or(vec![
-            CtOption::new(ComposedWitness::Simple(vec![x]), 1u8.into()), // branch 0 is real (but wrong!)
-            CtOption::new(ComposedWitness::Simple(vec![y]), 0u8.into()), // branch 1 not used
+            ComposedWitness::Simple(vec![x]),
+            ComposedWitness::Simple(vec![wrong_y]),
         ]);
         let proof_result = nizk.prove_batchable(&witness_wrong, &mut rng);
+        assert!(
+            proof_result.is_err(),
+            "Proof should fail with invalid witnesses"
+        );
 
-        match proof_result {
-            Ok(proof) => {
-                let verify_result = nizk.verify_batchable(&proof);
-                println!(
-                    "Bug reproduced: Proof with wrong branch verified: {:?}",
-                    verify_result.is_ok()
-                );
-                assert!(
-                    verify_result.is_err(),
-                    "BUG: Proof should fail when using wrong branch in OR relation, but it passed!"
-                );
-            }
-            Err(e) => {
-                println!("Proof generation failed as expected: {e:?}");
-            }
-        }
+        // Create a correct witness for both branches
+        let witness_correct = ComposedWitness::Or(vec![
+            ComposedWitness::Simple(vec![y]),
+            ComposedWitness::Simple(vec![y]),
+        ]);
+        let proof = nizk.prove_batchable(&witness_correct, &mut rng).unwrap();
+        assert!(
+            nizk.verify_batchable(&proof).is_ok(),
+            "Prover fails when all witnesses in an OR proof are valid"
+        );
     }
 }

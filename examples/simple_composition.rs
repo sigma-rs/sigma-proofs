@@ -10,7 +10,6 @@ use sigma_rs::{
     errors::Error,
     LinearRelation, Nizk,
 };
-use subtle::CtOption;
 
 type G = RistrettoPoint;
 type ProofResult<T> = Result<T, Error>;
@@ -56,11 +55,8 @@ fn prove(P1: G, x2: Scalar, H: G) -> ProofResult<Vec<u8>> {
     let instance = create_relation(P1, P2, Q, H);
     // Create OR witness with branch 1 being the real one (index 1)
     let witness = ComposedWitness::Or(vec![
-        CtOption::new(
-            ComposedWitness::Simple(vec![Scalar::from(0u64)]),
-            0u8.into(),
-        ), // dummy for branch 0
-        CtOption::new(ComposedWitness::Simple(vec![x2]), 1u8.into()), // real witness for branch 1
+        ComposedWitness::Simple(vec![Scalar::from(0u64)]),
+        ComposedWitness::Simple(vec![x2]),
     ]);
     let nizk = Nizk::<_, Shake128DuplexSponge<G>>::new(b"or_proof_example", instance);
 
