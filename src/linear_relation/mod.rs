@@ -28,6 +28,10 @@ mod ops;
 mod canonical;
 pub use canonical::CanonicalLinearRelation;
 
+/// Implementation of multi-scalar multiplication (MSM) over scalars and points.
+mod multi_scalar_mul;
+pub use multi_scalar_mul::VariableMultiScalarMul;
+
 /// A wrapper representing an index for a scalar variable.
 ///
 /// Used to reference scalars in sparse linear combinations.
@@ -130,7 +134,7 @@ impl<G: PrimeGroup> LinearMap<G> {
                         .map(|weighted| self.group_elements.get(weighted.term.elem))
                         .collect::<Result<Vec<_>, InvalidInstance>>();
                 match elements {
-                    Ok(elements) => Ok(msm_pr(&weighted_coefficients, &elements)),
+                    Ok(elements) => Ok(G::msm(&weighted_coefficients, &elements)),
                     Err(error) => Err(error),
                 }
             })
@@ -262,25 +266,6 @@ pub struct LinearMap<G: PrimeGroup> {
     pub num_elements: usize,
 }
 
-/// Perform a simple multi-scalar multiplication (MSM) over scalars and points.
-///
-/// Given slices of scalars and corresponding group elements (bases),
-/// returns the sum of each base multiplied by its scalar coefficient.
-///
-/// # Parameters
-/// - `scalars`: slice of scalar multipliers.
-/// - `bases`: slice of group elements to be multiplied by the scalars.
-///
-/// # Returns
-/// The group element result of the MSM.
-pub fn msm_pr<G: PrimeGroup>(scalars: &[G::Scalar], bases: &[G]) -> G {
-    let mut acc = G::identity();
-    for (s, p) in scalars.iter().zip(bases.iter()) {
-        acc += *p * s;
-    }
-    acc
-}
-
 impl<G: PrimeGroup> LinearMap<G> {
     /// Creates a new empty [`LinearMap`].
     ///
@@ -332,7 +317,7 @@ impl<G: PrimeGroup> LinearMap<G> {
                     lc.0.iter()
                         .map(|weighted| self.group_elements.get(weighted.term.elem))
                         .collect::<Result<Vec<_>, _>>()?;
-                Ok(msm_pr(&weighted_coefficients, &elements))
+                Ok(G::msm(&weighted_coefficients, &elements))
             })
             .collect()
     }

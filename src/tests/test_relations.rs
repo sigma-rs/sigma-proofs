@@ -8,7 +8,7 @@ use crate::fiat_shamir::Nizk;
 use crate::linear_relation::CanonicalLinearRelation;
 use crate::schnorr_protocol::SchnorrProof;
 
-use crate::linear_relation::{msm_pr, LinearRelation};
+use crate::linear_relation::{LinearRelation, VariableMultiScalarMul};
 
 /// LinearMap for knowledge of a discrete logarithm relative to a fixed basepoint.
 #[allow(non_snake_case)]
@@ -178,8 +178,8 @@ pub fn pedersen_commitment_dleq<G: PrimeGroup, R: RngCore>(
     let witness = [G::Scalar::random(&mut *rng), G::Scalar::random(&mut *rng)];
     let mut relation = LinearRelation::new();
 
-    let X = msm_pr::<G>(&witness, &[generators[0], generators[1]]);
-    let Y = msm_pr::<G>(&witness, &[generators[2], generators[3]]);
+    let X = G::msm(&witness, &[generators[0], generators[1]]);
+    let Y = G::msm(&witness, &[generators[2], generators[3]]);
 
     let [var_x, var_r] = relation.allocate_scalars();
 
