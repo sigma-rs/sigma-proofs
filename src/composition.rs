@@ -106,7 +106,7 @@ pub enum ComposedWitness<G: PrimeGroup> {
 type ComposedChallenge<G> = <SchnorrProof<G> as SigmaProtocol>::Challenge;
 
 const fn composed_challenge_size<G: PrimeGroup>() -> usize {
-    (G::Scalar::NUM_BITS as usize + 7) / 8
+    (G::Scalar::NUM_BITS as usize).div_ceil(8)
 }
 
 impl<G: PrimeGroup + ConstantTimeEq> ComposedRelation<G> {
@@ -209,11 +209,11 @@ impl<G: PrimeGroup + ConstantTimeEq> ComposedRelation<G> {
         let mut prover_states = Vec::new();
 
         for (i, w) in witnesses.iter().enumerate() {
-            let (commitment, prover_state) = instances[i].prover_commit(&w, rng)?;
+            let (commitment, prover_state) = instances[i].prover_commit(w, rng)?;
             let (simulated_commitment, simulated_challenge, simulated_response) =
                 instances[i].simulate_transcript(rng)?;
 
-            let valid_witness = instances[i].is_witness_valid(&w);
+            let valid_witness = instances[i].is_witness_valid(w);
             commitments.push(if valid_witness.unwrap_u8() == 1 {
                 commitment
             } else {
@@ -234,7 +234,7 @@ impl<G: PrimeGroup + ConstantTimeEq> ComposedRelation<G> {
         let prover_state = prover_states;
 
         if witnesses_found != 1 {
-            return Err(Error::InvalidInstanceWitnessPair);
+            Err(Error::InvalidInstanceWitnessPair)
         } else {
             Ok((
                 ComposedCommitment::Or(commitments),
@@ -262,11 +262,11 @@ impl<G: PrimeGroup + ConstantTimeEq> ComposedRelation<G> {
         ) in &prover_states
         {
             let c = G::Scalar::conditional_select(
-                &simulated_challenge,
+                simulated_challenge,
                 &G::Scalar::ZERO,
                 *valid_witness,
             );
-            witness_challenge = witness_challenge - c;
+            witness_challenge -= c;
         }
         for (
             instance,

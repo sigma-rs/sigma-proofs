@@ -139,7 +139,6 @@ impl<G: PrimeGroup> LinearMap<G> {
                 }
             })
             .collect::<Result<Vec<_>, InvalidInstance>>()
-            .into()
     }
 }
 
