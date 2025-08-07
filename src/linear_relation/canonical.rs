@@ -8,7 +8,7 @@ use subtle::{Choice, ConstantTimeEq};
 
 use super::{GroupMap, GroupVar, LinearCombination, LinearRelation, ScalarTerm, ScalarVar};
 use crate::errors::{Error, InvalidInstance};
-use crate::linear_relation::msm_pr;
+use crate::linear_relation::multi_scalar_mul::VariableMultiScalarMul;
 
 /// A normalized form of the [`LinearRelation`], which is used for serialization into the transcript.
 ///
@@ -62,7 +62,7 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
                     .iter()
                     .map(|(_, group_var)| self.group_elements.get(*group_var).unwrap())
                     .collect::<Vec<_>>();
-                msm_pr(&scalars, &bases)
+                G::msm(&scalars, &bases)
             })
             .collect()
     }
