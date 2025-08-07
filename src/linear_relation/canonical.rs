@@ -431,16 +431,10 @@ impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
                         })
                         * weighted.weight
                 });
-                if lhs_value != rhs_value {
-                    return Err(InvalidInstance::new(
-                        "Trivial linear combination does not match image",
-                    ));
-                } else {
-                    continue; // Skip processing trivial constraints
+                if lhs_value == rhs_value {
+                    continue; // Skip processing trivially true constraints
                 }
-            }
-
-            if lhs_value == G::identity() {
+            } else if lhs_value == G::identity() {
                 return Err(InvalidInstance::new("Image contains identity element"));
             }
 
