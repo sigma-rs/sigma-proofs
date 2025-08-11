@@ -8,7 +8,7 @@ use subtle::{Choice, ConstantTimeEq};
 
 use super::{GroupMap, GroupVar, LinearCombination, LinearRelation, ScalarTerm, ScalarVar};
 use crate::errors::{Error, InvalidInstance};
-use crate::linear_relation::multi_scalar_mul::VariableMultiScalarMul;
+use crate::linear_relation::msm::VariableMultiScalarMul;
 
 /// A normalized form of the [`LinearRelation`], which is used for serialization into the transcript.
 ///

@@ -29,8 +29,8 @@ mod canonical;
 pub use canonical::CanonicalLinearRelation;
 
 /// Implementation of multi-scalar multiplication (MSM) over scalars and points.
-mod multi_scalar_mul;
-pub use multi_scalar_mul::VariableMultiScalarMul;
+mod msm;
+pub use msm::VariableMultiScalarMul;
 
 /// A wrapper representing an index for a scalar variable.
 ///
