@@ -53,10 +53,12 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
     ///
     /// This returns a list of image points produced by evaluating each linear combination in the
     /// relation. The order of the returned list matches the order of [`Self::linear_combinations`].
-    pub fn evaluate(&self, scalars: &[G::Scalar]) -> Result<Vec<G>, Error> {
-        if scalars.len() != self.num_scalars {
-            return Err(Error::InvalidInstanceWitnessPair);
-        }
+    ///
+    /// # Panic
+    ///
+    /// Panics if the number of scalars given is less than the number of scalar variables in this
+    /// linear relation
+    pub fn evaluate(&self, scalars: &[G::Scalar]) -> Vec<G> {
         self.linear_combinations
             .iter()
             .map(|lc| {
