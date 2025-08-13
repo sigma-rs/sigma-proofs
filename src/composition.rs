@@ -20,17 +20,15 @@
 
 use ff::{Field, PrimeField};
 use group::prime::PrimeGroup;
-use sha3::Digest;
-use sha3::Sha3_256;
-use subtle::Choice;
-use subtle::ConditionallySelectable;
-use subtle::ConstantTimeEq;
+use sha3::{Digest, Sha3_256};
+use subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
 
+use crate::errors::InvalidInstance;
 use crate::{
     codec::Shake128DuplexSponge,
     errors::Error,
     fiat_shamir::Nizk,
-    linear_relation::LinearRelation,
+    linear_relation::{CanonicalLinearRelation, LinearRelation},
     schnorr_protocol::SchnorrProof,
     serialization::{deserialize_scalars, serialize_scalars},
     traits::{SigmaProtocol, SigmaProtocolSimulator},
@@ -49,18 +47,35 @@ pub enum ComposedRelation<G: PrimeGroup> {
     Or(Vec<ComposedRelation<G>>),
 }
 
+impl<G: PrimeGroup> ComposedRelation<G> {
+    /// Create a [ComposedRelation] for an AND relation from the given list of relations.
+    pub fn and<T: Into<ComposedRelation<G>>>(witness: impl IntoIterator<Item = T>) -> Self {
+        Self::And(witness.into_iter().map(|x| x.into()).collect())
+    }
+
+    /// Create a [ComposedRelation] for an OR relation from the given list of relations.
+    pub fn or<T: Into<ComposedRelation<G>>>(witness: impl IntoIterator<Item = T>) -> Self {
+        Self::Or(witness.into_iter().map(|x| x.into()).collect())
+    }
+}
+
 impl<G: PrimeGroup> From<SchnorrProof<G>> for ComposedRelation<G> {
     fn from(value: SchnorrProof<G>) -> Self {
         ComposedRelation::Simple(value)
     }
 }
 
-impl<G: PrimeGroup> From<LinearRelation<G>> for ComposedRelation<G> {
-    fn from(value: LinearRelation<G>) -> Self {
-        Self::Simple(
-            SchnorrProof::try_from(value)
-                .expect("Failed to convert LinearRelation to SchnorrProof"),
-        )
+impl<G: PrimeGroup> From<CanonicalLinearRelation<G>> for ComposedRelation<G> {
+    fn from(value: CanonicalLinearRelation<G>) -> Self {
+        Self::Simple(SchnorrProof(value))
+    }
+}
+
+impl<G: PrimeGroup> TryFrom<LinearRelation<G>> for ComposedRelation<G> {
+    type Error = InvalidInstance;
+
+    fn try_from(value: LinearRelation<G>) -> Result<Self, Self::Error> {
+        Ok(Self::Simple(SchnorrProof::try_from(value)?))
     }
 }
 
@@ -101,6 +116,24 @@ pub enum ComposedWitness<G: PrimeGroup> {
     Simple(<SchnorrProof<G> as SigmaProtocol>::Witness),
     And(Vec<ComposedWitness<G>>),
     Or(Vec<ComposedWitness<G>>),
+}
+
+impl<G: PrimeGroup> ComposedWitness<G> {
+    /// Create a [ComposedWitness] for an AND relation from the given list of witnesses.
+    pub fn and<T: Into<ComposedWitness<G>>>(witness: impl IntoIterator<Item = T>) -> Self {
+        Self::And(witness.into_iter().map(|x| x.into()).collect())
+    }
+
+    /// Create a [ComposedWitness] for an OR relation from the given list of witnesses.
+    pub fn or<T: Into<ComposedWitness<G>>>(witness: impl IntoIterator<Item = T>) -> Self {
+        Self::Or(witness.into_iter().map(|x| x.into()).collect())
+    }
+}
+
+impl<G: PrimeGroup> From<<SchnorrProof<G> as SigmaProtocol>::Witness> for ComposedWitness<G> {
+    fn from(value: <SchnorrProof<G> as SigmaProtocol>::Witness) -> Self {
+        Self::Simple(value)
+    }
 }
 
 type ComposedChallenge<G> = <SchnorrProof<G> as SigmaProtocol>::Challenge;
@@ -213,6 +246,7 @@ impl<G: PrimeGroup + ConstantTimeEq> ComposedRelation<G> {
             let (simulated_commitment, simulated_challenge, simulated_response) =
                 instances[i].simulate_transcript(rng)?;
 
+            // TODO: Implement and use ConditionallySelectable here
             let valid_witness = instances[i].is_witness_valid(w);
             commitments.push(if valid_witness.unwrap_u8() == 1 {
                 commitment
@@ -226,14 +260,14 @@ impl<G: PrimeGroup + ConstantTimeEq> ComposedRelation<G> {
                 simulated_response,
             ));
         }
-        // check that we have only one witness set
+        // check that we have at least one witness set
         let witnesses_found = prover_states
             .iter()
             .map(|x| x.0.unwrap_u8() as usize)
             .sum::<usize>();
         let prover_state = prover_states;
 
-        if witnesses_found != 1 {
+        if witnesses_found == 0 {
             Err(Error::InvalidInstanceWitnessPair)
         } else {
             Ok((

@@ -408,10 +408,8 @@ mod proof_validation {
         lr2.set_element(eq2, C);
 
         // Create OR composition
-        let or_relation = ComposedRelation::Or(vec![
-            ComposedRelation::from(lr1),
-            ComposedRelation::from(lr2),
-        ]);
+        let or_relation =
+            ComposedRelation::or([lr1.canonical().unwrap(), lr2.canonical().unwrap()]);
         let nizk = or_relation.into_nizk(b"test_or_relation");
 
         // Create a correct witness for branch 1 (C = y*B)

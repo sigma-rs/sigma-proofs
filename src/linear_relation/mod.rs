@@ -532,4 +532,11 @@ impl<G: PrimeGroup> LinearRelation<G> {
     ) -> Result<Nizk<SchnorrProof<G>, Shake128DuplexSponge<G>>, InvalidInstance> {
         Ok(Nizk::new(session_identifier, self.try_into()?))
     }
+
+    /// Construct a [CanonicalLinearRelation] from this generalized linear relation.
+    ///
+    /// The construction may fail if the linear relation is malformed, unsatisfiable, or trivial.
+    pub fn canonical(&self) -> Result<CanonicalLinearRelation<G>, InvalidInstance> {
+        self.try_into()
+    }
 }
