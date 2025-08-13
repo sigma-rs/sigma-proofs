@@ -384,6 +384,14 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
     }
 }
 
+impl<G: PrimeGroup> TryFrom<LinearRelation<G>> for CanonicalLinearRelation<G> {
+    type Error = InvalidInstance;
+
+    fn try_from(value: LinearRelation<G>) -> Result<Self, Self::Error> {
+        Self::try_from(&value)
+    }
+}
+
 impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
     type Error = InvalidInstance;
 

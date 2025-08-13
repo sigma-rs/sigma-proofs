@@ -4,7 +4,6 @@ use rand::rngs::OsRng;
 
 use super::test_relations::*;
 use crate::composition::{ComposedRelation, ComposedWitness};
-use crate::schnorr_protocol::SchnorrProof;
 
 type G = RistrettoPoint;
 
@@ -33,20 +32,20 @@ fn test_composition_correctness() {
         .collect::<Vec<_>>();
     // second layer protocol definitions
     let or_protocol1 = ComposedRelation::<G>::Or(vec![
-        ComposedRelation::Simple(SchnorrProof(relation1)),
-        ComposedRelation::Simple(SchnorrProof(relation2)),
+        ComposedRelation::Simple(relation1),
+        ComposedRelation::Simple(relation2),
     ]);
     let or_witness1 = ComposedWitness::Or(vec![
         ComposedWitness::Simple(witness1),
         ComposedWitness::Simple(wrong_witness2),
     ]);
 
-    let simple_protocol1 = ComposedRelation::Simple(SchnorrProof(relation3));
+    let simple_protocol1 = ComposedRelation::Simple(relation3);
     let simple_witness1 = ComposedWitness::Simple(witness3);
 
     let and_protocol1 = ComposedRelation::And(vec![
-        ComposedRelation::Simple(SchnorrProof(relation4)),
-        ComposedRelation::Simple(SchnorrProof(relation5)),
+        ComposedRelation::Simple(relation4),
+        ComposedRelation::Simple(relation5),
     ]);
     let and_witness1 = ComposedWitness::And(vec![
         ComposedWitness::Simple(witness4),

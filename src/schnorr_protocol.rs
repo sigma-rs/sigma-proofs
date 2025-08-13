@@ -62,7 +62,7 @@ impl<G: PrimeGroup> SigmaProtocol for CanonicalLinearRelation<G> {
             .map(|_| G::Scalar::random(&mut *rng))
             .collect::<Vec<_>>();
 
-        let commitment = self.evaluate(&nonces)?;
+        let commitment = self.evaluate(&nonces);
         let prover_state = (nonces.to_vec(), witness.to_vec());
         Ok((commitment, prover_state))
     }
@@ -118,7 +118,7 @@ impl<G: PrimeGroup> SigmaProtocol for CanonicalLinearRelation<G> {
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
-        let lhs = self.0.evaluate(response);
+        let lhs = self.evaluate(response);
         let mut rhs = Vec::new();
         for (i, g) in commitment.iter().enumerate() {
             rhs.push(self.image[i] * challenge + g);
@@ -291,7 +291,7 @@ where
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
-        let response_image = self.evaluate(response)?;
+        let response_image = self.evaluate(response);
         let commitment = response_image
             .iter()
             .zip(&self.image)

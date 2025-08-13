@@ -210,7 +210,7 @@ mod proof_validation {
     use ff::Field;
     use rand::{thread_rng, RngCore};
 
-    type TestNizk = Nizk<SchnorrProof<G>, KeccakByteSchnorrCodec<G>>;
+    type TestNizk = Nizk<CanonicalLinearRelation<G>, KeccakByteSchnorrCodec<G>>;
 
     /// Helper function to create a simple discrete log proof
     fn create_valid_proof() -> (Vec<u8>, TestNizk) {
@@ -228,8 +228,7 @@ mod proof_validation {
         relation.append_equation(var_x_g, var_x * var_g);
 
         let canonical = CanonicalLinearRelation::try_from(&relation).unwrap();
-        let protocol = SchnorrProof(canonical);
-        let nizk = TestNizk::new(b"test_session", protocol);
+        let nizk = TestNizk::new(b"test_session", canonical);
 
         let witness = vec![x];
         let proof = nizk.prove_batchable(&witness, &mut rng).unwrap();

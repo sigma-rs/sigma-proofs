@@ -528,7 +528,7 @@ impl<G: PrimeGroup> LinearRelation<G> {
     pub fn into_nizk(
         self,
         session_identifier: &[u8],
-    ) -> Result<Nizk<SchnorrProof<G>, Shake128DuplexSponge<G>>, InvalidInstance> {
+    ) -> Result<Nizk<CanonicalLinearRelation<G>, Shake128DuplexSponge<G>>, InvalidInstance> {
         Ok(Nizk::new(session_identifier, self.try_into()?))
     }
 }
