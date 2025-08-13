@@ -89,3 +89,29 @@ fn test_or_one_true() {
         assert!(nizk.verify_compact(&proof_compact_bytes).is_ok());
     }
 }
+
+#[allow(non_snake_case)]
+#[test]
+fn test_or_both_true() {
+    // Test composition of a basic OR protocol, with both of the two witnesses being valid.
+
+    // definitions of the underlying protocols
+    let mut rng = OsRng;
+    let (relation1, witness1) = dleq::<G, _>(&mut rng);
+    let (relation2, witness2) = dleq::<G, _>(&mut rng);
+
+    let or_protocol = ComposedRelation::Or(vec![
+        ComposedRelation::Simple(SchnorrProof(relation1)),
+        ComposedRelation::Simple(SchnorrProof(relation2)),
+    ]);
+
+    let witness = ComposedWitness::or([witness1, witness2]);
+    let nizk = or_protocol.into_nizk(b"test_or_one_true");
+
+    // Batchable and compact proofs
+    let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut OsRng).unwrap();
+    let proof_compact_bytes = nizk.prove_compact(&witness, &mut OsRng).unwrap();
+    // Verify proofs
+    assert!(nizk.verify_batchable(&proof_batchable_bytes).is_ok());
+    assert!(nizk.verify_compact(&proof_compact_bytes).is_ok());
+}
