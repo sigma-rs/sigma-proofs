@@ -108,6 +108,16 @@ impl<T> Sum<T> {
     }
 }
 
+impl<T> std::iter::Sum<T> for Sum<T> {
+    /// Add a bunch of `T` to yield a `Sum<T>`
+    fn sum<I>(iter: I) -> Self
+    where
+        I: Iterator<Item = T>,
+    {
+        Self(iter.collect())
+    }
+}
+
 /// Represents a sparse linear combination of scalars and group elements.
 ///
 /// For example, it can represent an equation like:
