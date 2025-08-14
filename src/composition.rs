@@ -241,6 +241,8 @@ impl<G: PrimeGroup + ConstantTimeEq> ComposedRelation<G> {
         let mut commitments = Vec::new();
         let mut prover_states = Vec::new();
 
+        // Selector value set when the first valid witness is found.
+        let mut valid_witness_found = Choice::from(0);
         for (i, w) in witnesses.iter().enumerate() {
             let (commitment, prover_state) = instances[i].prover_commit(w, rng)?;
             let (simulated_commitment, simulated_challenge, simulated_response) =
@@ -248,31 +250,28 @@ impl<G: PrimeGroup + ConstantTimeEq> ComposedRelation<G> {
 
             // TODO: Implement and use ConditionallySelectable here
             let valid_witness = instances[i].is_witness_valid(w);
-            commitments.push(if valid_witness.unwrap_u8() == 1 {
+            let select_witness = valid_witness & !valid_witness_found;
+            commitments.push(if select_witness.unwrap_u8() == 1 {
                 commitment
             } else {
                 simulated_commitment.clone()
             });
             prover_states.push(ComposedOrProverStateEntry(
-                valid_witness,
+                select_witness,
                 prover_state,
                 simulated_challenge,
                 simulated_response,
             ));
-        }
-        // check that we have at least one witness set
-        let witnesses_found = prover_states
-            .iter()
-            .map(|x| x.0.unwrap_u8() as usize)
-            .sum::<usize>();
-        let prover_state = prover_states;
 
-        if witnesses_found == 0 {
+            valid_witness_found |= valid_witness;
+        }
+
+        if valid_witness_found.unwrap_u8() == 0 {
             Err(Error::InvalidInstanceWitnessPair)
         } else {
             Ok((
                 ComposedCommitment::Or(commitments),
-                ComposedProverState::Or(prover_state),
+                ComposedProverState::Or(prover_states),
             ))
         }
     }
