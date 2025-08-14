@@ -6,7 +6,6 @@ use rand::RngCore;
 use crate::codec::Shake128DuplexSponge;
 use crate::fiat_shamir::Nizk;
 use crate::linear_relation::CanonicalLinearRelation;
-use crate::schnorr_protocol::SchnorrProof;
 
 use crate::linear_relation::{LinearRelation, VariableMultiScalarMul};
 
@@ -480,11 +479,13 @@ fn test_relations() {
         let (canonical_relation, witness) = relation_sampler(&mut rng);
 
         // Test the NIZK protocol
-        let protocol = SchnorrProof(canonical_relation);
         let domain_sep = format!("test-fiat-shamir-{relation_name}")
             .as_bytes()
             .to_vec();
-        let nizk = Nizk::<SchnorrProof<G>, Shake128DuplexSponge<G>>::new(&domain_sep, protocol);
+        let nizk = Nizk::<CanonicalLinearRelation<G>, Shake128DuplexSponge<G>>::new(
+            &domain_sep,
+            canonical_relation,
+        );
 
         // Test both proof types
         let proof_batchable = nizk
