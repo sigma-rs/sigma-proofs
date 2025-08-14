@@ -285,15 +285,13 @@ impl<G: PrimeGroup + ConstantTimeEq> ComposedRelation<G> {
         let mut result_challenges = Vec::with_capacity(instances.len());
         let mut result_responses = Vec::with_capacity(instances.len());
 
-        let prover_states = prover_state;
-
         let mut witness_challenge = *challenge;
         for ComposedOrProverStateEntry(
             valid_witness,
             _prover_state,
             simulated_challenge,
             _simulated_response,
-        ) in &prover_states
+        ) in &prover_state
         {
             let c = G::Scalar::conditional_select(
                 simulated_challenge,
@@ -310,7 +308,7 @@ impl<G: PrimeGroup + ConstantTimeEq> ComposedRelation<G> {
                 simulated_challenge,
                 simulated_response,
             ),
-        ) in instances.iter().zip(prover_states)
+        ) in instances.iter().zip(prover_state)
         {
             let challenge_i = G::Scalar::conditional_select(
                 &simulated_challenge,
