@@ -16,7 +16,6 @@ use group::prime::PrimeGroup;
 
 use crate::codec::Shake128DuplexSponge;
 use crate::errors::{Error, InvalidInstance};
-use crate::schnorr_protocol::SchnorrProof;
 use crate::Nizk;
 
 /// Implementations of conversion operations such as From and FromIterator for var and term types.
@@ -105,6 +104,16 @@ impl<T> Sum<T> {
     /// Access the terms of the sum as slice reference.
     pub fn terms(&self) -> &[T] {
         &self.0
+    }
+}
+
+impl<T> std::iter::Sum<T> for Sum<T> {
+    /// Add a bunch of `T` to yield a `Sum<T>`
+    fn sum<I>(iter: I) -> Self
+    where
+        I: Iterator<Item = T>,
+    {
+        Self(iter.collect())
     }
 }
 
@@ -529,7 +538,7 @@ impl<G: PrimeGroup> LinearRelation<G> {
     pub fn into_nizk(
         self,
         session_identifier: &[u8],
-    ) -> Result<Nizk<SchnorrProof<G>, Shake128DuplexSponge<G>>, InvalidInstance> {
+    ) -> Result<Nizk<CanonicalLinearRelation<G>, Shake128DuplexSponge<G>>, InvalidInstance> {
         Ok(Nizk::new(session_identifier, self.try_into()?))
     }
 

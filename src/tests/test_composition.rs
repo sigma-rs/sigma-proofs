@@ -4,7 +4,6 @@ use rand::rngs::OsRng;
 
 use super::test_relations::*;
 use crate::composition::{ComposedRelation, ComposedWitness};
-use crate::schnorr_protocol::SchnorrProof;
 
 type G = RistrettoPoint;
 
@@ -69,10 +68,7 @@ fn test_or_one_true() {
         .map(|_| <G as Group>::Scalar::random(&mut rng))
         .collect::<Vec<_>>();
 
-    let or_protocol = ComposedRelation::Or(vec![
-        ComposedRelation::Simple(SchnorrProof(relation1)),
-        ComposedRelation::Simple(SchnorrProof(relation2)),
-    ]);
+    let or_protocol = ComposedRelation::or([relation1, relation2]);
 
     // Construct two witnesses to the protocol, the first and then the second as the true branch.
     let witness_or_1 = ComposedWitness::or([witness1, wrong_witness2]);
@@ -100,10 +96,7 @@ fn test_or_both_true() {
     let (relation1, witness1) = dleq::<G, _>(&mut rng);
     let (relation2, witness2) = dleq::<G, _>(&mut rng);
 
-    let or_protocol = ComposedRelation::Or(vec![
-        ComposedRelation::Simple(SchnorrProof(relation1)),
-        ComposedRelation::Simple(SchnorrProof(relation2)),
-    ]);
+    let or_protocol = ComposedRelation::or([relation1, relation2]);
 
     let witness = ComposedWitness::or([witness1, witness2]);
     let nizk = or_protocol.into_nizk(b"test_or_one_true");

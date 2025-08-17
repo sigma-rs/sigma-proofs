@@ -1,6 +1,6 @@
 //! # Protocol Composition with AND/OR Logic
 //!
-//! This module defines the [`ComposedRelation`] enum, which generalizes the [`SchnorrProof`]
+//! This module defines the [`ComposedRelation`] enum, which generalizes the [`CanonicalLinearRelation`]
 //! by enabling compositional logic between multiple proof instances.
 //!
 //! Specifically, it supports:
@@ -29,20 +29,19 @@ use crate::{
     errors::Error,
     fiat_shamir::Nizk,
     linear_relation::{CanonicalLinearRelation, LinearRelation},
-    schnorr_protocol::SchnorrProof,
     serialization::{deserialize_scalars, serialize_scalars},
     traits::{SigmaProtocol, SigmaProtocolSimulator},
 };
 
-/// A protocol proving knowledge of a witness for a composition of SchnorrProof's.
+/// A protocol proving knowledge of a witness for a composition of linear relations.
 ///
-/// This implementation generalizes [`SchnorrProof`] by using AND/OR links.
+/// This implementation generalizes [`CanonicalLinearRelation`] by using AND/OR links.
 ///
 /// # Type Parameters
 /// - `G`: A cryptographic group implementing [`group::Group`] and [`group::GroupEncoding`].
 #[derive(Clone)]
 pub enum ComposedRelation<G: PrimeGroup> {
-    Simple(SchnorrProof<G>),
+    Simple(CanonicalLinearRelation<G>),
     And(Vec<ComposedRelation<G>>),
     Or(Vec<ComposedRelation<G>>),
 }
@@ -59,15 +58,9 @@ impl<G: PrimeGroup> ComposedRelation<G> {
     }
 }
 
-impl<G: PrimeGroup> From<SchnorrProof<G>> for ComposedRelation<G> {
-    fn from(value: SchnorrProof<G>) -> Self {
-        ComposedRelation::Simple(value)
-    }
-}
-
 impl<G: PrimeGroup> From<CanonicalLinearRelation<G>> for ComposedRelation<G> {
     fn from(value: CanonicalLinearRelation<G>) -> Self {
-        Self::Simple(SchnorrProof(value))
+        ComposedRelation::Simple(value)
     }
 }
 
@@ -75,21 +68,21 @@ impl<G: PrimeGroup> TryFrom<LinearRelation<G>> for ComposedRelation<G> {
     type Error = InvalidInstance;
 
     fn try_from(value: LinearRelation<G>) -> Result<Self, Self::Error> {
-        Ok(Self::Simple(SchnorrProof::try_from(value)?))
+        Ok(Self::Simple(CanonicalLinearRelation::try_from(value)?))
     }
 }
 
 // Structure representing the Commitment type of Protocol as SigmaProtocol
 #[derive(Clone)]
 pub enum ComposedCommitment<G: PrimeGroup> {
-    Simple(<SchnorrProof<G> as SigmaProtocol>::Commitment),
+    Simple(<CanonicalLinearRelation<G> as SigmaProtocol>::Commitment),
     And(Vec<ComposedCommitment<G>>),
     Or(Vec<ComposedCommitment<G>>),
 }
 
 // Structure representing the ProverState type of Protocol as SigmaProtocol
 pub enum ComposedProverState<G: PrimeGroup + ConstantTimeEq> {
-    Simple(<SchnorrProof<G> as SigmaProtocol>::ProverState),
+    Simple(<CanonicalLinearRelation<G> as SigmaProtocol>::ProverState),
     And(Vec<ComposedProverState<G>>),
     Or(ComposedOrProverState<G>),
 }
@@ -105,7 +98,7 @@ pub struct ComposedOrProverStateEntry<G: PrimeGroup + ConstantTimeEq>(
 // Structure representing the Response type of Protocol as SigmaProtocol
 #[derive(Clone)]
 pub enum ComposedResponse<G: PrimeGroup> {
-    Simple(<SchnorrProof<G> as SigmaProtocol>::Response),
+    Simple(<CanonicalLinearRelation<G> as SigmaProtocol>::Response),
     And(Vec<ComposedResponse<G>>),
     Or(Vec<ComposedChallenge<G>>, Vec<ComposedResponse<G>>),
 }
@@ -113,7 +106,7 @@ pub enum ComposedResponse<G: PrimeGroup> {
 // Structure representing the Witness type of Protocol as SigmaProtocol
 #[derive(Clone)]
 pub enum ComposedWitness<G: PrimeGroup> {
-    Simple(<SchnorrProof<G> as SigmaProtocol>::Witness),
+    Simple(<CanonicalLinearRelation<G> as SigmaProtocol>::Witness),
     And(Vec<ComposedWitness<G>>),
     Or(Vec<ComposedWitness<G>>),
 }
@@ -130,13 +123,15 @@ impl<G: PrimeGroup> ComposedWitness<G> {
     }
 }
 
-impl<G: PrimeGroup> From<<SchnorrProof<G> as SigmaProtocol>::Witness> for ComposedWitness<G> {
-    fn from(value: <SchnorrProof<G> as SigmaProtocol>::Witness) -> Self {
+impl<G: PrimeGroup> From<<CanonicalLinearRelation<G> as SigmaProtocol>::Witness>
+    for ComposedWitness<G>
+{
+    fn from(value: <CanonicalLinearRelation<G> as SigmaProtocol>::Witness) -> Self {
         Self::Simple(value)
     }
 }
 
-type ComposedChallenge<G> = <SchnorrProof<G> as SigmaProtocol>::Challenge;
+type ComposedChallenge<G> = <CanonicalLinearRelation<G> as SigmaProtocol>::Challenge;
 
 const fn composed_challenge_size<G: PrimeGroup>() -> usize {
     (G::Scalar::NUM_BITS as usize).div_ceil(8)
@@ -146,7 +141,7 @@ impl<G: PrimeGroup + ConstantTimeEq> ComposedRelation<G> {
     fn is_witness_valid(&self, witness: &ComposedWitness<G>) -> Choice {
         match (self, witness) {
             (ComposedRelation::Simple(instance), ComposedWitness::Simple(witness)) => {
-                instance.0.is_witness_valid(witness)
+                instance.is_witness_valid(witness)
             }
             (ComposedRelation::And(instances), ComposedWitness::And(witnesses)) => instances
                 .iter()
@@ -165,8 +160,8 @@ impl<G: PrimeGroup + ConstantTimeEq> ComposedRelation<G> {
     }
 
     fn prover_commit_simple(
-        protocol: &SchnorrProof<G>,
-        witness: &<SchnorrProof<G> as SigmaProtocol>::Witness,
+        protocol: &CanonicalLinearRelation<G>,
+        witness: &<CanonicalLinearRelation<G> as SigmaProtocol>::Witness,
         rng: &mut (impl rand::Rng + rand::CryptoRng),
     ) -> Result<(ComposedCommitment<G>, ComposedProverState<G>), Error> {
         protocol.prover_commit(witness, rng).map(|(c, s)| {
@@ -178,9 +173,9 @@ impl<G: PrimeGroup + ConstantTimeEq> ComposedRelation<G> {
     }
 
     fn prover_response_simple(
-        instance: &SchnorrProof<G>,
-        state: <SchnorrProof<G> as SigmaProtocol>::ProverState,
-        challenge: &<SchnorrProof<G> as SigmaProtocol>::Challenge,
+        instance: &CanonicalLinearRelation<G>,
+        state: <CanonicalLinearRelation<G> as SigmaProtocol>::ProverState,
+        challenge: &<CanonicalLinearRelation<G> as SigmaProtocol>::Challenge,
     ) -> Result<ComposedResponse<G>, Error> {
         instance
             .prover_response(state, challenge)

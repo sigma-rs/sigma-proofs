@@ -50,6 +50,14 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
     }
 
     /// Evaluate the canonical linear relation with the provided scalars
+    ///
+    /// This returns a list of image points produced by evaluating each linear combination in the
+    /// relation. The order of the returned list matches the order of [`Self::linear_combinations`].
+    ///
+    /// # Panic
+    ///
+    /// Panics if the number of scalars given is less than the number of scalar variables in this
+    /// linear relation
     pub fn evaluate(&self, scalars: &[G::Scalar]) -> Vec<G> {
         self.linear_combinations
             .iter()
@@ -373,6 +381,14 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
         }
 
         Ok(canonical)
+    }
+}
+
+impl<G: PrimeGroup> TryFrom<LinearRelation<G>> for CanonicalLinearRelation<G> {
+    type Error = InvalidInstance;
+
+    fn try_from(value: LinearRelation<G>) -> Result<Self, Self::Error> {
+        Self::try_from(&value)
     }
 }
 

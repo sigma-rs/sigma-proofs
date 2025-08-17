@@ -4,8 +4,8 @@
 //! a Sigma protocol proving different types of discrete logarithm relations (eg. Schnorr, Pedersen's commitments)
 //! through a group morphism abstraction (see [Maurer09](https://crypto-test.ethz.ch/publications/files/Maurer09.pdf)).
 
-use crate::errors::{Error, InvalidInstance};
-use crate::linear_relation::{CanonicalLinearRelation, LinearRelation};
+use crate::errors::Error;
+use crate::linear_relation::CanonicalLinearRelation;
 use crate::{
     serialization::{
         deserialize_elements, deserialize_scalars, serialize_elements, serialize_scalars,
@@ -17,70 +17,9 @@ use ff::Field;
 use group::prime::PrimeGroup;
 use rand::{CryptoRng, Rng, RngCore};
 
-/// A Schnorr protocol proving knowledge of a witness for a linear group relation.
-///
-/// This implementation generalizes Schnorr’s discrete logarithm proof by using
-/// a [`LinearRelation`], representing an abstract linear relation over the group.
-///
-/// # Type Parameters
-/// - `G`: A [`PrimeGroup`] instance.
-#[derive(Clone, Default, Debug)]
-pub struct SchnorrProof<G: PrimeGroup>(pub CanonicalLinearRelation<G>);
-
-pub struct ProverState<G: PrimeGroup>(Vec<G::Scalar>, Vec<G::Scalar>);
-
-impl<G: PrimeGroup> SchnorrProof<G> {
-    pub fn witness_length(&self) -> usize {
-        self.0.num_scalars
-    }
-
-    pub fn commitment_length(&self) -> usize {
-        self.0.linear_combinations.len()
-    }
-
-    /// Internal method to commit using provided nonces (for deterministic testing)
-    pub fn commit_with_nonces(
-        &self,
-        witness: &[G::Scalar],
-        nonces: &[G::Scalar],
-    ) -> Result<(Vec<G>, ProverState<G>), Error> {
-        if witness.len() != self.witness_length() {
-            return Err(Error::InvalidInstanceWitnessPair);
-        }
-        if nonces.len() != self.witness_length() {
-            return Err(Error::InvalidInstanceWitnessPair);
-        }
-
-        // If the image is the identity, then the relation must be
-        // trivial, or else the proof will be unsound
-        if self
-            .0
-            .image
-            .iter()
-            .zip(self.0.linear_combinations.iter())
-            .any(|(&x, c)| x == G::identity() && !c.is_empty())
-        {
-            return Err(Error::InvalidInstanceWitnessPair);
-        }
-
-        let commitment = self.0.evaluate(nonces);
-        let prover_state = ProverState(nonces.to_vec(), witness.to_vec());
-        Ok((commitment, prover_state))
-    }
-}
-
-impl<G: PrimeGroup> TryFrom<LinearRelation<G>> for SchnorrProof<G> {
-    type Error = InvalidInstance;
-
-    fn try_from(linear_relation: LinearRelation<G>) -> Result<Self, Self::Error> {
-        let canonical_linear_relation = CanonicalLinearRelation::try_from(&linear_relation)?;
-        Ok(Self(canonical_linear_relation))
-    }
-}
-
-impl<G: PrimeGroup> SigmaProtocol for SchnorrProof<G> {
+impl<G: PrimeGroup> SigmaProtocol for CanonicalLinearRelation<G> {
     type Commitment = Vec<G>;
-    type ProverState = ProverState<G>;
+    type ProverState = (Vec<G::Scalar>, Vec<G::Scalar>);
     type Response = Vec<G::Scalar>;
     type Witness = Vec<G::Scalar>;
     type Challenge = G::Scalar;
@@ -103,26 +42,29 @@ impl<G: PrimeGroup> SigmaProtocol for SchnorrProof<G> {
         witness: &Self::Witness,
         rng: &mut (impl RngCore + CryptoRng),
     ) -> Result<(Self::Commitment, Self::ProverState), Error> {
-        if witness.len() != self.witness_length() {
+        if witness.len() != self.num_scalars {
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
+        // TODO: Check this when constructing the CanonicalLinearRelation instead of here.
         // If the image is the identity, then the relation must be
         // trivial, or else the proof will be unsound
         if self
-            .0
             .image
             .iter()
-            .zip(self.0.linear_combinations.iter())
+            .zip(self.linear_combinations.iter())
             .any(|(&x, c)| x == G::identity() && !c.is_empty())
         {
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
-        let nonces = (0..self.witness_length())
+        let nonces = (0..self.num_scalars)
             .map(|_| G::Scalar::random(&mut *rng))
             .collect::<Vec<_>>();
-        self.commit_with_nonces(witness, &nonces)
+
+        let commitment = self.evaluate(&nonces);
+        let prover_state = (nonces.to_vec(), witness.to_vec());
+        Ok((commitment, prover_state))
     }
 
     /// Computes the prover's response (second message) using the challenge.
@@ -141,7 +83,7 @@ impl<G: PrimeGroup> SigmaProtocol for SchnorrProof<G> {
         prover_state: Self::ProverState,
         challenge: &Self::Challenge,
     ) -> Result<Self::Response, Error> {
-        let ProverState(nonces, witness) = prover_state;
+        let (nonces, witness) = prover_state;
 
         let responses = nonces
             .into_iter()
@@ -172,14 +114,14 @@ impl<G: PrimeGroup> SigmaProtocol for SchnorrProof<G> {
         challenge: &Self::Challenge,
         response: &Self::Response,
     ) -> Result<(), Error> {
-        if commitment.len() != self.commitment_length() || response.len() != self.witness_length() {
+        if commitment.len() != self.image.len() || response.len() != self.num_scalars {
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
-        let lhs = self.0.evaluate(response);
+        let lhs = self.evaluate(response);
         let mut rhs = Vec::new();
         for (i, g) in commitment.iter().enumerate() {
-            rhs.push(self.0.image[i] * challenge + g);
+            rhs.push(self.image[i] * challenge + g);
         }
         if lhs == rhs {
             Ok(())
@@ -247,7 +189,7 @@ impl<G: PrimeGroup> SigmaProtocol for SchnorrProof<G> {
     /// # Errors
     /// - Returns [`Error::VerificationFailure`] if the data is malformed or contains an invalid encoding.
     fn deserialize_commitment(&self, data: &[u8]) -> Result<Self::Commitment, Error> {
-        deserialize_elements::<G>(data, self.commitment_length()).ok_or(Error::VerificationFailure)
+        deserialize_elements::<G>(data, self.image.len()).ok_or(Error::VerificationFailure)
     }
 
     /// Deserializes a byte slice into a challenge scalar.
@@ -281,11 +223,11 @@ impl<G: PrimeGroup> SigmaProtocol for SchnorrProof<G> {
     /// # Errors
     /// - Returns [`Error::VerificationFailure`] if the byte data is malformed or the length is incorrect.
     fn deserialize_response(&self, data: &[u8]) -> Result<Self::Response, Error> {
-        deserialize_scalars::<G>(data, self.witness_length()).ok_or(Error::VerificationFailure)
+        deserialize_scalars::<G>(data, self.num_scalars).ok_or(Error::VerificationFailure)
     }
 
     fn instance_label(&self) -> impl AsRef<[u8]> {
-        self.0.label()
+        self.label()
     }
 
     fn protocol_identifier(&self) -> impl AsRef<[u8]> {
@@ -293,7 +235,7 @@ impl<G: PrimeGroup> SigmaProtocol for SchnorrProof<G> {
     }
 }
 
-impl<G> SigmaProtocolSimulator for SchnorrProof<G>
+impl<G> SigmaProtocolSimulator for CanonicalLinearRelation<G>
 where
     G: PrimeGroup,
 {
@@ -306,7 +248,7 @@ where
     /// # Returns
     /// - A commitment and response forming a valid proof for the given challenge.
     fn simulate_response<R: Rng + CryptoRng>(&self, rng: &mut R) -> Self::Response {
-        let response: Vec<G::Scalar> = (0..self.witness_length())
+        let response: Vec<G::Scalar> = (0..self.num_scalars)
             .map(|_| G::Scalar::random(&mut *rng))
             .collect();
         response
@@ -345,16 +287,14 @@ where
         challenge: &Self::Challenge,
         response: &Self::Response,
     ) -> Result<Self::Commitment, Error> {
-        if response.len() != self.witness_length() {
+        if response.len() != self.num_scalars {
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
-        let response_image = self.0.evaluate(response);
-        let image = &self.0.image;
-
+        let response_image = self.evaluate(response);
         let commitment = response_image
             .iter()
-            .zip(image)
+            .zip(&self.image)
             .map(|(res, img)| *res - *img * challenge)
             .collect::<Vec<_>>();
         Ok(commitment)

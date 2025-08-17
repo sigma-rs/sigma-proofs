@@ -3,33 +3,32 @@ use rand::{CryptoRng, Rng};
 
 use crate::errors::Error;
 use crate::linear_relation::{CanonicalLinearRelation, LinearRelation};
-use crate::schnorr_protocol::SchnorrProof;
 use crate::tests::spec::random::SRandom;
 use crate::traits::{SigmaProtocol, SigmaProtocolSimulator};
 
-pub struct DeterministicSchnorrProof<G: PrimeGroup>(pub SchnorrProof<G>);
+pub struct DeterministicSchnorrProof<G: PrimeGroup>(pub CanonicalLinearRelation<G>);
 
 impl<G: PrimeGroup> TryFrom<LinearRelation<G>> for DeterministicSchnorrProof<G> {
     type Error = Error;
 
     fn try_from(linear_relation: LinearRelation<G>) -> Result<Self, Self::Error> {
-        let schnorr_proof = SchnorrProof::try_from(linear_relation)?;
-        Ok(Self(schnorr_proof))
+        let relation = CanonicalLinearRelation::try_from(&linear_relation)?;
+        Ok(Self(relation))
     }
 }
 
 impl<G: PrimeGroup> From<CanonicalLinearRelation<G>> for DeterministicSchnorrProof<G> {
     fn from(canonical_relation: CanonicalLinearRelation<G>) -> Self {
-        Self(SchnorrProof(canonical_relation))
+        Self(canonical_relation)
     }
 }
 
 impl<G: SRandom + PrimeGroup> SigmaProtocol for DeterministicSchnorrProof<G> {
-    type Commitment = <SchnorrProof<G> as SigmaProtocol>::Commitment;
-    type ProverState = <SchnorrProof<G> as SigmaProtocol>::ProverState;
-    type Response = <SchnorrProof<G> as SigmaProtocol>::Response;
-    type Witness = <SchnorrProof<G> as SigmaProtocol>::Witness;
-    type Challenge = <SchnorrProof<G> as SigmaProtocol>::Challenge;
+    type Commitment = <CanonicalLinearRelation<G> as SigmaProtocol>::Commitment;
+    type ProverState = <CanonicalLinearRelation<G> as SigmaProtocol>::ProverState;
+    type Response = <CanonicalLinearRelation<G> as SigmaProtocol>::Response;
+    type Witness = <CanonicalLinearRelation<G> as SigmaProtocol>::Witness;
+    type Challenge = <CanonicalLinearRelation<G> as SigmaProtocol>::Challenge;
 
     fn prover_commit(
         &self,
@@ -37,10 +36,12 @@ impl<G: SRandom + PrimeGroup> SigmaProtocol for DeterministicSchnorrProof<G> {
         rng: &mut (impl Rng + CryptoRng),
     ) -> Result<(Self::Commitment, Self::ProverState), Error> {
         let mut nonces: Vec<G::Scalar> = Vec::new();
-        for _i in 0..self.0.witness_length() {
+        for _i in 0..self.0.num_scalars {
             nonces.push(<G as SRandom>::random_scalar_elt(rng));
         }
-        self.0.commit_with_nonces(witness, &nonces)
+        let commitment = self.0.evaluate(&nonces);
+        let prover_state = (nonces.to_vec(), witness.to_vec());
+        Ok((commitment, prover_state))
     }
 
     fn prover_response(
