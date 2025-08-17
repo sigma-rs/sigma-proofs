@@ -20,12 +20,10 @@
 
 use ff::{Field, PrimeField};
 use group::prime::PrimeGroup;
-use sha3::Digest;
-use sha3::Sha3_256;
-use subtle::Choice;
-use subtle::ConditionallySelectable;
-use subtle::ConstantTimeEq;
+use sha3::{Digest, Sha3_256};
+use subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
 
+use crate::errors::InvalidInstance;
 use crate::{
     codec::Shake128DuplexSponge,
     errors::Error,
@@ -48,18 +46,29 @@ pub enum ComposedRelation<G: PrimeGroup> {
     Or(Vec<ComposedRelation<G>>),
 }
 
+impl<G: PrimeGroup> ComposedRelation<G> {
+    /// Create a [ComposedRelation] for an AND relation from the given list of relations.
+    pub fn and<T: Into<ComposedRelation<G>>>(witness: impl IntoIterator<Item = T>) -> Self {
+        Self::And(witness.into_iter().map(|x| x.into()).collect())
+    }
+
+    /// Create a [ComposedRelation] for an OR relation from the given list of relations.
+    pub fn or<T: Into<ComposedRelation<G>>>(witness: impl IntoIterator<Item = T>) -> Self {
+        Self::Or(witness.into_iter().map(|x| x.into()).collect())
+    }
+}
+
 impl<G: PrimeGroup> From<CanonicalLinearRelation<G>> for ComposedRelation<G> {
     fn from(value: CanonicalLinearRelation<G>) -> Self {
         ComposedRelation::Simple(value)
     }
 }
 
-impl<G: PrimeGroup> From<LinearRelation<G>> for ComposedRelation<G> {
-    fn from(value: LinearRelation<G>) -> Self {
-        Self::Simple(
-            CanonicalLinearRelation::try_from(value)
-                .expect("Failed to convert LinearRelation to CanonicalLinearRelation"),
-        )
+impl<G: PrimeGroup> TryFrom<LinearRelation<G>> for ComposedRelation<G> {
+    type Error = InvalidInstance;
+
+    fn try_from(value: LinearRelation<G>) -> Result<Self, Self::Error> {
+        Ok(Self::Simple(CanonicalLinearRelation::try_from(value)?))
     }
 }
 
@@ -100,6 +109,26 @@ pub enum ComposedWitness<G: PrimeGroup> {
     Simple(<CanonicalLinearRelation<G> as SigmaProtocol>::Witness),
     And(Vec<ComposedWitness<G>>),
     Or(Vec<ComposedWitness<G>>),
+}
+
+impl<G: PrimeGroup> ComposedWitness<G> {
+    /// Create a [ComposedWitness] for an AND relation from the given list of witnesses.
+    pub fn and<T: Into<ComposedWitness<G>>>(witness: impl IntoIterator<Item = T>) -> Self {
+        Self::And(witness.into_iter().map(|x| x.into()).collect())
+    }
+
+    /// Create a [ComposedWitness] for an OR relation from the given list of witnesses.
+    pub fn or<T: Into<ComposedWitness<G>>>(witness: impl IntoIterator<Item = T>) -> Self {
+        Self::Or(witness.into_iter().map(|x| x.into()).collect())
+    }
+}
+
+impl<G: PrimeGroup> From<<CanonicalLinearRelation<G> as SigmaProtocol>::Witness>
+    for ComposedWitness<G>
+{
+    fn from(value: <CanonicalLinearRelation<G> as SigmaProtocol>::Witness) -> Self {
+        Self::Simple(value)
+    }
 }
 
 type ComposedChallenge<G> = <CanonicalLinearRelation<G> as SigmaProtocol>::Challenge;
@@ -207,37 +236,37 @@ impl<G: PrimeGroup + ConstantTimeEq> ComposedRelation<G> {
         let mut commitments = Vec::new();
         let mut prover_states = Vec::new();
 
+        // Selector value set when the first valid witness is found.
+        let mut valid_witness_found = Choice::from(0);
         for (i, w) in witnesses.iter().enumerate() {
             let (commitment, prover_state) = instances[i].prover_commit(w, rng)?;
             let (simulated_commitment, simulated_challenge, simulated_response) =
                 instances[i].simulate_transcript(rng)?;
 
+            // TODO: Implement and use ConditionallySelectable here
             let valid_witness = instances[i].is_witness_valid(w);
-            commitments.push(if valid_witness.unwrap_u8() == 1 {
+            let select_witness = valid_witness & !valid_witness_found;
+            commitments.push(if select_witness.unwrap_u8() == 1 {
                 commitment
             } else {
                 simulated_commitment.clone()
             });
             prover_states.push(ComposedOrProverStateEntry(
-                valid_witness,
+                select_witness,
                 prover_state,
                 simulated_challenge,
                 simulated_response,
             ));
-        }
-        // check that we have only one witness set
-        let witnesses_found = prover_states
-            .iter()
-            .map(|x| x.0.unwrap_u8() as usize)
-            .sum::<usize>();
-        let prover_state = prover_states;
 
-        if witnesses_found != 1 {
+            valid_witness_found |= valid_witness;
+        }
+
+        if valid_witness_found.unwrap_u8() == 0 {
             Err(Error::InvalidInstanceWitnessPair)
         } else {
             Ok((
                 ComposedCommitment::Or(commitments),
-                ComposedProverState::Or(prover_state),
+                ComposedProverState::Or(prover_states),
             ))
         }
     }
@@ -250,15 +279,13 @@ impl<G: PrimeGroup + ConstantTimeEq> ComposedRelation<G> {
         let mut result_challenges = Vec::with_capacity(instances.len());
         let mut result_responses = Vec::with_capacity(instances.len());
 
-        let prover_states = prover_state;
-
         let mut witness_challenge = *challenge;
         for ComposedOrProverStateEntry(
             valid_witness,
             _prover_state,
             simulated_challenge,
             _simulated_response,
-        ) in &prover_states
+        ) in &prover_state
         {
             let c = G::Scalar::conditional_select(
                 simulated_challenge,
@@ -275,7 +302,7 @@ impl<G: PrimeGroup + ConstantTimeEq> ComposedRelation<G> {
                 simulated_challenge,
                 simulated_response,
             ),
-        ) in instances.iter().zip(prover_states)
+        ) in instances.iter().zip(prover_state)
         {
             let challenge_i = G::Scalar::conditional_select(
                 &simulated_challenge,
