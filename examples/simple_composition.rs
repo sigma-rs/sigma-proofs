@@ -40,9 +40,7 @@ fn create_relation(P1: G, P2: G, Q: G, H: G) -> ComposedRelation<G> {
     rel2.set_element(Q_var, Q);
 
     // Compose into OR protocol
-    let proto1 = ComposedRelation::from(rel1);
-    let proto2 = ComposedRelation::from(rel2);
-    ComposedRelation::Or(vec![proto1, proto2])
+    ComposedRelation::or([rel1.canonical().unwrap(), rel2.canonical().unwrap()])
 }
 
 /// Prove knowledge of one of the witnesses (we know x2 for the DLEQ)
