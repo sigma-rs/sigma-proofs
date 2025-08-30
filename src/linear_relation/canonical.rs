@@ -168,10 +168,11 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
 
         // Create an ordered list of unique group element representations. Elements are ordered
         // based on the order they appear in the canonical linear relation, as seen by the loop
-        // below. Note that this is dependent on the building order in TryFrom<LinearRelation>.
-        // QUESTION: Does anything depend on this order being stable? This seems difficult to
-        // maintain across versions of this library, and changes to the relation definition may
-        // have difficult to predict effects on the order.
+        // below.
+        // Order in this list is expected to be stable and lead to the same vector string.
+        // However, relations built using TryFrom<LinearRelation> are NOT guaranteed to lead
+        // to the same ordering of elements across versions of this library.
+        // Changes to LinearRelation may have unpredictable effects on how this label is built.
         let mut group_repr_mapping: HashMap<Box<[u8]>, u32> = HashMap::new();
         let mut group_elements_ordered = Vec::new();
 
