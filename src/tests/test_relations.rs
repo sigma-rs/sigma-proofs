@@ -29,7 +29,7 @@ pub fn discrete_logarithm<G: PrimeGroup, R: rand::RngCore>(
 
     assert_eq!(X, G::generator() * x);
     let witness = vec![x];
-    let instance: CanonicalLinearRelation<G> = (&relation).try_into().unwrap();
+    let instance = (&relation).try_into().unwrap();
     (instance, witness)
 }
 
@@ -443,34 +443,22 @@ fn test_relations() {
     use group::Group;
     type G = bls12_381::G1Projective;
     type RelationGenerator<G> =
-        Box<dyn Fn(&mut OsRng) -> (CanonicalLinearRelation<G>, Vec<<G as Group>::Scalar>)>;
+        &'static dyn Fn(&mut OsRng) -> (CanonicalLinearRelation<G>, Vec<<G as Group>::Scalar>);
 
     let instance_generators: Vec<(&str, RelationGenerator<G>)> = vec![
-        ("dlog", Box::new(discrete_logarithm)),
-        ("shifted_dlog", Box::new(shifted_dlog)),
-        ("dleq", Box::new(dleq)),
-        ("shifted_dleq", Box::new(shifted_dleq)),
-        ("pedersen_commitment", Box::new(pedersen_commitment)),
-        (
-            "twisted_pedersen_commitment",
-            Box::new(twisted_pedersen_commitment),
-        ),
-        (
-            "pedersen_commitment_dleq",
-            Box::new(pedersen_commitment_dleq),
-        ),
-        ("bbs_blind_commitment", Box::new(bbs_blind_commitment)),
-        (
-            "weird_linear_combination",
-            Box::new(weird_linear_combination),
-        ),
-        ("simple_subtractions", Box::new(simple_subtractions)),
-        ("subtractions_with_shift", Box::new(subtractions_with_shift)),
-        (
-            "cmz_wallet_spend_relation",
-            Box::new(cmz_wallet_spend_relation),
-        ),
-        ("nested_affine_relation", Box::new(nested_affine_relation)),
+        ("dlog", &discrete_logarithm),
+        ("shifted_dlog", &shifted_dlog),
+        ("dleq", &dleq),
+        ("shifted_dleq", &shifted_dleq),
+        ("pedersen_commitment", &pedersen_commitment),
+        ("twisted_pedersen_commitment", &twisted_pedersen_commitment),
+        ("pedersen_commitment_dleq", &pedersen_commitment_dleq),
+        ("bbs_blind_commitment", &bbs_blind_commitment),
+        ("weird_linear_combination", &weird_linear_combination),
+        ("simple_subtractions", &simple_subtractions),
+        ("subtractions_with_shift", &subtractions_with_shift),
+        ("cmz_wallet_spend_relation", &cmz_wallet_spend_relation),
+        ("nested_affine_relation", &nested_affine_relation),
     ];
 
     for (relation_name, relation_sampler) in instance_generators.iter() {
