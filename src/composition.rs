@@ -24,6 +24,7 @@ use sha3::{Digest, Sha3_256};
 use subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
 
 use crate::errors::InvalidInstance;
+use crate::group::serialization::{deserialize_scalars, serialize_scalars};
 use crate::{
     codec::Shake128DuplexSponge,
     errors::Error,
@@ -31,7 +32,6 @@ use crate::{
     linear_relation::{CanonicalLinearRelation, LinearRelation},
     traits::{SigmaProtocol, SigmaProtocolSimulator},
 };
-use crate::group::serialization::{deserialize_scalars, serialize_scalars};
 
 /// A protocol proving knowledge of a witness for a composition of linear relations.
 ///
