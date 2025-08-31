@@ -10,14 +10,13 @@ use super::{GroupMap, GroupVar, LinearCombination, LinearRelation, ScalarTerm, S
 use crate::errors::{Error, InvalidInstance};
 use crate::linear_relation::msm::VariableMultiScalarMul;
 
+// XXX. this definition is uncomfortably similar to LinearRelation, exception made for the weights.
+// It'd be nice to better compress potentially duplicated code.
 /// A normalized form of the [`LinearRelation`], which is used for serialization into the transcript.
 ///
 /// This struct represents a normalized form of a linear relation where each
 /// constraint is of the form: image_i = Σ (scalar_j * group_element_k)
 /// without weights or extra scalars.
-///
-/// XXX. this definition is uncomfortably similar to LinearRelation, exception made for the weights.
-/// It'd be nice to squash the two together.
 #[derive(Clone, Debug, Default)]
 pub struct CanonicalLinearRelation<G: PrimeGroup> {
     /// The image group elements (left-hand side of equations)
@@ -39,7 +38,10 @@ pub struct CanonicalLinearRelation<G: PrimeGroup> {
 type WeightedGroupCache<G> = HashMap<GroupVar<G>, Vec<(<G as group::Group>::Scalar, GroupVar<G>)>>;
 
 impl<G: PrimeGroup> CanonicalLinearRelation<G> {
-    /// Create a new empty canonical linear relation
+    /// Create a new empty canonical linear relation.
+    ///
+    /// This function is not meant to be publicly exposed. It is internally used to build a type-safe linear relation,
+    /// so that all instances guaranteed to be "good" relations over which the prover will want to make a proof.
     fn new() -> Self {
         Self {
             image: Vec::new(),
@@ -57,7 +59,8 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
     /// # Panic
     ///
     /// Panics if the number of scalars given is less than the number of scalar variables in this
-    /// linear relation
+    /// linear relation.
+    /// If the vector of scalars if longer than the number of terms in each linear combinations, the extra terms are ignored.
     pub fn evaluate(&self, scalars: &[G::Scalar]) -> Vec<G> {
         self.linear_combinations
             .iter()
@@ -104,7 +107,7 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
         Ok(new_var)
     }
 
-    /// Process a single constraint equation and add it to the canonical relation
+    /// Process a single constraint equation and add it to the canonical relation.
     fn process_constraint(
         &mut self,
         &image_var: &GroupVar<G>,
@@ -157,12 +160,13 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
     /// Serialize the linear relation to bytes.
     ///
     /// The output format is:
-    /// - [Ne: u32] number of equations
-    /// - Ne × equations:
-    ///   - [lhs_index: u32] output group element index
-    ///   - [Nt: u32] number of terms
-    ///   - Nt × [scalar_index: u32, group_index: u32] term entries
-    /// - Followed by all group elements in serialized form
+    ///
+    /// - `[Ne: u32]` number of equations
+    /// - `Ne × equations`:
+    ///   - `[lhs_index: u32]` output group element index
+    ///   - `[Nt: u32]` number of terms
+    ///   - `Nt × [scalar_index: u32, group_index: u32]` term entries
+    /// - All group elements in serialized form.
     pub fn label(&self) -> Vec<u8> {
         let mut out = Vec::new();
 
@@ -237,7 +241,21 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
         out
     }
 
-    /// Parse a canonical linear relation from its label representation
+    /// Parse a canonical linear relation from its label representation.
+    ///
+    /// Returns an [`InvalidInstance`] error if the label is malformed.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hex_literal::hex;
+    /// use sigma_rs::linear_relation::CanonicalLinearRelation;
+    /// type G = bls12_381::G1Projective;
+    ///
+    /// let dlog_instance_label = hex!("01000000000000000100000000000000010000009823a3def60a6e07fb25feb35f211ee2cbc9c130c1959514f5df6b5021a2b21a4c973630ec2090c733c1fe791834ce1197f1d3a73197d7942695638c4fa9ac0fc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bb");
+    /// let instance = CanonicalLinearRelation::<G>::from_label(&dlog_instance_label).unwrap();
+    /// assert_eq!(&dlog_instance_label[..], &instance.label()[..]);
+    /// ```
     pub fn from_label(data: &[u8]) -> Result<Self, Error> {
         use crate::errors::InvalidInstance;
         use crate::serialization::group_elt_serialized_len;
@@ -399,7 +417,7 @@ impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
     fn try_from(relation: &LinearRelation<G>) -> Result<Self, Self::Error> {
         if relation.image.len() != relation.linear_map.linear_combinations.len() {
             return Err(InvalidInstance::new(
-                "Equations and image elements must match",
+                "Number of equations must be equal to number of image elements.",
             ));
         }
 
@@ -447,6 +465,14 @@ impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
 }
 
 impl<G: PrimeGroup + ConstantTimeEq> CanonicalLinearRelation<G> {
+    /// Tests is the witness is valid.
+    ///
+    /// Returns a [`Choice`] indicating if the witness is valid for the instance constructed.
+    ///
+    /// # Panic
+    ///
+    /// Panics if the number of scalars given is less than the number of scalar variables.
+    /// If the number of scalars is more than the number of scalar variables, the extra elements are ignored.
     pub fn is_witness_valid(&self, witness: &[G::Scalar]) -> Choice {
         let got = self.evaluate(witness);
         self.image

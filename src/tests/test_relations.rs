@@ -29,7 +29,7 @@ pub fn discrete_logarithm<G: PrimeGroup, R: rand::RngCore>(
 
     assert_eq!(X, G::generator() * x);
     let witness = vec![x];
-    let instance = (&relation).try_into().unwrap();
+    let instance: CanonicalLinearRelation<G> = (&relation).try_into().unwrap();
     (instance, witness)
 }
 
