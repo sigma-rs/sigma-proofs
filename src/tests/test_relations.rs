@@ -5,7 +5,7 @@ use rand::RngCore;
 
 use crate::codec::Shake128DuplexSponge;
 use crate::fiat_shamir::Nizk;
-use crate::linear_relation::CanonicalLinearRelation;
+use crate::linear_relation::{CanonicalLinearRelation, Sum};
 
 use crate::linear_relation::{LinearRelation, VariableMultiScalarMul};
 
@@ -198,6 +198,97 @@ pub fn pedersen_commitment_dleq<G: PrimeGroup, R: RngCore>(
     let witness_vec = witness.to_vec();
     let instance = (&relation).try_into().unwrap();
     (instance, witness_vec)
+}
+
+/// Test that a Pedersen commitment is between 0 and 1337.
+#[allow(non_snake_case)]
+pub fn test_range<G: PrimeGroup, R: RngCore>(
+    mut rng: &mut R,
+) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
+    let G = G::generator();
+    let H = G::random(&mut rng);
+
+    let bases = [1, 2, 4, 8, 16, 32, 64, 128, 256, 313, 512];
+    const BITS: usize = 11;
+
+    let mut instance = LinearRelation::new();
+    let [var_G, var_H] = instance.allocate_elements();
+    let [var_x, var_r] = instance.allocate_scalars();
+    let vars_b = instance.allocate_scalars::<BITS>();
+    let vars_s = instance.allocate_scalars::<BITS>();
+    let var_s2 = instance.allocate_scalars::<BITS>();
+
+    let var_C = instance.allocate_eq(var_x * var_G + var_r * var_H);
+    let mut var_Ds = Vec::new();
+    for i in 0..BITS {
+        let var_D_i = instance.allocate_eq(vars_b[i] * var_G + vars_s[i] * var_H);
+        instance.append_equation(var_D_i, vars_b[i] * var_D_i + var_s2[i] * var_H);
+        var_Ds.push(var_D_i);
+    }
+    instance.append_equation(
+        var_C,
+        (0..BITS)
+            .map(|i| var_Ds[i] * vars_b[i] * G::Scalar::from(bases[i]))
+            .sum::<Sum<_>>(),
+    );
+
+    let r = G::Scalar::random(&mut rng);
+    let x = G::Scalar::from(822);
+    let b = [
+        G::Scalar::ZERO,
+        G::Scalar::ONE,
+        G::Scalar::ONE,
+        G::Scalar::ZERO,
+        G::Scalar::ONE,
+        G::Scalar::ONE,
+        G::Scalar::ZERO,
+        G::Scalar::ZERO,
+        G::Scalar::ONE,
+        G::Scalar::ZERO,
+        G::Scalar::ONE,
+    ];
+    // set the randomness for the bit decomposition
+    let mut s = (0..BITS)
+        .map(|_| G::Scalar::random(&mut rng))
+        .collect::<Vec<_>>();
+    let partial_sum = (0..BITS - 1)
+        .map(|i| b[i] * G::Scalar::from(bases[i]) * s[i])
+        .sum::<G::Scalar>();
+    s[BITS - 1] = r - partial_sum;
+    s[BITS - 1] *= (b[BITS - 1] * G::Scalar::from(bases[BITS - 1]))
+        .invert()
+        .unwrap();
+    let s2 = (0..BITS)
+        .map(|i| (G::Scalar::ONE - b[i]) * s[i])
+        .collect::<Vec<_>>();
+    let witness = [x, r]
+        .iter()
+        .chain(&b)
+        .chain(&s)
+        .chain(&s2)
+        .copied()
+        .collect::<Vec<_>>();
+
+    println!("test_range: witness length = {}", witness.len());
+
+    instance.set_elements([(var_G, G), (var_H, H)]);
+    instance.set_element(var_C, G * x + H * r);
+    for i in 0..BITS {
+        instance.set_element(var_Ds[i], G * b[i] + H * s[i]);
+    }
+    assert!(
+        instance.canonical().is_ok(),
+        "{}",
+        instance.canonical().err().unwrap()
+    );
+
+    let canonical = instance.canonical().unwrap();
+    println!(
+        "test_range: relation has {} scalar variables",
+        canonical.num_scalars
+    );
+
+    (canonical, witness)
 }
 
 /// LinearMap for knowledge of an opening for use in a BBS commitment.
@@ -454,6 +545,7 @@ fn test_relations() {
         ("twisted_pedersen_commitment", &twisted_pedersen_commitment),
         ("pedersen_commitment_dleq", &pedersen_commitment_dleq),
         ("bbs_blind_commitment", &bbs_blind_commitment),
+        ("test_range", &test_range),
         ("weird_linear_combination", &weird_linear_combination),
         ("simple_subtractions", &simple_subtractions),
         ("subtractions_with_shift", &subtractions_with_shift),

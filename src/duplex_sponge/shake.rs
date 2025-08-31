@@ -26,5 +26,4 @@ impl DuplexSpongeInterface for ShakeDuplexSponge {
         self.0.clone().finalize_xof_into(&mut output);
         output
     }
-
 }
