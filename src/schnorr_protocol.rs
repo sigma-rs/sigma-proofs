@@ -36,13 +36,15 @@ impl<G: PrimeGroup> SigmaProtocol for CanonicalLinearRelation<G> {
     ///     - The prover state (random nonces and witness) used to compute the response.
     ///
     /// # Errors
-    /// -[`Error::InvalidInstanceWitnessPair`] if the witness vector length is incorrect.
+    ///
+    /// -[`Error::InvalidInstanceWitnessPair`] if the witness vector length is less than the number of scalar variables.
+    /// If the witness vector is larger, extra variables are ignored.
     fn prover_commit(
         &self,
         witness: &Self::Witness,
         rng: &mut (impl RngCore + CryptoRng),
     ) -> Result<(Self::Commitment, Self::ProverState), Error> {
-        if witness.len() != self.num_scalars {
+        if witness.len() < self.num_scalars {
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
