@@ -255,7 +255,6 @@ pub fn bbs_blind_commitment<G: PrimeGroup, R: RngCore>(
 }
 
 /// LinearMap for the user's specific relation: A * 1 + gen__disj1_x_r * B
-#[allow(non_snake_case)]
 pub fn weird_linear_combination<G: PrimeGroup, R: RngCore>(
     rng: &mut R,
 ) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
