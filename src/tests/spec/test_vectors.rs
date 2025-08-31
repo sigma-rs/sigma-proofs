@@ -60,7 +60,7 @@ fn test_spec_testvectors() {
             .expect("Failed to parse statement");
 
         // Decode the witness from the test vector
-        let witness = crate::serialization::deserialize_scalars::<G>(
+        let witness = crate::group::serialization::deserialize_scalars::<G>(
             &vector.witness,
             parsed_instance.num_scalars,
         )

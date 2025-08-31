@@ -5,9 +5,9 @@ use rand::RngCore;
 
 use crate::codec::Shake128DuplexSponge;
 use crate::fiat_shamir::Nizk;
-use crate::linear_relation::{CanonicalLinearRelation, Sum};
+use crate::linear_relation::{CanonicalLinearRelation, LinearRelation, Sum};
 
-use crate::linear_relation::{LinearRelation, VariableMultiScalarMul};
+use crate::group::msm::VariableMultiScalarMul;
 
 /// LinearMap for knowledge of a discrete logarithm relative to a fixed basepoint.
 #[allow(non_snake_case)]
@@ -269,26 +269,13 @@ pub fn test_range<G: PrimeGroup, R: RngCore>(
         .copied()
         .collect::<Vec<_>>();
 
-    println!("test_range: witness length = {}", witness.len());
-
     instance.set_elements([(var_G, G), (var_H, H)]);
     instance.set_element(var_C, G * x + H * r);
     for i in 0..BITS {
         instance.set_element(var_Ds[i], G * b[i] + H * s[i]);
     }
-    assert!(
-        instance.canonical().is_ok(),
-        "{}",
-        instance.canonical().err().unwrap()
-    );
 
-    let canonical = instance.canonical().unwrap();
-    println!(
-        "test_range: relation has {} scalar variables",
-        canonical.num_scalars
-    );
-
-    (canonical, witness)
+    (instance.canonical().unwrap(), witness)
 }
 
 /// LinearMap for knowledge of an opening for use in a BBS commitment.

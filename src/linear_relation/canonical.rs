@@ -8,7 +8,7 @@ use subtle::{Choice, ConstantTimeEq};
 
 use super::{GroupMap, GroupVar, LinearCombination, LinearRelation, ScalarTerm, ScalarVar};
 use crate::errors::{Error, InvalidInstance};
-use crate::linear_relation::msm::VariableMultiScalarMul;
+use crate::group::msm::VariableMultiScalarMul;
 
 // XXX. this definition is uncomfortably similar to LinearRelation, exception made for the weights.
 // It'd be nice to better compress potentially duplicated code.
@@ -258,7 +258,7 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
     /// ```
     pub fn from_label(data: &[u8]) -> Result<Self, Error> {
         use crate::errors::InvalidInstance;
-        use crate::serialization::group_elt_serialized_len;
+        use crate::group::serialization::group_elt_serialized_len;
 
         let mut offset = 0;
 

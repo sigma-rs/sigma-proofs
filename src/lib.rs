@@ -50,16 +50,16 @@
 #![deny(unused_variables)]
 #![deny(unused_mut)]
 
+pub mod codec;
 pub mod composition;
 pub mod errors;
-pub mod fiat_shamir;
 pub mod linear_relation;
-pub mod schnorr_protocol;
-pub mod serialization;
 pub mod traits;
 
-pub mod codec;
-pub mod duplex_sponge;
+pub(crate) mod duplex_sponge;
+pub(crate) mod fiat_shamir;
+pub(crate) mod group;
+pub(crate) mod schnorr_protocol;
 
 #[cfg(test)]
 pub mod tests;

@@ -29,9 +29,9 @@ use crate::{
     errors::Error,
     fiat_shamir::Nizk,
     linear_relation::{CanonicalLinearRelation, LinearRelation},
-    serialization::{deserialize_scalars, serialize_scalars},
     traits::{SigmaProtocol, SigmaProtocolSimulator},
 };
+use crate::group::serialization::{deserialize_scalars, serialize_scalars};
 
 /// A protocol proving knowledge of a witness for a composition of linear relations.
 ///

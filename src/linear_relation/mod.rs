@@ -16,6 +16,7 @@ use group::prime::PrimeGroup;
 
 use crate::codec::Shake128DuplexSponge;
 use crate::errors::{Error, InvalidInstance};
+use crate::group::msm::VariableMultiScalarMul;
 use crate::Nizk;
 
 /// Implementations of conversion operations such as From and FromIterator for var and term types.
@@ -26,10 +27,6 @@ mod ops;
 /// Implementation of canonical linear relation.
 mod canonical;
 pub use canonical::CanonicalLinearRelation;
-
-/// Implementation of multi-scalar multiplication (MSM) over scalars and points.
-mod msm;
-pub use msm::VariableMultiScalarMul;
 
 /// A wrapper representing an index for a scalar variable.
 ///

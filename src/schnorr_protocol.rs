@@ -5,13 +5,11 @@
 //! through a group morphism abstraction (see [Maurer09](https://crypto-test.ethz.ch/publications/files/Maurer09.pdf)).
 
 use crate::errors::Error;
-use crate::linear_relation::CanonicalLinearRelation;
-use crate::{
-    serialization::{
-        deserialize_elements, deserialize_scalars, serialize_elements, serialize_scalars,
-    },
-    traits::{SigmaProtocol, SigmaProtocolSimulator},
+use crate::group::serialization::{
+    deserialize_elements, deserialize_scalars, serialize_elements, serialize_scalars,
 };
+use crate::linear_relation::CanonicalLinearRelation;
+use crate::traits::{SigmaProtocol, SigmaProtocolSimulator};
 
 use ff::Field;
 use group::prime::PrimeGroup;
