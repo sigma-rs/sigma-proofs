@@ -3,10 +3,8 @@
 //! This module implements a duplex sponge construction using SHAKE128.
 
 use crate::duplex_sponge::DuplexSpongeInterface;
-use sha3::{
-    digest::{ExtendableOutput, Reset, Update},
-    Shake128,
-};
+use sha3::digest::{ExtendableOutput, Update};
+use sha3::Shake128;
 
 /// Duplex sponge construction using SHAKE128.
 #[derive(Clone, Debug)]
@@ -29,10 +27,4 @@ impl DuplexSpongeInterface for ShakeDuplexSponge {
         output
     }
 
-    fn ratchet(&mut self) {
-        let mut output = [0u8; 32];
-        self.0.clone().finalize_xof_into(&mut output);
-        self.0.reset();
-        self.0.update(&output);
-    }
 }

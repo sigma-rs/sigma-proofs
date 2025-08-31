@@ -96,12 +96,6 @@ impl DuplexSpongeInterface for KeccakDuplexSponge {
         }
         output
     }
-
-    fn ratchet(&mut self) {
-        self.state.permute();
-        self.absorb_index = 0;
-        self.squeeze_index = RATE;
-    }
 }
 
 #[cfg(test)]

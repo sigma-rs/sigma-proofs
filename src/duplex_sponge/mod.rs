@@ -25,7 +25,4 @@ pub trait DuplexSpongeInterface {
 
     /// Squeezes output data from the sponge state.
     fn squeeze(&mut self, length: usize) -> Vec<u8>;
-
-    /// Applies a state ratcheting mechanism to prevent backtracking attacks.
-    fn ratchet(&mut self);
 }
