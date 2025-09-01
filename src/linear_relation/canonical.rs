@@ -429,36 +429,40 @@ impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
 
         // Process each constraint using the modular helper method
         for (lhs, rhs) in iter::zip(&relation.image, &relation.linear_map.linear_combinations) {
-            let lhs_value = relation
-                .linear_map
-                .group_elements
-                .get(*lhs)
-                .map_err(|_| InvalidInstance::new("Unassigned group variable in image"))?;
+            // If any group element in the image is not assigned, return `InvalidInstance`.
+            let lhs_value = relation.linear_map.group_elements.get(*lhs)?;
 
-            // If the linear combination is trivial, check it directly and skip processing.
-            if rhs.0.iter().all(|weighted| {
-                matches!(weighted.term.scalar, ScalarTerm::Unit)
-                    || weighted.weight.is_zero_vartime()
-            }) {
-                let rhs_value = rhs.0.iter().fold(G::identity(), |acc, weighted| {
-                    acc + relation
-                        .linear_map
-                        .group_elements
-                        .get(weighted.term.elem)
-                        .unwrap_or_else(|_| {
-                            panic!("Unassigned group variable in linear combination")
-                        })
-                        * weighted.weight
-                });
-                if lhs_value == rhs_value {
-                    continue; // Skip processing trivially true constraints
-                }
-                // We know that there is no valid witness for the relation here.
-                // return Err(InvalidInstance::new(
-                //     "Trivial constraint does not hold (LHS != RHS)",
-                // ));
-            } else if lhs_value == G::identity() {
-                return Err(InvalidInstance::new("Image contains identity element"));
+            // If any group element in the linear constraints is not assigned, return `InvalidInstance`.
+            let rhs_elements = rhs
+                .0
+                .iter()
+                .map(|weighted| relation.linear_map.group_elements.get(weighted.term.elem))
+                .collect::<Result<Vec<G>, _>>()?;
+
+            // Compute the constant terms on the right-hand side of the equation.
+            let rhs_constants = rhs
+                .0
+                .iter()
+                .map(|element| match element.term.scalar {
+                    ScalarTerm::Unit => element.weight,
+                    _ => G::Scalar::ZERO,
+                })
+                .collect::<Vec<_>>();
+            let rhs_constant_term = G::msm(&rhs_constants, &rhs_elements);
+
+            // The right-hand side is trivial if it contains no scalar variables, or the weight is zero.
+            let is_trivial = rhs.0.iter().all(|term| {
+                matches!(term.term.scalar, ScalarTerm::Unit) || term.weight.is_zero_vartime()
+            });
+
+            // Skip processing trivially true constraints. There's nothing to prove here.
+            if is_trivial && rhs_constant_term == lhs_value {
+                continue;
+            }
+
+            // Disallow non-trivial equations with trivial solutions.
+            if !is_trivial && rhs_constant_term == lhs_value {
+                return Err(InvalidInstance::new("Trivial kernel in this relation"));
             }
 
             canonical.process_constraint(lhs, rhs, relation, &mut weighted_group_cache)?;

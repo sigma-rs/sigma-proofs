@@ -246,14 +246,23 @@ impl<G: PrimeGroup + ConstantTimeEq> ComposedRelation<G> {
             let valid_witness = instances[i].is_witness_valid(w);
             let select_witness = valid_witness & !valid_witness_found;
 
-            let simulated_commitment_ptr  = &simulated_commitment as *const ComposedCommitment<G> as u64;
-            let commitment_ptr  = &commitment as *const ComposedCommitment<G> as u64;
+            let simulated_commitment_ptr =
+                &simulated_commitment as *const ComposedCommitment<G> as u64;
+            let commitment_ptr = &commitment as *const ComposedCommitment<G> as u64;
 
-            let selected_commitment_ptr = ConditionallySelectable::conditional_select(&simulated_commitment_ptr, &commitment_ptr, select_witness);
-            let discarded_commitment_ptr = ConditionallySelectable::conditional_select(&simulated_commitment_ptr, &commitment_ptr, !select_witness);
+            let selected_commitment_ptr = ConditionallySelectable::conditional_select(
+                &simulated_commitment_ptr,
+                &commitment_ptr,
+                select_witness,
+            );
+            let discarded_commitment_ptr = ConditionallySelectable::conditional_select(
+                &simulated_commitment_ptr,
+                &commitment_ptr,
+                !select_witness,
+            );
             let commitment = unsafe { &*(selected_commitment_ptr as *const ComposedCommitment<G>) };
-            let _discarded = unsafe { &*(discarded_commitment_ptr as *const ComposedCommitment<G>) };
-
+            let _discarded =
+                unsafe { &*(discarded_commitment_ptr as *const ComposedCommitment<G>) };
 
             commitments.push(commitment.clone());
             prover_states.push(ComposedOrProverStateEntry(
@@ -318,11 +327,19 @@ impl<G: PrimeGroup + ConstantTimeEq> ComposedRelation<G> {
             let response = instance.prover_response(prover_state, &challenge_i)?;
             let response_ptr = &response as *const ComposedResponse<G> as u64;
             let simulated_response_ptr = &simulated_response as *const ComposedResponse<G> as u64;
-            let selected_response_ptr = ConditionallySelectable::conditional_select(&simulated_response_ptr, &response_ptr, valid_witness);
-            let _discarded_response_ptr = ConditionallySelectable::conditional_select(&simulated_response_ptr, &response_ptr, !valid_witness);
+            let selected_response_ptr = ConditionallySelectable::conditional_select(
+                &simulated_response_ptr,
+                &response_ptr,
+                valid_witness,
+            );
+            let _discarded_response_ptr = ConditionallySelectable::conditional_select(
+                &simulated_response_ptr,
+                &response_ptr,
+                !valid_witness,
+            );
             let response = unsafe { &*(selected_response_ptr as *const ComposedResponse<G>) };
-            let _discarded_response = unsafe { &*(_discarded_response_ptr as *const ComposedResponse<G>) };
-
+            let _discarded_response =
+                unsafe { &*(_discarded_response_ptr as *const ComposedResponse<G>) };
 
             result_challenges.push(challenge_i);
             result_responses.push(response.clone());
@@ -333,9 +350,7 @@ impl<G: PrimeGroup + ConstantTimeEq> ComposedRelation<G> {
     }
 }
 
-impl<G: PrimeGroup + ConstantTimeEq> SigmaProtocol
-    for ComposedRelation<G>
-{
+impl<G: PrimeGroup + ConstantTimeEq> SigmaProtocol for ComposedRelation<G> {
     type Commitment = ComposedCommitment<G>;
     type ProverState = ComposedProverState<G>;
     type Response = ComposedResponse<G>;
@@ -587,9 +602,7 @@ impl<G: PrimeGroup + ConstantTimeEq> SigmaProtocol
     }
 }
 
-impl<G: PrimeGroup + ConstantTimeEq> SigmaProtocolSimulator
-    for ComposedRelation<G>
-{
+impl<G: PrimeGroup + ConstantTimeEq> SigmaProtocolSimulator for ComposedRelation<G> {
     fn simulate_commitment(
         &self,
         challenge: &Self::Challenge,

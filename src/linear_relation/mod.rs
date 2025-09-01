@@ -196,8 +196,10 @@ impl<G: PrimeGroup> GroupMap<G> {
     pub fn get(&self, var: GroupVar<G>) -> Result<G, InvalidInstance> {
         match self.0.get(var.0) {
             Some(Some(elem)) => Ok(*elem),
-            Some(None) => Err(InvalidInstance::new("unassigned group variable")),
-            None => Err(InvalidInstance::new("unassigned group variable")),
+            Some(None) | None => Err(InvalidInstance::new(format!(
+                "unassigned group variable {}",
+                var.0
+            ))),
         }
     }
 
@@ -409,6 +411,13 @@ impl<G: PrimeGroup> LinearRelation<G> {
         GroupVar(self.linear_map.num_elements - 1, PhantomData)
     }
 
+    /// Allocates a point variable (group element) and sets it immediately to the given value
+    pub fn allocate_element_with(&mut self, element: G) -> GroupVar<G> {
+        let var = self.allocate_element();
+        self.set_element(var, element);
+        var
+    }
+
     /// Allocates `N` point variables (group elements) for use in the linear map.
     ///
     /// # Returns
@@ -429,6 +438,14 @@ impl<G: PrimeGroup> LinearRelation<G> {
             *var = self.allocate_element();
         }
         vars
+    }
+
+    /// Allocates a point variable (group element) and sets it immediately to the given value.
+    pub fn allocate_elements_with(&mut self, elements: &[G]) -> Vec<GroupVar<G>> {
+        elements
+            .iter()
+            .map(|element| self.allocate_element_with(*element))
+            .collect()
     }
 
     /// Assign a group element value to a point variable.
