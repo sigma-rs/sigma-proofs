@@ -1,6 +1,6 @@
 use curve25519_dalek::ristretto::RistrettoPoint;
 use group::Group;
-use rand::rngs::OsRng;
+use rand::{rngs::OsRng, thread_rng};
 
 use super::test_relations::*;
 use crate::composition::{ComposedRelation, ComposedWitness};
@@ -20,7 +20,7 @@ fn test_composition_example() {
     let domain_sep = b"hello world";
 
     // definitions of the underlying protocols
-    let mut rng = OsRng;
+    let mut rng = thread_rng();
     let (relation1, witness1) = dleq(&mut rng);
     let (relation2, witness2) = pedersen_commitment(&mut rng);
     let (relation3, witness3) = discrete_logarithm(&mut rng);
@@ -44,8 +44,8 @@ fn test_composition_example() {
     let nizk = instance.into_nizk(domain_sep);
 
     // Batchable and compact proofs
-    let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut OsRng).unwrap();
-    let proof_compact_bytes = nizk.prove_compact(&witness, &mut OsRng).unwrap();
+    let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
+    let proof_compact_bytes = nizk.prove_compact(&witness, &mut rng).unwrap();
     // Verify proofs
     assert!(nizk.verify_batchable(&proof_batchable_bytes).is_ok());
     assert!(nizk.verify_compact(&proof_compact_bytes).is_ok());
@@ -57,7 +57,7 @@ fn test_or_one_true() {
     // Test composition of a basic OR protocol, with one of the two witnesses being valid.
 
     // definitions of the underlying protocols
-    let mut rng = OsRng;
+    let mut rng = rand::thread_rng();
     let (relation1, witness1) = dleq::<G, _>(&mut rng);
     let (relation2, witness2) = dleq::<G, _>(&mut rng);
 
@@ -78,8 +78,8 @@ fn test_or_one_true() {
 
     for witness in [witness_or_1, witness_or_2] {
         // Batchable and compact proofs
-        let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut OsRng).unwrap();
-        let proof_compact_bytes = nizk.prove_compact(&witness, &mut OsRng).unwrap();
+        let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
+        let proof_compact_bytes = nizk.prove_compact(&witness, &mut rng).unwrap();
         // Verify proofs
         assert!(nizk.verify_batchable(&proof_batchable_bytes).is_ok());
         assert!(nizk.verify_compact(&proof_compact_bytes).is_ok());
@@ -92,18 +92,18 @@ fn test_or_both_true() {
     // Test composition of a basic OR protocol, with both of the two witnesses being valid.
 
     // definitions of the underlying protocols
-    let mut rng = OsRng;
+    let mut rng = rand::thread_rng();
     let (relation1, witness1) = dleq::<G, _>(&mut rng);
     let (relation2, witness2) = dleq::<G, _>(&mut rng);
 
     let or_protocol = ComposedRelation::or([relation1, relation2]);
 
     let witness = ComposedWitness::or([witness1, witness2]);
-    let nizk = or_protocol.into_nizk(b"test_or_one_true");
+    let nizk = or_protocol.into_nizk(b"test_or_both_true");
 
     // Batchable and compact proofs
-    let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut OsRng).unwrap();
-    let proof_compact_bytes = nizk.prove_compact(&witness, &mut OsRng).unwrap();
+    let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
+    let proof_compact_bytes = nizk.prove_compact(&witness, &mut rng).unwrap();
     // Verify proofs
     assert!(nizk.verify_batchable(&proof_batchable_bytes).is_ok());
     assert!(nizk.verify_compact(&proof_compact_bytes).is_ok());

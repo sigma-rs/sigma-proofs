@@ -1,6 +1,6 @@
+use core::iter;
+use core::marker::PhantomData;
 use std::collections::HashMap;
-use std::iter;
-use std::marker::PhantomData;
 
 use ff::Field;
 use group::prime::PrimeGroup;

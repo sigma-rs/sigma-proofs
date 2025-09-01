@@ -8,8 +8,8 @@
 //! - [`LinearMap`]: a collection of linear combinations acting on group elements.
 //! - [`LinearRelation`]: a higher-level structure managing linear maps and their associated images.
 
-use std::iter;
-use std::marker::PhantomData;
+use core::iter;
+use core::marker::PhantomData;
 
 use ff::Field;
 use group::prime::PrimeGroup;
@@ -40,8 +40,8 @@ impl<G> ScalarVar<G> {
     }
 }
 
-impl<G> std::hash::Hash for ScalarVar<G> {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+impl<G> core::hash::Hash for ScalarVar<G> {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         self.0.hash(state)
     }
 }
@@ -58,8 +58,8 @@ impl<G> GroupVar<G> {
     }
 }
 
-impl<G> std::hash::Hash for GroupVar<G> {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+impl<G> core::hash::Hash for GroupVar<G> {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         self.0.hash(state)
     }
 }
@@ -104,7 +104,7 @@ impl<T> Sum<T> {
     }
 }
 
-impl<T> std::iter::Sum<T> for Sum<T> {
+impl<T> core::iter::Sum<T> for Sum<T> {
     /// Add a bunch of `T` to yield a `Sum<T>`
     fn sum<I>(iter: I) -> Self
     where

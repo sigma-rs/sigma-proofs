@@ -573,7 +573,7 @@ mod tests {
     use crate::linear_relation::{GroupVar, ScalarTerm, ScalarVar, Term};
     use curve25519_dalek::RistrettoPoint as G;
     use curve25519_dalek::Scalar;
-    use std::marker::PhantomData;
+    use core::marker::PhantomData;
 
     fn scalar_var(i: usize) -> ScalarVar<G> {
         ScalarVar(i, PhantomData)
