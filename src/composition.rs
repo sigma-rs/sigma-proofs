@@ -46,7 +46,7 @@ pub enum ComposedRelation<G: PrimeGroup> {
     Or(Vec<ComposedRelation<G>>),
 }
 
-impl<G: PrimeGroup> ComposedRelation<G> {
+impl<G: PrimeGroup + ConstantTimeEq> ComposedRelation<G> {
     /// Create a [ComposedRelation] for an AND relation from the given list of relations.
     pub fn and<T: Into<ComposedRelation<G>>>(witness: impl IntoIterator<Item = T>) -> Self {
         Self::And(witness.into_iter().map(|x| x.into()).collect())
@@ -243,14 +243,19 @@ impl<G: PrimeGroup + ConstantTimeEq> ComposedRelation<G> {
             let (simulated_commitment, simulated_challenge, simulated_response) =
                 instances[i].simulate_transcript(rng)?;
 
-            // TODO: Implement and use ConditionallySelectable here
             let valid_witness = instances[i].is_witness_valid(w);
             let select_witness = valid_witness & !valid_witness_found;
-            commitments.push(if select_witness.unwrap_u8() == 1 {
-                commitment
-            } else {
-                simulated_commitment.clone()
-            });
+
+            let simulated_commitment_ptr  = &simulated_commitment as *const ComposedCommitment<G> as u64;
+            let commitment_ptr  = &commitment as *const ComposedCommitment<G> as u64;
+
+            let selected_commitment_ptr = ConditionallySelectable::conditional_select(&simulated_commitment_ptr, &commitment_ptr, select_witness);
+            let discarded_commitment_ptr = ConditionallySelectable::conditional_select(&simulated_commitment_ptr, &commitment_ptr, !select_witness);
+            let commitment = unsafe { &*(selected_commitment_ptr as *const ComposedCommitment<G>) };
+            let _discarded = unsafe { &*(discarded_commitment_ptr as *const ComposedCommitment<G>) };
+
+
+            commitments.push(commitment.clone());
             prover_states.push(ComposedOrProverStateEntry(
                 select_witness,
                 prover_state,
@@ -310,16 +315,17 @@ impl<G: PrimeGroup + ConstantTimeEq> ComposedRelation<G> {
                 valid_witness,
             );
 
-            let real_response = instance.prover_response(prover_state, &challenge_i)?;
+            let response = instance.prover_response(prover_state, &challenge_i)?;
+            let response_ptr = &response as *const ComposedResponse<G> as u64;
+            let simulated_response_ptr = &simulated_response as *const ComposedResponse<G> as u64;
+            let selected_response_ptr = ConditionallySelectable::conditional_select(&simulated_response_ptr, &response_ptr, valid_witness);
+            let _discarded_response_ptr = ConditionallySelectable::conditional_select(&simulated_response_ptr, &response_ptr, !valid_witness);
+            let response = unsafe { &*(selected_response_ptr as *const ComposedResponse<G>) };
+            let _discarded_response = unsafe { &*(_discarded_response_ptr as *const ComposedResponse<G>) };
 
-            // let response_i = ComposedResponse::conditional_select(&real_response, &simulated_response, *witness_location);
-            let response_i = if valid_witness.unwrap_u8() == 1 {
-                real_response
-            } else {
-                simulated_response
-            };
+
             result_challenges.push(challenge_i);
-            result_responses.push(response_i);
+            result_responses.push(response.clone());
         }
 
         result_challenges.pop();
@@ -327,7 +333,9 @@ impl<G: PrimeGroup + ConstantTimeEq> ComposedRelation<G> {
     }
 }
 
-impl<G: PrimeGroup + ConstantTimeEq> SigmaProtocol for ComposedRelation<G> {
+impl<G: PrimeGroup + ConstantTimeEq> SigmaProtocol
+    for ComposedRelation<G>
+{
     type Commitment = ComposedCommitment<G>;
     type ProverState = ComposedProverState<G>;
     type Response = ComposedResponse<G>;
@@ -579,7 +587,9 @@ impl<G: PrimeGroup + ConstantTimeEq> SigmaProtocol for ComposedRelation<G> {
     }
 }
 
-impl<G: PrimeGroup + ConstantTimeEq> SigmaProtocolSimulator for ComposedRelation<G> {
+impl<G: PrimeGroup + ConstantTimeEq> SigmaProtocolSimulator
+    for ComposedRelation<G>
+{
     fn simulate_commitment(
         &self,
         challenge: &Self::Challenge,
