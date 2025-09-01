@@ -252,14 +252,12 @@ mod proof_validation {
         assert!(nizk.verify_batchable(&proof).is_ok());
 
         // Test bitflips at various positions
-        let positions = [0, proof.len() / 2, proof.len() - 1];
-
-        for &pos in &positions {
+        for pos in 0 .. proof.len() {
             let original_byte = proof[pos];
 
             // Flip each bit in the byte
             for bit in 0..8 {
-                proof[pos] = original_byte ^ (1 << bit);
+                proof[pos] ^= 1 << bit;
 
                 // Verification should fail
                 assert!(
