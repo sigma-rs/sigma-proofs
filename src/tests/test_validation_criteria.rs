@@ -104,10 +104,7 @@ mod instance_validation {
         relation.set_element(var_g, G::generator());
         relation.set_element(var_h, G::generator() * Scalar::from(2));
         relation.set_element(var_img_1, G::generator() * Scalar::from(3));
-
-        // Try to convert - should fail due to inconsistency
-        let result = CanonicalLinearRelation::try_from(&relation);
-        assert!(result.is_err());
+        assert!(relation.canonical().is_err());
     }
 
     #[test]
@@ -140,8 +137,7 @@ mod instance_validation {
         let C_var = linear_relation.allocate_eq(B_var);
         linear_relation.set_element(B_var, B);
         linear_relation.set_element(C_var, C);
-        let result = CanonicalLinearRelation::try_from(&linear_relation);
-        assert!(result.is_err());
+        assert!(linear_relation.canonical().is_err());
 
         // The following relation is valid and should pass.
         let mut linear_relation = LinearRelation::<G>::new();
@@ -149,8 +145,7 @@ mod instance_validation {
         let C_var = linear_relation.allocate_eq(B_var);
         linear_relation.set_element(B_var, B);
         linear_relation.set_element(C_var, B);
-        let result = CanonicalLinearRelation::try_from(&linear_relation);
-        assert!(result.is_ok());
+        assert!(linear_relation.canonical().is_ok());
 
         // The following relation is invalid and should trigger a fail.
         // X != B * pub_scalar + A * 3
@@ -162,9 +157,7 @@ mod instance_validation {
         linear_relation.set_element(B_var, B);
         linear_relation.set_element(A_var, A);
         linear_relation.set_element(X_var, X);
-
-        let result = CanonicalLinearRelation::try_from(&linear_relation);
-        assert!(result.is_err());
+        assert!(linear_relation.canonical().is_err());
 
         // The following relation is valid and should pass.
         // C = B * pub_scalar + A * 3
@@ -176,9 +169,7 @@ mod instance_validation {
         linear_relation.set_element(B_var, B);
         linear_relation.set_element(A_var, A);
         linear_relation.set_element(C_var, C);
-
-        let result = CanonicalLinearRelation::try_from(&linear_relation);
-        assert!(result.is_ok());
+        assert!(linear_relation.canonical().is_ok());
 
         // The following relation is for
         // X = B * x + B * pub_scalar + A * 3
@@ -194,9 +185,7 @@ mod instance_validation {
         linear_relation.set_element(B_var, B);
         linear_relation.set_element(A_var, A);
         linear_relation.set_element(X_var, X);
-
-        let result = CanonicalLinearRelation::try_from(&linear_relation);
-        assert!(result.is_ok());
+        assert!(linear_relation.canonical().is_ok());
     }
 }
 
@@ -208,13 +197,13 @@ mod proof_validation {
     use crate::linear_relation::{CanonicalLinearRelation, LinearRelation};
     use bls12_381::{G1Projective as G, Scalar};
     use ff::Field;
-    use rand::{thread_rng, RngCore};
+    use rand::RngCore;
 
     type TestNizk = Nizk<CanonicalLinearRelation<G>, KeccakByteSchnorrCodec<G>>;
 
     /// Helper function to create a simple discrete log proof
     fn create_valid_proof() -> (Vec<u8>, TestNizk) {
-        let mut rng = thread_rng();
+        let mut rng = rand::thread_rng();
 
         // Create a simple discrete log relation
         let mut relation = LinearRelation::<G>::new();
@@ -227,8 +216,7 @@ mod proof_validation {
         relation.set_elements([(var_g, G::generator()), (var_x_g, x_g)]);
         relation.append_equation(var_x_g, var_x * var_g);
 
-        let canonical = CanonicalLinearRelation::try_from(&relation).unwrap();
-        let nizk = TestNizk::new(b"test_session", canonical);
+        let nizk = TestNizk::new(b"test_session", relation.canonical().unwrap());
 
         let witness = vec![x];
         let proof = nizk.prove_batchable(&witness, &mut rng).unwrap();
@@ -279,7 +267,7 @@ mod proof_validation {
             let original_len = proof.len();
 
             // Append random bytes
-            let mut rng = thread_rng();
+            let mut rng = rand::thread_rng();
             let mut extra_bytes = vec![0u8; size];
             rng.fill_bytes(&mut extra_bytes);
             proof.extend_from_slice(&extra_bytes);
@@ -307,7 +295,7 @@ mod proof_validation {
 
         for &size in &prepend_sizes {
             // Create new proof with prepended bytes
-            let mut rng = thread_rng();
+            let mut rng = rand::thread_rng();
             let mut prepended_proof = vec![0u8; size];
             rng.fill_bytes(&mut prepended_proof);
             prepended_proof.extend_from_slice(&proof);
@@ -361,7 +349,7 @@ mod proof_validation {
         let proof_len = valid_proof.len();
 
         // Test with completely random bytes of the same length
-        let mut rng = thread_rng();
+        let mut rng = rand::thread_rng();
         let mut random_proof = vec![0u8; proof_len];
         rng.fill_bytes(&mut random_proof);
 
@@ -376,7 +364,7 @@ mod proof_validation {
     fn test_or_relation() {
         // This test reproduces the issue from sigma_compiler's simple_or test
         // where an OR relation fails verification when using the wrong branch
-        let mut rng = thread_rng();
+        let mut rng = rand::thread_rng();
 
         // Create generators
         // For this test, we'll use two different multiples of the generator

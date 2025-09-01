@@ -1,6 +1,5 @@
 use curve25519_dalek::ristretto::RistrettoPoint;
 use group::Group;
-use rand::{rngs::OsRng, thread_rng};
 
 use super::test_relations::*;
 use crate::composition::{ComposedRelation, ComposedWitness};
@@ -20,7 +19,7 @@ fn test_composition_example() {
     let domain_sep = b"hello world";
 
     // definitions of the underlying protocols
-    let mut rng = thread_rng();
+    let mut rng = rand::thread_rng();
     let (relation1, witness1) = dleq(&mut rng);
     let (relation2, witness2) = pedersen_commitment(&mut rng);
     let (relation3, witness3) = discrete_logarithm(&mut rng);
