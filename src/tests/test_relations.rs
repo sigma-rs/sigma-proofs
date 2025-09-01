@@ -1,6 +1,5 @@
 use ff::Field;
 use group::prime::PrimeGroup;
-use rand::rngs::OsRng;
 use rand::RngCore;
 
 use crate::codec::Shake128DuplexSponge;
@@ -474,7 +473,7 @@ fn test_cmz_wallet_with_fee() {
     use group::Group;
     type G = bls12_381::G1Projective;
 
-    let mut rng = OsRng;
+    let mut rng = rand::thread_rng();
 
     // This version should fail with InvalidInstanceWitnessPair
     // because it uses a scalar constant directly in the equation
@@ -508,7 +507,7 @@ fn test_cmz_wallet_with_fee() {
 
     // Try to convert to CanonicalLinearRelation - this should fail
     let nizk = relation.into_nizk(b"session_identifier").unwrap();
-    let result = nizk.prove_batchable(&vec![n_balance, i_price, z_w_balance], &mut OsRng);
+    let result = nizk.prove_batchable(&vec![n_balance, i_price, z_w_balance], &mut rng);
     assert!(result.is_ok());
     let proof = result.unwrap();
     let verify_result = nizk.verify_batchable(&proof);
@@ -518,12 +517,9 @@ fn test_cmz_wallet_with_fee() {
 /// Generic helper function to test both relation correctness and NIZK functionality
 #[test]
 fn test_relations() {
-    use group::Group;
     type G = bls12_381::G1Projective;
-    type RelationGenerator<G> =
-        &'static dyn Fn(&mut OsRng) -> (CanonicalLinearRelation<G>, Vec<<G as Group>::Scalar>);
 
-    let instance_generators: Vec<(&str, RelationGenerator<G>)> = vec![
+    let instance_generators: Vec<(_, &'static dyn Fn(&mut _) -> _)> = vec![
         ("dlog", &discrete_logarithm),
         ("shifted_dlog", &shifted_dlog),
         ("dleq", &dleq),
@@ -541,7 +537,7 @@ fn test_relations() {
     ];
 
     for (relation_name, relation_sampler) in instance_generators.iter() {
-        let mut rng = OsRng;
+        let mut rng = rand::thread_rng();
         let (canonical_relation, witness) = relation_sampler(&mut rng);
 
         // Test the NIZK protocol
@@ -555,10 +551,10 @@ fn test_relations() {
 
         // Test both proof types
         let proof_batchable = nizk
-            .prove_batchable(&witness, &mut OsRng)
+            .prove_batchable(&witness, &mut rng)
             .unwrap_or_else(|_| panic!("Failed to create batchable proof for {relation_name}"));
         let proof_compact = nizk
-            .prove_compact(&witness, &mut OsRng)
+            .prove_compact(&witness, &mut rng)
             .unwrap_or_else(|_| panic!("Failed to create compact proof for {relation_name}"));
 
         // Verify both proof types

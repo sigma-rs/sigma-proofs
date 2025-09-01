@@ -67,3 +67,6 @@ pub mod tests;
 
 pub use fiat_shamir::Nizk;
 pub use linear_relation::LinearRelation;
+
+#[deprecated = "Use sigma_rs::group::serialization instead"]
+pub use group::serialization;

@@ -453,6 +453,10 @@ impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
                 if lhs_value == rhs_value {
                     continue; // Skip processing trivially true constraints
                 }
+                // We know that there is no valid witness for the relation here.
+                // return Err(InvalidInstance::new(
+                //     "Trivial constraint does not hold (LHS != RHS)",
+                // ));
             } else if lhs_value == G::identity() {
                 return Err(InvalidInstance::new("Image contains identity element"));
             }
