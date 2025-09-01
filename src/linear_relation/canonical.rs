@@ -450,18 +450,23 @@ impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
                 .collect::<Vec<_>>();
             let rhs_constant_term = G::msm(&rhs_constants, &rhs_elements);
 
-            // The right-hand side is trivial if it contains no scalar variables, or the weight is zero.
+            // We say that an equation is trivial if it contains no scalar variables.
+            // To "contain no scalar variables" means that each term in the right-hand side is a unit or its weight is zero.
             let is_trivial = rhs.0.iter().all(|term| {
                 matches!(term.term.scalar, ScalarTerm::Unit) || term.weight.is_zero_vartime()
             });
 
-            // Skip processing trivially true constraints. There's nothing to prove here.
-            if is_trivial && rhs_constant_term == lhs_value {
+            // We say that an equation is homogenous if the constant term is zero.
+            let is_homogenous = rhs_constant_term == lhs_value;
+
+            // Skip processing trivial equations that are always true.
+            // There's nothing to prove here.
+            if is_trivial && is_homogenous {
                 continue;
             }
 
             // Disallow non-trivial equations with trivial solutions.
-            if !is_trivial && rhs_constant_term == lhs_value {
+            if !is_trivial && is_homogenous {
                 return Err(InvalidInstance::new("Trivial kernel in this relation"));
             }
 
