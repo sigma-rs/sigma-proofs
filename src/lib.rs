@@ -36,9 +36,8 @@
 //! The library provides building blocks for creating zero-knowledge proofs:
 //!
 //! 1. Define your mathematical relation using [`LinearRelation`]
-//! 2. Create a Sigma protocol with [`schnorr_protocol::SchnorrProof`]
-//! 3. Convert to non-interactive using [`fiat_shamir::Nizk`]
-//! 4. Generate and verify proofs using the protocol interface
+//! 2. Convert to non-interactive using [`fiat_shamir::Nizk`]
+//! 3. Generate and verify proofs.
 //!
 //! ---
 //!
@@ -48,11 +47,12 @@
 //! - **[`linear_relation::LinearRelation`]**: Express mathematical relations over groups
 //! - **[`fiat_shamir::Nizk`]**: Convert interactive proofs to standalone proofs
 //! - **[`composition::ComposedRelation`]**: Combine multiple proofs together
-//! - **[`codec`]**: Hash function backends for proof generation
+//! - **[`codec`]**: Mapping from and to the hash function domain
 //!
 //! ---
 //!
-//! Σ-rs is designed to be modular, extensible, and easy to integrate into zero-knowledge applications.
+//! Σ-rs is designed to be modular, extensible, and easy to integrate into different
+//! groups, protocols depending on sigma protocols, and other proof systems.
 
 #![allow(non_snake_case)]
 #![doc(html_logo_url = "https://mmaker.github.io/sigma-rs/")]
