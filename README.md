@@ -9,28 +9,28 @@ This library provides a flexible framework for creating zero-knowledge proofs fo
 ## Quick Example
 
 ```rust
-use sigma_rs::{LinearRelation, Protocol, ProtocolWitness, Nizk};
-use sigma_rs::codec::Shake128DuplexSponge;
-use curve25519_dalek::RistrettoPoint as G;
+use curve25519_dalek::ristretto::RistrettoPoint;
+use curve25519_dalek::scalar::Scalar;
+use group::Group;
+let mut instance = sigma_rs::LinearRelation::new();
+let mut rng = rand::thread_rng();
 
+// Define the statement:
 // Prove knowledge of (x, r) such that C = x·G + r·H (Pedersen commitment)
-let mut relation = LinearRelation::<G>::new();
+let [var_x, var_r] = instance.allocate_scalars();
+let [var_G, var_H] = instance.allocate_elements();
+instance.allocate_eq(var_G * var_x + var_H * var_r);
+instance.set_elements([(var_G, RistrettoPoint::generator()), (var_H, RistrettoPoint::random(&mut rng))]);
 
-// Allocate variables
-let x = relation.allocate_scalar();
-let r = relation.allocate_scalar();
-let [G_var, H_var] = relation.allocate_elements();
+// Assign the image of the linear map.
+let witness = vec![Scalar::random(&mut rng), Scalar::random(&mut rng)];
+instance.compute_image(&witness);
 
-// Define constraint: C = x·G + r·H
-let C = relation.allocate_eq(x * G_var + r * H_var);
-
-// Set public values and compute the commitment
-relation.set_elements([(G_var, G::generator()), (H_var, H)]);
-relation.compute_image(&[x_val, r_val]).unwrap();
-
-// Create non-interactive proof
-let nizk = relation.into_nizk(b"pedersen-proof");
-let proof = nizk.prove_batchable(&witness, &mut rng)?;
+// Create a non-interactive argument for the instance.
+let nizk = instance.into_nizk(b"your session identifier").unwrap();
+let narg_string: Vec<u8> = nizk.prove_batchable(&witness, &mut rng).unwrap();
+// Print the narg string.
+println!("{}", hex::encode(narg_string));
 ```
 
 ## Composition Example

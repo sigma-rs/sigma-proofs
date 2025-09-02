@@ -22,7 +22,8 @@
 //! let mut instance = sigma_rs::LinearRelation::new();
 //! let mut rng = rand::thread_rng();
 //!
-//! // Define the proof statement.
+//! // Define the statement:
+//! // Prove knowledge of (x, r) such that C = x·G + r·H (Pedersen commitment)
 //! let [var_x, var_r] = instance.allocate_scalars();
 //! let [var_G, var_H] = instance.allocate_elements();
 //! instance.allocate_eq(var_G * var_x + var_H * var_r);
