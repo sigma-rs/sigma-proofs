@@ -181,11 +181,9 @@ mod instance_validation {
         let mut rng = rand::thread_rng();
         let mut linear_relation = LinearRelation::new();
 
-
         let [x_var, y_var] = linear_relation.allocate_scalars();
         let [Z_var, A_var, B_var, C_var] = linear_relation.allocate_elements();
         linear_relation.append_equation(Z_var, x_var * A_var + y_var * B_var + C_var);
-
 
         let [x, y] = [Scalar::random(&mut rng), Scalar::random(&mut rng)];
         let Z = G::identity();
@@ -252,7 +250,7 @@ mod proof_validation {
         assert!(nizk.verify_batchable(&proof).is_ok());
 
         // Test bitflips at various positions
-        for pos in 0 .. proof.len() {
+        for pos in 0..proof.len() {
             let original_byte = proof[pos];
 
             // Flip each bit in the byte

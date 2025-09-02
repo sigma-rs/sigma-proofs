@@ -13,16 +13,25 @@
 //!
 //! ---
 //!
-//! ## Key Features
-//!
-//! - **Composable**: Combine multiple proofs into compound statements
-//! - **Generic**: Works with any cryptographic group supporting the required operations
-//! - **Flexible Hashing**: Multiple hash function backends for different use cases
-//! - **Non-Interactive Ready**: Support for Fiat–Shamir transformation
-//!
-//! ---
-//!
 //! ## Basic Usage
+//!
+//! ```rust
+//! # use curve25519_dalek::ristretto::RistrettoPoint;
+//! # use curve25519_dalek::scalar::Scalar;
+//! # use group::Group;
+//!
+//! let mut instance = sigma_rs::LinearRelation::new();
+//! let mut rng = rand::thread_rng();
+//! let witness = vec![Scalar::random(&mut rng), Scalar::random(&mut rng)];
+//!
+//! let [var_x, var_r] = instance.allocate_scalars();
+//! let [var_G, var_H] = instance.allocate_elements();
+//! instance.allocate_eq(var_G * var_x + var_H * var_r);
+//! instance.set_elements([(var_G, RistrettoPoint::generator()), (var_H, RistrettoPoint::random(&mut rng))]);
+//! instance.compute_image(&witness);
+//! let narg_string: Vec<u8> = instance.into_nizk(b"your session identifier").unwrap().prove_batchable(&witness, &mut rng).unwrap();
+//! println!("{}", hex::encode(narg_string));
+//! ```
 //!
 //! The library provides building blocks for creating zero-knowledge proofs:
 //!
