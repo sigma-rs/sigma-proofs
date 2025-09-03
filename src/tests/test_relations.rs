@@ -226,10 +226,13 @@ pub fn test_range<G: PrimeGroup, R: RngCore>(
     // `var_C` is a Pedersen commitment to `var_x`.
     let var_C = instance.allocate_eq(var_x * var_G + var_r * var_H);
     // `var_x` = sum(bases[i] * var_b[i])
+    // This equation is "trivial", in that it does not contain any scalar var.
+    // Our linear relation is smart enough to check this outside of the proof,
+    // which is what a normal implementation would do.
     instance.append_equation(
         var_C,
         (0..BITS)
-            .map(|i| var_Ds[i] * vars_b[i] * bases[i])
+            .map(|i| var_Ds[i] *  bases[i])
             .sum::<Sum<_>>(),
     );
 
@@ -253,11 +256,10 @@ pub fn test_range<G: PrimeGroup, R: RngCore>(
     let mut s = (0..BITS)
         .map(|_| G::Scalar::random(&mut rng))
         .collect::<Vec<_>>();
-    let partial_sum = (0..BITS - 1)
-        .map(|i| b[i] * bases[i] * s[i])
+    let partial_sum = (1..BITS)
+        .map(|i| bases[i] * s[i])
         .sum::<G::Scalar>();
-    s[BITS - 1] = r - partial_sum;
-    s[BITS - 1] *= (b[BITS - 1] * bases[BITS - 1]).invert().unwrap();
+    s[0] = r - partial_sum;
     let s2 = (0..BITS)
         .map(|i| (G::Scalar::ONE - b[i]) * s[i])
         .collect::<Vec<_>>();
