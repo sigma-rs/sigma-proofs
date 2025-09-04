@@ -170,7 +170,7 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
                 return Ok(());
             }
             return Err(InvalidInstance::new(
-                "constraint has empty right-hand side and non-identity left-hand side",
+                "trivially false constraint: constraint has empty right-hand side and non-identity left-hand side",
             ));
         }
 
