@@ -199,7 +199,7 @@ pub fn pedersen_commitment_dleq<G: PrimeGroup, R: RngCore>(
     (instance, witness_vec)
 }
 
-/// Test that a Pedersen commitment is between 0 and 1337.
+/// Test that a Pedersen commitment is in `[0, bound)` for any `bound >= 0`.
 #[allow(non_snake_case)]
 pub fn test_range<G: PrimeGroup, R: RngCore>(
     mut rng: &mut R,
@@ -207,8 +207,20 @@ pub fn test_range<G: PrimeGroup, R: RngCore>(
     let G = G::generator();
     let H = G::random(&mut rng);
 
-    let bases = [1, 2, 4, 8, 16, 32, 64, 128, 256, 313, 512].map(G::Scalar::from);
+    let bound: u64 = 1337;
     const BITS: usize = 11;
+    assert_eq!(bound.next_power_of_two(), u64::try_from(1 << BITS).unwrap());
+
+    // Compute a bases that expresses the input as a linear combination of the bit decomposition of
+    // the input. The bit decomposition is as described in
+    // <https://github.com/SamuelSchlesinger/authenticated-pseudonyms/blob/dev/design/Range.pdf>.
+    let bases: [_; BITS] = (0..BITS - 1)
+        .map(|i| 1 << i)
+        .chain(std::iter::once(bound - (1 << (BITS - 1))))
+        .map(G::Scalar::from)
+        .collect::<Vec<_>>()
+        .try_into()
+        .unwrap();
 
     let mut instance = LinearRelation::new();
     let [var_G, var_H] = instance.allocate_elements();
@@ -234,22 +246,31 @@ pub fn test_range<G: PrimeGroup, R: RngCore>(
         (0..BITS).map(|i| var_Ds[i] * bases[i]).sum::<Sum<_>>(),
     );
 
-    let r = G::Scalar::random(&mut rng);
-    let x = G::Scalar::from(822);
+    let input = 822;
 
-    let b = [
-        G::Scalar::ZERO,
-        G::Scalar::ONE,
-        G::Scalar::ONE,
-        G::Scalar::ZERO,
-        G::Scalar::ONE,
-        G::Scalar::ONE,
-        G::Scalar::ZERO,
-        G::Scalar::ZERO,
-        G::Scalar::ONE,
-        G::Scalar::ZERO,
-        G::Scalar::ONE,
-    ];
+    let r = G::Scalar::random(&mut rng);
+    let x = G::Scalar::from(input);
+
+    // Compute the bit decomposition of the input.
+    let b = {
+        let mut bits = [G::Scalar::ZERO; BITS];
+
+        // We say the input is "large" it can't be encoded in the first `BITS - 1` bits.
+        let input_is_large = input >= (1 << (BITS - 1));
+        println!("{input_is_large}");
+
+        // The last bit is `1` if the `input` is large and `0` otherwise.
+        bits[BITS - 1] = G::Scalar::from(input_is_large.into());
+
+        // Use the bit decomposition of `input - (bound - (2^(BITS-1) - 1))` if `input` is large.
+        let range_checked_input = input - u64::from(input_is_large) * (bound - (1 << (BITS - 1)));
+
+        for i in 0..BITS - 1 {
+            bits[i] = G::Scalar::from((range_checked_input >> i) & 1);
+        }
+        bits
+    };
+
     // set the randomness for the bit decomposition
     let mut s = (0..BITS)
         .map(|_| G::Scalar::random(&mut rng))
