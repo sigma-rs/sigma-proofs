@@ -217,9 +217,8 @@ pub fn test_range_for_input_and_bound<G: PrimeGroup, R: RngCore>(
         usize::try_from(bits).unwrap()
     };
 
-    // Compute a bases that expresses the input as a linear combination of the bit decomposition of
-    // the input. The bit decomposition is as described in
-    // <https://github.com/SamuelSchlesinger/authenticated-pseudonyms/blob/dev/design/Range.pdf>.
+    // Compute the bases used to express the input as a linear combination of the bit decomposition
+    // of the input.
     let bases = (0..bits - 1)
         .map(|i| 1 << i)
         .chain(Some(bound - (1 << (bits - 1))))
