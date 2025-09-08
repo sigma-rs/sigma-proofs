@@ -211,7 +211,7 @@ pub fn test_range_for_input_and_bound<G: PrimeGroup, R: RngCore>(
 
     let bits = {
         let mut bits = bound.ilog2();
-        if 1 << bits <= bound {
+        if 1 << bits < bound {
             bits += 1;
         }
         usize::try_from(bits).unwrap()
