@@ -12,11 +12,15 @@
 //! - `P`: the underlying Sigma protocol ([`SigmaProtocol`] trait).
 //! - `C`: the codec ([`Codec`] trait).
 
+use alloc::vec::Vec;
 use crate::errors::Error;
 use crate::traits::SigmaProtocol;
 use crate::{codec::Codec, traits::SigmaProtocolSimulator};
 
+#[cfg(feature = "std")]
 use rand::{CryptoRng, RngCore};
+#[cfg(not(feature = "std"))]
+use rand_core::{CryptoRng, RngCore};
 
 type Transcript<P> = (
     <P as SigmaProtocol>::Commitment,

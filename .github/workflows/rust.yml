@@ -26,6 +26,30 @@ jobs:
     - name: Run tests
       run: cargo test --verbose
 
+  no-std-check:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    - name: Install Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        profile: minimal
+        override: true
+    - name: Check no_std compilation
+      run: |
+        echo "Checking no_std compilation..."
+        cargo check --no-default-features --verbose
+    - name: Check std compilation
+      run: |
+        echo "Checking std compilation..."
+        cargo check --verbose
+    - name: Check all features
+      run: |
+        echo "Checking with all features..."
+        cargo check --all-features --verbose
+
 
   full-setup:
 
@@ -46,5 +70,7 @@ jobs:
 
     - name: Build (nightly)
       run: cargo +${{ matrix.toolchain }} build --all-features --verbose
+    - name: Build no_std (nightly)
+      run: cargo +${{ matrix.toolchain }} build --no-default-features --verbose
     - name: Run tests (nightly)
       run: cargo +${{ matrix.toolchain }} test --all-features --verbose

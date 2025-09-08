@@ -3,6 +3,7 @@
 //! This module provides functions to convert group elements and scalars to and from
 //! byte representations using canonical encodings.
 
+use alloc::vec::Vec;
 use ff::PrimeField;
 use group::prime::PrimeGroup;
 

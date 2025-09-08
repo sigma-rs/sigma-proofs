@@ -8,6 +8,8 @@
 //! - [`LinearMap`]: a collection of linear combinations acting on group elements.
 //! - [`LinearRelation`]: a higher-level structure managing linear maps and their associated images.
 
+use alloc::format;
+use alloc::vec::Vec;
 use core::iter;
 use core::marker::PhantomData;
 

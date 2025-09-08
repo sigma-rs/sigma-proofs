@@ -4,8 +4,12 @@
 //! used to describe interactive zero-knowledge proofs of knowledge,
 //! such as Schnorr proofs, that follow the 3-message Sigma protocol structure.
 
+use alloc::vec::Vec;
 use crate::errors::Error;
+#[cfg(feature = "std")]
 use rand::{CryptoRng, Rng};
+#[cfg(not(feature = "std"))]
+use rand_core::{CryptoRng, RngCore as Rng};
 
 /// A trait defining the behavior of a generic Sigma protocol.
 ///

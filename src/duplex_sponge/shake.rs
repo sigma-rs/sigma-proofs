@@ -2,6 +2,8 @@
 //!
 //! This module implements a duplex sponge construction using SHAKE128.
 
+use alloc::vec;
+use alloc::vec::Vec;
 use crate::duplex_sponge::DuplexSpongeInterface;
 use sha3::digest::{ExtendableOutput, Update};
 use sha3::Shake128;
