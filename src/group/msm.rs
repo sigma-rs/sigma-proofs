@@ -84,7 +84,7 @@ fn msm_internal<G: PrimeGroup>(bases: &[G], scalars: &[G::Scalar]) -> G {
         window_buckets.push((window, vec![G::identity(); buckets_num]));
     }
 
-    for (scalar, base) in scalars.into_iter().zip(bases) {
+    for (scalar, base) in scalars.iter().zip(bases) {
         for (w, bucket) in window_buckets.iter_mut() {
             let scalar_repr = scalar.to_repr();
             let scalar_bytes = scalar_repr.as_ref();
