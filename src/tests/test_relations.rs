@@ -222,7 +222,7 @@ pub fn test_range_for_input_and_bound<G: PrimeGroup, R: RngCore>(
     // <https://github.com/SamuelSchlesinger/authenticated-pseudonyms/blob/dev/design/Range.pdf>.
     let bases = (0..bits - 1)
         .map(|i| 1 << i)
-        .chain(std::iter::once(bound - (1 << (bits - 1))))
+        .chain(Some(bound - (1 << (bits - 1))))
         .map(G::Scalar::from)
         .collect::<Vec<_>>();
 
