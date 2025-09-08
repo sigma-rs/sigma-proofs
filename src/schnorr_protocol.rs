@@ -4,13 +4,13 @@
 //! a Sigma protocol proving different types of discrete logarithm relations (eg. Schnorr, Pedersen's commitments)
 //! through a group morphism abstraction (see [Maurer09](https://crypto-test.ethz.ch/publications/files/Maurer09.pdf)).
 
-use alloc::vec::Vec;
 use crate::errors::Error;
 use crate::group::serialization::{
     deserialize_elements, deserialize_scalars, serialize_elements, serialize_scalars,
 };
 use crate::linear_relation::CanonicalLinearRelation;
 use crate::traits::{SigmaProtocol, SigmaProtocolSimulator};
+use alloc::vec::Vec;
 
 use ff::Field;
 use group::prime::PrimeGroup;

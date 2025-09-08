@@ -4,8 +4,8 @@
 //! used to describe interactive zero-knowledge proofs of knowledge,
 //! such as Schnorr proofs, that follow the 3-message Sigma protocol structure.
 
-use alloc::vec::Vec;
 use crate::errors::Error;
+use alloc::vec::Vec;
 #[cfg(feature = "std")]
 use rand::{CryptoRng, Rng};
 #[cfg(not(feature = "std"))]

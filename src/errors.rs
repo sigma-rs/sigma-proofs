@@ -50,7 +50,10 @@ pub enum Error {
     #[cfg_attr(feature = "std", error("Invalid instance/witness pair."))]
     InvalidInstanceWitnessPair,
     /// Uninitialized group element variable.
-    #[cfg_attr(feature = "std", error("Uninitialized group element variable: {var_debug}"))]
+    #[cfg_attr(
+        feature = "std",
+        error("Uninitialized group element variable: {var_debug}")
+    )]
     UnassignedGroupVar {
         /// Debug representation of the unassigned variable.
         var_debug: String,

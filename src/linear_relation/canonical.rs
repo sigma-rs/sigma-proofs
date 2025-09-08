@@ -1,14 +1,14 @@
+#[cfg(not(feature = "std"))]
+use ahash::RandomState;
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::vec::Vec;
 use core::iter;
 use core::marker::PhantomData;
-#[cfg(feature = "std")]
-use std::collections::HashMap;
 #[cfg(not(feature = "std"))]
 use hashbrown::HashMap;
-#[cfg(not(feature = "std"))]
-use ahash::RandomState;
+#[cfg(feature = "std")]
+use std::collections::HashMap;
 
 use ff::Field;
 use group::prime::PrimeGroup;
@@ -46,7 +46,8 @@ pub struct CanonicalLinearRelation<G: PrimeGroup> {
 #[cfg(feature = "std")]
 type WeightedGroupCache<G> = HashMap<GroupVar<G>, Vec<(<G as group::Group>::Scalar, GroupVar<G>)>>;
 #[cfg(not(feature = "std"))]
-type WeightedGroupCache<G> = HashMap<GroupVar<G>, Vec<(<G as group::Group>::Scalar, GroupVar<G>)>, RandomState>;
+type WeightedGroupCache<G> =
+    HashMap<GroupVar<G>, Vec<(<G as group::Group>::Scalar, GroupVar<G>)>, RandomState>;
 
 impl<G: PrimeGroup> CanonicalLinearRelation<G> {
     /// Create a new empty canonical linear relation.
@@ -191,7 +192,8 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
         #[cfg(feature = "std")]
         let mut group_repr_mapping: HashMap<Box<[u8]>, u32> = HashMap::new();
         #[cfg(not(feature = "std"))]
-        let mut group_repr_mapping: HashMap<Box<[u8]>, u32, RandomState> = HashMap::with_hasher(RandomState::new());
+        let mut group_repr_mapping: HashMap<Box<[u8]>, u32, RandomState> =
+            HashMap::with_hasher(RandomState::new());
         let mut group_elements_ordered = Vec::new();
 
         // Helper function to get or create index for a group element representation

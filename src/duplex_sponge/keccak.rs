@@ -3,8 +3,8 @@
 //! This module implements a duplex sponge construction using the Keccak-f\[1600\] permutation.
 //! It is designed to match test vectors from the original Sage implementation.
 
-use alloc::vec::Vec;
 use crate::duplex_sponge::DuplexSpongeInterface;
+use alloc::vec::Vec;
 use zerocopy::IntoBytes;
 
 const RATE: usize = 136;
