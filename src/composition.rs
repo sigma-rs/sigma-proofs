@@ -18,8 +18,13 @@
 //! )
 //! ```
 
+use alloc::vec::Vec;
 use ff::{Field, PrimeField};
 use group::prime::PrimeGroup;
+#[cfg(feature = "std")]
+use rand::{CryptoRng, Rng};
+#[cfg(not(feature = "std"))]
+use rand_core::{CryptoRng, RngCore as Rng};
 use sha3::{Digest, Sha3_256};
 use subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
 
@@ -162,7 +167,7 @@ impl<G: PrimeGroup + ConstantTimeEq> ComposedRelation<G> {
     fn prover_commit_simple(
         protocol: &CanonicalLinearRelation<G>,
         witness: &<CanonicalLinearRelation<G> as SigmaProtocol>::Witness,
-        rng: &mut (impl rand::Rng + rand::CryptoRng),
+        rng: &mut (impl Rng + CryptoRng),
     ) -> Result<(ComposedCommitment<G>, ComposedProverState<G>), Error> {
         protocol.prover_commit(witness, rng).map(|(c, s)| {
             (
@@ -185,7 +190,7 @@ impl<G: PrimeGroup + ConstantTimeEq> ComposedRelation<G> {
     fn prover_commit_and(
         protocols: &[ComposedRelation<G>],
         witnesses: &[ComposedWitness<G>],
-        rng: &mut (impl rand::Rng + rand::CryptoRng),
+        rng: &mut (impl Rng + CryptoRng),
     ) -> Result<(ComposedCommitment<G>, ComposedProverState<G>), Error> {
         if protocols.len() != witnesses.len() {
             return Err(Error::InvalidInstanceWitnessPair);
@@ -227,7 +232,7 @@ impl<G: PrimeGroup + ConstantTimeEq> ComposedRelation<G> {
     fn prover_commit_or(
         instances: &[ComposedRelation<G>],
         witnesses: &[ComposedWitness<G>],
-        rng: &mut (impl rand::Rng + rand::CryptoRng),
+        rng: &mut (impl Rng + CryptoRng),
     ) -> Result<(ComposedCommitment<G>, ComposedProverState<G>), Error> {
         if instances.len() != witnesses.len() {
             return Err(Error::InvalidInstanceWitnessPair);
@@ -360,7 +365,7 @@ impl<G: PrimeGroup + ConstantTimeEq> SigmaProtocol for ComposedRelation<G> {
     fn prover_commit(
         &self,
         witness: &Self::Witness,
-        rng: &mut (impl rand::Rng + rand::CryptoRng),
+        rng: &mut (impl Rng + CryptoRng),
     ) -> Result<(Self::Commitment, Self::ProverState), Error> {
         match (self, witness) {
             (ComposedRelation::Simple(p), ComposedWitness::Simple(w)) => {
@@ -634,7 +639,7 @@ impl<G: PrimeGroup + ConstantTimeEq> SigmaProtocolSimulator for ComposedRelation
         }
     }
 
-    fn simulate_response<R: rand::Rng + rand::CryptoRng>(&self, rng: &mut R) -> Self::Response {
+    fn simulate_response<R: Rng + CryptoRng>(&self, rng: &mut R) -> Self::Response {
         match self {
             ComposedRelation::Simple(p) => ComposedResponse::Simple(p.simulate_response(rng)),
             ComposedRelation::And(ps) => {
@@ -654,7 +659,7 @@ impl<G: PrimeGroup + ConstantTimeEq> SigmaProtocolSimulator for ComposedRelation
         }
     }
 
-    fn simulate_transcript<R: rand::Rng + rand::CryptoRng>(
+    fn simulate_transcript<R: Rng + CryptoRng>(
         &self,
         rng: &mut R,
     ) -> Result<(Self::Commitment, Self::Challenge, Self::Response), Error> {

@@ -4,6 +4,8 @@
 //! a generic interface for cryptographic sponge functions that support
 //! duplex operations: alternating absorb and squeeze phases.
 
+use alloc::vec::Vec;
+
 pub mod keccak;
 pub mod shake;
 

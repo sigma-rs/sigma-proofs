@@ -10,10 +10,14 @@ use crate::group::serialization::{
 };
 use crate::linear_relation::CanonicalLinearRelation;
 use crate::traits::{SigmaProtocol, SigmaProtocolSimulator};
+use alloc::vec::Vec;
 
 use ff::Field;
 use group::prime::PrimeGroup;
+#[cfg(feature = "std")]
 use rand::{CryptoRng, Rng, RngCore};
+#[cfg(not(feature = "std"))]
+use rand_core::{CryptoRng, RngCore, RngCore as Rng};
 
 impl<G: PrimeGroup> SigmaProtocol for CanonicalLinearRelation<G> {
     type Commitment = Vec<G>;

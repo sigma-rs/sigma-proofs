@@ -8,9 +8,14 @@
 //! - Mismatched parameter lengths (e.g., during batch verification),
 //! - Access to unassigned group variables in constraint systems.
 
+use alloc::string::String;
+#[cfg(not(feature = "std"))]
+use core::fmt;
+
 /// Represents an invalid instance error.
-#[derive(Debug, thiserror::Error)]
-#[error("Invalid instance: {message}")]
+#[derive(Debug)]
+#[cfg_attr(feature = "std", derive(thiserror::Error))]
+#[cfg_attr(feature = "std", error("Invalid instance: {message}"))]
 pub struct InvalidInstance {
     /// The error message describing what's invalid about the instance.
     pub message: String,
@@ -35,20 +40,45 @@ impl From<InvalidInstance> for Error {
 ///
 /// This may occur during proof generation, response computation, or verification.
 #[non_exhaustive]
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug)]
+#[cfg_attr(feature = "std", derive(thiserror::Error))]
 pub enum Error {
     /// The proof is invalid: verification failed.
-    #[error("Verification failed.")]
+    #[cfg_attr(feature = "std", error("Verification failed."))]
     VerificationFailure,
     /// Indicates an invalid statement/witness pair
-    #[error("Invalid instance/witness pair.")]
+    #[cfg_attr(feature = "std", error("Invalid instance/witness pair."))]
     InvalidInstanceWitnessPair,
     /// Uninitialized group element variable.
-    #[error("Uninitialized group element variable: {var_debug}")]
+    #[cfg_attr(
+        feature = "std",
+        error("Uninitialized group element variable: {var_debug}")
+    )]
     UnassignedGroupVar {
         /// Debug representation of the unassigned variable.
         var_debug: String,
     },
+}
+
+// Manual Display implementation for no_std compatibility
+#[cfg(not(feature = "std"))]
+impl fmt::Display for InvalidInstance {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Invalid instance: {}", self.message)
+    }
+}
+
+#[cfg(not(feature = "std"))]
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Error::VerificationFailure => write!(f, "Verification failed."),
+            Error::InvalidInstanceWitnessPair => write!(f, "Invalid instance/witness pair."),
+            Error::UnassignedGroupVar { var_debug } => {
+                write!(f, "Uninitialized group element variable: {}", var_debug)
+            }
+        }
+    }
 }
 
 pub type Result<T> = core::result::Result<T, Error>;
