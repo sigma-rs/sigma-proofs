@@ -224,6 +224,10 @@ pub fn test_range_for_input_and_bound<G: PrimeGroup, R: RngCore>(
         .chain(Some(bound - (1 << (bits - 1))))
         .map(G::Scalar::from)
         .collect::<Vec<_>>();
+    assert_eq!(
+        bases.iter().copied().sum::<G::Scalar>(),
+        G::Scalar::from(bound - 1)
+    );
 
     let mut instance = LinearRelation::new();
     let [var_G, var_H] = instance.allocate_elements();
