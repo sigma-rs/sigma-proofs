@@ -70,7 +70,7 @@ This library is under active development. While the API is stabilizing, there ar
 
 ## Background
 
-This crate continues the work from the original `zkp` toolkit in [`dalek-cryptography`](https://github.com/dalek-cryptography), modernized with updated dependencies and improved Fiat-Shamir transforms. It implements the general framework for Sigma protocols as described in [Maurer (2009)](https://doi.org/10.1007/978-3-642-02384-2_6).
+This crate continues the work from the original `zkp` toolkit in [`dalek-cryptography`](https://github.com/dalek-cryptography), modernized with updated dependencies and improved Fiat-Shamir transforms. It implements the general framework for Sigma protocols as described in [Maurer (2009)](https://doi.org/10.1007/978-3-642-02384-2_17).
 
 ## Funding
 
