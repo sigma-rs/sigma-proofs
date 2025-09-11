@@ -258,15 +258,18 @@ pub fn test_range_for_input_and_bound<G: PrimeGroup, R: RngCore>(
     let r = G::Scalar::random(&mut rng);
     let x = G::Scalar::from(input);
 
-    let mut rest = input - range.start;
-    let mut b = vec![G::Scalar::ZERO; bases.len()];
-    assert!(rest < delta);
-    for (i, &base) in bases.iter().enumerate().rev() {
-        if rest >= base {
-            b[i] = G::Scalar::ONE;
-            rest -= base;
+    let b = {
+        // XXX Make this constant time
+        let mut rest = input - range.start;
+        let mut b = vec![G::Scalar::ZERO; bases.len()];
+        assert!(rest < delta);
+        for (i, &base) in bases.iter().enumerate().rev() {
+            if rest >= base {
+                b[i] = G::Scalar::ONE;
+                rest -= base;
+            }
         }
-    }
+    };
     assert_eq!(
         x,
         G::Scalar::from(range.start)
