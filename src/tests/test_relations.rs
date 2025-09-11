@@ -204,49 +204,40 @@ pub fn pedersen_commitment_dleq<G: PrimeGroup, R: RngCore>(
 pub fn test_range_for_input_and_bound<G: PrimeGroup, R: RngCore>(
     mut rng: &mut R,
     input: u64,
-    bound: u64,
+    range: std::ops::Range<u64>,
 ) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
     let G = G::generator();
     let H = G::random(&mut rng);
 
-    let bits = {
-        let mut bits = bound.ilog2();
-        if 1 << bits < bound {
-            bits += 1;
-        }
-        usize::try_from(bits).unwrap()
-    };
+    let delta = range.end - range.start;
+    let bits = (delta - 1).ilog2() as usize;
+    let remainder = delta - (1 << bits);
 
     // Compute the bases used to express the input as a linear combination of the bit decomposition
     // of the input.
-    let bases = (0..bits - 1)
-        .map(|i| 1 << i)
-        .chain(Some(bound - (1 << (bits - 1))))
-        .map(G::Scalar::from)
-        .collect::<Vec<_>>();
-    assert_eq!(
-        bases.iter().copied().sum::<G::Scalar>(),
-        G::Scalar::from(bound - 1)
-    );
+    let mut bases = (0..bits).map(|i| 1 << i).collect::<Vec<_>>();
+    bases.push(remainder);
+    let num_bases = bases.len();
+    assert_eq!(range.start + bases.iter().sum::<u64>(), range.end - 1);
 
     let mut instance = LinearRelation::new();
     let [var_G, var_H] = instance.allocate_elements();
     let [var_x, var_r] = instance.allocate_scalars();
     let vars_b = std::iter::repeat_with(|| instance.allocate_scalar())
-        .take(bits)
+        .take(num_bases)
         .collect::<Vec<_>>();
     let vars_s = std::iter::repeat_with(|| instance.allocate_scalar())
-        .take(bits)
+        .take(num_bases)
         .collect::<Vec<_>>();
     let var_s2 = std::iter::repeat_with(|| instance.allocate_scalar())
-        .take(bits)
+        .take(num_bases)
         .collect::<Vec<_>>();
     let var_Ds = std::iter::repeat_with(|| instance.allocate_element())
-        .take(bits)
+        .take(num_bases)
         .collect::<Vec<_>>();
 
     // `var_Ds[i]` are bit commitments.
-    for i in 0..bits {
+    for i in 0..num_bases {
         instance.append_equation(var_Ds[i], vars_b[i] * var_G + vars_s[i] * var_H);
         instance.append_equation(var_Ds[i], vars_b[i] * var_Ds[i] + var_s2[i] * var_H);
     }
@@ -258,38 +249,40 @@ pub fn test_range_for_input_and_bound<G: PrimeGroup, R: RngCore>(
     // which is what a normal implementation would do.
     instance.append_equation(
         var_C,
-        (0..bits).map(|i| var_Ds[i] * bases[i]).sum::<Sum<_>>(),
+        var_G * G::Scalar::from(range.start)
+            + (0..num_bases)
+                .map(|i| var_Ds[i] * G::Scalar::from(bases[i]))
+                .sum::<Sum<_>>(),
     );
 
     let r = G::Scalar::random(&mut rng);
     let x = G::Scalar::from(input);
 
-    let b = {
-        let mut b = vec![G::Scalar::ZERO; bits];
-
-        // We say the input is "large" it can't be encoded in the first `bits - 1` bits.
-        let input_is_large = input >= (1 << (bits - 1));
-
-        // The last bit is `1` if the `input` is large and `0` otherwise.
-        b[bits - 1] = G::Scalar::from(input_is_large.into());
-
-        // Use the bit decomposition of `input - (bound - (2^(bits-1) - 1))` if `input` is large.
-        let range_checked_input = input - u64::from(input_is_large) * (bound - (1 << (bits - 1)));
-
-        for i in 0..bits - 1 {
-            b[i] = G::Scalar::from((range_checked_input >> i) & 1);
+    let mut rest = input - range.start;
+    let mut b = vec![G::Scalar::ZERO; bases.len()];
+    assert!(rest < delta);
+    for (i, &base) in bases.iter().enumerate().rev() {
+        if rest >= base {
+            b[i] = G::Scalar::ONE;
+            rest -= base;
         }
-
-        b
-    };
-
+    }
+    assert_eq!(
+        x,
+        G::Scalar::from(range.start)
+            + (0..bases.len())
+                .map(|i| G::Scalar::from(bases[i]) * b[i])
+                .sum::<G::Scalar>()
+    );
     // set the randomness for the bit decomposition
-    let mut s = (0..bits)
+    let mut s = (0..bases.len())
         .map(|_| G::Scalar::random(&mut rng))
         .collect::<Vec<_>>();
-    let partial_sum = (1..bits).map(|i| bases[i] * s[i]).sum::<G::Scalar>();
+    let partial_sum = (1..bases.len())
+        .map(|i| G::Scalar::from(bases[i]) * s[i])
+        .sum::<G::Scalar>();
     s[0] = r - partial_sum;
-    let s2 = (0..bits)
+    let s2 = (0..bases.len())
         .map(|i| (G::Scalar::ONE - b[i]) * s[i])
         .collect::<Vec<_>>();
     let witness = [x, r]
@@ -302,7 +295,7 @@ pub fn test_range_for_input_and_bound<G: PrimeGroup, R: RngCore>(
 
     instance.set_elements([(var_G, G), (var_H, H)]);
     instance.set_element(var_C, G * x + H * r);
-    for i in 0..bits {
+    for i in 0..num_bases {
         instance.set_element(var_Ds[i], G * b[i] + H * s[i]);
     }
 
@@ -314,7 +307,7 @@ pub fn test_range_for_input_and_bound<G: PrimeGroup, R: RngCore>(
 pub fn test_range<G: PrimeGroup, R: RngCore>(
     mut rng: &mut R,
 ) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
-    test_range_for_input_and_bound(&mut rng, 822, 1337)
+    test_range_for_input_and_bound(&mut rng, 822, 0..1337)
 }
 
 /// LinearMap for knowledge of an opening for use in a BBS commitment.
