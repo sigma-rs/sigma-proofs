@@ -46,7 +46,7 @@ pub enum ComposedRelation<G: PrimeGroup> {
     Or(Vec<ComposedRelation<G>>),
 }
 
-impl<G: PrimeGroup + ConstantTimeEq> ComposedRelation<G> {
+impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<G> {
     /// Create a [ComposedRelation] for an AND relation from the given list of relations.
     pub fn and<T: Into<ComposedRelation<G>>>(witness: impl IntoIterator<Item = T>) -> Self {
         Self::And(witness.into_iter().map(|x| x.into()).collect())
@@ -80,6 +80,52 @@ pub enum ComposedCommitment<G: PrimeGroup> {
     Or(Vec<ComposedCommitment<G>>),
 }
 
+impl<G: PrimeGroup> ComposedCommitment<G>
+where
+    G: ConditionallySelectable,
+{
+    /// Conditionally select between two ComposedCommitment values.
+    /// This function performs constant-time selection of the commitment values.
+    pub fn conditional_select(a: &Self, b: &Self, choice: Choice) -> Self {
+        match (a, b) {
+            (ComposedCommitment::Simple(a_elements), ComposedCommitment::Simple(b_elements)) => {
+                // Both vectors must have the same length for this to work
+                debug_assert_eq!(a_elements.len(), b_elements.len());
+                let selected: Vec<G> = a_elements
+                    .iter()
+                    .zip(b_elements.iter())
+                    .map(|(a, b)| G::conditional_select(a, b, choice))
+                    .collect();
+                ComposedCommitment::Simple(selected)
+            }
+            (ComposedCommitment::And(a_commitments), ComposedCommitment::And(b_commitments)) => {
+                debug_assert_eq!(a_commitments.len(), b_commitments.len());
+                let selected: Vec<ComposedCommitment<G>> = a_commitments
+                    .iter()
+                    .zip(b_commitments.iter())
+                    .map(|(a, b)| ComposedCommitment::conditional_select(a, b, choice))
+                    .collect();
+                ComposedCommitment::And(selected)
+            }
+            (
+                ComposedCommitment::Or(a_commitments),
+                ComposedCommitment::Or(b_commitments),
+            ) => {
+                debug_assert_eq!(a_commitments.len(), b_commitments.len());
+                let selected: Vec<ComposedCommitment<G>> = a_commitments
+                    .iter()
+                    .zip(b_commitments.iter())
+                    .map(|(a, b)| ComposedCommitment::conditional_select(a, b, choice))
+                    .collect();
+                ComposedCommitment::Or(selected)
+            }
+            _ => {
+                unreachable!("Mismatched ComposedCommitment variants in conditional_select");
+            }
+        }
+    }
+}
+
 // Structure representing the ProverState type of Protocol as SigmaProtocol
 pub enum ComposedProverState<G: PrimeGroup + ConstantTimeEq> {
     Simple(<CanonicalLinearRelation<G> as SigmaProtocol>::ProverState),
@@ -101,6 +147,58 @@ pub enum ComposedResponse<G: PrimeGroup> {
     Simple(<CanonicalLinearRelation<G> as SigmaProtocol>::Response),
     And(Vec<ComposedResponse<G>>),
     Or(Vec<ComposedChallenge<G>>, Vec<ComposedResponse<G>>),
+}
+
+impl<G: PrimeGroup> ComposedResponse<G> {
+    /// Conditionally select between two ComposedResponse values.
+    /// This function performs constant-time selection of the response values.
+    pub fn conditional_select(a: &Self, b: &Self, choice: Choice) -> Self {
+        match (a, b) {
+            (ComposedResponse::Simple(a_scalars), ComposedResponse::Simple(b_scalars)) => {
+                // Both vectors must have the same length for this to work
+                debug_assert_eq!(a_scalars.len(), b_scalars.len());
+                let selected: Vec<G::Scalar> = a_scalars
+                    .iter()
+                    .zip(b_scalars.iter())
+                    .map(|(a, b)| G::Scalar::conditional_select(a, b, choice))
+                    .collect();
+                ComposedResponse::Simple(selected)
+            }
+            (ComposedResponse::And(a_responses), ComposedResponse::And(b_responses)) => {
+                debug_assert_eq!(a_responses.len(), b_responses.len());
+                let selected: Vec<ComposedResponse<G>> = a_responses
+                    .iter()
+                    .zip(b_responses.iter())
+                    .map(|(a, b)| ComposedResponse::conditional_select(a, b, choice))
+                    .collect();
+                ComposedResponse::And(selected)
+            }
+            (
+                ComposedResponse::Or(a_challenges, a_responses),
+                ComposedResponse::Or(b_challenges, b_responses),
+            ) => {
+                debug_assert_eq!(a_challenges.len(), b_challenges.len());
+                debug_assert_eq!(a_responses.len(), b_responses.len());
+
+                let selected_challenges: Vec<ComposedChallenge<G>> = a_challenges
+                    .iter()
+                    .zip(b_challenges.iter())
+                    .map(|(a, b)| G::Scalar::conditional_select(a, b, choice))
+                    .collect();
+
+                let selected_responses: Vec<ComposedResponse<G>> = a_responses
+                    .iter()
+                    .zip(b_responses.iter())
+                    .map(|(a, b)| ComposedResponse::conditional_select(a, b, choice))
+                    .collect();
+
+                ComposedResponse::Or(selected_challenges, selected_responses)
+            }
+            _ => {
+                unreachable!("Mismatched ComposedResponse variants in conditional_select");
+            }
+        }
+    }
 }
 
 // Structure representing the Witness type of Protocol as SigmaProtocol
@@ -137,7 +235,7 @@ const fn composed_challenge_size<G: PrimeGroup>() -> usize {
     (G::Scalar::NUM_BITS as usize).div_ceil(8)
 }
 
-impl<G: PrimeGroup + ConstantTimeEq> ComposedRelation<G> {
+impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<G> {
     fn is_witness_valid(&self, witness: &ComposedWitness<G>) -> Choice {
         match (self, witness) {
             (ComposedRelation::Simple(instance), ComposedWitness::Simple(witness)) => {
@@ -228,7 +326,10 @@ impl<G: PrimeGroup + ConstantTimeEq> ComposedRelation<G> {
         instances: &[ComposedRelation<G>],
         witnesses: &[ComposedWitness<G>],
         rng: &mut (impl rand::Rng + rand::CryptoRng),
-    ) -> Result<(ComposedCommitment<G>, ComposedProverState<G>), Error> {
+    ) -> Result<(ComposedCommitment<G>, ComposedProverState<G>), Error>
+    where
+        G: ConditionallySelectable,
+    {
         if instances.len() != witnesses.len() {
             return Err(Error::InvalidInstanceWitnessPair);
         }
@@ -243,28 +344,16 @@ impl<G: PrimeGroup + ConstantTimeEq> ComposedRelation<G> {
             let (simulated_commitment, simulated_challenge, simulated_response) =
                 instances[i].simulate_transcript(rng)?;
 
-            let valid_witness = instances[i].is_witness_valid(w);
-            let select_witness = valid_witness & !valid_witness_found;
+            let valid_witness = instances[i].is_witness_valid(w) & !valid_witness_found;
+            let select_witness = valid_witness ;
 
-            let simulated_commitment_ptr =
-                &simulated_commitment as *const ComposedCommitment<G> as u64;
-            let commitment_ptr = &commitment as *const ComposedCommitment<G> as u64;
-
-            let selected_commitment_ptr = ConditionallySelectable::conditional_select(
-                &simulated_commitment_ptr,
-                &commitment_ptr,
+            let commitment = ComposedCommitment::conditional_select(
+                &simulated_commitment,
+                &commitment,
                 select_witness,
             );
-            let discarded_commitment_ptr = ConditionallySelectable::conditional_select(
-                &simulated_commitment_ptr,
-                &commitment_ptr,
-                !select_witness,
-            );
-            let commitment = unsafe { &*(selected_commitment_ptr as *const ComposedCommitment<G>) };
-            let _discarded =
-                unsafe { &*(discarded_commitment_ptr as *const ComposedCommitment<G>) };
 
-            commitments.push(commitment.clone());
+            commitments.push(commitment);
             prover_states.push(ComposedOrProverStateEntry(
                 select_witness,
                 prover_state,
@@ -325,21 +414,11 @@ impl<G: PrimeGroup + ConstantTimeEq> ComposedRelation<G> {
             );
 
             let response = instance.prover_response(prover_state, &challenge_i)?;
-            let response_ptr = &response as *const ComposedResponse<G> as u64;
-            let simulated_response_ptr = &simulated_response as *const ComposedResponse<G> as u64;
-            let selected_response_ptr = ConditionallySelectable::conditional_select(
-                &simulated_response_ptr,
-                &response_ptr,
+            let response = ComposedResponse::conditional_select(
+                &simulated_response,
+                &response,
                 valid_witness,
             );
-            let _discarded_response_ptr = ConditionallySelectable::conditional_select(
-                &simulated_response_ptr,
-                &response_ptr,
-                !valid_witness,
-            );
-            let response = unsafe { &*(selected_response_ptr as *const ComposedResponse<G>) };
-            let _discarded_response =
-                unsafe { &*(_discarded_response_ptr as *const ComposedResponse<G>) };
 
             result_challenges.push(challenge_i);
             result_responses.push(response.clone());
@@ -350,7 +429,7 @@ impl<G: PrimeGroup + ConstantTimeEq> ComposedRelation<G> {
     }
 }
 
-impl<G: PrimeGroup + ConstantTimeEq> SigmaProtocol for ComposedRelation<G> {
+impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> SigmaProtocol for ComposedRelation<G> {
     type Commitment = ComposedCommitment<G>;
     type ProverState = ComposedProverState<G>;
     type Response = ComposedResponse<G>;
@@ -602,7 +681,7 @@ impl<G: PrimeGroup + ConstantTimeEq> SigmaProtocol for ComposedRelation<G> {
     }
 }
 
-impl<G: PrimeGroup + ConstantTimeEq> SigmaProtocolSimulator for ComposedRelation<G> {
+impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> SigmaProtocolSimulator for ComposedRelation<G> {
     fn simulate_commitment(
         &self,
         challenge: &Self::Challenge,
@@ -707,7 +786,7 @@ impl<G: PrimeGroup + ConstantTimeEq> SigmaProtocolSimulator for ComposedRelation
     }
 }
 
-impl<G: PrimeGroup + ConstantTimeEq> ComposedRelation<G> {
+impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<G> {
     /// Convert this Protocol into a non-interactive zero-knowledge proof
     /// using the Shake128DuplexSponge codec and a specified session identifier.
     ///
