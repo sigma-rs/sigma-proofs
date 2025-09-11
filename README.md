@@ -12,7 +12,7 @@ This library provides a flexible framework for creating zero-knowledge proofs fo
 use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::scalar::Scalar;
 use group::Group;
-let mut instance = sigma_rs::LinearRelation::new();
+let mut instance = sigma_proofs::LinearRelation::new();
 let mut rng = rand::thread_rng();
 
 // Define the statement:

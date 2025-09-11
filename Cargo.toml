@@ -1,5 +1,5 @@
 [package]
-name = "sigma-rs"
+name = "sigma-proofs"
 version = "0.1.0"
 authors = [
     "Nugzari Uzoevi <nougzarm@icloud.com>",
