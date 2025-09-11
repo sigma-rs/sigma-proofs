@@ -210,34 +210,34 @@ pub fn test_range_for_input_and_bound<G: PrimeGroup, R: RngCore>(
     let H = G::random(&mut rng);
 
     let delta = range.end - range.start;
-    let bits = (delta - 1).ilog2() as usize;
-    let remainder = delta - (1 << bits);
+    let whole_bits = (delta - 1).ilog2() as usize;
+    let remainder = delta - (1 << whole_bits);
 
     // Compute the bases used to express the input as a linear combination of the bit decomposition
     // of the input.
-    let mut bases = (0..bits).map(|i| 1 << i).collect::<Vec<_>>();
+    let mut bases = (0..whole_bits).map(|i| 1 << i).collect::<Vec<_>>();
     bases.push(remainder);
-    let num_bases = bases.len();
+    let bits = bases.len();
     assert_eq!(range.start + bases.iter().sum::<u64>(), range.end - 1);
 
     let mut instance = LinearRelation::new();
     let [var_G, var_H] = instance.allocate_elements();
     let [var_x, var_r] = instance.allocate_scalars();
     let vars_b = std::iter::repeat_with(|| instance.allocate_scalar())
-        .take(num_bases)
+        .take(bits)
         .collect::<Vec<_>>();
     let vars_s = std::iter::repeat_with(|| instance.allocate_scalar())
-        .take(num_bases)
+        .take(bits)
         .collect::<Vec<_>>();
     let var_s2 = std::iter::repeat_with(|| instance.allocate_scalar())
-        .take(num_bases)
+        .take(bits)
         .collect::<Vec<_>>();
     let var_Ds = std::iter::repeat_with(|| instance.allocate_element())
-        .take(num_bases)
+        .take(bits)
         .collect::<Vec<_>>();
 
     // `var_Ds[i]` are bit commitments.
-    for i in 0..num_bases {
+    for i in 0..bits {
         instance.append_equation(var_Ds[i], vars_b[i] * var_G + vars_s[i] * var_H);
         instance.append_equation(var_Ds[i], vars_b[i] * var_Ds[i] + var_s2[i] * var_H);
     }
@@ -250,7 +250,7 @@ pub fn test_range_for_input_and_bound<G: PrimeGroup, R: RngCore>(
     instance.append_equation(
         var_C,
         var_G * G::Scalar::from(range.start)
-            + (0..num_bases)
+            + (0..bits)
                 .map(|i| var_Ds[i] * G::Scalar::from(bases[i]))
                 .sum::<Sum<_>>(),
     );
@@ -295,7 +295,7 @@ pub fn test_range_for_input_and_bound<G: PrimeGroup, R: RngCore>(
 
     instance.set_elements([(var_G, G), (var_H, H)]);
     instance.set_element(var_C, G * x + H * r);
-    for i in 0..num_bases {
+    for i in 0..bits {
         instance.set_element(var_Ds[i], G * b[i] + H * s[i]);
     }
 
