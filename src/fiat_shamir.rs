@@ -15,8 +15,12 @@
 use crate::errors::Error;
 use crate::traits::SigmaProtocol;
 use crate::{codec::Codec, traits::SigmaProtocolSimulator};
+use alloc::vec::Vec;
 
+#[cfg(feature = "std")]
 use rand::{CryptoRng, RngCore};
+#[cfg(not(feature = "std"))]
+use rand_core::{CryptoRng, RngCore};
 
 type Transcript<P> = (
     <P as SigmaProtocol>::Commitment,

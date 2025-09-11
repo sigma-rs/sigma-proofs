@@ -5,7 +5,11 @@
 //! such as Schnorr proofs, that follow the 3-message Sigma protocol structure.
 
 use crate::errors::Error;
+use alloc::vec::Vec;
+#[cfg(feature = "std")]
 use rand::{CryptoRng, Rng};
+#[cfg(not(feature = "std"))]
+use rand_core::{CryptoRng, RngCore as Rng};
 
 /// A trait defining the behavior of a generic Sigma protocol.
 ///

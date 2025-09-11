@@ -61,10 +61,13 @@
 //! Σ-rs is designed to be modular, extensible, and easy to integrate into different
 //! groups, protocols depending on sigma protocols, and other proof systems.
 
+#![cfg_attr(not(feature = "std"), no_std)]
 #![allow(non_snake_case)]
 #![doc(html_logo_url = "https://mmaker.github.io/sigma-rs/")]
 #![deny(unused_variables)]
 #![deny(unused_mut)]
+
+extern crate alloc;
 
 pub mod codec;
 pub mod composition;

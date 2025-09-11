@@ -1,3 +1,5 @@
+use alloc::vec;
+use alloc::vec::Vec;
 use core::ops::{Add, Mul, Neg, Sub};
 use ff::Field;
 use group::Group;
