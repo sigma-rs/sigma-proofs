@@ -199,9 +199,9 @@ pub fn pedersen_commitment_dleq<G: PrimeGroup, R: RngCore>(
     (instance, witness_vec)
 }
 
-/// Test that a Pedersen commitment is in `[0, bound)` for any `bound >= 0`.
+/// Test that a Pedersen commitment is in the given range.
 #[allow(non_snake_case)]
-pub fn test_range_for_input_and_bound<G: PrimeGroup, R: RngCore>(
+pub fn test_range_for_input_and_range<G: PrimeGroup, R: RngCore>(
     mut rng: &mut R,
     input: u64,
     range: std::ops::Range<u64>,
@@ -311,7 +311,7 @@ pub fn test_range_for_input_and_bound<G: PrimeGroup, R: RngCore>(
 pub fn test_range<G: PrimeGroup, R: RngCore>(
     mut rng: &mut R,
 ) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
-    test_range_for_input_and_bound(&mut rng, 822, 0..1337)
+    test_range_for_input_and_range(&mut rng, 822, 0..1337)
 }
 
 /// LinearMap for knowledge of an opening for use in a BBS commitment.
