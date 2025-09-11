@@ -269,6 +269,8 @@ pub fn test_range_for_input_and_bound<G: PrimeGroup, R: RngCore>(
                 rest -= base;
             }
         }
+
+        b
     };
     assert_eq!(
         x,
