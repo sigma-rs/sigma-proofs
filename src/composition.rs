@@ -112,10 +112,7 @@ where
                     .collect();
                 ComposedCommitment::And(selected)
             }
-            (
-                ComposedCommitment::Or(a_commitments),
-                ComposedCommitment::Or(b_commitments),
-            ) => {
+            (ComposedCommitment::Or(a_commitments), ComposedCommitment::Or(b_commitments)) => {
                 debug_assert_eq!(a_commitments.len(), b_commitments.len());
                 let selected: Vec<ComposedCommitment<G>> = a_commitments
                     .iter()
@@ -350,7 +347,7 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<
                 instances[i].simulate_transcript(rng)?;
 
             let valid_witness = instances[i].is_witness_valid(w) & !valid_witness_found;
-            let select_witness = valid_witness ;
+            let select_witness = valid_witness;
 
             let commitment = ComposedCommitment::conditional_select(
                 &simulated_commitment,
@@ -419,11 +416,8 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<
             );
 
             let response = instance.prover_response(prover_state, &challenge_i)?;
-            let response = ComposedResponse::conditional_select(
-                &simulated_response,
-                &response,
-                valid_witness,
-            );
+            let response =
+                ComposedResponse::conditional_select(&simulated_response, &response, valid_witness);
 
             result_challenges.push(challenge_i);
             result_responses.push(response.clone());
@@ -434,7 +428,9 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<
     }
 }
 
-impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> SigmaProtocol for ComposedRelation<G> {
+impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> SigmaProtocol
+    for ComposedRelation<G>
+{
     type Commitment = ComposedCommitment<G>;
     type ProverState = ComposedProverState<G>;
     type Response = ComposedResponse<G>;
@@ -686,7 +682,9 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> SigmaProtocol for
     }
 }
 
-impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> SigmaProtocolSimulator for ComposedRelation<G> {
+impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> SigmaProtocolSimulator
+    for ComposedRelation<G>
+{
     fn simulate_commitment(
         &self,
         challenge: &Self::Challenge,
