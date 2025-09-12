@@ -7,13 +7,12 @@ authors = [
     "Lénaïck Gouriou <lg@leanear.io>"
 ]
 edition = "2021"
-license = "CC0-1.0"
+license = "BSD-2-Clause"
 readme = "README.md"
-repository = "https://github.com/mmaker/sigma-rs"
-documentation = "https://mmaker.github.io/sigma-rs/"
+repository = "https://github.com/sigma-rs/sigma-proofs"
+documentation = "https://docs.rs/sigma-proofs"
 categories = ["cryptography"]
-keywords = ["cryptography", "zero-knowledge", "NIZK",
-"sigma protocols"]
+keywords = ["cryptography", "zero-knowledge", "NIZK", "sigma protocols"]
 description = "A toolkit for auto-generated implementations of Σ-protocols"
 exclude = [
     ".gitignore"
