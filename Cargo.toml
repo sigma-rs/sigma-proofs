@@ -1,6 +1,6 @@
 [package]
 name = "sigma-proofs"
-version = "0.1.0"
+version = "0.1.0-sigma"
 authors = [
     "Nugzari Uzoevi <nougzarm@icloud.com>",
     "Michele Orrù <m@orru.net>",
@@ -12,7 +12,7 @@ readme = "README.md"
 repository = "https://github.com/sigma-rs/sigma-proofs"
 documentation = "https://docs.rs/sigma-proofs"
 categories = ["cryptography"]
-keywords = ["cryptography", "zero-knowledge", "NIZK", "sigma protocols"]
+keywords = ["cryptography", "zero-knowledge", "NIZK", "sigma-protocols"]
 description = "A toolkit for auto-generated implementations of Σ-protocols"
 exclude = [
     ".gitignore"
