@@ -19,7 +19,7 @@
 //! # use curve25519_dalek::ristretto::RistrettoPoint;
 //! # use curve25519_dalek::scalar::Scalar;
 //! # use group::Group;
-//! let mut instance = sigma_rs::LinearRelation::new();
+//! let mut instance = sigma_proofs::LinearRelation::new();
 //! let mut rng = rand::thread_rng();
 //!
 //! // Define the statement:
@@ -86,5 +86,5 @@ pub mod tests;
 pub use fiat_shamir::Nizk;
 pub use linear_relation::LinearRelation;
 
-#[deprecated = "Use sigma_rs::group::serialization instead"]
+#[deprecated = "Use sigma_proofs::group::serialization instead"]
 pub use group::serialization;

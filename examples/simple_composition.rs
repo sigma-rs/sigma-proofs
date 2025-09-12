@@ -4,7 +4,7 @@ use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::scalar::Scalar;
 use group::Group;
 use rand::rngs::OsRng;
-use sigma_rs::{
+use sigma_proofs::{
     codec::Shake128DuplexSponge,
     composition::{ComposedRelation, ComposedWitness},
     errors::Error,

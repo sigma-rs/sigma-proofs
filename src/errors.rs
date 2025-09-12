@@ -83,7 +83,7 @@ impl fmt::Display for Error {
 
 pub type Result<T> = core::result::Result<T, Error>;
 
-/// Construct an `Ok` value of type `Result<T, sigma_rs::errors::Error>`.
+/// Construct an `Ok` value of type `Result<T, sigma_proofs::errors::Error>`.
 pub const fn Ok<T>(value: T) -> Result<T> {
     Result::Ok(value)
 }
