@@ -61,7 +61,7 @@ impl<G: Group> GroupMap<G> {
         }
     }
 
-    /// Iterate over the assigned variable and group element pairs in this mapping.
+    /// Iterate over the assigned variable and group element pairs in this map.
     // NOTE: Not implemented as `IntoIterator` for now because doing so requires explicitly
     // defining an iterator type, See https://github.com/rust-lang/rust/issues/63063
     #[allow(clippy::should_implement_trait)]
@@ -168,7 +168,7 @@ impl<G: Group> ScalarMap<G> {
         }
     }
 
-    /// Iterate over the assigned variable and scalar pairs in this mapping.
+    /// Iterate over the assigned variable and scalar pairs in this map.
     // NOTE: Not implemented as `IntoIterator` for now because doing so requires explicitly
     // defining an iterator type, See https://github.com/rust-lang/rust/issues/63063
     #[allow(clippy::should_implement_trait)]
@@ -179,11 +179,33 @@ impl<G: Group> ScalarMap<G> {
             .map(|(i, x)| (ScalarVar(i, PhantomData), x))
     }
 
+    /// Iterate over the assigned variable and scalar pairs in this map.
     pub fn iter(&self) -> impl Iterator<Item = (ScalarVar<G>, Option<&G::Scalar>)> {
         self.0
             .iter()
             .enumerate()
             .map(|(i, opt)| (ScalarVar(i, PhantomData), opt.as_ref()))
+    }
+
+    /// Iterate over the scalar variable references in this scalar map.
+    pub fn vars(&self) -> impl Iterator<Item = ScalarVar<G>> {
+        (0..self.0.len()).map(|i| ScalarVar(i, PhantomData))
+    }
+
+    pub fn zip<'a>(
+        &'a self,
+        other: &'a Self,
+    ) -> impl Iterator<Item = (ScalarVar<G>, Option<G::Scalar>, Option<G::Scalar>)> + use<'a, G>
+    {
+        // NOTE: Due to the current packed representation, we know that var `i` is stored at
+        // position `i`. This simplifies the implementation by allowing iteration over the longer
+        // of the two to consider all allocated variables. `left` is the longer if different.
+        let (left, right) = match self.len() >= other.len() {
+            true => (self, other),
+            false => (other, self),
+        };
+        left.vars()
+            .map(|var| (var, left.get(var).ok(), right.get(var).ok()))
     }
 
     /// Add a new scalar to the map and return its variable reference
