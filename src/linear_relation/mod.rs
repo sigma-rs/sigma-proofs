@@ -407,7 +407,6 @@ impl<G: PrimeGroup> LinearRelation<G> {
         vars
     }
 
-
     /// Allocates a vector of new scalar variables.
     ///
     /// # Returns
