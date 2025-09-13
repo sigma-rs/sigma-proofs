@@ -8,7 +8,7 @@ use crate::errors::Error;
 use crate::group::serialization::{
     deserialize_elements, deserialize_scalars, serialize_elements, serialize_scalars,
 };
-use crate::linear_relation::CanonicalLinearRelation;
+use crate::linear_relation::{CanonicalLinearRelation, ScalarMap};
 use crate::traits::{SigmaProtocol, SigmaProtocolSimulator};
 use alloc::vec::Vec;
 
@@ -23,7 +23,7 @@ impl<G: PrimeGroup> SigmaProtocol for CanonicalLinearRelation<G> {
     type Commitment = Vec<G>;
     type ProverState = (Vec<G::Scalar>, Vec<G::Scalar>);
     type Response = Vec<G::Scalar>;
-    type Witness = Vec<G::Scalar>;
+    type Witness = ScalarMap<G>;
     type Challenge = G::Scalar;
 
     /// Prover's first message: generates a commitment using random nonces.

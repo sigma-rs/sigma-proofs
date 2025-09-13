@@ -8,7 +8,21 @@
 //! - [`LinearMap`]: a collection of linear combinations acting on group elements.
 //! - [`LinearRelation`]: a higher-level structure managing linear maps and their associated images.
 
+/// Implementations of conversion operations such as From and FromIterator for var and term types.
+mod convert;
+/// Implementations of core ops for the linear combination types.
+mod ops;
+
+/// Implementation of canonical linear relation.
+mod canonical;
+pub use canonical::CanonicalLinearRelation;
+
+/// Collections for group elements and scalars, used in the linear maps.
+pub(crate) mod collections;
+pub use collections::{GroupMap, ScalarAssignments, ScalarMap};
+
 use alloc::vec::Vec;
+use collections::{UnassignedGroupVarError, UnassignedScalarVarError};
 use core::iter;
 use core::marker::PhantomData;
 
@@ -20,23 +34,10 @@ use crate::errors::{Error, InvalidInstance};
 use crate::group::msm::VariableMultiScalarMul;
 use crate::Nizk;
 
-/// Implementations of conversion operations such as From and FromIterator for var and term types.
-mod convert;
-/// Implementations of core ops for the linear combination types.
-mod ops;
-
-/// Implementation of canonical linear relation.
-mod canonical;
-pub use canonical::CanonicalLinearRelation;
-
-/// Collections for group elements and scalars, used in the linear maps.
-mod collections;
-pub use collections::GroupMap;
-
 /// A wrapper representing an reference for a scalar variable.
 ///
 /// Used to reference scalars in sparse linear combinations.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct ScalarVar<G>(usize, PhantomData<G>);
 
 impl<G> ScalarVar<G> {
@@ -45,6 +46,14 @@ impl<G> ScalarVar<G> {
     // there are for this index.
     pub fn index(&self) -> usize {
         self.0
+    }
+}
+
+// Implement copy and clone for all G
+impl<G> Copy for ScalarVar<G> {}
+impl<G> Clone for ScalarVar<G> {
+    fn clone(&self) -> Self {
+        *self
     }
 }
 
@@ -57,12 +66,20 @@ impl<G> core::hash::Hash for ScalarVar<G> {
 /// A wrapper representing a reference for a group element (i.e. elliptic curve point).
 ///
 /// Used to reference group elements in sparse linear combinations.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct GroupVar<G>(usize, PhantomData<G>);
 
 impl<G> GroupVar<G> {
     pub fn index(&self) -> usize {
         self.0
+    }
+}
+
+// Implement copy and clone for all G
+impl<G> Copy for GroupVar<G> {}
+impl<G> Clone for GroupVar<G> {
+    fn clone(&self) -> Self {
+        *self
     }
 }
 
@@ -79,13 +96,16 @@ pub enum ScalarTerm<G> {
 }
 
 impl<G: PrimeGroup> ScalarTerm<G> {
-    // NOTE: This function is private intentionally as it would be replaced if a ScalarMap struct
-    // were to be added.
-    fn value(self, scalars: &[G::Scalar]) -> G::Scalar {
-        match self {
-            Self::Var(var) => scalars[var.0],
+    // TODO: Move this function onto ScalarMap instead? Maybe ScalarMap should have an associated
+    // valuation function.
+    fn value(
+        self,
+        scalars: &impl ScalarAssignments<G>,
+    ) -> Result<G::Scalar, UnassignedScalarVarError> {
+        Ok(match self {
+            Self::Var(var) => scalars.get(var)?,
             Self::Unit => G::Scalar::ONE,
-        }
+        })
     }
 }
 
@@ -131,28 +151,6 @@ impl<T> core::iter::Sum<T> for Sum<T> {
 /// - `(s_i * P_i)` are the terms, with `s_i` scalars (referenced by `scalar_vars`) and `P_i` group elements (referenced by `element_vars`).
 /// - `w_i` are the constant weight scalars
 pub type LinearCombination<G> = Sum<Weighted<Term<G>, <G as group::Group>::Scalar>>;
-
-impl<G: PrimeGroup> LinearMap<G> {
-    fn map(&self, scalars: &[G::Scalar]) -> Result<Vec<G>, InvalidInstance> {
-        self.linear_combinations
-            .iter()
-            .map(|lc| {
-                let weighted_coefficients =
-                    lc.0.iter()
-                        .map(|weighted| weighted.term.scalar.value(scalars) * weighted.weight)
-                        .collect::<Vec<_>>();
-                let elements =
-                    lc.0.iter()
-                        .map(|weighted| self.group_elements.get(weighted.term.elem))
-                        .collect::<Result<Vec<_>, InvalidInstance>>();
-                match elements {
-                    Ok(elements) => Ok(G::msm(&weighted_coefficients, &elements)),
-                    Err(error) => Err(error),
-                }
-            })
-            .collect::<Result<Vec<_>, InvalidInstance>>()
-    }
-}
 
 /// A LinearMap represents a list of linear combinations over group elements.
 ///
@@ -209,7 +207,7 @@ impl<G: PrimeGroup> LinearMap<G> {
     /// # Returns
     ///
     /// A vector of group elements, each being the result of evaluating one linear combination with the scalars.
-    pub fn evaluate(&self, scalars: &[G::Scalar]) -> Result<Vec<G>, Error> {
+    pub fn evaluate(&self, scalars: impl ScalarAssignments<G>) -> Result<Vec<G>, Error> {
         self.linear_combinations
             .iter()
             .map(|lc| {
@@ -217,8 +215,14 @@ impl<G: PrimeGroup> LinearMap<G> {
                 // weight is most commonly 1, but multiplication is constant time.
                 let weighted_coefficients =
                     lc.0.iter()
-                        .map(|weighted| weighted.term.scalar.value(scalars) * weighted.weight)
-                        .collect::<Vec<_>>();
+                        .map(|weighted| {
+                            weighted
+                                .term
+                                .scalar
+                                .value(&scalars)
+                                .map(|scalar| scalar * weighted.weight)
+                        })
+                        .collect::<Result<Vec<_>, UnassignedScalarVarError>>()?;
                 let elements =
                     lc.0.iter()
                         .map(|weighted| self.group_elements.get(weighted.term.elem))
@@ -423,14 +427,14 @@ impl<G: PrimeGroup> LinearRelation<G> {
     ///
     /// Return `Ok` on success, and an error if unassigned elements prevent the image from being
     /// computed. Modifies the group elements assigned in the [LinearRelation].
-    pub fn compute_image(&mut self, scalars: &[G::Scalar]) -> Result<(), Error> {
+    pub fn compute_image(&mut self, scalars: impl ScalarAssignments<G>) -> Result<(), Error> {
         if self.linear_map.num_constraints() != self.image.len() {
             // NOTE: This is a panic, rather than a returned error, because this can only happen if
             // this implementation has a bug.
             panic!("invalid LinearRelation: different number of constraints and image variables");
         }
 
-        let mapped_scalars = self.linear_map.map(scalars)?;
+        let mapped_scalars = self.linear_map.evaluate(scalars)?;
 
         for (mapped_scalar, lhs) in iter::zip(mapped_scalars, &self.image) {
             self.linear_map
@@ -446,7 +450,7 @@ impl<G: PrimeGroup> LinearRelation<G> {
     ///
     /// A vector of group elements (`Vec<G>`) representing the linear map's image.
     // TODO: Should this return GroupMap?
-    pub fn image(&self) -> Result<Vec<G>, InvalidInstance> {
+    pub fn image(&self) -> Result<Vec<G>, UnassignedGroupVarError> {
         self.image
             .iter()
             .map(|&var| self.linear_map.group_elements.get(var))

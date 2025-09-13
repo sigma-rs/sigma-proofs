@@ -21,6 +21,14 @@ pub struct InvalidInstance {
     pub message: String,
 }
 
+impl From<UnassignedGroupVarError> for InvalidInstance {
+    fn from(value: UnassignedGroupVarError) -> Self {
+        Self {
+            message: value.to_string(),
+        }
+    }
+}
+
 impl InvalidInstance {
     /// Create a new InvalidInstance error with the given message.
     pub fn new(message: impl Into<String>) -> Self {

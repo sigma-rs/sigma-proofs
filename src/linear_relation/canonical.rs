@@ -14,7 +14,9 @@ use ff::Field;
 use group::prime::PrimeGroup;
 use subtle::{Choice, ConstantTimeEq};
 
-use super::{GroupMap, GroupVar, LinearCombination, LinearRelation, ScalarTerm, ScalarVar};
+use super::{
+    GroupMap, GroupVar, LinearCombination, LinearRelation, ScalarAssignments, ScalarTerm, ScalarVar,
+};
 use crate::errors::{Error, InvalidInstance};
 use crate::group::msm::VariableMultiScalarMul;
 
@@ -63,6 +65,8 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
         }
     }
 
+    // QUESTION: Why does this currently panic when a variable is unassigned? Should this return
+    // Result instead?
     /// Evaluate the canonical linear relation with the provided scalars
     ///
     /// This returns a list of image points produced by evaluating each linear combination in the
@@ -73,13 +77,13 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
     /// Panics if the number of scalars given is less than the number of scalar variables in this
     /// linear relation.
     /// If the vector of scalars if longer than the number of terms in each linear combinations, the extra terms are ignored.
-    pub fn evaluate(&self, scalars: &[G::Scalar]) -> Vec<G> {
+    pub fn evaluate(&self, scalars: impl ScalarAssignments<G>) -> Vec<G> {
         self.linear_combinations
             .iter()
             .map(|lc| {
                 let scalars = lc
                     .iter()
-                    .map(|(scalar_var, _)| scalars[scalar_var.index()])
+                    .map(|(scalar_var, _)| scalars.get(*scalar_var).unwrap())
                     .collect::<Vec<_>>();
                 let bases = lc
                     .iter()
@@ -505,7 +509,7 @@ impl<G: PrimeGroup + ConstantTimeEq> CanonicalLinearRelation<G> {
     ///
     /// Panics if the number of scalars given is less than the number of scalar variables.
     /// If the number of scalars is more than the number of scalar variables, the extra elements are ignored.
-    pub fn is_witness_valid(&self, witness: &[G::Scalar]) -> Choice {
+    pub fn is_witness_valid(&self, witness: impl ScalarAssignments<G>) -> Choice {
         let got = self.evaluate(witness);
         self.image
             .iter()

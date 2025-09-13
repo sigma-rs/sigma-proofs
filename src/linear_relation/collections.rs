@@ -3,21 +3,18 @@
 //! This module provides collections of group elements and scalars, [GroupMap] and [ScalarMap].
 //! These collections act as a mapping of opaque variable references to values.
 
-use alloc::format;
 use alloc::vec::Vec;
 use core::marker::PhantomData;
-use group::prime::PrimeGroup;
+use group::Group;
 
-use crate::errors::InvalidInstance;
-
-use super::GroupVar;
+use super::{GroupVar, ScalarVar};
 
 /// Ordered mapping of [GroupVar] to group elements assignments.
 #[derive(Clone, Debug)]
 pub struct GroupMap<G>(Vec<Option<G>>);
 
-impl<G: PrimeGroup> GroupMap<G> {
-    /// Assign a group element value to a point variable.
+impl<G: Group> GroupMap<G> {
+    /// Assign a group element value to a variable.
     ///
     /// # Parameters
     ///
@@ -39,11 +36,11 @@ impl<G: PrimeGroup> GroupMap<G> {
         self.0[var.0] = Some(element);
     }
 
-    /// Assigns specific group elements to point variables (indices).
+    /// Assigns specific group elements to variables.
     ///
     /// # Parameters
     ///
-    /// - `assignments`: A collection of `(GroupVar, GroupElement)` pairs that can be iterated over.
+    /// - `assignments`: A collection of `(GroupVar, G)` pairs that can be iterated over.
     ///
     /// # Panics
     ///
@@ -54,16 +51,13 @@ impl<G: PrimeGroup> GroupMap<G> {
         }
     }
 
-    /// Get the element value assigned to the given point var.
+    /// Get the element value assigned to the given variable.
     ///
     /// Returns [`InvalidInstance`] if a value is not assigned.
-    pub fn get(&self, var: GroupVar<G>) -> Result<G, InvalidInstance> {
+    pub fn get(&self, var: GroupVar<G>) -> Result<G, UnassignedGroupVarError> {
         match self.0.get(var.0) {
             Some(Some(elem)) => Ok(*elem),
-            Some(None) | None => Err(InvalidInstance::new(format!(
-                "unassigned group variable {}",
-                var.0
-            ))),
+            Some(None) | None => Err(UnassignedGroupVarError(var.to_elided())),
         }
     }
 
@@ -109,7 +103,7 @@ impl<G> Default for GroupMap<G> {
     }
 }
 
-impl<G: PrimeGroup> FromIterator<(GroupVar<G>, G)> for GroupMap<G> {
+impl<G: Group> FromIterator<(GroupVar<G>, G)> for GroupMap<G> {
     fn from_iter<T: IntoIterator<Item = (GroupVar<G>, G)>>(iter: T) -> Self {
         iter.into_iter()
             .fold(Self::default(), |mut instance, (var, val)| {
@@ -118,3 +112,168 @@ impl<G: PrimeGroup> FromIterator<(GroupVar<G>, G)> for GroupMap<G> {
             })
     }
 }
+
+/// Ordered mapping of [ScalarVar] to scalar assignments.
+#[derive(Clone, Debug)]
+pub struct ScalarMap<G: Group>(Vec<Option<G::Scalar>>);
+
+impl<G: Group> ScalarMap<G> {
+    /// Assign a scalar value to a variable.
+    ///
+    /// # Parameters
+    ///
+    /// - `var`: The variable to assign.
+    /// - `scalar`: The value to assign to the variable.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the given assignment conflicts with the existing assignment.
+    pub fn assign_scalar(&mut self, var: ScalarVar<G>, scalar: G::Scalar) {
+        if self.0.len() <= var.0 {
+            self.0.resize(var.0 + 1, None);
+        } else if let Some(assignment) = self.0[var.0] {
+            assert_eq!(
+                assignment, scalar,
+                "conflicting assignments for var {var:?}"
+            )
+        }
+        self.0[var.0] = Some(scalar);
+    }
+
+    /// Assigns specific scalars to variables.
+    ///
+    /// # Parameters
+    ///
+    /// - `assignments`: A collection of `(ScalarVar, G::Scalar)` pairs that can be iterated over.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the collection contains two conflicting assignments for the same variable.
+    pub fn assign_scalars(
+        &mut self,
+        assignments: impl IntoIterator<Item = (ScalarVar<G>, G::Scalar)>,
+    ) {
+        for (var, elem) in assignments.into_iter() {
+            self.assign_scalar(var, elem);
+        }
+    }
+
+    /// Get the scalar value assigned to the given variable.
+    ///
+    /// Returns [`InvalidInstance`] if a value is not assigned.
+    pub fn get(&self, var: ScalarVar<G>) -> Result<G::Scalar, UnassignedScalarVarError> {
+        match self.0.get(var.0) {
+            Some(Some(elem)) => Ok(*elem),
+            Some(None) | None => Err(UnassignedScalarVarError(var.to_elided())),
+        }
+    }
+
+    /// Iterate over the assigned variable and scalar pairs in this mapping.
+    // NOTE: Not implemented as `IntoIterator` for now because doing so requires explicitly
+    // defining an iterator type, See https://github.com/rust-lang/rust/issues/63063
+    #[allow(clippy::should_implement_trait)]
+    pub fn into_iter(self) -> impl Iterator<Item = (ScalarVar<G>, Option<G::Scalar>)> {
+        self.0
+            .into_iter()
+            .enumerate()
+            .map(|(i, x)| (ScalarVar(i, PhantomData), x))
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (ScalarVar<G>, Option<&G::Scalar>)> {
+        self.0
+            .iter()
+            .enumerate()
+            .map(|(i, opt)| (ScalarVar(i, PhantomData), opt.as_ref()))
+    }
+
+    /// Add a new scalar to the map and return its variable reference
+    pub fn insert(&mut self, scalar: G::Scalar) -> ScalarVar<G> {
+        let index = self.0.len();
+        self.0.push(Some(scalar));
+        ScalarVar(index, PhantomData)
+    }
+
+    /// Get the number of scalars in the map
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Check if the map is empty
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl<G: Group> Default for ScalarMap<G> {
+    fn default() -> Self {
+        Self(Vec::default())
+    }
+}
+
+impl<G: Group> FromIterator<(ScalarVar<G>, G::Scalar)> for ScalarMap<G> {
+    fn from_iter<T: IntoIterator<Item = (ScalarVar<G>, G::Scalar)>>(iter: T) -> Self {
+        iter.into_iter()
+            .fold(Self::default(), |mut instance, (var, val)| {
+                instance.assign_scalar(var, val);
+                instance
+            })
+    }
+}
+
+/// A trait providing a mapping from [ScalarVar] for scalar values of type `G::Scalar`.
+pub trait ScalarAssignments<G: Group> {
+    fn get(&self, var: ScalarVar<G>) -> Result<G::Scalar, UnassignedScalarVarError>;
+}
+
+impl<G: Group> ScalarAssignments<G> for ScalarMap<G> {
+    fn get(&self, var: ScalarVar<G>) -> Result<G::Scalar, UnassignedScalarVarError> {
+        self.get(var)
+    }
+}
+
+impl<G: Group> ScalarAssignments<G> for &ScalarMap<G> {
+    fn get(&self, var: ScalarVar<G>) -> Result<G::Scalar, UnassignedScalarVarError> {
+        (*self).get(var)
+    }
+}
+
+impl<G: Group, A: AsRef<[(ScalarVar<G>, G::Scalar)]>> ScalarAssignments<G> for A {
+    /// Access the assignment of a [ScalarVar] from an array-like struct (e.g. `[_; N]` or `Vec`).
+    ///
+    /// The variable is fetched via a linear search. For small arrays, this is optimal and avoids
+    /// allocation into a [ScalarMap]. For statements with a large number of scalars, this will not
+    /// be as effcicient as allocating a [ScalarMap].
+    fn get(&self, var: ScalarVar<G>) -> Result<<G as Group>::Scalar, UnassignedScalarVarError> {
+        self.as_ref()
+            .iter()
+            .copied()
+            .find_map(|(var_i, scalar)| (var == var_i).then_some(scalar))
+            .ok_or(UnassignedScalarVarError(var.to_elided()))
+    }
+}
+
+/// An uninhabited type used to elide the type paramter on [UnassignedVariableError].
+#[derive(Copy, Clone, Debug)]
+enum Elided {}
+
+impl<G> GroupVar<G> {
+    fn to_elided(self) -> GroupVar<Elided> {
+        GroupVar(self.0, PhantomData)
+    }
+}
+
+impl<G> ScalarVar<G> {
+    fn to_elided(self) -> ScalarVar<Elided> {
+        ScalarVar(self.0, PhantomData)
+    }
+}
+
+/// Error for an attempted access to an unassigned [GroupVar].
+#[derive(Clone, Debug, thiserror::Error)]
+#[error("Unassigned group variable: {0:?}")]
+pub struct UnassignedGroupVarError(GroupVar<Elided>);
+
+/// Error for an attempted access to an unassigned [ScalarVar].
+#[derive(Clone, Debug, thiserror::Error)]
+#[error("Unassigned scalar variable: {0:?}")]
+pub struct UnassignedScalarVarError(ScalarVar<Elided>);

@@ -22,7 +22,7 @@ pub fn discrete_logarithm<G: PrimeGroup, R: rand::RngCore>(
     let var_X = relation.allocate_eq(var_x * var_G);
 
     relation.set_element(var_G, G::generator());
-    relation.compute_image(&[x]).unwrap();
+    relation.compute_image([(var_x, x)]).unwrap();
 
     let X = relation.linear_map.group_elements.get(var_X).unwrap();
 
@@ -48,7 +48,7 @@ pub fn shifted_dlog<G: PrimeGroup, R: RngCore>(
     relation.append_equation(var_X, (var_x + G::Scalar::from(1)) * var_G);
 
     relation.set_element(var_G, G::generator());
-    relation.compute_image(&[x]).unwrap();
+    relation.compute_image([(var_x, x)]).unwrap();
 
     let witness = vec![x];
     let instance = (&relation).try_into().unwrap();
@@ -71,7 +71,7 @@ pub fn dleq<G: PrimeGroup, R: RngCore>(
     let var_Y = relation.allocate_eq(var_x * var_H);
 
     relation.set_elements([(var_G, G::generator()), (var_H, H)]);
-    relation.compute_image(&[x]).unwrap();
+    relation.compute_image([(var_x, x)]).unwrap();
 
     let X = relation.linear_map.group_elements.get(var_X).unwrap();
     let Y = relation.linear_map.group_elements.get(var_Y).unwrap();
@@ -99,7 +99,7 @@ pub fn shifted_dleq<G: PrimeGroup, R: RngCore>(
     let var_Y = relation.allocate_eq(var_x * var_H + var_G);
 
     relation.set_elements([(var_G, G::generator()), (var_H, H)]);
-    relation.compute_image(&[x]).unwrap();
+    relation.compute_image([(var_x, x)]).unwrap();
 
     let X = relation.linear_map.group_elements.get(var_X).unwrap();
     let Y = relation.linear_map.group_elements.get(var_Y).unwrap();
@@ -127,7 +127,7 @@ pub fn pedersen_commitment<G: PrimeGroup, R: RngCore>(
     let var_C = relation.allocate_eq(var_x * var_G + var_r * var_H);
 
     relation.set_elements([(var_H, H), (var_G, G::generator())]);
-    relation.compute_image(&[x, r]).unwrap();
+    relation.compute_image([(var_x, x), (var_r, r)]).unwrap();
 
     let C = relation.linear_map.group_elements.get(var_C).unwrap();
 
@@ -155,7 +155,7 @@ pub fn twisted_pedersen_commitment<G: PrimeGroup, R: RngCore>(
     );
 
     relation.set_elements([(var_H, H), (var_G, G::generator())]);
-    relation.compute_image(&[x, r]).unwrap();
+    relation.compute_image([(var_x, x), (var_r, r)]).unwrap();
 
     let witness = vec![x, r];
     let instance = (&relation).try_into().unwrap();
@@ -173,11 +173,12 @@ pub fn pedersen_commitment_dleq<G: PrimeGroup, R: RngCore>(
         G::random(&mut *rng),
         G::random(&mut *rng),
     ];
-    let witness = [G::Scalar::random(&mut *rng), G::Scalar::random(&mut *rng)];
     let mut relation = LinearRelation::new();
 
-    let X = G::msm(&witness, &[generators[0], generators[1]]);
-    let Y = G::msm(&witness, &[generators[2], generators[3]]);
+    let [x, r] = [G::Scalar::random(&mut *rng), G::Scalar::random(&mut *rng)];
+
+    let X = G::msm(&[x, r], &[generators[0], generators[1]]);
+    let Y = G::msm(&[x, r], &[generators[2], generators[3]]);
 
     let [var_x, var_r] = relation.allocate_scalars();
 
@@ -193,7 +194,13 @@ pub fn pedersen_commitment_dleq<G: PrimeGroup, R: RngCore>(
     ]);
     relation.set_elements([(var_X, X), (var_Y, Y)]);
 
-    assert!(vec![X, Y] == relation.linear_map.evaluate(&witness).unwrap());
+    assert!(
+        vec![X, Y]
+            == relation
+                .linear_map
+                .evaluate([(var_x, x), (var_r, r)])
+                .unwrap()
+    );
     let witness_vec = witness.to_vec();
     let instance = (&relation).try_into().unwrap();
     (instance, witness_vec)
