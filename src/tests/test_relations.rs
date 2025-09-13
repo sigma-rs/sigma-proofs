@@ -201,7 +201,7 @@ pub fn pedersen_commitment_dleq<G: PrimeGroup, R: RngCore>(
 
 /// Test that a Pedersen commitment is in the given range.
 #[allow(non_snake_case)]
-pub fn test_range_for_input_and_range<G: PrimeGroup, R: RngCore>(
+pub fn range_instance_generation<G: PrimeGroup, R: RngCore>(
     mut rng: &mut R,
     input: u64,
     range: std::ops::Range<u64>,
@@ -222,18 +222,10 @@ pub fn test_range_for_input_and_range<G: PrimeGroup, R: RngCore>(
     let mut instance = LinearRelation::new();
     let [var_G, var_H] = instance.allocate_elements();
     let [var_x, var_r] = instance.allocate_scalars();
-    let vars_b = std::iter::repeat_with(|| instance.allocate_scalar())
-        .take(bases.len())
-        .collect::<Vec<_>>();
-    let vars_s = std::iter::repeat_with(|| instance.allocate_scalar())
-        .take(bases.len())
-        .collect::<Vec<_>>();
-    let var_s2 = std::iter::repeat_with(|| instance.allocate_scalar())
-        .take(bases.len())
-        .collect::<Vec<_>>();
-    let var_Ds = std::iter::repeat_with(|| instance.allocate_element())
-        .take(bases.len())
-        .collect::<Vec<_>>();
+    let vars_b = instance.allocate_scalars_vec(bases.len());
+    let vars_s = instance.allocate_scalars_vec(bases.len());
+    let var_s2 = instance.allocate_scalars_vec(bases.len());
+    let var_Ds = instance.allocate_elements_vec(bases.len());
 
     // `var_Ds[i]` are bit commitments.
     for i in 0..bases.len() {
@@ -311,7 +303,7 @@ pub fn test_range_for_input_and_range<G: PrimeGroup, R: RngCore>(
 pub fn test_range<G: PrimeGroup, R: RngCore>(
     mut rng: &mut R,
 ) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
-    test_range_for_input_and_range(&mut rng, 822, 0..1337)
+    range_instance_generation(&mut rng, 822, 0..1337)
 }
 
 /// LinearMap for knowledge of an opening for use in a BBS commitment.
