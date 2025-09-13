@@ -277,6 +277,9 @@ where
     ///   - The recomputed commitment or response is invalid under the Sigma protocol.
     pub fn verify_compact(&self, proof: &[u8]) -> Result<(), Error> {
         // Deserialize challenge and response from compact proof
+        // TODO: This way of deserializing the proof, with framing based on deserializing and the
+        // serialization, is non-standard and quite error prone if a given message ever has more
+        // than one valid encoding.
         let challenge = self.interactive_proof.deserialize_challenge(proof)?;
         let challenge_size = self.interactive_proof.serialize_challenge(&challenge).len();
         let response = self
