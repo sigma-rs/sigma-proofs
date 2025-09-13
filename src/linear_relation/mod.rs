@@ -33,13 +33,16 @@ pub use canonical::CanonicalLinearRelation;
 mod collections;
 pub use collections::GroupMap;
 
-/// A wrapper representing an index for a scalar variable.
+/// A wrapper representing an reference for a scalar variable.
 ///
 /// Used to reference scalars in sparse linear combinations.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct ScalarVar<G>(usize, PhantomData<G>);
 
 impl<G> ScalarVar<G> {
+    // QUESTION: Should I mark this method as deprecated? It currently leaks the internal
+    // representation of the variable and may not be stable. It's not clear what valid use cases
+    // there are for this index.
     pub fn index(&self) -> usize {
         self.0
     }
@@ -51,7 +54,7 @@ impl<G> core::hash::Hash for ScalarVar<G> {
     }
 }
 
-/// A wrapper representing an index for a group element (point).
+/// A wrapper representing a reference for a group element (i.e. elliptic curve point).
 ///
 /// Used to reference group elements in sparse linear combinations.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]

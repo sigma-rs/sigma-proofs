@@ -111,7 +111,7 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
         let weighted_group = original_group_val * weight;
 
         // Add to our group elements with new index (length)
-        let new_var = self.group_elements.push(weighted_group);
+        let new_var = self.group_elements.insert(weighted_group);
 
         // Cache the mapping for this group_var and weight
         entry.push((*weight, new_var));
@@ -394,7 +394,7 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
         // Add all group elements to the map
         let mut group_var_map = Vec::new();
         for elem in &group_elements_ordered {
-            let var = canonical.group_elements.push(*elem);
+            let var = canonical.group_elements.insert(*elem);
             group_var_map.push(var);
         }
 

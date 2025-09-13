@@ -85,8 +85,8 @@ impl<G: PrimeGroup> GroupMap<G> {
             .map(|(i, opt)| (GroupVar(i, PhantomData), opt.as_ref()))
     }
 
-    /// Add a new group element to the map and return its variable index
-    pub fn push(&mut self, element: G) -> GroupVar<G> {
+    /// Add a new group element to the map and return its variable reference
+    pub fn insert(&mut self, element: G) -> GroupVar<G> {
         let index = self.0.len();
         self.0.push(Some(element));
         GroupVar(index, PhantomData)
