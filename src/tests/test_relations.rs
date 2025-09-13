@@ -199,64 +199,87 @@ pub fn pedersen_commitment_dleq<G: PrimeGroup, R: RngCore>(
     (instance, witness_vec)
 }
 
-/// Test that a Pedersen commitment is between 0 and 1337.
+/// Test that a Pedersen commitment is in the given range.
 #[allow(non_snake_case)]
-pub fn test_range<G: PrimeGroup, R: RngCore>(
+pub fn range_instance_generation<G: PrimeGroup, R: RngCore>(
     mut rng: &mut R,
+    input: u64,
+    range: std::ops::Range<u64>,
 ) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
     let G = G::generator();
     let H = G::random(&mut rng);
 
-    let bases = [1, 2, 4, 8, 16, 32, 64, 128, 256, 313, 512].map(G::Scalar::from);
-    const BITS: usize = 11;
+    let delta = range.end - range.start;
+    let whole_bits = (delta - 1).ilog2() as usize;
+    let remainder = delta - (1 << whole_bits);
+
+    // Compute the bases used to express the input as a linear combination of the bit decomposition
+    // of the input.
+    let mut bases = (0..whole_bits).map(|i| 1 << i).collect::<Vec<_>>();
+    bases.push(remainder);
+    assert_eq!(range.start + bases.iter().sum::<u64>(), range.end - 1);
 
     let mut instance = LinearRelation::new();
     let [var_G, var_H] = instance.allocate_elements();
     let [var_x, var_r] = instance.allocate_scalars();
-    let vars_b = instance.allocate_scalars::<BITS>();
-    let vars_s = instance.allocate_scalars::<BITS>();
-    let var_s2 = instance.allocate_scalars::<BITS>();
-    let var_Ds = instance.allocate_elements::<BITS>();
+    let vars_b = instance.allocate_scalars_vec(bases.len());
+    let vars_s = instance.allocate_scalars_vec(bases.len() - 1);
+    let var_s2 = instance.allocate_scalars_vec(bases.len());
+    let var_Ds = instance.allocate_elements_vec(bases.len());
 
-    // `var_Ds[i]` are bit commitments.
-    for i in 0..BITS {
+    // `var_C` is a Pedersen commitment to `var_x`.
+    let var_C = instance.allocate_eq(var_x * var_G + var_r * var_H);
+    // `var_Ds[i]` are bit commitments...
+    for i in 1..bases.len() {
         instance.append_equation(var_Ds[i], vars_b[i] * var_G + vars_s[i] * var_H);
         instance.append_equation(var_Ds[i], vars_b[i] * var_Ds[i] + var_s2[i] * var_H);
     }
-    // `var_C` is a Pedersen commitment to `var_x`.
-    let var_C = instance.allocate_eq(var_x * var_G + var_r * var_H);
-    // `var_x` = sum(bases[i] * var_b[i])
-    // This equation is "trivial", in that it does not contain any scalar var.
-    // Our linear relation is smart enough to check this outside of the proof,
-    // which is what a normal implementation would do.
+    // ... satisfying that sum(Ds[i] * bases[i]) = C
     instance.append_equation(
-        var_C,
-        (0..BITS).map(|i| var_Ds[i] * bases[i]).sum::<Sum<_>>(),
+        var_Ds[0],
+        var_C
+            - var_G * G::Scalar::from(range.start)
+            - (1..bases.len())
+                .map(|i| var_Ds[i] * G::Scalar::from(bases[i]))
+                .sum::<Sum<_>>(),
     );
+    instance.append_equation(var_Ds[0], vars_b[0] * var_Ds[0] + var_s2[0] * var_H);
 
+    // Compute the witness
     let r = G::Scalar::random(&mut rng);
-    let x = G::Scalar::from(822);
+    let x = G::Scalar::from(input);
 
-    let b = [
-        G::Scalar::ZERO,
-        G::Scalar::ONE,
-        G::Scalar::ONE,
-        G::Scalar::ZERO,
-        G::Scalar::ONE,
-        G::Scalar::ONE,
-        G::Scalar::ZERO,
-        G::Scalar::ZERO,
-        G::Scalar::ONE,
-        G::Scalar::ZERO,
-        G::Scalar::ONE,
-    ];
+    // IMPORTANT: this segment of the witness generation is NOT constant-time.
+    // See PR #80 for details.
+    let b = {
+        let mut rest = input - range.start;
+        let mut b = vec![G::Scalar::ZERO; bases.len()];
+        assert!(rest < delta);
+        for (i, &base) in bases.iter().enumerate().rev() {
+            if rest >= base {
+                b[i] = G::Scalar::ONE;
+                rest -= base;
+            }
+        }
+
+        b
+    };
+    assert_eq!(
+        x,
+        G::Scalar::from(range.start)
+            + (0..bases.len())
+                .map(|i| G::Scalar::from(bases[i]) * b[i])
+                .sum::<G::Scalar>()
+    );
     // set the randomness for the bit decomposition
-    let mut s = (0..BITS)
+    let mut s = (0..bases.len())
         .map(|_| G::Scalar::random(&mut rng))
         .collect::<Vec<_>>();
-    let partial_sum = (1..BITS).map(|i| bases[i] * s[i]).sum::<G::Scalar>();
+    let partial_sum = (1..bases.len())
+        .map(|i| G::Scalar::from(bases[i]) * s[i])
+        .sum::<G::Scalar>();
     s[0] = r - partial_sum;
-    let s2 = (0..BITS)
+    let s2 = (0..bases.len())
         .map(|i| (G::Scalar::ONE - b[i]) * s[i])
         .collect::<Vec<_>>();
     let witness = [x, r]
@@ -269,11 +292,19 @@ pub fn test_range<G: PrimeGroup, R: RngCore>(
 
     instance.set_elements([(var_G, G), (var_H, H)]);
     instance.set_element(var_C, G * x + H * r);
-    for i in 0..BITS {
+    for i in 0..bases.len() {
         instance.set_element(var_Ds[i], G * b[i] + H * s[i]);
     }
 
     (instance.canonical().unwrap(), witness)
+}
+
+/// Test that a Pedersen commitment is in `[0, bound)` for any `bound >= 0`.
+#[allow(non_snake_case)]
+pub fn test_range<G: PrimeGroup, R: RngCore>(
+    mut rng: &mut R,
+) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
+    range_instance_generation(&mut rng, 822, 0..1337)
 }
 
 /// LinearMap for knowledge of an opening for use in a BBS commitment.

@@ -407,6 +407,23 @@ impl<G: PrimeGroup> LinearRelation<G> {
         vars
     }
 
+    /// Allocates a vector of new scalar variables.
+    ///
+    /// # Returns
+    /// A vector of [`ScalarVar`] representing the newly allocated scalar indices.
+    ///    /// # Example
+    /// ```
+    /// # use sigma_proofs::LinearRelation;
+    /// use curve25519_dalek::RistrettoPoint as G;
+    ///
+    /// let mut relation = LinearRelation::<G>::new();
+    /// let [var_x, var_y] = relation.allocate_scalars();
+    /// let vars = relation.allocate_scalars_vec(10);
+    /// ```
+    pub fn allocate_scalars_vec(&mut self, n: usize) -> Vec<ScalarVar<G>> {
+        (0..n).map(|_| self.allocate_scalar()).collect()
+    }
+
     /// Allocates a point variable (group element) for use in the linear map.
     pub fn allocate_element(&mut self) -> GroupVar<G> {
         self.linear_map.num_elements += 1;
@@ -440,6 +457,24 @@ impl<G: PrimeGroup> LinearRelation<G> {
             *var = self.allocate_element();
         }
         vars
+    }
+
+    /// Allocates a vector of new point variables (group elements).
+    ///
+    /// # Returns
+    /// A vector of [`GroupVar`] representing the newly allocated group element indices.
+    ///
+    /// # Example
+    /// ```
+    /// # use sigma_proofs::LinearRelation;
+    /// use curve25519_dalek::RistrettoPoint as G;
+    /// let mut relation = LinearRelation::<G>::new();
+    /// let [var_g, var_h
+    /// ] = relation.allocate_elements();
+    /// let vars = relation.allocate_elements_vec(10);
+    /// ```
+    pub fn allocate_elements_vec(&mut self, n: usize) -> Vec<GroupVar<G>> {
+        (0..n).map(|_| self.allocate_element()).collect()
     }
 
     /// Allocates a point variable (group element) and sets it immediately to the given value.
