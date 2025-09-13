@@ -265,7 +265,7 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
     ///
     /// ```
     /// use hex_literal::hex;
-    /// use sigma_rs::linear_relation::CanonicalLinearRelation;
+    /// use sigma_proofs::linear_relation::CanonicalLinearRelation;
     /// type G = bls12_381::G1Projective;
     ///
     /// let dlog_instance_label = hex!("01000000000000000100000000000000010000009823a3def60a6e07fb25feb35f211ee2cbc9c130c1959514f5df6b5021a2b21a4c973630ec2090c733c1fe791834ce1197f1d3a73197d7942695638c4fa9ac0fc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bb");

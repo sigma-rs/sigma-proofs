@@ -1,10 +1,8 @@
-# sigma-rs
+# sigma-proofs
 
 A Rust library for building and composing Σ-protocols (Sigma protocols) for zero-knowledge proofs.
 
-## What is sigma-rs?
-
-This library provides a flexible framework for creating zero-knowledge proofs for any statement expressible as a linear relation over group elements. Using the Fiat-Shamir transformation, these interactive protocols become non-interactive proofs suitable for real-world applications.
+This library focuses on any statement that can be expressed as a linear relation over group elements. Using the Fiat-Shamir transformation, these interactive protocols become non-interactive proofs suitable for real-world applications.
 
 ## Quick Example
 
@@ -12,7 +10,7 @@ This library provides a flexible framework for creating zero-knowledge proofs fo
 use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::scalar::Scalar;
 use group::Group;
-let mut instance = sigma_rs::LinearRelation::new();
+let mut instance = sigma_proofs::LinearRelation::new();
 let mut rng = rand::thread_rng();
 
 // Define the statement:

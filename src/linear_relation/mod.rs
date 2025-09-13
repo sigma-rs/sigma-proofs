@@ -392,7 +392,7 @@ impl<G: PrimeGroup> LinearRelation<G> {
     ///
     /// # Example
     /// ```
-    /// # use sigma_rs::LinearRelation;
+    /// # use sigma_proofs::LinearRelation;
     /// use curve25519_dalek::RistrettoPoint as G;
     ///
     /// let mut relation = LinearRelation::<G>::new();
@@ -444,7 +444,7 @@ impl<G: PrimeGroup> LinearRelation<G> {
     ///
     /// # Example
     /// ```
-    /// # use sigma_rs::LinearRelation;
+    /// # use sigma_proofs::LinearRelation;
     /// use curve25519_dalek::RistrettoPoint as G;
     ///
     /// let mut relation = LinearRelation::<G>::new();
@@ -566,7 +566,7 @@ impl<G: PrimeGroup> LinearRelation<G> {
     ///
     /// # Example
     /// ```
-    /// # use sigma_rs::{LinearRelation, Nizk};
+    /// # use sigma_proofs::{LinearRelation, Nizk};
     /// # use curve25519_dalek::RistrettoPoint as G;
     /// # use curve25519_dalek::scalar::Scalar;
     /// # use rand::rngs::OsRng;

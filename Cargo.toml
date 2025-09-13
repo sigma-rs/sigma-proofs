@@ -1,19 +1,18 @@
 [package]
-name = "sigma-rs"
-version = "0.1.0"
+name = "sigma-proofs"
+version = "0.1.0-sigma"
 authors = [
     "Nugzari Uzoevi <nougzarm@icloud.com>",
     "Michele Orrù <m@orru.net>",
     "Lénaïck Gouriou <lg@leanear.io>"
 ]
 edition = "2021"
-license = "CC0-1.0"
+license = "BSD-2-Clause"
 readme = "README.md"
-repository = "https://github.com/mmaker/sigma-rs"
-documentation = "https://mmaker.github.io/sigma-rs/"
+repository = "https://github.com/sigma-rs/sigma-proofs"
+documentation = "https://docs.rs/sigma-proofs"
 categories = ["cryptography"]
-keywords = ["cryptography", "zero-knowledge", "NIZK",
-"sigma protocols"]
+keywords = ["cryptography", "zero-knowledge", "NIZK", "sigma-protocols"]
 description = "A toolkit for auto-generated implementations of Σ-protocols"
 exclude = [
     ".gitignore"
@@ -45,6 +44,7 @@ curve25519-dalek = { version = "4", default-features = false, features = ["serde
 hex = "0.4"
 hex-literal = "0.4"
 json = "0.12.4"
+libtest-mimic = "0.8.1"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
 sha2 = "0.10"
