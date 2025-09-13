@@ -133,7 +133,6 @@ mod instance_validation {
 
         // The following relation is trivially invalid.
         // That is, we know that no witness will ever satisfy it.
-        // In this case, we're letting the prover fail and build the relation anyways.
         let mut linear_relation = LinearRelation::<G>::new();
         let B_var = linear_relation.allocate_element();
         let C_var = linear_relation.allocate_eq(B_var);
@@ -146,7 +145,6 @@ mod instance_validation {
             .contains("trivially false constraint"));
 
         // Also in this case, we know that no witness will ever satisfy the relation.
-        // Also here, the relation is built even though the prover will never be able to give a valid proof for it.
         // X != B * pub_scalar + A * 3
         let mut linear_relation = LinearRelation::<G>::new();
         let [B_var, A_var] = linear_relation.allocate_elements();
