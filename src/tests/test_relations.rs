@@ -223,34 +223,35 @@ pub fn range_instance_generation<G: PrimeGroup, R: RngCore>(
     let [var_G, var_H] = instance.allocate_elements();
     let [var_x, var_r] = instance.allocate_scalars();
     let vars_b = instance.allocate_scalars_vec(bases.len());
-    let vars_s = instance.allocate_scalars_vec(bases.len());
+    let vars_s = instance.allocate_scalars_vec(bases.len() - 1);
     let var_s2 = instance.allocate_scalars_vec(bases.len());
     let var_Ds = instance.allocate_elements_vec(bases.len());
 
-    // `var_Ds[i]` are bit commitments.
-    for i in 0..bases.len() {
+    // `var_C` is a Pedersen commitment to `var_x`.
+    let var_C = instance.allocate_eq(var_x * var_G + var_r * var_H);
+    // `var_Ds[i]` are bit commitments...
+    for i in 1..bases.len() {
         instance.append_equation(var_Ds[i], vars_b[i] * var_G + vars_s[i] * var_H);
         instance.append_equation(var_Ds[i], vars_b[i] * var_Ds[i] + var_s2[i] * var_H);
     }
-    // `var_C` is a Pedersen commitment to `var_x`.
-    let var_C = instance.allocate_eq(var_x * var_G + var_r * var_H);
-    // `var_x` = sum(bases[i] * var_b[i])
-    // This equation is "trivial", in that it does not contain any scalar var.
-    // Our linear relation is smart enough to check this outside of the proof,
-    // which is what a normal implementation would do.
+    // ... satisfying that sum(Ds[i] * bases[i]) = C
     instance.append_equation(
-        var_C,
-        var_G * G::Scalar::from(range.start)
-            + (0..bases.len())
+        var_Ds[0],
+        var_C
+            - var_G * G::Scalar::from(range.start)
+            - (1..bases.len())
                 .map(|i| var_Ds[i] * G::Scalar::from(bases[i]))
                 .sum::<Sum<_>>(),
     );
+    instance.append_equation(var_Ds[0], vars_b[0] * var_Ds[0] + var_s2[0] * var_H);
 
+    // Compute the witness
     let r = G::Scalar::random(&mut rng);
     let x = G::Scalar::from(input);
 
+    // IMPORTANT: this segment of the witness generation is NOT constant-time.
+    // See PR #80 for details.
     let b = {
-        // XXX Make this constant time
         let mut rest = input - range.start;
         let mut b = vec![G::Scalar::ZERO; bases.len()];
         assert!(rest < delta);
