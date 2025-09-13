@@ -413,7 +413,7 @@ impl<G: PrimeGroup> LinearRelation<G> {
     /// A vector of [`ScalarVar`] representing the newly allocated scalar indices.
     ///    /// # Example
     /// ```
-    /// # use sigma_rs::LinearRelation;
+    /// # use sigma_proofs::LinearRelation;
     /// use curve25519_dalek::RistrettoPoint as G;
     ///
     /// let mut relation = LinearRelation::<G>::new();
@@ -466,7 +466,7 @@ impl<G: PrimeGroup> LinearRelation<G> {
     ///
     /// # Example
     /// ```
-    /// # use sigma_rs::LinearRelation;
+    /// # use sigma_proofs::LinearRelation;
     /// use curve25519_dalek::RistrettoPoint as G;
     /// let mut relation = LinearRelation::<G>::new();
     /// let [var_g, var_h
