@@ -15,9 +15,9 @@ const LENGTH: usize = 136 + 64;
 pub struct KeccakPermutationState([u64; LENGTH / 8]);
 
 impl KeccakPermutationState {
-    pub fn new(iv: [u8; 32]) -> Self {
+    pub fn new(iv: [u8; 64]) -> Self {
         let mut state = Self::default();
-        state.as_mut()[RATE..RATE + 32].copy_from_slice(&iv);
+        state.as_mut()[RATE..RATE + 64].copy_from_slice(&iv);
         state
     }
 
@@ -47,7 +47,7 @@ pub struct KeccakDuplexSponge {
 }
 
 impl KeccakDuplexSponge {
-    pub fn new(iv: [u8; 32]) -> Self {
+    pub fn new(iv: [u8; 64]) -> Self {
         let state = KeccakPermutationState::new(iv);
         KeccakDuplexSponge {
             state,
@@ -58,7 +58,7 @@ impl KeccakDuplexSponge {
 }
 
 impl DuplexSpongeInterface for KeccakDuplexSponge {
-    fn new(iv: [u8; 32]) -> Self {
+    fn new(iv: [u8; 64]) -> Self {
         KeccakDuplexSponge::new(iv)
     }
 
@@ -108,8 +108,8 @@ mod tests {
     #[test]
     fn test_associativity_of_absorb() {
         let expected_output =
-            hex!("7dfada182d6191e106ce287c2262a443ce2fb695c7cc5037a46626e88889af58");
-        let tag = *b"absorb-associativity-domain-----";
+            hex!("efc1c34f94c0d9cfe051561f8206543056ce660fd17834b2eeb9431a4c65bc77");
+        let tag = *b"absorb-associativity-domain-----absorb-associativity-domain-----";
 
         // Absorb all at once
         let mut sponge1 = KeccakDuplexSponge::new(tag);

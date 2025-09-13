@@ -26,7 +26,7 @@ pub trait Codec {
     fn new(protocol_identifier: &[u8], session_identifier: &[u8], instance_label: &[u8]) -> Self;
 
     /// Allows for precomputed initialization of the codec with a specific IV.
-    fn from_iv(iv: [u8; 32]) -> Self;
+    fn from_iv(iv: [u8; 64]) -> Self;
 
     /// Absorbs data into the codec.
     fn prover_message(&mut self, data: &[u8]);
@@ -68,15 +68,15 @@ pub fn compute_iv<H: DuplexSpongeInterface>(
     protocol_id: &[u8],
     session_id: &[u8],
     instance_label: &[u8],
-) -> [u8; 32] {
-    let mut tmp = H::new([0u8; 32]);
+) -> [u8; 64] {
+    let mut tmp = H::new([0u8; 64]);
     tmp.absorb(&length_to_bytes(protocol_id.len()));
     tmp.absorb(protocol_id);
     tmp.absorb(&length_to_bytes(session_id.len()));
     tmp.absorb(session_id);
     tmp.absorb(&length_to_bytes(instance_label.len()));
     tmp.absorb(instance_label);
-    tmp.squeeze(32).try_into().unwrap()
+    tmp.squeeze(64).try_into().unwrap()
 }
 
 impl<G, H> Codec for ByteSchnorrCodec<G, H>
@@ -91,7 +91,7 @@ where
         Self::from_iv(iv)
     }
 
-    fn from_iv(iv: [u8; 32]) -> Self {
+    fn from_iv(iv: [u8; 64]) -> Self {
         Self {
             hasher: H::new(iv),
             _marker: core::marker::PhantomData,

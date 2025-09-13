@@ -13,9 +13,10 @@ use sha3::Shake128;
 pub struct ShakeDuplexSponge(Shake128);
 
 impl DuplexSpongeInterface for ShakeDuplexSponge {
-    fn new(iv: [u8; 32]) -> Self {
+    fn new(iv: [u8; 64]) -> Self {
         let mut hasher = Shake128::default();
-        hasher.update(&iv);
+        let initial_block = [iv.to_vec(), vec![0u8; 168 - 64]].concat();
+        hasher.update(&initial_block);
         Self(hasher)
     }
 
