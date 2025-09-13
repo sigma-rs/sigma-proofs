@@ -1,4 +1,7 @@
-use crate::duplex_sponge::{keccak::KeccakDuplexSponge, DuplexSpongeInterface};
+use crate::duplex_sponge::{
+    keccak::KeccakDuplexSponge, shake::ShakeDuplexSponge, DuplexSpongeInterface,
+};
+use libtest_mimic::{Arguments, Failed, Trial};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -10,8 +13,8 @@ struct TestVector {
     hash_function: String,
     #[serde(rename = "Operations")]
     operations: Vec<Operation>,
-    #[serde(rename = "Tag")]
-    tag: String,
+    #[serde(rename = "IV")]
+    iv: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -36,12 +39,15 @@ fn load_test_vectors() -> HashMap<String, TestVector> {
     serde_json::from_str(json_data).expect("Failed to parse test vectors JSON")
 }
 
-fn run_test_vector(name: &str, test_vector: &TestVector) {
-    let tag_bytes = hex_decode(&test_vector.tag);
-    let mut tag_array = [0u8; 32];
-    tag_array.copy_from_slice(&tag_bytes);
+fn run_test_vector(name: &str, test_vector: &TestVector) -> Result<(), Failed> {
+    let iv_bytes = hex_decode(&test_vector.iv);
+    let iv_array: [u8; 64] = iv_bytes.try_into().unwrap();
 
-    let mut sponge = KeccakDuplexSponge::new(tag_array);
+    let mut sponge: Box<dyn DuplexSpongeInterface> = match test_vector.hash_function.as_str() {
+        "Keccak-f[1600] overwrite mode" => Box::new(KeccakDuplexSponge::new(iv_array)),
+        "SHAKE128" => Box::new(ShakeDuplexSponge::new(iv_array)),
+        _ => panic!("Unknown hash function: {}", test_vector.hash_function),
+    };
     let mut final_output = Vec::new();
 
     for operation in &test_vector.operations {
@@ -62,88 +68,27 @@ fn run_test_vector(name: &str, test_vector: &TestVector) {
         }
     }
 
-    let expected_output = hex_decode(&test_vector.expected);
-    assert_eq!(final_output, expected_output, "Test vector '{name}' failed");
+    assert_eq!(
+        hex::encode(final_output),
+        test_vector.expected,
+        "Test vector '{name}' failed"
+    );
+    Ok(())
 }
 
 #[test]
 fn test_all_duplex_sponge_vectors() {
     let test_vectors = load_test_vectors();
 
-    for (name, test_vector) in test_vectors {
-        run_test_vector(&name, &test_vector);
-    }
-}
+    let tests = test_vectors
+        .into_iter()
+        .map(|(name, test_vector)| {
+            Trial::test(
+                format!("tests::spec::test_duplex_sponge::{}", name),
+                move || run_test_vector(&name, &test_vector),
+            )
+        })
+        .collect();
 
-#[test]
-fn test_keccak_duplex_sponge_vector() {
-    let test_vectors = load_test_vectors();
-    let test_vector = test_vectors.get("test_keccak_duplex_sponge").unwrap();
-    run_test_vector("test_keccak_duplex_sponge", test_vector);
-}
-
-#[test]
-fn test_absorb_empty_before_vector() {
-    let test_vectors = load_test_vectors();
-    let test_vector = test_vectors
-        .get("test_absorb_empty_before_does_not_break")
-        .unwrap();
-    run_test_vector("test_absorb_empty_before_does_not_break", test_vector);
-}
-
-#[test]
-fn test_absorb_empty_after_vector() {
-    let test_vectors = load_test_vectors();
-    let test_vector = test_vectors
-        .get("test_absorb_empty_after_does_not_break")
-        .unwrap();
-    run_test_vector("test_absorb_empty_after_does_not_break", test_vector);
-}
-
-#[test]
-fn test_squeeze_zero_before_vector() {
-    let test_vectors = load_test_vectors();
-    let test_vector = test_vectors.get("test_squeeze_zero_behavior").unwrap();
-    run_test_vector("test_squeeze_zero_behavior", test_vector);
-}
-
-#[test]
-fn test_squeeze_zero_after_vector() {
-    let test_vectors = load_test_vectors();
-    let test_vector = test_vectors
-        .get("test_squeeze_zero_after_behavior")
-        .unwrap();
-    run_test_vector("test_squeeze_zero_after_behavior", test_vector);
-}
-
-#[test]
-fn test_absorb_squeeze_absorb_consistency_vector() {
-    let test_vectors = load_test_vectors();
-    let test_vector = test_vectors
-        .get("test_absorb_squeeze_absorb_consistency")
-        .unwrap();
-    run_test_vector("test_absorb_squeeze_absorb_consistency", test_vector);
-}
-
-#[test]
-fn test_associativity_of_absorb_vector() {
-    let test_vectors = load_test_vectors();
-    let test_vector = test_vectors.get("test_associativity_of_absorb").unwrap();
-    run_test_vector("test_associativity_of_absorb", test_vector);
-}
-
-#[test]
-fn test_tag_affects_output_vector() {
-    let test_vectors = load_test_vectors();
-    let test_vector = test_vectors.get("test_tag_affects_output").unwrap();
-    run_test_vector("test_tag_affects_output", test_vector);
-}
-
-#[test]
-fn test_multiple_blocks_absorb_squeeze_vector() {
-    let test_vectors = load_test_vectors();
-    let test_vector = test_vectors
-        .get("test_multiple_blocks_absorb_squeeze")
-        .unwrap();
-    run_test_vector("test_multiple_blocks_absorb_squeeze", test_vector);
+    libtest_mimic::run(&Arguments::from_args(), tests).exit();
 }
