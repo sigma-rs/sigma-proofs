@@ -25,8 +25,7 @@ impl<G: PrimeGroup> SigmaProtocol for CanonicalLinearRelation<G> {
     ///
     /// Nonces exactly match the witness in type, as for every witness value there is a single nonce.
     type ProverState = (ScalarMap<G>, Self::Witness);
-    type Response = ScalarMap<G>; // TODO: We _know_ this will have every variable assigned. We
-                                  // should try to take advantage of that.
+    type Response = Vec<G::Scalar>;
     type Witness = ScalarMap<G>;
     type Challenge = G::Scalar;
 
@@ -99,7 +98,7 @@ impl<G: PrimeGroup> SigmaProtocol for CanonicalLinearRelation<G> {
         // state).
         let responses = nonces
             .zip(&witness)
-            .map(|(var, r, w)| (var, r.unwrap() + w.unwrap() * challenge))
+            .map(|(_, r, w)| r.unwrap() + w.unwrap() * challenge)
             .collect();
         Ok(responses)
     }
@@ -182,7 +181,7 @@ impl<G: PrimeGroup> SigmaProtocol for CanonicalLinearRelation<G> {
     /// # Returns
     /// A `Vec<u8>` containing the serialized scalars.
     fn serialize_response(&self, response: &Self::Response) -> Vec<u8> {
-        serialize_scalars::<G>(response.iter().map(|(_, scalar)|)
+        serialize_scalars::<G>(response.iter().map(|(_, scalar)| scalar))
     }
 
     /// Deserializes a byte slice into a vector of group elements (commitment).
