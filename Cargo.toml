@@ -4,6 +4,7 @@ version = "0.1.0-sigma"
 authors = [
     "Nugzari Uzoevi <nougzarm@icloud.com>",
     "Michele Orrù <m@orru.net>",
+    "Ian Goldberg <iang@uwaterloo.ca>",
     "Lénaïck Gouriou <lg@leanear.io>"
 ]
 edition = "2021"
