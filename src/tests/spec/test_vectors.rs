@@ -1,9 +1,7 @@
 use bls12_381::G1Projective as G;
-use core::str;
 use hex::FromHex;
 use json::JsonValue;
 use std::collections::HashMap;
-use std::fs;
 
 use crate::codec::KeccakByteSchnorrCodec;
 use crate::fiat_shamir::Nizk;
@@ -27,7 +25,7 @@ struct TestVector {
 #[test]
 fn test_spec_testvectors() {
     let proof_generation_rng_seed = b"proof_generation_seed";
-    let vectors = extract_vectors_new("src/tests/spec/vectors/testSigmaProtocols.json").unwrap();
+    let vectors = extract_vectors_new().unwrap();
 
     // Define supported ciphersuites
     let mut supported_ciphersuites = HashMap::new();
@@ -110,11 +108,11 @@ fn test_spec_testvectors() {
     }
 }
 
-fn extract_vectors_new(path: &str) -> Result<HashMap<String, TestVector>, String> {
+fn extract_vectors_new() -> Result<HashMap<String, TestVector>, String> {
     use std::collections::HashMap;
 
-    let content = fs::read_to_string(path).map_err(|e| format!("Unable to read JSON file: {e}"))?;
-    let root: JsonValue = json::parse(&content).map_err(|e| format!("JSON parsing error: {e}"))?;
+    let content = include_str!("./vectors/testSigmaProtocols.json");
+    let root: JsonValue = json::parse(content).map_err(|e| format!("JSON parsing error: {e}"))?;
 
     let mut vectors = HashMap::new();
 
