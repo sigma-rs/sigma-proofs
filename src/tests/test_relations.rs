@@ -304,7 +304,7 @@ pub fn range_instance_generation<G: PrimeGroup, R: RngCore>(
 #[allow(non_snake_case)]
 pub fn test_range<G: PrimeGroup, R: RngCore>(
     mut rng: &mut R,
-) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
+) -> (CanonicalLinearRelation<G>, ScalarMap<G>) {
     range_instance_generation(&mut rng, 822, 0..1337)
 }
 

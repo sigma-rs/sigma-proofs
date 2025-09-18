@@ -375,7 +375,7 @@ impl<G: PrimeGroup> LinearRelation<G> {
     /// let vars = relation.allocate_elements_vec(2);
     /// assert_eq!(vars.len(), 2);
     /// ```
-    pub fn allocate_elements_vev(&mut self, n: usize) -> Vec<GroupVar<G>> {
+    pub fn allocate_elements_vec(&mut self, n: usize) -> Vec<GroupVar<G>> {
         (0..n).map(|_| self.allocate_element()).collect()
     }
 
