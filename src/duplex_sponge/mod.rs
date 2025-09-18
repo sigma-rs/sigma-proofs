@@ -20,7 +20,9 @@ pub trait DuplexSpongeInterface {
     /// Creates a new sponge instance with a given initialization vector (IV).
     ///
     /// The IV enables domain separation and reproducibility between parties.
-    fn new(iv: [u8; 32]) -> Self;
+    fn new(iv: [u8; 64]) -> Self
+    where
+        Self: Sized;
 
     /// Absorbs input data into the sponge state.
     fn absorb(&mut self, input: &[u8]);

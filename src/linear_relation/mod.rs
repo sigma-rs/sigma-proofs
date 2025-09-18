@@ -319,10 +319,10 @@ impl<G: PrimeGroup> LinearRelation<G> {
     /// use curve25519_dalek::RistrettoPoint as G;
     ///
     /// let mut relation = LinearRelation::<G>::new();
-    /// let vars = relation.allocate_scalars_n(2);
+    /// let vars = relation.allocate_scalars_vec(2);
     /// assert_eq!(vars.len(), 2);
     /// ```
-    pub fn allocate_scalars_n(&mut self, n: usize) -> Vec<ScalarVar<G>> {
+    pub fn allocate_scalars_vec(&mut self, n: usize) -> Vec<ScalarVar<G>> {
         (0..n).map(|_| self.allocate_scalar()).collect()
     }
 
@@ -372,10 +372,10 @@ impl<G: PrimeGroup> LinearRelation<G> {
     /// use curve25519_dalek::RistrettoPoint as G;
     ///
     /// let mut relation = LinearRelation::<G>::new();
-    /// let vars = relation.allocate_elements_n(2);
+    /// let vars = relation.allocate_elements_vec(2);
     /// assert_eq!(vars.len(), 2);
     /// ```
-    pub fn allocate_elements_n(&mut self, n: usize) -> Vec<GroupVar<G>> {
+    pub fn allocate_elements_vev(&mut self, n: usize) -> Vec<GroupVar<G>> {
         (0..n).map(|_| self.allocate_element()).collect()
     }
 

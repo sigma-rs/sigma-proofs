@@ -78,7 +78,7 @@ where
         }
     }
 
-    pub fn from_iv(iv: [u8; 32], interactive_proof: P) -> Self {
+    pub fn from_iv(iv: [u8; 64], interactive_proof: P) -> Self {
         let hash_state = C::from_iv(iv);
         Self {
             hash_state,
