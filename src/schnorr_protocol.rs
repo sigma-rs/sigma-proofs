@@ -8,7 +8,7 @@ use crate::errors::Error;
 use crate::group::serialization::{
     deserialize_elements, deserialize_scalars, serialize_elements, serialize_scalars,
 };
-use crate::linear_relation::CanonicalLinearRelation;
+use crate::linear_relation::{CanonicalLinearRelation, ScalarMap};
 use crate::traits::{SigmaProtocol, SigmaProtocolSimulator};
 use alloc::vec::Vec;
 
@@ -21,10 +21,14 @@ use rand_core::{CryptoRng, RngCore, RngCore as Rng};
 
 impl<G: PrimeGroup> SigmaProtocol for CanonicalLinearRelation<G> {
     type Commitment = Vec<G>;
-    type ProverState = (Vec<G::Scalar>, Vec<G::Scalar>);
-    type Response = Vec<G::Scalar>;
-    type Witness = Vec<G::Scalar>;
     type Challenge = G::Scalar;
+    /// Prover response to the challenge. Includes one scalar per witness scalar.
+    // NOTE: This could be a ScalarMap in that each scalar here is a associated with a variable,
+    // however this type is part of the public interface and is linked to the wire format.
+    type Response = Vec<G::Scalar>;
+    /// Prover state is a pair of (nonces, witness). Each scalar in the witness has a nonce.
+    type ProverState = (ScalarMap<G>, Self::Witness);
+    type Witness = ScalarMap<G>;
 
     /// Prover's first message: generates a commitment using random nonces.
     ///
@@ -43,7 +47,7 @@ impl<G: PrimeGroup> SigmaProtocol for CanonicalLinearRelation<G> {
     /// If the witness vector is larger, extra variables are ignored.
     fn prover_commit(
         &self,
-        witness: &Self::Witness,
+        witness: Self::Witness,
         rng: &mut (impl RngCore + CryptoRng),
     ) -> Result<(Self::Commitment, Self::ProverState), Error> {
         if witness.len() < self.num_scalars {
@@ -62,12 +66,13 @@ impl<G: PrimeGroup> SigmaProtocol for CanonicalLinearRelation<G> {
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
-        let nonces = (0..self.num_scalars)
-            .map(|_| G::Scalar::random(&mut *rng))
-            .collect::<Vec<_>>();
+        let nonces = witness
+            .vars()
+            .map(|var| (var, G::Scalar::random(&mut *rng)))
+            .collect::<ScalarMap<G>>();
 
         let commitment = self.evaluate(&nonces);
-        let prover_state = (nonces.to_vec(), witness.to_vec());
+        let prover_state = (nonces, witness.clone());
         Ok((commitment, prover_state))
     }
 
@@ -89,10 +94,12 @@ impl<G: PrimeGroup> SigmaProtocol for CanonicalLinearRelation<G> {
     ) -> Result<Self::Response, Error> {
         let (nonces, witness) = prover_state;
 
+        // NOTE: It should only be possible to fail to unwrap here if there is an error in this
+        // library, or if it is used in an unintended way (e.g. manually constructing the prover
+        // state). Also note that this drops the explicit link with a given variable.
         let responses = nonces
-            .into_iter()
-            .zip(witness)
-            .map(|(r, w)| r + w * challenge)
+            .zip(&witness)
+            .map(|(_, r, w)| r.unwrap() + w.unwrap() * challenge)
             .collect();
         Ok(responses)
     }
@@ -122,7 +129,12 @@ impl<G: PrimeGroup> SigmaProtocol for CanonicalLinearRelation<G> {
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
-        let lhs = self.evaluate(response);
+        let response_map = self
+            .scalar_vars()
+            .zip(response.iter().copied())
+            .collect::<ScalarMap<G>>();
+
+        let lhs = self.evaluate(response_map);
         let mut rhs = Vec::new();
         for (i, g) in commitment.iter().enumerate() {
             rhs.push(self.image[i] * challenge + g);
@@ -295,7 +307,12 @@ where
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
-        let response_image = self.evaluate(response);
+        let response_map = self
+            .scalar_vars()
+            .zip(response.iter().copied())
+            .collect::<ScalarMap<G>>();
+
+        let response_image = self.evaluate(response_map);
         let commitment = response_image
             .iter()
             .zip(&self.image)

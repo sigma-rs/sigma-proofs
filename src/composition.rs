@@ -30,6 +30,7 @@ use subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
 
 use crate::errors::InvalidInstance;
 use crate::group::serialization::{deserialize_scalars, serialize_scalars};
+use crate::linear_relation::ScalarVar;
 use crate::{
     codec::Shake128DuplexSponge,
     errors::Error,
@@ -223,6 +224,18 @@ impl<G: PrimeGroup> ComposedWitness<G> {
     }
 }
 
+impl<G: PrimeGroup, const N: usize> From<[(ScalarVar<G>, G::Scalar); N]> for ComposedWitness<G> {
+    fn from(value: [(ScalarVar<G>, G::Scalar); N]) -> Self {
+        Self::Simple(value.into())
+    }
+}
+
+impl<G: PrimeGroup> From<Vec<(ScalarVar<G>, G::Scalar)>> for ComposedWitness<G> {
+    fn from(value: Vec<(ScalarVar<G>, G::Scalar)>) -> Self {
+        Self::Simple(value.into())
+    }
+}
+
 impl<G: PrimeGroup> From<<CanonicalLinearRelation<G> as SigmaProtocol>::Witness>
     for ComposedWitness<G>
 {
@@ -261,7 +274,7 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<
 
     fn prover_commit_simple(
         protocol: &CanonicalLinearRelation<G>,
-        witness: &<CanonicalLinearRelation<G> as SigmaProtocol>::Witness,
+        witness: <CanonicalLinearRelation<G> as SigmaProtocol>::Witness,
         rng: &mut (impl Rng + CryptoRng),
     ) -> Result<(ComposedCommitment<G>, ComposedProverState<G>), Error> {
         protocol.prover_commit(witness, rng).map(|(c, s)| {
@@ -284,7 +297,7 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<
 
     fn prover_commit_and(
         protocols: &[ComposedRelation<G>],
-        witnesses: &[ComposedWitness<G>],
+        witnesses: Vec<ComposedWitness<G>>,
         rng: &mut (impl Rng + CryptoRng),
     ) -> Result<(ComposedCommitment<G>, ComposedProverState<G>), Error> {
         if protocols.len() != witnesses.len() {
@@ -294,7 +307,7 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<
         let mut commitments = Vec::with_capacity(protocols.len());
         let mut prover_states = Vec::with_capacity(protocols.len());
 
-        for (p, w) in protocols.iter().zip(witnesses.iter()) {
+        for (p, w) in protocols.iter().zip(witnesses.into_iter()) {
             let (c, s) = p.prover_commit(w, rng)?;
             commitments.push(c);
             prover_states.push(s);
@@ -326,7 +339,7 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<
 
     fn prover_commit_or(
         instances: &[ComposedRelation<G>],
-        witnesses: &[ComposedWitness<G>],
+        witnesses: Vec<ComposedWitness<G>>,
         rng: &mut (impl Rng + CryptoRng),
     ) -> Result<(ComposedCommitment<G>, ComposedProverState<G>), Error>
     where
@@ -341,13 +354,14 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<
 
         // Selector value set when the first valid witness is found.
         let mut valid_witness_found = Choice::from(0);
-        for (i, w) in witnesses.iter().enumerate() {
+        for (i, w) in witnesses.into_iter().enumerate() {
+            // Determine whether or not to use the real witness for this relation. This rule uses
+            // the first valid witness found in the given list.
+            let select_witness = instances[i].is_witness_valid(&w) & !valid_witness_found;
+
             let (commitment, prover_state) = instances[i].prover_commit(w, rng)?;
             let (simulated_commitment, simulated_challenge, simulated_response) =
                 instances[i].simulate_transcript(rng)?;
-
-            let valid_witness = instances[i].is_witness_valid(w) & !valid_witness_found;
-            let select_witness = valid_witness;
 
             let commitment = ComposedCommitment::conditional_select(
                 &simulated_commitment,
@@ -363,7 +377,7 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<
                 simulated_response,
             ));
 
-            valid_witness_found |= valid_witness;
+            valid_witness_found |= select_witness;
         }
 
         if valid_witness_found.unwrap_u8() == 0 {
@@ -439,7 +453,7 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> SigmaProtocol
 
     fn prover_commit(
         &self,
-        witness: &Self::Witness,
+        witness: Self::Witness,
         rng: &mut (impl Rng + CryptoRng),
     ) -> Result<(Self::Commitment, Self::ProverState), Error> {
         match (self, witness) {

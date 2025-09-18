@@ -14,7 +14,9 @@ use ff::Field;
 use group::prime::PrimeGroup;
 use subtle::{Choice, ConstantTimeEq};
 
-use super::{GroupMap, GroupVar, LinearCombination, LinearRelation, ScalarTerm, ScalarVar};
+use super::{
+    GroupMap, GroupVar, LinearCombination, LinearRelation, ScalarAssignments, ScalarTerm, ScalarVar,
+};
 use crate::errors::{Error, InvalidInstance};
 use crate::group::msm::VariableMultiScalarMul;
 
@@ -63,6 +65,8 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
         }
     }
 
+    // QUESTION: Why does this currently panic when a variable is unassigned? Should this return
+    // Result instead?
     /// Evaluate the canonical linear relation with the provided scalars
     ///
     /// This returns a list of image points produced by evaluating each linear combination in the
@@ -73,13 +77,13 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
     /// Panics if the number of scalars given is less than the number of scalar variables in this
     /// linear relation.
     /// If the vector of scalars if longer than the number of terms in each linear combinations, the extra terms are ignored.
-    pub fn evaluate(&self, scalars: &[G::Scalar]) -> Vec<G> {
+    pub fn evaluate(&self, scalars: impl ScalarAssignments<G>) -> Vec<G> {
         self.linear_combinations
             .iter()
             .map(|lc| {
                 let scalars = lc
                     .iter()
-                    .map(|(scalar_var, _)| scalars[scalar_var.index()])
+                    .map(|(scalar_var, _)| scalars.get(*scalar_var).unwrap())
                     .collect::<Vec<_>>();
                 let bases = lc
                     .iter()
@@ -88,6 +92,10 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
                 G::msm(&scalars, &bases)
             })
             .collect()
+    }
+
+    pub fn scalar_vars(&self) -> impl Iterator<Item = ScalarVar<G>> {
+        (0..self.num_scalars).map(|i| ScalarVar(i, PhantomData))
     }
 
     /// Get or create a GroupVar for a weighted group element, with deduplication
@@ -111,7 +119,7 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
         let weighted_group = original_group_val * weight;
 
         // Add to our group elements with new index (length)
-        let new_var = self.group_elements.push(weighted_group);
+        let new_var = self.group_elements.insert(weighted_group);
 
         // Cache the mapping for this group_var and weight
         entry.push((*weight, new_var));
@@ -403,7 +411,7 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
         // Add all group elements to the map
         let mut group_var_map = Vec::new();
         for elem in &group_elements_ordered {
-            let var = canonical.group_elements.push(*elem);
+            let var = canonical.group_elements.insert(*elem);
             group_var_map.push(var);
         }
 
@@ -514,7 +522,7 @@ impl<G: PrimeGroup + ConstantTimeEq> CanonicalLinearRelation<G> {
     ///
     /// Panics if the number of scalars given is less than the number of scalar variables.
     /// If the number of scalars is more than the number of scalar variables, the extra elements are ignored.
-    pub fn is_witness_valid(&self, witness: &[G::Scalar]) -> Choice {
+    pub fn is_witness_valid(&self, witness: impl ScalarAssignments<G>) -> Choice {
         let got = self.evaluate(witness);
         self.image
             .iter()
