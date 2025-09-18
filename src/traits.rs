@@ -148,6 +148,11 @@ pub trait InteractiveProof {
     type ProverMessage;
     type VerifierState;
     type Challenge;
+    type Witness;
+
+    fn get_initial_prover_state(&self, witness: &Self::Witness) -> Self::ProverState;
+
+    fn get_initial_verifier_state(&self) -> Self::VerifierState;
 
     fn prover_message(
         &self,
@@ -166,7 +171,11 @@ pub trait InteractiveProof {
     /// Serializes a challenge to bytes.
     fn serialize_challenge(&self, challenge: &Self::Challenge) -> Vec<u8>;
 
-    fn deserialize_message(&self, data: &[u8]) -> Result<Self::ProverMessage, Error>;
+    fn deserialize_message(
+        &self,
+        data: &[u8],
+        is_final_message: bool,
+    ) -> Result<Self::ProverMessage, Error>;
 
     /// Deserializes a challenge from bytes.
     fn deserialize_challenge(&self, data: &[u8]) -> Result<Self::Challenge, Error>;
@@ -174,4 +183,6 @@ pub trait InteractiveProof {
     fn protocol_identifier(&self) -> impl AsRef<[u8]>;
 
     fn instance_label(&self) -> impl AsRef<[u8]>;
+
+    fn num_rounds(&self) -> usize;
 }

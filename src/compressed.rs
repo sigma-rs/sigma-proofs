@@ -3,6 +3,7 @@
 use crate::errors::Error as ProofError;
 use crate::errors::Result as ProofResult;
 use crate::linear_relation;
+use crate::serialization::deserialize_elements;
 use crate::serialization::deserialize_scalars;
 use crate::traits::InteractiveProof;
 use ff::Field;
@@ -74,24 +75,18 @@ fn fold_scalars<F: Field>(left: &[F], right: &[F], x: &F, x_inv: &F) -> Vec<F> {
         .collect()
 }
 
-struct CompressedProofMessage<G: PrimeGroup> {
-    final_message: Option<G::Scalar>,
-    intermediate_message: Option<[G; 2]>,
+enum CompressedProofMessage<G: PrimeGroup> {
+    FinalMessage(G::Scalar),
+    IntermediateMessage([G; 2]),
 }
 
 impl<G: PrimeGroup> CompressedProofMessage<G> {
     fn new_from_intermediate_message(intermediate_message: [G; 2]) -> Self {
-        Self {
-            final_message: None,
-            intermediate_message: Some(intermediate_message),
-        }
+        Self::IntermediateMessage(intermediate_message)
     }
 
     fn new_from_final_message(final_message: G::Scalar) -> Self {
-        Self {
-            final_message: Some(final_message),
-            intermediate_message: None,
-        }
+        Self::FinalMessage(final_message)
     }
 }
 
@@ -103,6 +98,25 @@ impl<G: PrimeGroup> InteractiveProof for SquashedLinearRelation<G> {
     type VerifierState = SquashedLinearRelation<G>;
 
     type Challenge = G::Scalar;
+
+    type Witness = Vec<G::Scalar>;
+
+    fn get_initial_prover_state(&self, witness: &Self::Witness) -> Self::ProverState {
+        (
+            witness.to_vec(),
+            SquashedLinearRelation {
+                generators: self.generators.clone(),
+                image: self.image,
+            },
+        )
+    }
+
+    fn get_initial_verifier_state(&self) -> Self::VerifierState {
+        SquashedLinearRelation {
+            generators: self.generators.clone(),
+            image: self.image,
+        }
+    }
 
     fn prover_message(
         &self,
@@ -148,44 +162,71 @@ impl<G: PrimeGroup> InteractiveProof for SquashedLinearRelation<G> {
         challenge: &Self::Challenge,
     ) -> Result<(), ProofError> {
         if state.generators.len() == 1 {
-            if prover_message.final_message.is_none() {
-                return Err(ProofError::VerificationFailure);
-            }
-            let witness = prover_message.final_message.unwrap();
-            let computed = state.generators[0] * witness[0];
-            if computed == state.image {
-                return Ok(());
-            } else {
-                return Err(ProofError::VerificationFailure);
+            match prover_message {
+                CompressedProofMessage::FinalMessage(witness) => {
+                    let computed = state.generators[0] * witness;
+                    if computed == state.image {
+                        return Ok(());
+                    } else {
+                        return Err(ProofError::VerificationFailure);
+                    }
+                }
+                CompressedProofMessage::IntermediateMessage(_) => {
+                    return Err(ProofError::VerificationFailure);
+                }
             }
         }
-        if prover_message.intermediate_message.is_none() {
-            return Err(ProofError::VerificationFailure);
+        match prover_message {
+            CompressedProofMessage::FinalMessage(_) => {
+                return Err(ProofError::VerificationFailure);
+            }
+            CompressedProofMessage::IntermediateMessage([A, B]) => {
+                let n = state.generators.len() / 2;
+                let (g_left, g_right) = state.generators.split_at(n);
+                let new_generators = fold_generators(g_left, g_right, &challenge, &G::Scalar::ONE);
+                let new_image = *A + state.image * challenge + *B * challenge.square();
+                state.generators = new_generators;
+                state.image = new_image;
+                Ok(())
+            }
         }
-        let [A, B] = prover_message.intermediate_message.unwrap();
-        let n = state.generators.len() / 2;
-        let (g_left, g_right) = state.generators.split_at(n);
-        let new_generators = fold_generators(g_left, g_right, &challenge, &G::Scalar::ONE);
-        let new_image = A + state.image * challenge + B * challenge.square();
-        state.generators = new_generators;
-        state.image = new_image;
-        Ok(())
     }
 
     fn serialize_message(&self, prover_message: &Self::ProverMessage) -> Vec<u8> {
-        todo!()
+        match prover_message {
+            CompressedProofMessage::FinalMessage(witness) => serialize_scalars::<G>(&[*witness]),
+            CompressedProofMessage::IntermediateMessage(prover_message) => {
+                serialize_elements(prover_message)
+            }
+        }
     }
 
     fn serialize_challenge(&self, challenge: &Self::Challenge) -> Vec<u8> {
-        todo!()
+        serialize_scalars::<G>(&[*challenge])
     }
 
-    fn deserialize_message(&self, data: &[u8]) -> Result<Self::ProverMessage, ProofError> {
-        todo!()
+    fn deserialize_message(
+        &self,
+        data: &[u8],
+        is_final_message: bool,
+    ) -> Result<Self::ProverMessage, ProofError> {
+        if is_final_message {
+            let witness =
+                deserialize_scalars::<G>(data, 1).ok_or(ProofError::VerificationFailure)?;
+            Ok(CompressedProofMessage::new_from_final_message(witness[0]))
+        } else {
+            let elements =
+                deserialize_elements::<G>(data, 2).ok_or(ProofError::VerificationFailure)?;
+            let intermediate_message: [G; 2] = [elements[0], elements[1]];
+            Ok(CompressedProofMessage::IntermediateMessage(
+                intermediate_message,
+            ))
+        }
     }
 
     fn deserialize_challenge(&self, data: &[u8]) -> Result<Self::Challenge, ProofError> {
-        todo!()
+        let scalars = deserialize_scalars::<G>(data, 1).ok_or(ProofError::VerificationFailure)?;
+        Ok(scalars[0])
     }
 
     fn protocol_identifier(&self) -> impl AsRef<[u8]> {
@@ -194,6 +235,10 @@ impl<G: PrimeGroup> InteractiveProof for SquashedLinearRelation<G> {
 
     fn instance_label(&self) -> impl AsRef<[u8]> {
         "TODO"
+    }
+
+    fn num_rounds(&self) -> usize {
+        self.generators.len().next_power_of_two().ilog2() as usize + 1
     }
 }
 
