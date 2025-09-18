@@ -517,7 +517,7 @@ fn test_cmz_wallet_with_fee() {
 
     // Try to convert to CanonicalLinearRelation - this should fail
     let nizk = relation.into_nizk(b"session_identifier").unwrap();
-    let result = nizk.prove_batchable(&witness, &mut rng);
+    let result = nizk.prove_batchable(witness, &mut rng);
     assert!(result.is_ok());
     let proof = result.unwrap();
     let verify_result = nizk.verify_batchable(&proof);
@@ -561,10 +561,10 @@ fn test_relations() {
 
         // Test both proof types
         let proof_batchable = nizk
-            .prove_batchable(&witness, &mut rng)
+            .prove_batchable(witness.clone(), &mut rng)
             .unwrap_or_else(|_| panic!("Failed to create batchable proof for {relation_name}"));
         let proof_compact = nizk
-            .prove_compact(&witness, &mut rng)
+            .prove_compact(witness, &mut rng)
             .unwrap_or_else(|_| panic!("Failed to create compact proof for {relation_name}"));
 
         // Verify both proof types

@@ -112,7 +112,7 @@ mod instance_validation {
         let rng = &mut rand::thread_rng();
         let relation = LinearRelation::<G>::new();
         let nizk = relation.into_nizk(b"test_session").unwrap();
-        let narg_string = nizk.prove_batchable(&vec![], rng).unwrap();
+        let narg_string = nizk.prove_batchable([], rng).unwrap();
         assert!(narg_string.is_empty());
 
         let mut relation = LinearRelation::<G>::new();
@@ -236,8 +236,7 @@ mod proof_validation {
 
         let nizk = TestNizk::new(b"test_session", relation.canonical().unwrap());
 
-        let witness = vec![x];
-        let proof = nizk.prove_batchable(&witness, &mut rng).unwrap();
+        let proof = nizk.prove_batchable([(var_x, x)], &mut rng).unwrap();
 
         (proof, nizk)
     }
@@ -416,11 +415,8 @@ mod proof_validation {
 
         // Create a correct witness for branch 1 (C = y*B)
         // Note: x is NOT a valid witness for branch 0 because C ≠ x*A
-        let witness_correct = ComposedWitness::Or(vec![
-            ComposedWitness::Simple(vec![x]),
-            ComposedWitness::Simple(vec![y]),
-        ]);
-        let proof = nizk.prove_batchable(&witness_correct, &mut rng).unwrap();
+        let witness_correct = ComposedWitness::or([[(x_var, x)], [(y_var, y)]]);
+        let proof = nizk.prove_batchable(witness_correct, &mut rng).unwrap();
         assert!(
             nizk.verify_batchable(&proof).is_ok(),
             "Valid proof should verify"
@@ -429,23 +425,17 @@ mod proof_validation {
         // Now test with ONLY invalid witnesses (neither branch satisfied)
         // Branch 0 requires C = x*A, but we use random x
         // Branch 1 requires C = y*B, but we use a different random value
-        let wrong_y = Scalar::random(&mut rng);
-        let witness_wrong = ComposedWitness::Or(vec![
-            ComposedWitness::Simple(vec![x]),
-            ComposedWitness::Simple(vec![wrong_y]),
-        ]);
-        let proof_result = nizk.prove_batchable(&witness_wrong, &mut rng);
+        let witness_wrong =
+            ComposedWitness::or([[(x_var, x)], [(y_var, Scalar::random(&mut rng))]]);
+        let proof_result = nizk.prove_batchable(witness_wrong, &mut rng);
         assert!(
             proof_result.is_err(),
             "Proof should fail with invalid witnesses"
         );
 
         // Create a correct witness for both branches
-        let witness_correct = ComposedWitness::Or(vec![
-            ComposedWitness::Simple(vec![y]),
-            ComposedWitness::Simple(vec![y]),
-        ]);
-        let proof = nizk.prove_batchable(&witness_correct, &mut rng).unwrap();
+        let witness_correct = ComposedWitness::or([[(y_var, y)], [(y_var, y)]]);
+        let proof = nizk.prove_batchable(witness_correct, &mut rng).unwrap();
         assert!(
             nizk.verify_batchable(&proof).is_ok(),
             "Prover fails when all witnesses in an OR proof are valid"

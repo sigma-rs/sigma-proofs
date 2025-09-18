@@ -236,6 +236,18 @@ impl<G: Group> Default for ScalarMap<G> {
     }
 }
 
+impl<G: Group> From<Vec<(ScalarVar<G>, G::Scalar)>> for ScalarMap<G> {
+    fn from(value: Vec<(ScalarVar<G>, G::Scalar)>) -> Self {
+        Self::from_iter(value)
+    }
+}
+
+impl<G: Group, const N: usize> From<[(ScalarVar<G>, G::Scalar); N]> for ScalarMap<G> {
+    fn from(value: [(ScalarVar<G>, G::Scalar); N]) -> Self {
+        Self::from_iter(value)
+    }
+}
+
 impl<G: Group> FromIterator<(ScalarVar<G>, G::Scalar)> for ScalarMap<G> {
     fn from_iter<T: IntoIterator<Item = (ScalarVar<G>, G::Scalar)>>(iter: T) -> Self {
         iter.into_iter()

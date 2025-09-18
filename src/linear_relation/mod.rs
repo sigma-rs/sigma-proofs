@@ -481,11 +481,11 @@ impl<G: PrimeGroup> LinearRelation<G> {
     ///
     /// relation.set_element(g_var, G::generator());
     /// let x = Scalar::random(&mut OsRng);
-    /// relation.compute_image(&[x]).unwrap();
+    /// relation.compute_image([(x_var, x)]).unwrap();
     ///
     /// // Convert to NIZK with custom context
     /// let nizk = relation.into_nizk(b"my-protocol-v1").unwrap();
-    /// let proof = nizk.prove_batchable(&vec![x], &mut OsRng).unwrap();
+    /// let proof = nizk.prove_batchable([(x_var, x)], &mut OsRng).unwrap();
     /// assert!(nizk.verify_batchable(&proof).is_ok());
     /// ```
     pub fn into_nizk(

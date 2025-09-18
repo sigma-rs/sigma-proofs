@@ -47,7 +47,7 @@ impl<G: PrimeGroup> SigmaProtocol for CanonicalLinearRelation<G> {
     /// If the witness vector is larger, extra variables are ignored.
     fn prover_commit(
         &self,
-        witness: &Self::Witness,
+        witness: Self::Witness,
         rng: &mut (impl RngCore + CryptoRng),
     ) -> Result<(Self::Commitment, Self::ProverState), Error> {
         if witness.len() < self.num_scalars {

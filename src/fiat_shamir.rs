@@ -105,12 +105,13 @@ where
     /// Panics if local verification fails.
     fn prove(
         &self,
-        witness: &P::Witness,
+        witness: impl Into<P::Witness>,
         rng: &mut (impl RngCore + CryptoRng),
     ) -> Result<Transcript<P>, Error> {
         let mut hash_state = self.hash_state.clone();
 
-        let (commitment, prover_state) = self.interactive_proof.prover_commit(witness, rng)?;
+        let (commitment, prover_state) =
+            self.interactive_proof.prover_commit(witness.into(), rng)?;
         // Fiat Shamir challenge
         let serialized_commitment = self.interactive_proof.serialize_commitment(&commitment);
         hash_state.prover_message(&serialized_commitment);
@@ -171,7 +172,7 @@ where
     /// Panics if serialization fails (should not happen under correct implementation).
     pub fn prove_batchable(
         &self,
-        witness: &P::Witness,
+        witness: impl Into<P::Witness>,
         rng: &mut (impl RngCore + CryptoRng),
     ) -> Result<Vec<u8>, Error> {
         let (commitment, _challenge, response) = self.prove(witness, rng)?;
@@ -250,7 +251,7 @@ where
     /// Panics if serialization fails.
     pub fn prove_compact(
         &self,
-        witness: &P::Witness,
+        witness: impl Into<P::Witness>,
         rng: &mut (impl RngCore + CryptoRng),
     ) -> Result<Vec<u8>, Error> {
         let (_commitment, challenge, response) = self.prove(witness, rng)?;
