@@ -2,7 +2,7 @@ use group::prime::PrimeGroup;
 use rand::{CryptoRng, Rng};
 
 use crate::errors::Error;
-use crate::linear_relation::{CanonicalLinearRelation, LinearRelation};
+use crate::linear_relation::{CanonicalLinearRelation, LinearRelation, ScalarMap};
 use crate::tests::spec::random::SRandom;
 use crate::traits::{SigmaProtocol, SigmaProtocolSimulator};
 
@@ -35,12 +35,12 @@ impl<G: SRandom + PrimeGroup> SigmaProtocol for DeterministicSchnorrProof<G> {
         witness: &Self::Witness,
         rng: &mut (impl Rng + CryptoRng),
     ) -> Result<(Self::Commitment, Self::ProverState), Error> {
-        let mut nonces: Vec<G::Scalar> = Vec::new();
-        for _i in 0..self.0.num_scalars {
-            nonces.push(<G as SRandom>::random_scalar_elt(rng));
-        }
+        let nonces = witness
+            .vars()
+            .map(|var| (var, <G as SRandom>::random_scalar_elt(rng)))
+            .collect::<ScalarMap<G>>();
         let commitment = self.0.evaluate(&nonces);
-        let prover_state = (nonces.to_vec(), witness.to_vec());
+        let prover_state = (nonces, witness.clone());
         Ok((commitment, prover_state))
     }
 

@@ -73,7 +73,7 @@ pub fn deserialize_elements<G: PrimeGroup>(data: &[u8], count: usize) -> Option<
 ///
 /// # Returns
 /// - A `Vec<u8>` containing the scalar bytes in big-endian order.
-pub fn serialize_scalars<G: PrimeGroup>(scalars: impl IntoIterator<G::Scalar>) -> Vec<u8> {
+pub fn serialize_scalars<G: PrimeGroup>(scalars: &[G::Scalar]) -> Vec<u8> {
     let mut bytes = Vec::new();
     for scalar in scalars {
         let mut scalar_bytes = scalar.to_repr().as_ref().to_vec();

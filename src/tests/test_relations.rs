@@ -1,10 +1,12 @@
+use std::iter;
+
 use ff::Field;
 use group::prime::PrimeGroup;
 use rand::RngCore;
 
 use crate::codec::Shake128DuplexSponge;
 use crate::fiat_shamir::Nizk;
-use crate::linear_relation::{CanonicalLinearRelation, LinearRelation, Sum};
+use crate::linear_relation::{CanonicalLinearRelation, LinearRelation, ScalarMap, Sum};
 
 use crate::group::msm::VariableMultiScalarMul;
 
@@ -12,7 +14,7 @@ use crate::group::msm::VariableMultiScalarMul;
 #[allow(non_snake_case)]
 pub fn discrete_logarithm<G: PrimeGroup, R: rand::RngCore>(
     rng: &mut R,
-) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
+) -> (CanonicalLinearRelation<G>, ScalarMap<G>) {
     let x = G::Scalar::random(rng);
     let mut relation = LinearRelation::new();
 
@@ -22,12 +24,12 @@ pub fn discrete_logarithm<G: PrimeGroup, R: rand::RngCore>(
     let var_X = relation.allocate_eq(var_x * var_G);
 
     relation.set_element(var_G, G::generator());
-    relation.compute_image([(var_x, x)]).unwrap();
+    let witness = ScalarMap::from_iter([(var_x, x)]);
+    relation.compute_image(&witness).unwrap();
 
     let X = relation.linear_map.group_elements.get(var_X).unwrap();
-
     assert_eq!(X, G::generator() * x);
-    let witness = vec![x];
+
     let instance = (&relation).try_into().unwrap();
     (instance, witness)
 }
@@ -36,7 +38,7 @@ pub fn discrete_logarithm<G: PrimeGroup, R: rand::RngCore>(
 #[allow(non_snake_case)]
 pub fn shifted_dlog<G: PrimeGroup, R: RngCore>(
     rng: &mut R,
-) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
+) -> (CanonicalLinearRelation<G>, ScalarMap<G>) {
     let x = G::Scalar::random(rng);
     let mut relation = LinearRelation::new();
 
@@ -48,18 +50,16 @@ pub fn shifted_dlog<G: PrimeGroup, R: RngCore>(
     relation.append_equation(var_X, (var_x + G::Scalar::from(1)) * var_G);
 
     relation.set_element(var_G, G::generator());
-    relation.compute_image([(var_x, x)]).unwrap();
+    let witness = ScalarMap::from_iter([(var_x, x)]);
+    relation.compute_image(&witness).unwrap();
 
-    let witness = vec![x];
     let instance = (&relation).try_into().unwrap();
     (instance, witness)
 }
 
 /// LinearMap for knowledge of a discrete logarithm equality between two pairs.
 #[allow(non_snake_case)]
-pub fn dleq<G: PrimeGroup, R: RngCore>(
-    rng: &mut R,
-) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
+pub fn dleq<G: PrimeGroup, R: RngCore>(rng: &mut R) -> (CanonicalLinearRelation<G>, ScalarMap<G>) {
     let H = G::random(&mut *rng);
     let x = G::Scalar::random(&mut *rng);
     let mut relation = LinearRelation::new();
@@ -71,14 +71,14 @@ pub fn dleq<G: PrimeGroup, R: RngCore>(
     let var_Y = relation.allocate_eq(var_x * var_H);
 
     relation.set_elements([(var_G, G::generator()), (var_H, H)]);
-    relation.compute_image([(var_x, x)]).unwrap();
+    let witness = ScalarMap::from_iter([(var_x, x)]);
+    relation.compute_image(&witness).unwrap();
 
     let X = relation.linear_map.group_elements.get(var_X).unwrap();
     let Y = relation.linear_map.group_elements.get(var_Y).unwrap();
-
     assert_eq!(X, G::generator() * x);
     assert_eq!(Y, H * x);
-    let witness = vec![x];
+
     let instance = (&relation).try_into().unwrap();
     (instance, witness)
 }
@@ -87,7 +87,7 @@ pub fn dleq<G: PrimeGroup, R: RngCore>(
 #[allow(non_snake_case)]
 pub fn shifted_dleq<G: PrimeGroup, R: RngCore>(
     rng: &mut R,
-) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
+) -> (CanonicalLinearRelation<G>, ScalarMap<G>) {
     let H = G::random(&mut *rng);
     let x = G::Scalar::random(&mut *rng);
     let mut relation = LinearRelation::new();
@@ -99,14 +99,14 @@ pub fn shifted_dleq<G: PrimeGroup, R: RngCore>(
     let var_Y = relation.allocate_eq(var_x * var_H + var_G);
 
     relation.set_elements([(var_G, G::generator()), (var_H, H)]);
-    relation.compute_image([(var_x, x)]).unwrap();
+    let witness = ScalarMap::from_iter([(var_x, x)]);
+    relation.compute_image(&witness).unwrap();
 
     let X = relation.linear_map.group_elements.get(var_X).unwrap();
     let Y = relation.linear_map.group_elements.get(var_Y).unwrap();
-
     assert_eq!(X, G::generator() * x + H);
     assert_eq!(Y, H * x + G::generator());
-    let witness = vec![x];
+
     let instance = (&relation).try_into().unwrap();
     (instance, witness)
 }
@@ -115,7 +115,7 @@ pub fn shifted_dleq<G: PrimeGroup, R: RngCore>(
 #[allow(non_snake_case)]
 pub fn pedersen_commitment<G: PrimeGroup, R: RngCore>(
     rng: &mut R,
-) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
+) -> (CanonicalLinearRelation<G>, ScalarMap<G>) {
     let H = G::random(&mut *rng);
     let x = G::Scalar::random(&mut *rng);
     let r = G::Scalar::random(&mut *rng);
@@ -127,12 +127,12 @@ pub fn pedersen_commitment<G: PrimeGroup, R: RngCore>(
     let var_C = relation.allocate_eq(var_x * var_G + var_r * var_H);
 
     relation.set_elements([(var_H, H), (var_G, G::generator())]);
-    relation.compute_image([(var_x, x), (var_r, r)]).unwrap();
+    let witness = ScalarMap::from_iter([(var_x, x), (var_r, r)]);
+    relation.compute_image(&witness).unwrap();
 
     let C = relation.linear_map.group_elements.get(var_C).unwrap();
-
-    let witness = vec![x, r];
     assert_eq!(C, G::generator() * x + H * r);
+
     let instance = (&relation).try_into().unwrap();
     (instance, witness)
 }
@@ -140,7 +140,7 @@ pub fn pedersen_commitment<G: PrimeGroup, R: RngCore>(
 #[allow(non_snake_case)]
 pub fn twisted_pedersen_commitment<G: PrimeGroup, R: RngCore>(
     rng: &mut R,
-) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
+) -> (CanonicalLinearRelation<G>, ScalarMap<G>) {
     let H = G::random(&mut *rng);
     let x = G::Scalar::random(&mut *rng);
     let r = G::Scalar::random(&mut *rng);
@@ -155,9 +155,9 @@ pub fn twisted_pedersen_commitment<G: PrimeGroup, R: RngCore>(
     );
 
     relation.set_elements([(var_H, H), (var_G, G::generator())]);
-    relation.compute_image([(var_x, x), (var_r, r)]).unwrap();
+    let witness = ScalarMap::from_iter([(var_x, x), (var_r, r)]);
+    relation.compute_image(&witness).unwrap();
 
-    let witness = vec![x, r];
     let instance = (&relation).try_into().unwrap();
     (instance, witness)
 }
@@ -166,7 +166,7 @@ pub fn twisted_pedersen_commitment<G: PrimeGroup, R: RngCore>(
 #[allow(non_snake_case)]
 pub fn pedersen_commitment_dleq<G: PrimeGroup, R: RngCore>(
     rng: &mut R,
-) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
+) -> (CanonicalLinearRelation<G>, ScalarMap<G>) {
     let generators = [
         G::random(&mut *rng),
         G::random(&mut *rng),
@@ -194,23 +194,17 @@ pub fn pedersen_commitment_dleq<G: PrimeGroup, R: RngCore>(
     ]);
     relation.set_elements([(var_X, X), (var_Y, Y)]);
 
-    assert!(
-        vec![X, Y]
-            == relation
-                .linear_map
-                .evaluate([(var_x, x), (var_r, r)])
-                .unwrap()
-    );
-    let witness_vec = witness.to_vec();
+    let witness = ScalarMap::from_iter([(var_x, x), (var_r, r)]);
+    assert!(vec![X, Y] == relation.linear_map.evaluate(&witness).unwrap());
     let instance = (&relation).try_into().unwrap();
-    (instance, witness_vec)
+    (instance, witness)
 }
 
 /// Test that a Pedersen commitment is between 0 and 1337.
 #[allow(non_snake_case)]
 pub fn test_range<G: PrimeGroup, R: RngCore>(
     mut rng: &mut R,
-) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
+) -> (CanonicalLinearRelation<G>, ScalarMap<G>) {
     let G = G::generator();
     let H = G::random(&mut rng);
 
@@ -266,19 +260,19 @@ pub fn test_range<G: PrimeGroup, R: RngCore>(
     let s2 = (0..BITS)
         .map(|i| (G::Scalar::ONE - b[i]) * s[i])
         .collect::<Vec<_>>();
-    let witness = [x, r]
-        .iter()
-        .chain(&b)
-        .chain(&s)
-        .chain(&s2)
-        .copied()
-        .collect::<Vec<_>>();
 
     instance.set_elements([(var_G, G), (var_H, H)]);
     instance.set_element(var_C, G * x + H * r);
     for i in 0..BITS {
         instance.set_element(var_Ds[i], G * b[i] + H * s[i]);
     }
+
+    let witness = [(var_x, x), (var_r, r)]
+        .into_iter()
+        .chain(iter::zip(vars_b, b))
+        .chain(iter::zip(vars_s, s))
+        .chain(iter::zip(var_s2, s2))
+        .collect::<ScalarMap<_>>();
 
     (instance.canonical().unwrap(), witness)
 }
@@ -288,7 +282,7 @@ pub fn test_range<G: PrimeGroup, R: RngCore>(
 #[allow(non_snake_case)]
 pub fn bbs_blind_commitment<G: PrimeGroup, R: RngCore>(
     rng: &mut R,
-) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
+) -> (CanonicalLinearRelation<G>, ScalarMap<G>) {
     let [Q_2, J_1, J_2, J_3] = [
         G::random(&mut *rng),
         G::random(&mut *rng),
@@ -330,7 +324,12 @@ pub fn bbs_blind_commitment<G: PrimeGroup, R: RngCore>(
         (var_C, C),
     ]);
 
-    let witness = vec![secret_prover_blind, msg_1, msg_2, msg_3];
+    let witness = ScalarMap::from_iter([
+        (var_secret_prover_blind, secret_prover_blind),
+        (var_msg_1, msg_1),
+        (var_msg_2, msg_2),
+        (var_msg_3, msg_3),
+    ]);
 
     assert!(vec![C] == relation.linear_map.evaluate(&witness).unwrap());
     let instance = (&relation).try_into().unwrap();
@@ -340,7 +339,7 @@ pub fn bbs_blind_commitment<G: PrimeGroup, R: RngCore>(
 /// LinearMap for the user's specific relation: A * 1 + gen__disj1_x_r * B
 pub fn weird_linear_combination<G: PrimeGroup, R: RngCore>(
     rng: &mut R,
-) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
+) -> (CanonicalLinearRelation<G>, ScalarMap<G>) {
     let B = G::random(&mut *rng);
     let gen__disj1_x_r = G::Scalar::random(&mut *rng);
     let mut sigma__lr = LinearRelation::new();
@@ -353,7 +352,8 @@ pub fn weird_linear_combination<G: PrimeGroup, R: RngCore>(
 
     // Set the group elements
     sigma__lr.set_elements([(A, G::generator()), (var_B, B)]);
-    sigma__lr.compute_image(&[gen__disj1_x_r]).unwrap();
+    let witness = ScalarMap::from_iter([(gen__disj1_x_r_var, gen__disj1_x_r)]);
+    sigma__lr.compute_image(&witness).unwrap();
 
     let result = sigma__lr.linear_map.group_elements.get(sigma__eq1).unwrap();
 
@@ -361,14 +361,13 @@ pub fn weird_linear_combination<G: PrimeGroup, R: RngCore>(
     let expected = G::generator() + B * gen__disj1_x_r;
     assert_eq!(result, expected);
 
-    let witness = vec![gen__disj1_x_r];
     let instance = (&sigma__lr).try_into().unwrap();
     (instance, witness)
 }
 
 fn simple_subtractions<G: PrimeGroup, R: RngCore>(
     mut rng: &mut R,
-) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
+) -> (CanonicalLinearRelation<G>, ScalarMap<G>) {
     let x = G::Scalar::random(&mut rng);
     let B = G::random(&mut rng);
     let X = B * (x - G::Scalar::from(1));
@@ -381,13 +380,13 @@ fn simple_subtractions<G: PrimeGroup, R: RngCore>(
     linear_relation.set_element(var_X, X);
 
     let instance = (&linear_relation).try_into().unwrap();
-    let witness = vec![x];
+    let witness = ScalarMap::from_iter([(var_x, x)]);
     (instance, witness)
 }
 
 fn subtractions_with_shift<G: PrimeGroup, R: RngCore>(
     rng: &mut R,
-) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
+) -> (CanonicalLinearRelation<G>, ScalarMap<G>) {
     let B = G::generator();
     let x = G::Scalar::random(rng);
     let X = B * (x - G::Scalar::from(2));
@@ -400,14 +399,14 @@ fn subtractions_with_shift<G: PrimeGroup, R: RngCore>(
     linear_relation.set_element(var_B, B);
     linear_relation.set_element(var_X, X);
     let instance = (&linear_relation).try_into().unwrap();
-    let witness = vec![x];
+    let witness = ScalarMap::from_iter([(var_x, x)]);
     (instance, witness)
 }
 
 #[allow(non_snake_case)]
 fn cmz_wallet_spend_relation<G: PrimeGroup, R: RngCore>(
     mut rng: &mut R,
-) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
+) -> (CanonicalLinearRelation<G>, ScalarMap<G>) {
     // Simulate the wallet spend relation from cmz
     let P_W = G::random(&mut rng);
     let A = G::random(&mut rng);
@@ -437,22 +436,24 @@ fn cmz_wallet_spend_relation<G: PrimeGroup, R: RngCore>(
     relation.set_elements([(var_P_W, P_W), (var_A, A)]);
 
     // Include fee in the witness
-    relation
-        .compute_image(&[n_balance, i_price, z_w_balance])
-        .unwrap();
+    let witness = ScalarMap::from_iter([
+        (var_n_balance, n_balance),
+        (var_i_price, i_price),
+        (var_z_w_balance, z_w_balance),
+    ]);
+    relation.compute_image(&witness).unwrap();
 
     let C = relation.linear_map.group_elements.get(var_C).unwrap();
     let expected = P_W * w_balance + A * z_w_balance;
     assert_eq!(C, expected);
 
-    let witness = vec![n_balance, i_price, z_w_balance];
     let instance = (&relation).try_into().unwrap();
     (instance, witness)
 }
 
 fn nested_affine_relation<G: PrimeGroup, R: RngCore>(
     mut rng: &mut R,
-) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
+) -> (CanonicalLinearRelation<G>, ScalarMap<G>) {
     let mut instance = LinearRelation::<G>::new();
     let var_r = instance.allocate_scalar();
     let var_A = instance.allocate_element();
@@ -469,7 +470,7 @@ fn nested_affine_relation<G: PrimeGroup, R: RngCore>(
     instance.set_element(var_B, B);
     instance.set_element(eq1, C);
 
-    let witness = vec![r];
+    let witness = ScalarMap::from_iter([(var_r, r)]);
     let instance = CanonicalLinearRelation::try_from(&instance).unwrap();
     (instance, witness)
 }
@@ -507,13 +508,16 @@ fn test_cmz_wallet_with_fee() {
     );
 
     relation.set_elements([(var_P_W, P_W), (var_A, A)]);
-    relation
-        .compute_image(&[n_balance, i_price, z_w_balance])
-        .unwrap();
+    let witness = ScalarMap::from_iter([
+        (var_n_balance, n_balance),
+        (var_i_price, i_price),
+        (var_z_w_balance, z_w_balance),
+    ]);
+    relation.compute_image(&witness).unwrap();
 
     // Try to convert to CanonicalLinearRelation - this should fail
     let nizk = relation.into_nizk(b"session_identifier").unwrap();
-    let result = nizk.prove_batchable(&vec![n_balance, i_price, z_w_balance], &mut rng);
+    let result = nizk.prove_batchable(&witness, &mut rng);
     assert!(result.is_ok());
     let proof = result.unwrap();
     let verify_result = nizk.verify_batchable(&proof);

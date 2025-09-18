@@ -21,13 +21,14 @@ use rand_core::{CryptoRng, RngCore, RngCore as Rng};
 
 impl<G: PrimeGroup> SigmaProtocol for CanonicalLinearRelation<G> {
     type Commitment = Vec<G>;
-    /// Prover state is a pair of (nonces, witness).
-    ///
-    /// Nonces exactly match the witness in type, as for every witness value there is a single nonce.
-    type ProverState = (ScalarMap<G>, Self::Witness);
-    type Response = Vec<G::Scalar>;
-    type Witness = ScalarMap<G>;
     type Challenge = G::Scalar;
+    /// Prover response to the challenge. Includes one scalar per witness scalar.
+    // NOTE: This could be a ScalarMap in that each scalar here is a associated with a variable,
+    // however this type is part of the public interface and is linked to the wire format.
+    type Response = Vec<G::Scalar>;
+    /// Prover state is a pair of (nonces, witness). Each scalar in the witness has a nonce.
+    type ProverState = (ScalarMap<G>, Self::Witness);
+    type Witness = ScalarMap<G>;
 
     /// Prover's first message: generates a commitment using random nonces.
     ///
@@ -94,8 +95,8 @@ impl<G: PrimeGroup> SigmaProtocol for CanonicalLinearRelation<G> {
         let (nonces, witness) = prover_state;
 
         // NOTE: It should only be possible to fail to unwrap here if there is an error in this
-        // library, or if it is used in an unsanctioned way (e.g. manually constructing the prover
-        // state).
+        // library, or if it is used in an unintended way (e.g. manually constructing the prover
+        // state). Also note that this drops the explicit link with a given variable.
         let responses = nonces
             .zip(&witness)
             .map(|(_, r, w)| r.unwrap() + w.unwrap() * challenge)
@@ -128,7 +129,12 @@ impl<G: PrimeGroup> SigmaProtocol for CanonicalLinearRelation<G> {
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
-        let lhs = self.evaluate(response);
+        let response_map = self
+            .scalar_vars()
+            .zip(response.iter().copied())
+            .collect::<ScalarMap<G>>();
+
+        let lhs = self.evaluate(response_map);
         let mut rhs = Vec::new();
         for (i, g) in commitment.iter().enumerate() {
             rhs.push(self.image[i] * challenge + g);
@@ -181,7 +187,7 @@ impl<G: PrimeGroup> SigmaProtocol for CanonicalLinearRelation<G> {
     /// # Returns
     /// A `Vec<u8>` containing the serialized scalars.
     fn serialize_response(&self, response: &Self::Response) -> Vec<u8> {
-        serialize_scalars::<G>(response.iter().map(|(_, scalar)| scalar))
+        serialize_scalars::<G>(response)
     }
 
     /// Deserializes a byte slice into a vector of group elements (commitment).
@@ -301,7 +307,12 @@ where
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
-        let response_image = self.evaluate(response);
+        let response_map = self
+            .scalar_vars()
+            .zip(response.iter().copied())
+            .collect::<ScalarMap<G>>();
+
+        let response_image = self.evaluate(response_map);
         let commitment = response_image
             .iter()
             .zip(&self.image)

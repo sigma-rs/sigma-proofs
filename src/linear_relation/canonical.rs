@@ -94,6 +94,10 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
             .collect()
     }
 
+    pub fn scalar_vars(&self) -> impl Iterator<Item = ScalarVar<G>> {
+        (0..self.num_scalars).map(|i| ScalarVar(i, PhantomData))
+    }
+
     /// Get or create a GroupVar for a weighted group element, with deduplication
     fn get_or_create_weighted_group_var(
         &mut self,

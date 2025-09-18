@@ -79,6 +79,10 @@ impl<G: Group> GroupMap<G> {
             .map(|(i, opt)| (GroupVar(i, PhantomData), opt.as_ref()))
     }
 
+    pub fn vars(&self) -> impl Iterator<Item = GroupVar<G>> {
+        (0..self.len()).map(|i| GroupVar(i, PhantomData))
+    }
+
     /// Add a new group element to the map and return its variable reference
     pub fn insert(&mut self, element: G) -> GroupVar<G> {
         let index = self.0.len();
@@ -197,9 +201,9 @@ impl<G: Group> ScalarMap<G> {
         other: &'a Self,
     ) -> impl Iterator<Item = (ScalarVar<G>, Option<G::Scalar>, Option<G::Scalar>)> + use<'a, G>
     {
-        // NOTE: Due to the current packed representation, we know that var `i` is stored at
-        // position `i`. This simplifies the implementation by allowing iteration over the longer
-        // of the two to consider all allocated variables. `left` is the longer if different.
+        // NOTE: Due to the packed representation, we know that var `i` is stored at position `i`.
+        // This simplifies the implementation by allowing iteration over the longer of the two to
+        // consider all allocated variables. `left` is the longer if different.
         let (left, right) = match self.len() >= other.len() {
             true => (self, other),
             false => (other, self),
@@ -274,7 +278,8 @@ impl<G: Group, A: AsRef<[(ScalarVar<G>, G::Scalar)]>> ScalarAssignments<G> for A
     }
 }
 
-/// An uninhabited type used to elide the type paramter on [UnassignedVariableError].
+/// An uninhabited type used to elide the type paramter on [UnassignedScalarVarError] and
+/// [UnassignedGroupVarError].
 #[derive(Copy, Clone, Debug)]
 enum Elided {}
 
