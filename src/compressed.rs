@@ -1,10 +1,10 @@
-
 //xxx example, not zk.
 
 use crate::errors::Error as ProofError;
 use crate::errors::Result as ProofResult;
 use crate::linear_relation;
 use crate::serialization::deserialize_scalars;
+use crate::traits::InteractiveProof;
 use ff::Field;
 use group::prime::PrimeGroup;
 
@@ -17,28 +17,6 @@ use crate::{
 struct SquashedLinearRelation<G: PrimeGroup> {
     generators: Vec<G>,
     image: G,
-}
-
-/// todo
-struct LinearFormRelation<G: PrimeGroup> {
-    generators: Vec<G>,
-    generator: G,
-    linear_function: Vec<G::Scalar>,
-    image: Vec<G>,
-}
-
-// this is what i think can be done for the bridging
-impl<G: PrimeGroup> From<SquashedLinearRelation<G>> for LinearFormRelation<G> {
-    fn from(squashed: SquashedLinearRelation<G>) -> Self {
-        let len = squashed.generators.len();
-        let linear_function = vec![G::Scalar::ZERO; len];
-        Self {
-            generators: squashed.generators,
-            generator: G::identity(),
-            linear_function,
-            image: vec![squashed.image],
-        }
-    }
 }
 
 pub(crate) fn powers<F: Field>(element: F, len: usize) -> Vec<F> {
@@ -94,6 +72,129 @@ fn fold_scalars<F: Field>(left: &[F], right: &[F], x: &F, x_inv: &F) -> Vec<F> {
         .zip(right.iter())
         .map(|(&l, &r)| l * x + r * x_inv)
         .collect()
+}
+
+struct CompressedProofMessage<G: PrimeGroup> {
+    final_message: Option<G::Scalar>,
+    intermediate_message: Option<[G; 2]>,
+}
+
+impl<G: PrimeGroup> CompressedProofMessage<G> {
+    fn new_from_intermediate_message(intermediate_message: [G; 2]) -> Self {
+        Self {
+            final_message: None,
+            intermediate_message: Some(intermediate_message),
+        }
+    }
+
+    fn new_from_final_message(final_message: G::Scalar) -> Self {
+        Self {
+            final_message: Some(final_message),
+            intermediate_message: None,
+        }
+    }
+}
+
+impl<G: PrimeGroup> InteractiveProof for SquashedLinearRelation<G> {
+    type ProverState = (Vec<G::Scalar>, SquashedLinearRelation<G>);
+
+    type ProverMessage = CompressedProofMessage<G>;
+
+    type VerifierState = SquashedLinearRelation<G>;
+
+    type Challenge = G::Scalar;
+
+    fn prover_message(
+        &self,
+        state: &mut Self::ProverState,
+        challenge: &Self::Challenge,
+    ) -> Result<Self::ProverMessage, ProofError> {
+        let (witness, statement) = state;
+        assert_eq!(witness.len(), statement.generators.len());
+        assert_eq!(
+            G::msm(&witness, &statement.generators),
+            statement.image,
+            "Invalid witness"
+        );
+        if statement.generators.len() == 1 {
+            let computed = statement.generators[0] * witness[0];
+            let final_message = witness[0];
+            assert_eq!(statement.image, computed);
+            return Ok(CompressedProofMessage::new_from_final_message(
+                final_message,
+            ));
+        }
+        let n = witness.len() / 2;
+        let (w_left, w_right) = witness.split_at(n);
+        let (g_left, g_right) = self.generators.split_at(n);
+
+        // round messages
+        let A = G::msm_unchecked(w_left, &g_right);
+        let B = G::msm_unchecked(w_right, &g_left);
+        let new_witness = fold_scalars(w_left, w_right, &G::Scalar::ONE, &challenge);
+        let new_generators = fold_generators(g_left, g_right, &challenge, &G::Scalar::ONE);
+        let new_image = A + statement.image * challenge + B * challenge.square();
+        statement.generators = new_generators;
+        statement.image = new_image;
+
+        Ok(CompressedProofMessage::new_from_intermediate_message([
+            A, B,
+        ]))
+    }
+
+    fn update_verifier_state(
+        prover_message: &Self::ProverMessage,
+        state: &mut Self::VerifierState,
+        challenge: &Self::Challenge,
+    ) -> Result<(), ProofError> {
+        if state.generators.len() == 1 {
+            if prover_message.final_message.is_none() {
+                return Err(ProofError::VerificationFailure);
+            }
+            let witness = prover_message.final_message.unwrap();
+            let computed = state.generators[0] * witness[0];
+            if computed == state.image {
+                return Ok(());
+            } else {
+                return Err(ProofError::VerificationFailure);
+            }
+        }
+        if prover_message.intermediate_message.is_none() {
+            return Err(ProofError::VerificationFailure);
+        }
+        let [A, B] = prover_message.intermediate_message.unwrap();
+        let n = state.generators.len() / 2;
+        let (g_left, g_right) = state.generators.split_at(n);
+        let new_generators = fold_generators(g_left, g_right, &challenge, &G::Scalar::ONE);
+        let new_image = A + state.image * challenge + B * challenge.square();
+        state.generators = new_generators;
+        state.image = new_image;
+        Ok(())
+    }
+
+    fn serialize_message(&self, prover_message: &Self::ProverMessage) -> Vec<u8> {
+        todo!()
+    }
+
+    fn serialize_challenge(&self, challenge: &Self::Challenge) -> Vec<u8> {
+        todo!()
+    }
+
+    fn deserialize_message(&self, data: &[u8]) -> Result<Self::ProverMessage, ProofError> {
+        todo!()
+    }
+
+    fn deserialize_challenge(&self, data: &[u8]) -> Result<Self::Challenge, ProofError> {
+        todo!()
+    }
+
+    fn protocol_identifier(&self) -> impl AsRef<[u8]> {
+        "TODO"
+    }
+
+    fn instance_label(&self) -> impl AsRef<[u8]> {
+        "TODO"
+    }
 }
 
 impl<G: PrimeGroup> SquashedLinearRelation<G> {
@@ -242,5 +343,6 @@ fn test_compressed_bbs_nyms() {
         .prove(&witness, &round_challenges)
         .unwrap();
     assert!(squashed_statement
-        .verify(&narg_string, &round_challenges).is_ok());
+        .verify(&narg_string, &round_challenges)
+        .is_ok());
 }
