@@ -356,7 +356,7 @@ where
         }
     }
 
-    fn prove(&self, witness: &P::Witness) -> Result<MultiRoundTranscript<P>, Error> {
+    pub fn prove(&self, witness: &P::Witness) -> Result<MultiRoundTranscript<P>, Error> {
         let mut hash_state = self.hash_state.clone();
         let num_rounds = self.interactive_proof.num_rounds();
         let mut statement = self.interactive_proof.get_initial_prover_state(witness);
@@ -376,7 +376,7 @@ where
         Ok((messages, challenges))
     }
 
-    fn verify(&self, prover_messages: &[P::ProverMessage]) -> Result<(), Error> {
+    pub fn verify(&self, prover_messages: &[P::ProverMessage]) -> Result<(), Error> {
         let mut hash_state = self.hash_state.clone();
         let num_rounds = self.interactive_proof.num_rounds();
         assert_eq!(prover_messages.len(), num_rounds);

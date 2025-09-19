@@ -1,7 +1,10 @@
 //xxx example, not zk.
 
+use crate::codec::ByteSchnorrCodec;
+use crate::codec::ShakeDuplexSponge;
 use crate::errors::Error as ProofError;
 use crate::errors::Result as ProofResult;
+use crate::fiat_shamir::MultiRoundNizk;
 use crate::linear_relation;
 use crate::serialization::deserialize_elements;
 use crate::serialization::deserialize_scalars;
@@ -80,6 +83,9 @@ enum CompressedProofMessage<G: PrimeGroup> {
     IntermediateMessage([G; 2]),
 }
 
+#[derive(Clone)]
+struct CompressedWitness<G: PrimeGroup>(Vec<G::Scalar>);
+
 impl<G: PrimeGroup> CompressedProofMessage<G> {
     fn new_from_intermediate_message(intermediate_message: [G; 2]) -> Self {
         Self::IntermediateMessage(intermediate_message)
@@ -91,7 +97,7 @@ impl<G: PrimeGroup> CompressedProofMessage<G> {
 }
 
 impl<G: PrimeGroup> InteractiveProof for SquashedLinearRelation<G> {
-    type ProverState = (Vec<G::Scalar>, SquashedLinearRelation<G>);
+    type ProverState = (CompressedWitness<G>, SquashedLinearRelation<G>);
 
     type ProverMessage = CompressedProofMessage<G>;
 
@@ -99,11 +105,11 @@ impl<G: PrimeGroup> InteractiveProof for SquashedLinearRelation<G> {
 
     type Challenge = G::Scalar;
 
-    type Witness = Vec<G::Scalar>;
+    type Witness = CompressedWitness<G>;
 
     fn get_initial_prover_state(&self, witness: &Self::Witness) -> Self::ProverState {
         (
-            witness.to_vec(),
+            witness.clone(),
             SquashedLinearRelation {
                 generators: self.generators.clone(),
                 image: self.image,
@@ -124,23 +130,23 @@ impl<G: PrimeGroup> InteractiveProof for SquashedLinearRelation<G> {
         challenge: &Self::Challenge,
     ) -> Result<Self::ProverMessage, ProofError> {
         let (witness, statement) = state;
-        assert_eq!(witness.len(), statement.generators.len());
+        assert_eq!(witness.0.len(), statement.generators.len());
         assert_eq!(
-            G::msm(&witness, &statement.generators),
+            G::msm(&witness.0, &statement.generators),
             statement.image,
             "Invalid witness"
         );
         if statement.generators.len() == 1 {
-            let computed = statement.generators[0] * witness[0];
-            let final_message = witness[0];
+            let computed = statement.generators[0] * witness.0[0];
+            let final_message = witness.0[0];
             assert_eq!(statement.image, computed);
             return Ok(CompressedProofMessage::new_from_final_message(
                 final_message,
             ));
         }
-        let n = witness.len() / 2;
-        let (w_left, w_right) = witness.split_at(n);
-        let (g_left, g_right) = self.generators.split_at(n);
+        let n = witness.0.len() / 2;
+        let (w_left, w_right) = witness.0.split_at(n);
+        let (g_left, g_right) = statement.generators.split_at(n);
 
         // round messages
         let A = G::msm_unchecked(w_left, &g_right);
@@ -150,6 +156,7 @@ impl<G: PrimeGroup> InteractiveProof for SquashedLinearRelation<G> {
         let new_image = A + statement.image * challenge + B * challenge.square();
         statement.generators = new_generators;
         statement.image = new_image;
+        witness.0 = new_witness;
 
         Ok(CompressedProofMessage::new_from_intermediate_message([
             A, B,
@@ -242,72 +249,6 @@ impl<G: PrimeGroup> InteractiveProof for SquashedLinearRelation<G> {
     }
 }
 
-impl<G: PrimeGroup> SquashedLinearRelation<G> {
-    // XXX. We need to define a trait InteractiveProof for working with Fiat-Shamir, or rely on `spongefish`.
-    fn prove(&self, witness: &[G::Scalar], xxx_challenges: &[G::Scalar]) -> ProofResult<Vec<u8>> {
-        assert_eq!(witness.len(), self.generators.len());
-        assert_eq!(
-            G::msm(&witness, &self.generators),
-            self.image,
-            "Invalid witness"
-        );
-
-        if self.generators.len() == 1 {
-            let computed = self.generators[0] * witness[0];
-            return Ok(serialize_scalars::<G>(witness));
-        }
-
-        let n = witness.len() / 2;
-        let (w_left, w_right) = witness.split_at(n);
-        let (g_left, g_right) = self.generators.split_at(n);
-
-        // round messages
-        let A = G::msm_unchecked(w_left, &g_right);
-        let B = G::msm_unchecked(w_right, &g_left);
-        let round_message = serialize_elements(&[A, B]);
-
-        let challenge = xxx_challenges[0];
-        let new_witness = fold_scalars(w_left, w_right, &G::Scalar::ONE, &challenge);
-        let new_generators = fold_generators(g_left, g_right, &challenge, &G::Scalar::ONE);
-        let new_image = A + self.image * challenge + B * challenge.square();
-        let new_instance = SquashedLinearRelation {
-            generators: new_generators,
-            image: new_image,
-        };
-        let narg_string = new_instance.prove(&new_witness, &xxx_challenges[1..])?;
-
-        Ok(round_message.into_iter().chain(narg_string).collect())
-    }
-
-    fn verify(&self, narg_string: &[u8], xxx_challenges: &[G::Scalar]) -> ProofResult<()> {
-        if self.generators.len() == 1 {
-            let witness =
-                deserialize_scalars::<G>(narg_string, 1).ok_or(ProofError::VerificationFailure)?;
-            let computed = self.generators[0] * witness[0];
-            if computed == self.image {
-                return Ok(());
-            } else {
-                return Err(ProofError::VerificationFailure);
-            }
-        }
-
-        let (round_message, new_narg_string) =
-            read_elements::<G>(narg_string, 2).ok_or(ProofError::VerificationFailure)?;
-        let [A, B] = [round_message[0], round_message[1]];
-        let n = self.generators.len() / 2;
-        let (g_left, g_right) = self.generators.split_at(n);
-        let challenge = xxx_challenges[0];
-
-        let new_generators = fold_generators(g_left, g_right, &challenge, &G::Scalar::ONE);
-        let new_image = A + self.image * challenge + B * challenge.square();
-        let new_instance = SquashedLinearRelation {
-            generators: new_generators,
-            image: new_image,
-        };
-        new_instance.verify(new_narg_string, &xxx_challenges[1..])
-    }
-}
-
 #[test]
 fn test_compressed_bbs_nyms() {
     use curve25519_dalek::ristretto::RistrettoPoint as G;
@@ -370,7 +311,6 @@ fn test_compressed_bbs_nyms() {
     );
     // the private witness
     let witness = [ms.as_slice(), &[e]].concat();
-    let round_challenges = (0..7).map(|_| Scalar::random(rng)).collect::<Vec<_>>();
 
     assert_eq!(
         statement
@@ -382,12 +322,13 @@ fn test_compressed_bbs_nyms() {
     );
     // All random challenges now
     let squashed_statement = statement.canonical().unwrap().squash(challenge);
-
     let witness_check = G::msm(&witness, &squashed_statement.generators);
-    let narg_string = squashed_statement
-        .prove(&witness, &round_challenges)
-        .unwrap();
-    assert!(squashed_statement
-        .verify(&narg_string, &round_challenges)
-        .is_ok());
+
+    let multi_round_nizk: MultiRoundNizk<
+        SquashedLinearRelation<G>,
+        ByteSchnorrCodec<G, ShakeDuplexSponge>,
+    > = MultiRoundNizk::new("Pseudonym Proof".as_bytes(), squashed_statement);
+    let (prover_messages, _) = multi_round_nizk.prove(&CompressedWitness(witness)).unwrap();
+    let verification_result = multi_round_nizk.verify(&prover_messages);
+    assert!(verification_result.is_ok());
 }
