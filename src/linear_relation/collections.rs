@@ -290,7 +290,7 @@ impl<G: Group, A: AsRef<[(ScalarVar<G>, G::Scalar)]>> ScalarAssignments<G> for A
     }
 }
 
-/// An uninhabited type used to elide the type paramter on [UnassignedScalarVarError] and
+/// An uninhabited type used to elide the type parameter on [UnassignedScalarVarError] and
 /// [UnassignedGroupVarError].
 #[derive(Copy, Clone, Debug)]
 enum Elided {}
