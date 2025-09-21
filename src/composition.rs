@@ -251,6 +251,24 @@ const fn composed_challenge_size<G: PrimeGroup>() -> usize {
 }
 
 impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<G> {
+    /// Convert this Protocol into a non-interactive zero-knowledge proof
+    /// using the Shake128DuplexSponge codec and a specified session identifier.
+    ///
+    /// This method provides a convenient way to create a NIZK from a Protocol
+    /// without exposing the specific codec type to the API caller.
+    ///
+    /// # Parameters
+    /// - `session_identifier`: Domain separator bytes for the Fiat-Shamir transform
+    ///
+    /// # Returns
+    /// A `Nizk` instance ready for proving and verification
+    pub fn into_nizk(
+        self,
+        session_identifier: &[u8],
+    ) -> Nizk<ComposedRelation<G>, Shake128DuplexSponge<G>> {
+        Nizk::new(session_identifier, self)
+    }
+
     fn is_witness_valid(&self, witness: &ComposedWitness<G>) -> Choice {
         match (self, witness) {
             (ComposedRelation::Simple(instance), ComposedWitness::Simple(witness)) => {
@@ -800,25 +818,5 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> SigmaProtocolSimu
                 ))
             }
         }
-    }
-}
-
-impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<G> {
-    /// Convert this Protocol into a non-interactive zero-knowledge proof
-    /// using the Shake128DuplexSponge codec and a specified session identifier.
-    ///
-    /// This method provides a convenient way to create a NIZK from a Protocol
-    /// without exposing the specific codec type to the API caller.
-    ///
-    /// # Parameters
-    /// - `session_identifier`: Domain separator bytes for the Fiat-Shamir transform
-    ///
-    /// # Returns
-    /// A `Nizk` instance ready for proving and verification
-    pub fn into_nizk(
-        self,
-        session_identifier: &[u8],
-    ) -> Nizk<ComposedRelation<G>, Shake128DuplexSponge<G>> {
-        Nizk::new(session_identifier, self)
     }
 }
