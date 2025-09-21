@@ -52,7 +52,7 @@ pub enum ComposedRelation<G: PrimeGroup> {
     Or(Vec<ComposedRelation<G>>),
 }
 
-impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<G> {
+impl<G: PrimeGroup> ComposedRelation<G> {
     /// Create a [ComposedRelation] for an AND relation from the given list of relations.
     pub fn and<T: Into<ComposedRelation<G>>>(witness: impl IntoIterator<Item = T>) -> Self {
         Self::And(witness.into_iter().map(|x| x.into()).collect())
