@@ -8,7 +8,7 @@
 //! - Mismatched parameter lengths (e.g., during batch verification),
 //! - Access to unassigned group variables in constraint systems.
 
-use alloc::string::String;
+use alloc::string::{String, ToString};
 
 // Publicly export the unassigned variable errors from this module.
 pub use crate::linear_relation::collections::{UnassignedGroupVarError, UnassignedScalarVarError};
