@@ -5,6 +5,7 @@ authors = [
     "Nugzari Uzoevi <nougzarm@icloud.com>",
     "Michele Orrù <m@orru.net>",
     "Ian Goldberg <iang@uwaterloo.ca>",
+    "Victor Snyder-Graf <victor@subgraf.dev>",
     "Lénaïck Gouriou <lg@leanear.io>"
 ]
 edition = "2021"
