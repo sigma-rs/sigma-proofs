@@ -64,14 +64,14 @@ impl<G: PrimeGroup> VariableMultiScalarMul for G {
     fn msm(scalars: &[Self::Scalar], bases: &[Self::Point]) -> Self {
         assert_eq!(scalars.len(), bases.len());
 
-        if scalars.is_empty() {
-            return Self::identity();
-        }
-
-        // NOTE: We use the naive implementation here as it is signficantly faster in practice for
-        // curve25519-dalek, which implements SIMD for scalar multiplication.
+        // NOTE: Based on the msm benchmark in this repo, msm_pippenger provides improvements over
+        // msm_naive past a small constant size, but is significantly slower for very small MSMs.
         // TODO: Support specialized MSM selection based on the group.
-        msm_naive(bases, scalars)
+        match scalars.len() {
+            0 => Self::identity(),
+            1..16 => msm_naive(bases, scalars),
+            16.. => msm_pippenger(bases, scalars),
+        }
     }
 }
 
@@ -82,7 +82,6 @@ fn msm_naive<G: PrimeGroup>(bases: &[G], scalars: &[G::Scalar]) -> G {
 
 /// An MSM implementation that employ's Pippenger's algorithm and works for all groups that
 /// implement `PrimeGroup`.
-#[expect(dead_code)]
 fn msm_pippenger<G: PrimeGroup>(bases: &[G], scalars: &[G::Scalar]) -> G {
     let c = ln_without_floats(scalars.len());
     let num_bits = <G::Scalar as PrimeField>::NUM_BITS as usize;
