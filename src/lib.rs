@@ -84,6 +84,7 @@ pub(crate) mod schnorr_protocol;
 pub mod tests;
 
 pub use fiat_shamir::Nizk;
+pub use group::msm::VariableMultiScalarMul;
 pub use linear_relation::LinearRelation;
 
 #[deprecated = "Use sigma_proofs::group::serialization instead"]
