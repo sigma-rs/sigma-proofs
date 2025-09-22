@@ -76,7 +76,7 @@ impl<G: PrimeGroup> VariableMultiScalarMul for G {
 
 /// A naive MSM implementation.
 fn msm_naive<G: PrimeGroup>(bases: &[G], scalars: &[G::Scalar]) -> G {
-    std::iter::zip(bases, scalars).map(|(g, x)| *g * x).sum()
+    core::iter::zip(bases, scalars).map(|(g, x)| *g * x).sum()
 }
 
 /// An MSM implementation that employ's Pippenger's algorithm and works for all groups that
