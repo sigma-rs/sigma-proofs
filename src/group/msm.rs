@@ -68,11 +68,22 @@ impl<G: PrimeGroup> VariableMultiScalarMul for G {
             return Self::identity();
         }
 
-        msm_internal(bases, scalars)
+        // NOTE: We use the naive implementation here as it is signficantly faster in practice for
+        // curve25519-dalek, which implements SIMD for scalar multiplication.
+        // TODO: Support specialized MSM selection based on the group.
+        msm_naive(bases, scalars)
     }
 }
 
-fn msm_internal<G: PrimeGroup>(bases: &[G], scalars: &[G::Scalar]) -> G {
+/// A naive MSM implementation.
+fn msm_naive<G: PrimeGroup>(bases: &[G], scalars: &[G::Scalar]) -> G {
+    std::iter::zip(bases, scalars).map(|(g, x)| *g * x).sum()
+}
+
+/// An MSM implementation that employ's Pippenger's algorithm and works for all groups that
+/// implement `PrimeGroup`.
+#[expect(dead_code)]
+fn msm_pippenger<G: PrimeGroup>(bases: &[G], scalars: &[G::Scalar]) -> G {
     let c = ln_without_floats(scalars.len());
     let num_bits = <G::Scalar as PrimeField>::NUM_BITS as usize;
     // split `num_bits` into steps of `c`, but skip window 0.
