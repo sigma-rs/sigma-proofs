@@ -66,7 +66,6 @@ impl<G: PrimeGroup> VariableMultiScalarMul for G {
 
         // NOTE: Based on the msm benchmark in this repo, msm_pippenger provides improvements over
         // msm_naive past a small constant size, but is significantly slower for very small MSMs.
-        // TODO: Support specialized MSM selection based on the group.
         match scalars.len() {
             0 => Self::identity(),
             1..16 => msm_naive(bases, scalars),
