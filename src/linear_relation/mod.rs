@@ -605,7 +605,7 @@ impl<G: PrimeGroup> LinearRelation<G> {
         // xxx. get a challenge from the original data.
         let batch_challenge = G::Scalar::from(424242);
 
-        let batch_challenges = powers(batch_challenge, self.image.len());
+        let batch_challenges = super::compressed::powers(batch_challenge, self.image.len());
 
         // Squash the image.
         let mut squashed_image_bases = self.image()?;
@@ -652,12 +652,4 @@ impl<G: PrimeGroup> LinearRelation<G> {
 
         Ok(squashed_lr)
     }
-}
-
-pub(crate) fn powers<F: Field>(element: F, len: usize) -> Vec<F> {
-    let mut powers = vec![F::ONE; len];
-    for i in 1..len {
-        powers[i] = element * powers[i - 1];
-    }
-    powers
 }
