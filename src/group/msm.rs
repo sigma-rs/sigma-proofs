@@ -27,11 +27,11 @@ const fn ln_without_floats(a: usize) -> usize {
 /// ```
 /// Implementations can override this with optimized algorithms for specific groups,
 /// while a default naive implementation is provided for all [`PrimeGroup`] types.
-pub trait VariableMultiScalarMul {
+pub trait VariableMultiScalarMul: Sized {
     /// The scalar field type associated with the group.
     type Scalar;
     /// The group element (point) type.
-    type Point;
+    type Point: PrimeGroup;
 
     /// Computes the multi-scalar multiplication (MSM) over the provided scalars and points.
     ///
@@ -44,7 +44,12 @@ pub trait VariableMultiScalarMul {
     ///
     /// # Panics
     /// Panics if `scalars.len() != bases.len()`.
-    fn msm(scalars: &[Self::Scalar], bases: &[Self::Point]) -> Self;
+    fn msm(scalars: &[Self::Scalar], bases: &[Self::Point]) -> Self {
+        assert_eq!(scalars.len(), bases.len());
+        Self::msm_unchecked(scalars, bases)
+    }
+
+    fn msm_unchecked(scalars: &[Self::Scalar], bases: &[Self::Point]) -> Self;
 }
 
 impl<G: PrimeGroup> VariableMultiScalarMul for G {
@@ -62,7 +67,7 @@ impl<G: PrimeGroup> VariableMultiScalarMul for G {
     /// # Panics
     /// Panics if `scalars.len() != bases.len()`.
     #[tracing::instrument(skip_all, fields(len = scalars.len()))]
-    fn msm(scalars: &[Self::Scalar], bases: &[Self::Point]) -> Self {
+    fn msm_unchecked(scalars: &[Self::Scalar], bases: &[Self::Point]) -> Self {
         assert_eq!(scalars.len(), bases.len());
 
         // NOTE: Based on the msm benchmark in this repo, msm_pippenger provides improvements over
