@@ -13,6 +13,7 @@ use std::collections::HashMap;
 use ff::Field;
 use group::prime::PrimeGroup;
 use subtle::{Choice, ConstantTimeEq};
+use tracing::instrument;
 
 use super::{GroupMap, GroupVar, LinearCombination, LinearRelation, ScalarTerm, ScalarVar};
 use crate::errors::{Error, InvalidInstance};
@@ -439,6 +440,7 @@ impl<G: PrimeGroup> TryFrom<LinearRelation<G>> for CanonicalLinearRelation<G> {
 impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
     type Error = InvalidInstance;
 
+    #[instrument(skip_all, fields(num_equations = relation.image.len(), num_scalars = relation.linear_map.num_scalars))]
     fn try_from(relation: &LinearRelation<G>) -> Result<Self, Self::Error> {
         if relation.image.len() != relation.linear_map.linear_combinations.len() {
             return Err(InvalidInstance::new(

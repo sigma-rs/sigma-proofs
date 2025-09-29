@@ -231,7 +231,7 @@ pub fn range_instance_generation<G: PrimeGroup, R: RngCore>(
     let var_C = instance.allocate_eq(var_x * var_G + var_r * var_H);
     // `var_Ds[i]` are bit commitments...
     for i in 1..bases.len() {
-        instance.append_equation(var_Ds[i], vars_b[i] * var_G + vars_s[i] * var_H);
+        instance.append_equation(var_Ds[i], vars_b[i] * var_G + vars_s[i - 1] * var_H);
         instance.append_equation(var_Ds[i], vars_b[i] * var_Ds[i] + var_s2[i] * var_H);
     }
     // ... satisfying that sum(Ds[i] * bases[i]) = C

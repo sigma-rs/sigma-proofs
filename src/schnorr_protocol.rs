@@ -18,6 +18,7 @@ use group::prime::PrimeGroup;
 use rand::{CryptoRng, Rng, RngCore};
 #[cfg(not(feature = "std"))]
 use rand_core::{CryptoRng, RngCore, RngCore as Rng};
+use tracing::instrument;
 
 impl<G: PrimeGroup> SigmaProtocol for CanonicalLinearRelation<G> {
     type Commitment = Vec<G>;
@@ -41,6 +42,7 @@ impl<G: PrimeGroup> SigmaProtocol for CanonicalLinearRelation<G> {
     ///
     /// -[`Error::InvalidInstanceWitnessPair`] if the witness vector length is less than the number of scalar variables.
     /// If the witness vector is larger, extra variables are ignored.
+    #[instrument(skip(self, witness, rng))]
     fn prover_commit(
         &self,
         witness: &Self::Witness,
@@ -82,6 +84,7 @@ impl<G: PrimeGroup> SigmaProtocol for CanonicalLinearRelation<G> {
     ///
     /// # Errors
     /// - Returns [`Error::InvalidInstanceWitnessPair`] if the prover state vectors have incorrect lengths.
+    #[instrument(skip(self, prover_state, challenge))]
     fn prover_response(
         &self,
         prover_state: Self::ProverState,
@@ -112,6 +115,7 @@ impl<G: PrimeGroup> SigmaProtocol for CanonicalLinearRelation<G> {
     /// -[`Error::VerificationFailure`] if the computed relation
     /// does not hold for the provided challenge and response, indicating proof invalidity.
     /// -[`Error::InvalidInstanceWitnessPair`] if the commitment or response length is incorrect.
+    #[instrument(skip_all)]
     fn verifier(
         &self,
         commitment: &Self::Commitment,

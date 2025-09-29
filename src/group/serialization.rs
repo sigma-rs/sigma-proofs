@@ -39,6 +39,7 @@ pub fn serialize_elements<G: PrimeGroup>(elements: &[G]) -> Vec<u8> {
 /// # Returns
 /// - `Some(Vec<G>)`: The deserialized group elements if all are valid.
 /// - `None`: If the byte slice length is incorrect or any element is invalid.
+#[tracing::instrument(skip_all, fields(count = count, data_len = data.len()))]
 pub fn deserialize_elements<G: PrimeGroup>(data: &[u8], count: usize) -> Option<Vec<G>> {
     let element_len = group_elt_serialized_len::<G>();
     let expected_len = count * element_len;
@@ -92,6 +93,7 @@ pub fn serialize_scalars<G: PrimeGroup>(scalars: &[G::Scalar]) -> Vec<u8> {
 /// # Returns
 /// - `Some(Vec<G::Scalar>)`: The deserialized scalars if all are valid.
 /// - `None`: If the byte slice length is incorrect or any scalar is invalid.
+#[tracing::instrument(skip_all, fields(count = count, data_len = data.len()))]
 pub fn deserialize_scalars<G: PrimeGroup>(data: &[u8], count: usize) -> Option<Vec<G::Scalar>> {
     #[allow(clippy::manual_div_ceil)]
     let scalar_len = (G::Scalar::NUM_BITS as usize + 7) / 8;

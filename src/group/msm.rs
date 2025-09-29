@@ -61,6 +61,7 @@ impl<G: PrimeGroup> VariableMultiScalarMul for G {
     ///
     /// # Panics
     /// Panics if `scalars.len() != bases.len()`.
+    #[tracing::instrument(skip_all, fields(len = scalars.len()))]
     fn msm(scalars: &[Self::Scalar], bases: &[Self::Point]) -> Self {
         assert_eq!(scalars.len(), bases.len());
 
@@ -75,12 +76,14 @@ impl<G: PrimeGroup> VariableMultiScalarMul for G {
 }
 
 /// A naive MSM implementation.
+#[tracing::instrument(skip_all, fields(len = bases.len()))]
 fn msm_naive<G: PrimeGroup>(bases: &[G], scalars: &[G::Scalar]) -> G {
     core::iter::zip(bases, scalars).map(|(g, x)| *g * x).sum()
 }
 
 /// An MSM implementation that employ's Pippenger's algorithm and works for all groups that
 /// implement `PrimeGroup`.
+#[tracing::instrument(skip_all, fields(len = bases.len()))]
 fn msm_pippenger<G: PrimeGroup>(bases: &[G], scalars: &[G::Scalar]) -> G {
     let c = ln_without_floats(scalars.len());
     let num_bits = <G::Scalar as PrimeField>::NUM_BITS as usize;
