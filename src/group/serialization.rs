@@ -118,3 +118,10 @@ pub fn deserialize_scalars<G: PrimeGroup>(data: &[u8], count: usize) -> Option<V
 
     Some(scalars)
 }
+
+// xxx adjust serialization for batch conversion but also for returning the length read
+pub(crate) fn read_elements<G: PrimeGroup>(data: &[u8], count: usize) -> Option<(Vec<G>, &[u8])> {
+    let element_len = group_elt_serialized_len::<G>();
+    let elements = deserialize_elements::<G>(data, count)?;
+    Some((elements, &data[count * element_len..]))
+}
