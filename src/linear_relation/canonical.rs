@@ -448,6 +448,7 @@ impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
             ));
         }
 
+        // let relation = &relation.squashed()?;
         let mut canonical = CanonicalLinearRelation::new();
         canonical.num_scalars = relation.linear_map.num_scalars;
 

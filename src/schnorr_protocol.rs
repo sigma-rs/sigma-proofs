@@ -115,7 +115,7 @@ impl<G: PrimeGroup> SigmaProtocol for CanonicalLinearRelation<G> {
     /// -[`Error::VerificationFailure`] if the computed relation
     /// does not hold for the provided challenge and response, indicating proof invalidity.
     /// -[`Error::InvalidInstanceWitnessPair`] if the commitment or response length is incorrect.
-    #[instrument(skip_all)]
+    #[instrument(fields(self.image.len = self.image.len(), self.num_scalars = self.num_scalars), skip(self, commitment, challenge, response))]
     fn verifier(
         &self,
         commitment: &Self::Commitment,
