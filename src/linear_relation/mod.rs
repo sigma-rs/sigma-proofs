@@ -599,4 +599,128 @@ impl<G: PrimeGroup> LinearRelation<G> {
     pub fn canonical(&self) -> Result<CanonicalLinearRelation<G>, InvalidInstance> {
         self.try_into()
     }
+
+    #[warn(unstable_features)]
+    pub fn squashed(&self) -> Result<LinearRelation<G>, InvalidInstance> {
+        // xxx. get a challenge from the original data.
+        let batch_challenge = G::Scalar::from(424242);
+
+        let batch_challenges = powers(batch_challenge, self.image.len());
+
+        // squash the image
+        let mut squashed_image_bases = self.image()?;
+        let mut squashed_image_scalars = batch_challenges.clone();
+
+        // squash the linear combination
+        let mut squashed_lc_bases = vec![G::identity(); self.linear_map.num_scalars];
+        let mut squashed_lc_scalars = vec![G::Scalar::ZERO; self.linear_map.num_scalars];
+
+        for (i, linear_combination) in self.linear_map.linear_combinations.iter().enumerate() {
+            for weighted_term in linear_combination.terms() {
+                let term_base = self
+                    .linear_map
+                    .group_elements
+                    .get(weighted_term.term.elem)?;
+
+                match weighted_term.term.scalar {
+                    ScalarTerm::Unit => {
+                        squashed_image_scalars.push(batch_challenges[i] * weighted_term.weight);
+                        squashed_image_bases.push(term_base);
+                    }
+                    ScalarTerm::Var(var) => {
+                        let scalar_index = var.index();
+                        squashed_lc_scalars[scalar_index] +=
+                            batch_challenges[i] * weighted_term.weight;
+                        squashed_lc_bases[scalar_index] = term_base;
+                    }
+                }
+            }
+        }
+
+        let squashed_image = G::msm(&squashed_image_scalars, &squashed_image_bases);
+        let squashed_lc = squashed_lc_bases
+            .into_iter()
+            .zip(squashed_lc_scalars)
+            .map(|(base, scalar)| base * scalar)
+            .collect::<Vec<_>>();
+
+        let mut squashed_lr = LinearRelation::new();
+        let scalar_vars = squashed_lr.allocate_scalars_vec(squashed_lc.len());
+        let group_vars = squashed_lr.allocate_elements_with(&squashed_lc);
+
+        let image_var = squashed_lr.allocate_eq(
+            group_vars
+                .into_iter()
+                .zip(scalar_vars)
+                .map(|(base, scalar_var)| scalar_var * base)
+                .sum::<Sum<_>>(),
+        );
+        squashed_lr.set_element(image_var, squashed_image);
+
+        Ok(squashed_lr)
+    }
+}
+
+pub(crate) fn powers<F: Field>(element: F, len: usize) -> Vec<F> {
+    let mut powers = vec![F::ONE; len];
+    for i in 1..len {
+        powers[i] = element * powers[i - 1];
+    }
+    powers
+}
+
+#[test]
+pub fn test_bbs_blind_commitment() {
+    type G = curve25519_dalek::ristretto::RistrettoPoint;
+    type Scalar = curve25519_dalek::scalar::Scalar;
+    let rng = &mut rand::rngs::OsRng;
+
+    let [Q_2, J_1, J_2, J_3] = [
+        G::random(&mut *rng),
+        G::random(&mut *rng),
+        G::random(&mut *rng),
+        G::random(&mut *rng),
+    ];
+    let [msg_1, msg_2, msg_3] = [
+        Scalar::random(&mut *rng),
+        Scalar::random(&mut *rng),
+        Scalar::random(&mut *rng),
+    ];
+    let secret_prover_blind = Scalar::random(&mut *rng);
+    let mut relation = LinearRelation::new();
+
+    // these are computed before the proof in the specification
+    let C = Q_2 * secret_prover_blind + J_1 * msg_1 + J_2 * msg_2 + J_3 * msg_3;
+
+    // This is the part that needs to be changed in the specification of blind bbs.
+    let [var_secret_prover_blind, var_msg_1, var_msg_2, var_msg_3] = relation.allocate_scalars();
+
+    // Match Sage's allocation order: allocate all elements in the same order
+    let [var_Q_2, var_J_1, var_J_2, var_J_3] = relation.allocate_elements();
+    let var_C = relation.allocate_element(); // Allocate var_C separately, giving it index 4
+
+    // Now append the equation separately (like Sage's append_equation)
+    relation.append_equation(
+        var_C,
+        var_secret_prover_blind * var_Q_2
+            + var_msg_1 * var_J_1
+            + var_msg_2 * var_J_2
+            + var_msg_3 * var_J_3,
+    );
+
+    relation.set_elements([
+        (var_Q_2, Q_2),
+        (var_J_1, J_1),
+        (var_J_2, J_2),
+        (var_J_3, J_3),
+        (var_C, C),
+    ]);
+
+    let witness = vec![secret_prover_blind, msg_1, msg_2, msg_3];
+
+    assert!(vec![C] == relation.linear_map.evaluate(&witness).unwrap());
+
+    let nizk = relation.squashed().unwrap().into_nizk(b"").unwrap();
+    let proof = nizk.prove_batchable(&witness, &mut *rng).unwrap();
+    assert!(nizk.verify_batchable(&proof).is_ok());
 }
