@@ -28,6 +28,7 @@ type Transcript<P> = (
     <P as SigmaProtocol>::Response,
 );
 
+#[allow(unused)]
 type MultiRoundTranscript<P> = (
     Vec<<P as InteractiveProof>::ProverMessage>,
     Vec<<P as InteractiveProof>::Challenge>,
@@ -310,6 +311,7 @@ where
     }
 }
 
+#[allow(unused)]
 pub struct MultiRoundNizk<P, C>
 where
     P: InteractiveProof,
@@ -322,6 +324,7 @@ where
     pub interactive_proof: P,
 }
 
+#[allow(unused)]
 impl<P, C> MultiRoundNizk<P, C>
 where
     P: InteractiveProof,

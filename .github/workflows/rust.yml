@@ -25,6 +25,9 @@ jobs:
       run: cargo build --verbose
     - name: Run tests
       run: cargo test --verbose
+    - name: Run benchmark test
+      # Run the msm benchmark, just to ensure it isn't broken.
+      run: cargo bench --bench msm -- --quick
 
   no-std-check:
     runs-on: ubuntu-latest

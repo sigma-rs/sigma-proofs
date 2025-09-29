@@ -67,11 +67,26 @@ impl<G: PrimeGroup> VariableMultiScalarMul for G {
     /// # Panics
     /// Panics if `scalars.len() != bases.len()`.
     fn msm_unchecked(scalars: &[Self::Scalar], bases: &[Self::Point]) -> Self {
-        msm_internal(bases, scalars)
+        assert_eq!(scalars.len(), bases.len());
+
+        // NOTE: Based on the msm benchmark in this repo, msm_pippenger provides improvements over
+        // msm_naive past a small constant size, but is significantly slower for very small MSMs.
+        match scalars.len() {
+            0 => Self::identity(),
+            1..16 => msm_naive(bases, scalars),
+            16.. => msm_pippenger(bases, scalars),
+        }
     }
 }
 
-fn msm_internal<G: PrimeGroup>(bases: &[G], scalars: &[G::Scalar]) -> G {
+/// A naive MSM implementation.
+fn msm_naive<G: PrimeGroup>(bases: &[G], scalars: &[G::Scalar]) -> G {
+    core::iter::zip(bases, scalars).map(|(g, x)| *g * x).sum()
+}
+
+/// An MSM implementation that employ's Pippenger's algorithm and works for all groups that
+/// implement `PrimeGroup`.
+fn msm_pippenger<G: PrimeGroup>(bases: &[G], scalars: &[G::Scalar]) -> G {
     let c = ln_without_floats(scalars.len());
     let num_bits = <G::Scalar as PrimeField>::NUM_BITS as usize;
     // split `num_bits` into steps of `c`, but skip window 0.
