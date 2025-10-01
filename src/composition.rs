@@ -28,6 +28,7 @@ use rand_core::{CryptoRng, RngCore as Rng};
 use sha3::{Digest, Sha3_256};
 use subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
 
+use crate::codec::Codec;
 use crate::errors::InvalidInstance;
 use crate::group::serialization::{deserialize_scalars, serialize_scalars};
 use crate::linear_relation::ScalarVar;
@@ -250,7 +251,10 @@ const fn composed_challenge_size<G: PrimeGroup>() -> usize {
     (G::Scalar::NUM_BITS as usize).div_ceil(8)
 }
 
-impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<G> {
+impl<G: PrimeGroup> ComposedRelation<G>
+where
+    Self: SigmaProtocol,
+{
     /// Convert this Protocol into a non-interactive zero-knowledge proof
     /// using the Shake128DuplexSponge codec and a specified session identifier.
     ///
@@ -262,13 +266,15 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<
     ///
     /// # Returns
     /// A `Nizk` instance ready for proving and verification
-    pub fn into_nizk(
-        self,
-        session_identifier: &[u8],
-    ) -> Nizk<ComposedRelation<G>, Shake128DuplexSponge<G>> {
+    pub fn into_nizk(self, session_identifier: &[u8]) -> Nizk<Self, Shake128DuplexSponge<G>>
+    where
+        Shake128DuplexSponge<G>: Codec<Challenge = <Self as SigmaProtocol>::Challenge>,
+    {
         Nizk::new(session_identifier, self)
     }
+}
 
+impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<G> {
     fn is_witness_valid(&self, witness: &ComposedWitness<G>) -> Choice {
         match (self, witness) {
             (ComposedRelation::Simple(instance), ComposedWitness::Simple(witness)) => {

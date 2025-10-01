@@ -40,12 +40,7 @@ type Transcript<P> = (
 /// - `P`: the Sigma protocol implementation.
 /// - `C`: the codec used for Fiat-Shamir.
 #[derive(Debug)]
-pub struct Nizk<P, C>
-where
-    P: SigmaProtocol,
-    P::Challenge: PartialEq,
-    C: Codec<Challenge = P::Challenge>,
-{
+pub struct Nizk<P, C> {
     /// Current codec state.
     pub hash_state: C,
     /// Underlying interactive proof.
@@ -55,14 +50,14 @@ where
 impl<P, C> Nizk<P, C>
 where
     P: SigmaProtocol,
-    P::Challenge: PartialEq,
-    C: Codec<Challenge = P::Challenge> + Clone,
+    C: Codec<Challenge = P::Challenge>,
 {
     /// Constructs a new [`Nizk`] instance.
     ///
     /// # Parameters
-    /// - `iv`: Domain separation tag for the hash function (e.g., protocol name or context).
-    /// - `instance`: An instance of the interactive Sigma protocol.
+    /// - `session_identifier`: Domain separation tag for the protocol session (e.g. the name of
+    ///   the application such as "private_wallet_protocol"). Should be globally unique.
+    /// - `interactive_proof`: An instance of the interactive Sigma protocol.
     ///
     /// # Returns
     /// A new [`Nizk`] that can generate and verify non-interactive proofs.
@@ -78,6 +73,8 @@ where
         }
     }
 
+    /// Construct a new [`Nizk`] instance with the hash state instantiated from the given
+    /// initialization vector (IV).
     pub fn from_iv(iv: [u8; 64], interactive_proof: P) -> Self {
         let hash_state = C::from_iv(iv);
         Self {
@@ -85,7 +82,14 @@ where
             interactive_proof,
         }
     }
+}
 
+impl<P, C> Nizk<P, C>
+where
+    P: SigmaProtocol,
+    P::Challenge: PartialEq,
+    C: Codec<Challenge = P::Challenge> + Clone,
+{
     /// Generates a non-interactive proof for a witness.
     ///
     /// Executes the interactive protocol steps (commit, derive challenge via hash, respond),
