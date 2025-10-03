@@ -461,8 +461,6 @@ fn nested_affine_relation<G: PrimeGroup, R: RngCore>(
     (instance, witness)
 }
 
-
-
 fn pedersen_commitment_equality<G: PrimeGroup, R: RngCore>(
     rng: &mut R,
 ) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
@@ -474,17 +472,18 @@ fn pedersen_commitment_equality<G: PrimeGroup, R: RngCore>(
     instance.allocate_eq(var_G * m + var_H * r1);
     instance.allocate_eq(var_G * m + var_H * r2);
 
-    instance.set_elements([
-        (var_G, G::generator()),
-        (var_H, G::random(&mut *rng)),
-    ]);
+    instance.set_elements([(var_G, G::generator()), (var_H, G::random(&mut *rng))]);
 
-    let witness = vec![G::Scalar::from(42), G::Scalar::random(&mut *rng), G::Scalar::random(&mut *rng)];
+    let witness = vec![
+        G::Scalar::from(42),
+        G::Scalar::random(&mut *rng),
+        G::Scalar::random(&mut *rng),
+    ];
     instance.compute_image(&witness).unwrap();
 
     (instance.canonical().unwrap(), witness)
-
 }
+
 #[test]
 fn test_cmz_wallet_with_fee() {
     use group::Group;
