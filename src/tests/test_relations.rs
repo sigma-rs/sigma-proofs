@@ -484,6 +484,33 @@ fn pedersen_commitment_equality<G: PrimeGroup, R: RngCore>(
     (instance.canonical().unwrap(), witness)
 }
 
+fn elgamal_subtraction<G: PrimeGroup, R: RngCore>(
+    rng: &mut R,
+) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
+    let mut instance = LinearRelation::new();
+    let [dk, a, r] = instance.allocate_scalars();
+    let [ek, C, D, H, G] = instance.allocate_elements();
+    let v = G::Scalar::from(100);
+
+    instance.append_equation(ek, dk * H );
+
+    instance.append_equation(D, r * H);
+    instance.append_equation(C, r * ek + a * G);
+
+    instance.append_equation(C, G * v + dk * D + a * G);
+
+    // set dk for testing to
+    let witness = vec![G::Scalar::from(4242), G::Scalar::from(1000), G::Scalar::random(&mut *rng)];
+    let alt_gen = G::random(&mut *rng);
+    instance.set_elements([
+        (G, G::generator()),
+        (H, alt_gen),
+    ]);
+    instance.compute_image(&witness).unwrap();
+
+    (instance.canonical().unwrap(), witness)
+}
+
 #[test]
 fn test_cmz_wallet_with_fee() {
     use group::Group;
@@ -550,6 +577,7 @@ fn test_relations() {
         ("subtractions_with_shift", &subtractions_with_shift),
         ("cmz_wallet_spend_relation", &cmz_wallet_spend_relation),
         ("nested_affine_relation", &nested_affine_relation),
+        ("elgamal_public_subtract", &elgamal_subtraction)
     ];
 
     for (relation_name, relation_sampler) in instance_generators.iter() {
