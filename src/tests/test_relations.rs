@@ -162,43 +162,6 @@ pub fn twisted_pedersen_commitment<G: PrimeGroup, R: RngCore>(
     (instance, witness)
 }
 
-/// LinearMap for knowledge of equal openings to two distinct Pedersen commitments.
-#[allow(non_snake_case)]
-pub fn pedersen_commitment_dleq<G: PrimeGroup, R: RngCore>(
-    rng: &mut R,
-) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
-    let generators = [
-        G::random(&mut *rng),
-        G::random(&mut *rng),
-        G::random(&mut *rng),
-        G::random(&mut *rng),
-    ];
-    let witness = [G::Scalar::random(&mut *rng), G::Scalar::random(&mut *rng)];
-    let mut relation = LinearRelation::new();
-
-    let X = G::msm(&witness, &[generators[0], generators[1]]);
-    let Y = G::msm(&witness, &[generators[2], generators[3]]);
-
-    let [var_x, var_r] = relation.allocate_scalars();
-
-    let var_Gs = relation.allocate_elements::<4>();
-    let var_X = relation.allocate_eq(var_x * var_Gs[0] + var_r * var_Gs[1]);
-    let var_Y = relation.allocate_eq(var_x * var_Gs[2] + var_r * var_Gs[3]);
-
-    relation.set_elements([
-        (var_Gs[0], generators[0]),
-        (var_Gs[1], generators[1]),
-        (var_Gs[2], generators[2]),
-        (var_Gs[3], generators[3]),
-    ]);
-    relation.set_elements([(var_X, X), (var_Y, Y)]);
-
-    assert!(vec![X, Y] == relation.linear_map.evaluate(&witness).unwrap());
-    let witness_vec = witness.to_vec();
-    let instance = (&relation).try_into().unwrap();
-    (instance, witness_vec)
-}
-
 /// Test that a Pedersen commitment is in the given range.
 #[allow(non_snake_case)]
 pub fn range_instance_generation<G: PrimeGroup, R: RngCore>(
@@ -498,6 +461,30 @@ fn nested_affine_relation<G: PrimeGroup, R: RngCore>(
     (instance, witness)
 }
 
+
+
+fn pedersen_commitment_equality<G: PrimeGroup, R: RngCore>(
+    rng: &mut R,
+) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
+    let mut instance = LinearRelation::new();
+
+    let [m, r1, r2] = instance.allocate_scalars();
+    let [var_G, var_H] = instance.allocate_elements();
+    // This relation is redundant and inefficient.
+    instance.allocate_eq(var_G * m + var_H * r1);
+    instance.allocate_eq(var_G * m + var_H * r2);
+
+    instance.set_elements([
+        (var_G, G::generator()),
+        (var_H, G::random(&mut *rng)),
+    ]);
+
+    let witness = vec![G::Scalar::from(42), G::Scalar::random(&mut *rng), G::Scalar::random(&mut *rng)];
+    instance.compute_image(&witness).unwrap();
+
+    (instance.canonical().unwrap(), witness)
+
+}
 #[test]
 fn test_cmz_wallet_with_fee() {
     use group::Group;
@@ -556,7 +543,7 @@ fn test_relations() {
         ("shifted_dleq", &shifted_dleq),
         ("pedersen_commitment", &pedersen_commitment),
         ("twisted_pedersen_commitment", &twisted_pedersen_commitment),
-        ("pedersen_commitment_dleq", &pedersen_commitment_dleq),
+        ("pedersen_commitment_dleq", &pedersen_commitment_equality),
         ("bbs_blind_commitment", &bbs_blind_commitment),
         ("test_range", &test_range),
         ("weird_linear_combination", &weird_linear_combination),
