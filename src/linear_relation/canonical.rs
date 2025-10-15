@@ -135,7 +135,7 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
                 let group_var = weighted_term.term.elem;
                 let weight = &weighted_term.weight;
 
-                if weight.is_zero().into() {
+                if weight.is_zero_vartime() {
                     continue; // Skip zero weights
                 }
 
