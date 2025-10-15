@@ -460,23 +460,23 @@ impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
             // If any group element in the image is not assigned, return `InvalidInstance`.
             let lhs_value = relation.linear_map.group_elements.get(*lhs)?;
 
-            // If any group element in the linear constraints is not assigned, return `InvalidInstance`.
-            let rhs_elements = rhs
-                .0
-                .iter()
-                .map(|weighted| relation.linear_map.group_elements.get(weighted.term.elem))
-                .collect::<Result<Vec<G>, _>>()?;
-
             // Compute the constant terms on the right-hand side of the equation.
-            let rhs_constants = rhs
+            // If any group element in the linear constraints is not assigned, return `InvalidInstance`.
+            // TODO: This is changed in that it will not error if a non-constant term's elem is not
+            // assigned. An error should occur later though if this is the case. Am I happy with
+            // this?
+            let rhs_constant_terms = rhs
                 .0
                 .iter()
-                .map(|element| match element.term.scalar {
-                    ScalarTerm::Unit => element.weight,
-                    _ => G::Scalar::ZERO,
+                .filter(|term| matches!(term.term.scalar, ScalarTerm::Unit))
+                .map(|term| {
+                    let elem = relation.linear_map.group_elements.get(term.term.elem)?;
+                    let scalar = term.weight;
+                    Ok((elem, scalar))
                 })
-                .collect::<Vec<_>>();
-            let rhs_constant_term = G::msm(&rhs_constants, &rhs_elements);
+                .collect::<Result<(Vec<G>, Vec<G::Scalar>), _>>()?;
+
+            let rhs_constant_term = G::msm(&rhs_constant_terms.1, &rhs_constant_terms.0);
 
             // We say that an equation is trivial if it contains no scalar variables.
             // To "contain no scalar variables" means that each term in the right-hand side is a unit or its weight is zero.
