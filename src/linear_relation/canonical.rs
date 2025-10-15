@@ -107,8 +107,12 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
         }
 
         // Create new weighted group element
+        // Use a special case for one, as this is the most common weight.
         let original_group_val = original_group_elements.get(group_var)?;
-        let weighted_group = original_group_val * weight;
+        let weighted_group = match *weight == G::Scalar::ONE {
+            true => original_group_val,
+            false => original_group_val * weight,
+        };
 
         // Add to our group elements with new index (length)
         let new_var = self.group_elements.push(weighted_group);
