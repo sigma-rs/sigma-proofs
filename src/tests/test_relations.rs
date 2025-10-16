@@ -6,8 +6,6 @@ use crate::codec::Shake128DuplexSponge;
 use crate::fiat_shamir::Nizk;
 use crate::linear_relation::{CanonicalLinearRelation, LinearRelation, Sum};
 
-use crate::group::msm::VariableMultiScalarMul;
-
 /// LinearMap for knowledge of a discrete logarithm relative to a fixed basepoint.
 #[allow(non_snake_case)]
 pub fn discrete_logarithm<G: PrimeGroup, R: rand::RngCore>(
@@ -492,7 +490,7 @@ fn elgamal_subtraction<G: PrimeGroup, R: RngCore>(
     let [ek, C, D, H, G] = instance.allocate_elements();
     let v = G::Scalar::from(100);
 
-    instance.append_equation(ek, dk * H );
+    instance.append_equation(ek, dk * H);
 
     instance.append_equation(D, r * H);
     instance.append_equation(C, r * ek + a * G);
@@ -500,12 +498,13 @@ fn elgamal_subtraction<G: PrimeGroup, R: RngCore>(
     instance.append_equation(C, G * v + dk * D + a * G);
 
     // set dk for testing to
-    let witness = vec![G::Scalar::from(4242), G::Scalar::from(1000), G::Scalar::random(&mut *rng)];
+    let witness = vec![
+        G::Scalar::from(4242),
+        G::Scalar::from(1000),
+        G::Scalar::random(&mut *rng),
+    ];
     let alt_gen = G::random(&mut *rng);
-    instance.set_elements([
-        (G, G::generator()),
-        (H, alt_gen),
-    ]);
+    instance.set_elements([(G, G::generator()), (H, alt_gen)]);
     instance.compute_image(&witness).unwrap();
 
     (instance.canonical().unwrap(), witness)
@@ -577,7 +576,7 @@ fn test_relations() {
         ("subtractions_with_shift", &subtractions_with_shift),
         ("cmz_wallet_spend_relation", &cmz_wallet_spend_relation),
         ("nested_affine_relation", &nested_affine_relation),
-        ("elgamal_public_subtract", &elgamal_subtraction)
+        ("elgamal_public_subtract", &elgamal_subtraction),
     ];
 
     for (relation_name, relation_sampler) in instance_generators.iter() {
