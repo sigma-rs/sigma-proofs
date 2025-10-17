@@ -444,9 +444,6 @@ impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
 
             // Compute the constant terms on the right-hand side of the equation.
             // If any group element in the linear constraints is not assigned, return `InvalidInstance`.
-            // TODO: This is changed in that it will not error if a non-constant term's elem is not
-            // assigned. An error should occur later though if this is the case. Am I happy with
-            // this?
             let rhs_constant_terms = rhs
                 .0
                 .iter()
