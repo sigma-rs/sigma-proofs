@@ -230,11 +230,14 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
         }
 
         // Dump the group elements.
-        serialize_elements(
+        let group_reprs = serialize_elements(
             self.group_elements
                 .iter()
                 .map(|(_, elem)| elem.expect("expected group variable to be assigned")),
-        )
+        );
+        out.extend_from_slice(&group_reprs);
+
+        out
     }
 
     /// Parse a canonical linear relation from its label representation.
