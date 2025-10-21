@@ -401,7 +401,7 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
 
     /// Access the group elements associated with the image (i.e. left-hand side), panicking if any
     /// of the image variables are unassigned in the group mkap.
-    pub(crate) fn image_elems(&self) -> impl Iterator<Item = G> + use<'_, G> {
+    pub(crate) fn image_elements(&self) -> impl Iterator<Item = G> + use<'_, G> {
         self.image.iter().map(|var| {
             self.group_elements
                 .get(*var)
@@ -495,7 +495,7 @@ impl<G: PrimeGroup + ConstantTimeEq> CanonicalLinearRelation<G> {
     /// If the number of scalars is more than the number of scalar variables, the extra elements are ignored.
     pub fn is_witness_valid(&self, witness: &[G::Scalar]) -> Choice {
         let got = self.evaluate(witness);
-        self.image_elems()
+        self.image_elements()
             .zip(got)
             .fold(Choice::from(1), |acc, (lhs, rhs)| acc & lhs.ct_eq(&rhs))
     }

@@ -54,7 +54,7 @@ impl<G: PrimeGroup> SigmaProtocol for CanonicalLinearRelation<G> {
         // If the image is the identity, then the relation must be
         // trivial, or else the proof will be unsound
         if self
-            .image_elems()
+            .image_elements()
             .zip(self.linear_combinations.iter())
             .any(|(x, c)| x == G::identity() && !c.is_empty())
         {
@@ -123,7 +123,7 @@ impl<G: PrimeGroup> SigmaProtocol for CanonicalLinearRelation<G> {
 
         let lhs = self.evaluate(response);
         let mut rhs = Vec::new();
-        for (img, g) in self.image_elems().zip(commitment) {
+        for (img, g) in self.image_elements().zip(commitment) {
             rhs.push(img * challenge + g);
         }
         if lhs == rhs {
@@ -297,7 +297,7 @@ where
         let response_image = self.evaluate(response);
         let commitment = response_image
             .iter()
-            .zip(self.image_elems())
+            .zip(self.image_elements())
             .map(|(res, img)| *res - img * challenge)
             .collect::<Vec<_>>();
         Ok(commitment)
