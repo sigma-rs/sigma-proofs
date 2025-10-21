@@ -16,6 +16,7 @@ use subtle::{Choice, ConstantTimeEq};
 use super::{GroupMap, GroupVar, LinearCombination, LinearRelation, ScalarTerm, ScalarVar};
 use crate::errors::{Error, InvalidInstance};
 use crate::group::msm::VariableMultiScalarMul;
+use crate::serialization::serialize_elements;
 
 // XXX. this definition is uncomfortably similar to LinearRelation, exception made for the weights.
 // It'd be nice to better compress potentially duplicated code.
@@ -229,15 +230,11 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
         }
 
         // Dump the group elements.
-        for (_, elem) in self.group_elements.iter() {
-            out.extend_from_slice(
-                elem.expect("expected group variable to be assigned")
-                    .to_bytes()
-                    .as_ref(),
-            );
-        }
-
-        out
+        serialize_elements(
+            self.group_elements
+                .iter()
+                .map(|(_, elem)| elem.expect("expected group variable to be assigned")),
+        )
     }
 
     /// Parse a canonical linear relation from its label representation.
