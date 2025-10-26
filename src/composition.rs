@@ -18,6 +18,8 @@
 //! )
 //! ```
 
+use std::io::Read;
+
 use alloc::vec::Vec;
 use ff::{Field, PrimeField};
 use group::prime::PrimeGroup;
@@ -25,6 +27,7 @@ use group::prime::PrimeGroup;
 use rand::{CryptoRng, Rng};
 #[cfg(not(feature = "std"))]
 use rand_core::{CryptoRng, RngCore as Rng};
+use sha3::digest::ExtendableOutput;
 use sha3::{Digest, Sha3_256};
 use subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
 
@@ -477,7 +480,7 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> SigmaProtocol
 
     fn verifier(
         &self,
-        commitment: &Self::Commitment,
+        commitment: &[Self::Commitment],
         challenge: &Self::Challenge,
         response: &Self::Response,
     ) -> Result<(), Error> {
@@ -556,8 +559,8 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> SigmaProtocol
         }
     }
 
-    fn protocol_identifier(&self) -> impl AsRef<[u8]> {
-        let mut hasher = Sha3_256::new();
+    fn protocol_identifier(&self) -> [u8; 64] {
+        let mut hasher = sha3::TurboShake128::default();
 
         match self {
             ComposedRelation::Simple(p) => {
@@ -566,14 +569,12 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> SigmaProtocol
                 hasher.update(p.protocol_identifier());
             }
             ComposedRelation::And(protocols) => {
-                let mut hasher = Sha3_256::new();
                 hasher.update([1u8; 32]);
                 for p in protocols {
                     hasher.update(p.protocol_identifier());
                 }
             }
             ComposedRelation::Or(protocols) => {
-                let mut hasher = Sha3_256::new();
                 hasher.update([2u8; 32]);
                 for p in protocols {
                     hasher.update(p.protocol_identifier());
@@ -581,7 +582,7 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> SigmaProtocol
             }
         }
 
-        hasher.finalize()
+        hasher.finalize_xof().take(64).try_into().unwrap()
     }
 
     fn serialize_response(&self, response: &Self::Response) -> Vec<u8> {

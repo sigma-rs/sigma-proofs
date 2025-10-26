@@ -25,9 +25,6 @@ pub trait Codec {
     /// Generates an empty codec that can be identified by a domain separator.
     fn new(protocol_identifier: &[u8], session_identifier: &[u8], instance_label: &[u8]) -> Self;
 
-    /// Allows for precomputed initialization of the codec with a specific IV.
-    fn from_iv(iv: [u8; 64]) -> Self;
-
     /// Absorbs data into the codec.
     fn prover_message(&mut self, data: &[u8]);
 
@@ -86,16 +83,8 @@ where
 {
     type Challenge = G::Scalar;
 
-    fn new(protocol_id: &[u8], session_id: &[u8], instance_label: &[u8]) -> Self {
-        let iv = compute_iv::<H>(protocol_id, session_id, instance_label);
-        Self::from_iv(iv)
-    }
-
-    fn from_iv(iv: [u8; 64]) -> Self {
-        Self {
-            hasher: H::new(iv),
-            _marker: core::marker::PhantomData,
-        }
+    fn new(_protocol_id: &[u8], _session_id: &[u8], _instance_label: &[u8]) -> Self {
+        todo!()
     }
 
     fn prover_message(&mut self, data: &[u8]) {

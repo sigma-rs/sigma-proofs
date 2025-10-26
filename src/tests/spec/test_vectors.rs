@@ -3,12 +3,11 @@ use hex::FromHex;
 use json::JsonValue;
 use std::collections::HashMap;
 
-use crate::codec::KeccakByteSchnorrCodec;
 use crate::fiat_shamir::Nizk;
 use crate::linear_relation::CanonicalLinearRelation;
 use crate::tests::spec::{custom_schnorr_protocol::DeterministicSchnorrProof, rng::TestDRNG};
 
-type SchnorrNizk = Nizk<DeterministicSchnorrProof<G>, KeccakByteSchnorrCodec<G>>;
+type SchnorrNizk = Nizk<DeterministicSchnorrProof<G>>;
 
 #[derive(Debug)]
 struct TestVector {
