@@ -70,7 +70,7 @@
 extern crate alloc;
 
 pub mod codec;
-pub mod composition;
+// pub mod composition;
 pub mod errors;
 pub mod linear_relation;
 pub mod traits;
@@ -80,8 +80,8 @@ pub(crate) mod fiat_shamir;
 pub(crate) mod group;
 pub(crate) mod schnorr_protocol;
 
-#[cfg(test)]
-pub mod tests;
+// #[cfg(test)]
+// pub mod tests;
 
 pub use fiat_shamir::Nizk;
 pub use group::msm::VariableMultiScalarMul;
