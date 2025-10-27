@@ -1,6 +1,5 @@
 #[cfg(not(feature = "std"))]
 use ahash::RandomState;
-use alloc::boxed::Box;
 use alloc::format;
 use alloc::vec::Vec;
 use core::iter;
@@ -19,6 +18,7 @@ use super::{
 };
 use crate::errors::{Error, InvalidInstance};
 use crate::group::msm::VariableMultiScalarMul;
+use crate::serialization::serialize_elements;
 
 // XXX. this definition is uncomfortably similar to LinearRelation, exception made for the weights.
 // It'd be nice to better compress potentially duplicated code.
@@ -30,7 +30,7 @@ use crate::group::msm::VariableMultiScalarMul;
 #[derive(Clone, Debug, Default)]
 pub struct CanonicalLinearRelation<G: PrimeGroup> {
     /// The image group elements (left-hand side of equations)
-    pub image: Vec<G>,
+    pub image: Vec<GroupVar<G>>,
     /// The constraints, where each constraint is a vector of (scalar_var, group_var) pairs
     /// representing the right-hand side of the equation
     pub linear_combinations: Vec<Vec<(ScalarVar<G>, GroupVar<G>)>>,
@@ -115,8 +115,12 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
         }
 
         // Create new weighted group element
+        // Use a special case for one, as this is the most common weight.
         let original_group_val = original_group_elements.get(group_var)?;
-        let weighted_group = original_group_val * weight;
+        let weighted_group = match *weight == G::Scalar::ONE {
+            true => original_group_val,
+            false => original_group_val * weight,
+        };
 
         // Add to our group elements with new index (length)
         let new_var = self.group_elements.insert(weighted_group);
@@ -143,7 +147,7 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
                 let group_var = weighted_term.term.elem;
                 let weight = &weighted_term.weight;
 
-                if weight.is_zero().into() {
+                if weight.is_zero_vartime() {
                     continue; // Skip zero weights
                 }
 
@@ -180,7 +184,8 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
             ));
         }
 
-        self.image.push(canonical_image);
+        let canonical_image_group_var = self.group_elements.push(canonical_image);
+        self.image.push(canonical_image_group_var);
         self.linear_combinations.push(rhs_terms);
 
         Ok(())
@@ -199,52 +204,18 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
     pub fn label(&self) -> Vec<u8> {
         let mut out = Vec::new();
 
-        // Create an ordered list of unique group element representations. Elements are ordered
-        // based on the order they appear in the canonical linear relation, as seen by the loop
-        // below.
-        // Order in this list is expected to be stable and lead to the same vector string.
-        // However, relations built using TryFrom<LinearRelation> are NOT guaranteed to lead
-        // to the same ordering of elements across versions of this library.
-        // Changes to LinearRelation may have unpredictable effects on how this label is built.
-        #[cfg(feature = "std")]
-        let mut group_repr_mapping: HashMap<Box<[u8]>, u32> = HashMap::new();
-        #[cfg(not(feature = "std"))]
-        let mut group_repr_mapping: HashMap<Box<[u8]>, u32, RandomState> =
-            HashMap::with_hasher(RandomState::new());
-        let mut group_elements_ordered = Vec::new();
-
-        // Helper function to get or create index for a group element representation
-        let mut repr_index = |elem_repr: G::Repr| -> u32 {
-            if let Some(&index) = group_repr_mapping.get(elem_repr.as_ref()) {
-                return index;
-            }
-
-            let new_index = group_elements_ordered.len() as u32;
-            group_elements_ordered.push(elem_repr);
-            group_repr_mapping.insert(elem_repr.as_ref().into(), new_index);
-            new_index
-        };
-
         // Build constraint data in the same order as original, as a nested list of group and
         // scalar indices. Note that the group indices are into group_elements_ordered.
         let mut constraint_data = Vec::<(u32, Vec<(u32, u32)>)>::new();
 
-        for (image_elem, constraint_terms) in iter::zip(&self.image, &self.linear_combinations) {
-            // First, add the left-hand side (image) element
-            let lhs_index = repr_index(image_elem.to_bytes());
-
+        for (image_var, constraint_terms) in iter::zip(&self.image, &self.linear_combinations) {
             // Build the RHS terms
             let mut rhs_terms = Vec::new();
             for (scalar_var, group_var) in constraint_terms {
-                let group_elem = self
-                    .group_elements
-                    .get(*group_var)
-                    .expect("Group element not found");
-                let group_index = repr_index(group_elem.to_bytes());
-                rhs_terms.push((scalar_var.0 as u32, group_index));
+                rhs_terms.push((scalar_var.0 as u32, group_var.0 as u32));
             }
 
-            constraint_data.push((lhs_index, rhs_terms));
+            constraint_data.push((image_var.0 as u32, rhs_terms));
         }
 
         // 1. Number of equations
@@ -266,10 +237,13 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
             }
         }
 
-        // Dump the group elements in the order they were first encountered
-        for elem_repr in group_elements_ordered {
-            out.extend_from_slice(elem_repr.as_ref());
-        }
+        // Dump the group elements.
+        let group_reprs = serialize_elements(
+            self.group_elements
+                .iter()
+                .map(|(_, elem)| elem.expect("expected group variable to be assigned")),
+        );
+        out.extend_from_slice(&group_reprs);
 
         out
     }
@@ -418,9 +392,7 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
         // Build constraints
         for (lhs_index, rhs_terms) in constraint_data {
             // Add image element
-            canonical
-                .image
-                .push(group_elements_ordered[lhs_index as usize]);
+            canonical.image.push(group_var_map[lhs_index as usize]);
 
             // Build linear combination
             let mut linear_combination = Vec::new();
@@ -433,6 +405,16 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
         }
 
         Ok(canonical)
+    }
+
+    /// Access the group elements associated with the image (i.e. left-hand side), panicking if any
+    /// of the image variables are unassigned in the group mkap.
+    pub(crate) fn image_elements(&self) -> impl Iterator<Item = G> + use<'_, G> {
+        self.image.iter().map(|var| {
+            self.group_elements
+                .get(*var)
+                .expect("expected group variable to be assigned")
+        })
     }
 }
 
@@ -468,23 +450,20 @@ impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
             // If any group element in the image is not assigned, return `InvalidInstance`.
             let lhs_value = relation.linear_map.group_elements.get(*lhs)?;
 
-            // If any group element in the linear constraints is not assigned, return `InvalidInstance`.
-            let rhs_elements = rhs
-                .0
-                .iter()
-                .map(|weighted| relation.linear_map.group_elements.get(weighted.term.elem))
-                .collect::<Result<Vec<G>, _>>()?;
-
             // Compute the constant terms on the right-hand side of the equation.
-            let rhs_constants = rhs
+            // If any group element in the linear constraints is not assigned, return `InvalidInstance`.
+            let rhs_constant_terms = rhs
                 .0
                 .iter()
-                .map(|element| match element.term.scalar {
-                    ScalarTerm::Unit => element.weight,
-                    _ => G::Scalar::ZERO,
+                .filter(|term| matches!(term.term.scalar, ScalarTerm::Unit))
+                .map(|term| {
+                    let elem = relation.linear_map.group_elements.get(term.term.elem)?;
+                    let scalar = term.weight;
+                    Ok((elem, scalar))
                 })
-                .collect::<Vec<_>>();
-            let rhs_constant_term = G::msm(&rhs_constants, &rhs_elements);
+                .collect::<Result<(Vec<G>, Vec<G::Scalar>), _>>()?;
+
+            let rhs_constant_term = G::msm(&rhs_constant_terms.1, &rhs_constant_terms.0);
 
             // We say that an equation is trivial if it contains no scalar variables.
             // To "contain no scalar variables" means that each term in the right-hand side is a unit or its weight is zero.
@@ -524,8 +503,7 @@ impl<G: PrimeGroup + ConstantTimeEq> CanonicalLinearRelation<G> {
     /// If the number of scalars is more than the number of scalar variables, the extra elements are ignored.
     pub fn is_witness_valid(&self, witness: impl ScalarAssignments<G>) -> Choice {
         let got = self.evaluate(witness);
-        self.image
-            .iter()
+        self.image_elements()
             .zip(got)
             .fold(Choice::from(1), |acc, (lhs, rhs)| acc & lhs.ct_eq(&rhs))
     }

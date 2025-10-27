@@ -22,7 +22,7 @@ pub fn group_elt_serialized_len<G: PrimeGroup>() -> usize {
 ///
 /// # Returns
 /// - A `Vec<u8>` containing the concatenated canonical compressed byte representations.
-pub fn serialize_elements<G: PrimeGroup>(elements: &[G]) -> Vec<u8> {
+pub fn serialize_elements<'a, G: PrimeGroup>(elements: impl IntoIterator<Item = &'a G>) -> Vec<u8> {
     let mut bytes = Vec::new();
     for element in elements {
         bytes.extend_from_slice(element.to_bytes().as_ref());

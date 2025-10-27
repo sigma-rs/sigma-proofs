@@ -23,7 +23,7 @@ fn test_composition_example() {
     let (relation1, witness1) = dleq(&mut rng);
     let (relation2, witness2) = pedersen_commitment(&mut rng);
     let (relation3, witness3) = discrete_logarithm(&mut rng);
-    let (relation4, witness4) = pedersen_commitment_dleq(&mut rng);
+    let (relation4, witness4) = pedersen_commitment(&mut rng);
     let (relation5, witness5) = bbs_blind_commitment(&mut rng);
 
     let wrong_witness2 = witness2
