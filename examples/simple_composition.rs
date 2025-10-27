@@ -8,7 +8,7 @@ use sigma_proofs::{
     codec::Shake128DuplexSponge,
     composition::{ComposedRelation, ComposedWitness},
     errors::Error,
-    linear_relation::ScalarVar,
+    linear_relation::{Allocator, ScalarVar},
     LinearRelation, Nizk,
 };
 

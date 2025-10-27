@@ -5,7 +5,7 @@
 
 #[cfg(test)]
 mod instance_validation {
-    use crate::linear_relation::{CanonicalLinearRelation, LinearRelation};
+    use crate::linear_relation::{Allocator, CanonicalLinearRelation, LinearRelation};
     use bls12_381::{G1Projective as G, Scalar};
     use ff::Field;
     use group::Group;
@@ -220,7 +220,7 @@ mod proof_validation {
     use crate::codec::KeccakByteSchnorrCodec;
     use crate::composition::{ComposedRelation, ComposedWitness};
     use crate::fiat_shamir::Nizk;
-    use crate::linear_relation::{CanonicalLinearRelation, LinearRelation};
+    use crate::linear_relation::{Allocator, CanonicalLinearRelation, LinearRelation};
     use bls12_381::{G1Projective as G, Scalar};
     use ff::Field;
     use rand::RngCore;

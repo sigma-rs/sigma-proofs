@@ -6,7 +6,7 @@ use rand::RngCore;
 
 use crate::codec::Shake128DuplexSponge;
 use crate::fiat_shamir::Nizk;
-use crate::linear_relation::{CanonicalLinearRelation, LinearRelation, ScalarMap, Sum};
+use crate::linear_relation::{Allocator, CanonicalLinearRelation, LinearRelation, ScalarMap, Sum};
 
 use crate::group::msm::VariableMultiScalarMul;
 

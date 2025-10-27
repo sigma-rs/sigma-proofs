@@ -14,7 +14,7 @@ use group::Group;
 use rand::rngs::OsRng;
 
 use sigma_proofs::errors::Error;
-use sigma_proofs::linear_relation::{GroupVar, ScalarVar};
+use sigma_proofs::linear_relation::{Allocator, GroupVar, ScalarVar};
 use sigma_proofs::LinearRelation;
 
 /// Create a discrete logarithm relation for the given public key P

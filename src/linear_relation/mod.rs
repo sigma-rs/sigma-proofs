@@ -21,6 +21,9 @@ pub use canonical::CanonicalLinearRelation;
 pub(crate) mod collections;
 pub use collections::{GroupMap, ScalarAssignments, ScalarMap};
 
+mod allocator;
+pub use allocator::Allocator;
+
 use alloc::vec::Vec;
 use collections::{UnassignedGroupVarError, UnassignedScalarVarError};
 use core::iter;
@@ -280,103 +283,11 @@ impl<G: PrimeGroup> LinearRelation<G> {
         var
     }
 
-    /// Allocates a scalar variable for use in the linear map.
-    pub fn allocate_scalar(&mut self) -> ScalarVar<G> {
-        self.linear_map.num_scalars += 1;
-        ScalarVar(self.linear_map.num_scalars - 1, PhantomData)
-    }
-
-    /// Allocates `N` new scalar variables, with `N` known at compile-time.
-    ///
-    /// # Returns
-    /// An array of [`ScalarVar`] representing the newly allocated scalar references.
-    ///
-    /// # Example
-    /// ```
-    /// # use sigma_proofs::LinearRelation;
-    /// use curve25519_dalek::RistrettoPoint as G;
-    ///
-    /// let mut relation = LinearRelation::<G>::new();
-    /// let [var_x, var_y] = relation.allocate_scalars();
-    /// let vars = relation.allocate_scalars::<10>();
-    /// ```
-    pub fn allocate_scalars<const N: usize>(&mut self) -> [ScalarVar<G>; N] {
-        let mut vars = [ScalarVar(usize::MAX, PhantomData); N];
-        for var in vars.iter_mut() {
-            *var = self.allocate_scalar();
-        }
-        vars
-    }
-
-    /// Allocates `n` new scalar variables, with `n` decided at runtime.
-    ///
-    /// # Returns
-    /// A `Vec` of [`ScalarVar`] representing the newly allocated scalar references.
-    ///
-    /// # Example
-    /// ```
-    /// # use sigma_proofs::LinearRelation;
-    /// use curve25519_dalek::RistrettoPoint as G;
-    ///
-    /// let mut relation = LinearRelation::<G>::new();
-    /// let vars = relation.allocate_scalars_vec(2);
-    /// assert_eq!(vars.len(), 2);
-    /// ```
-    pub fn allocate_scalars_vec(&mut self, n: usize) -> Vec<ScalarVar<G>> {
-        (0..n).map(|_| self.allocate_scalar()).collect()
-    }
-
-    /// Allocates a group element variable (i.e. elliptic curve point) for use in the linear map.
-    pub fn allocate_element(&mut self) -> GroupVar<G> {
-        self.linear_map.num_elements += 1;
-        GroupVar(self.linear_map.num_elements - 1, PhantomData)
-    }
-
     /// Allocates a group element variable (i.e. elliptic curve point) and sets it immediately to the given value
     pub fn allocate_element_with(&mut self, element: G) -> GroupVar<G> {
         let var = self.allocate_element();
         self.set_element(var, element);
         var
-    }
-
-    /// Allocates `N` group element variables, with `N` known at compile-time.
-    ///
-    /// # Returns
-    /// An array of [`GroupVar`] representing the newly allocated group element references.
-    ///
-    /// # Example
-    /// ```
-    /// # use sigma_proofs::LinearRelation;
-    /// use curve25519_dalek::RistrettoPoint as G;
-    ///
-    /// let mut relation = LinearRelation::<G>::new();
-    /// let [var_g, var_h] = relation.allocate_elements();
-    /// let vars = relation.allocate_elements::<10>();
-    /// ```
-    pub fn allocate_elements<const N: usize>(&mut self) -> [GroupVar<G>; N] {
-        let mut vars = [GroupVar(usize::MAX, PhantomData); N];
-        for var in vars.iter_mut() {
-            *var = self.allocate_element();
-        }
-        vars
-    }
-
-    /// Allocates `N` group element variables, with `N` decided at runtime.
-    ///
-    /// # Returns
-    /// A `Vec` of [`GroupVar`] representing the newly allocated group element references.
-    ///
-    /// # Example
-    /// ```
-    /// # use sigma_proofs::LinearRelation;
-    /// use curve25519_dalek::RistrettoPoint as G;
-    ///
-    /// let mut relation = LinearRelation::<G>::new();
-    /// let vars = relation.allocate_elements_vec(2);
-    /// assert_eq!(vars.len(), 2);
-    /// ```
-    pub fn allocate_elements_vec(&mut self, n: usize) -> Vec<GroupVar<G>> {
-        (0..n).map(|_| self.allocate_element()).collect()
     }
 
     /// Allocates a point variable (group element) and sets it immediately to the given value.
@@ -500,5 +411,19 @@ impl<G: PrimeGroup> LinearRelation<G> {
     /// The construction may fail if the linear relation is malformed, unsatisfiable, or trivial.
     pub fn canonical(&self) -> Result<CanonicalLinearRelation<G>, InvalidInstance> {
         self.try_into()
+    }
+}
+
+impl<G: PrimeGroup> Allocator<G> for LinearRelation<G> {
+    /// Allocates a scalar variable for use in the linear map.
+    fn allocate_scalar(&mut self) -> ScalarVar<G> {
+        self.linear_map.num_scalars += 1;
+        ScalarVar(self.linear_map.num_scalars - 1, PhantomData)
+    }
+
+    /// Allocates a group element variable (i.e. elliptic curve point) for use in the linear map.
+    fn allocate_element(&mut self) -> GroupVar<G> {
+        self.linear_map.num_elements += 1;
+        GroupVar(self.linear_map.num_elements - 1, PhantomData)
     }
 }
