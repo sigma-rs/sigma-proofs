@@ -35,6 +35,7 @@ use group::prime::PrimeGroup;
 use crate::codec::Shake128DuplexSponge;
 use crate::errors::{Error, InvalidInstance};
 use crate::group::msm::VariableMultiScalarMul;
+use crate::linear_relation::allocator::Heap;
 use crate::Nizk;
 
 /// A wrapper representing an reference for a scalar variable.
@@ -155,54 +156,113 @@ impl<T> core::iter::Sum<T> for Sum<T> {
 /// - `w_i` are the constant weight scalars
 pub type LinearCombination<G> = Sum<Weighted<Term<G>, <G as group::Group>::Scalar>>;
 
-/// A LinearMap represents a list of linear combinations over group elements.
+/// This structure represents the *preimage problem* for a group linear map: given a set of scalar inputs,
+/// determine whether their image under the linear map matches a target set of group elements.
 ///
-/// It supports dynamic allocation of scalars and elements,
-/// and evaluates by performing multi-scalar multiplications.
+/// Internally, the constraint system is defined through:
+/// - A list of group elements and linear equations.
+/// - A list of [`GroupVar`] references (`image`) that specify the expected output for each constraint.
+#[non_exhaustive]
 #[derive(Clone, Default, Debug)]
-pub struct LinearMap<G: PrimeGroup> {
+pub struct LinearRelation<G: PrimeGroup, A = Heap<G>> {
     /// The set of linear combination constraints (equations).
     pub linear_combinations: Vec<LinearCombination<G>>,
-    /// The list of group elements referenced in the linear map.
-    ///
-    /// Uninitialized group elements are presented with `None`.
-    pub group_elements: GroupMap<G>,
-    /// The total number of scalar variables allocated.
-    pub num_scalars: usize,
-    /// The total number of group element variables allocated.
-    pub num_elements: usize,
+    pub heap: A,
+    /// References pointing to elements representing the "target" images for each constraint.
+    pub image: Vec<GroupVar<G>>,
 }
 
-impl<G: PrimeGroup> LinearMap<G> {
-    /// Creates a new empty [`LinearMap`].
-    ///
-    /// # Returns
-    ///
-    /// A [`LinearMap`] instance with empty linear combinations and group elements,
-    /// and zero allocated scalars and elements.
-    pub fn new() -> Self {
+impl<G: PrimeGroup, A: Allocator<G = G>> LinearRelation<G, A> {
+    /// Create a new empty [`LinearRelation`].
+    pub fn new() -> Self
+    where
+        A: Default,
+    {
         Self {
             linear_combinations: Vec::new(),
-            group_elements: GroupMap::default(),
-            num_scalars: 0,
-            num_elements: 0,
+            heap: Default::default(),
+            image: Vec::new(),
         }
     }
 
-    /// Returns the number of constraints (equations) in this linear map.
-    pub fn num_constraints(&self) -> usize {
-        self.linear_combinations.len()
-    }
-
-    /// Adds a new linear combination constraint to the linear map.
+    /// Adds a new equation to the statement of the form:
+    /// `lhs = Σ weight_i * (scalar_i * point_i)`.
     ///
     /// # Parameters
-    /// - `lc`: The [`LinearCombination`] to add.
-    pub fn append(&mut self, lc: LinearCombination<G>) {
-        self.linear_combinations.push(lc);
+    /// - `lhs`: The image group element variable (left-hand side of the equation).
+    /// - `rhs`: An instance of [`LinearCombination`] representing the linear combination on the right-hand side.
+    pub fn append_equation(&mut self, lhs: GroupVar<G>, rhs: impl Into<LinearCombination<G>>) {
+        self.linear_combinations.push(rhs.into());
+        self.image.push(lhs);
     }
 
-    /// Evaluates all linear combinations in the linear map with the provided scalars.
+    /// Adds a new equation to the statement of the form:
+    /// `lhs = Σ weight_i * (scalar_i * point_i)` without allocating `lhs`.
+    ///
+    /// # Parameters
+    /// - `rhs`: An instance of [`LinearCombination`] representing the linear combination on the right-hand side.
+    pub fn allocate_eq(&mut self, rhs: impl Into<LinearCombination<G>>) -> GroupVar<G> {
+        let var = self.allocate_element();
+        self.append_equation(var, rhs);
+        var
+    }
+
+    /// Allocates a group element variable (i.e. elliptic curve point) and sets it immediately to the given value
+    pub fn allocate_element_with(&mut self, element: G) -> GroupVar<G> {
+        let var = self.allocate_element();
+        self.assign_element(var, element);
+        var
+    }
+
+    /// Allocates a point variable (group element) and sets it immediately to the given value.
+    pub fn allocate_elements_with(&mut self, elements: &[G]) -> Vec<GroupVar<G>> {
+        elements
+            .iter()
+            .map(|element| self.allocate_element_with(*element))
+            .collect()
+    }
+
+    /// Evaluates all linear combinations in the linear map with the provided scalars, computing the
+    /// left-hand side of this constraints (i.e. the image).
+    ///
+    /// After calling this function, all point variables will be assigned.
+    ///
+    /// # Parameters
+    ///
+    /// - `scalars`: A slice of scalar values corresponding to the scalar variables.
+    ///
+    /// # Returns
+    ///
+    /// Return `Ok` on success, and an error if unassigned elements prevent the image from being
+    /// computed. Modifies the group elements assigned in the [LinearRelation].
+    pub fn compute_image(&mut self, scalars: impl ScalarAssignments<G>) -> Result<(), Error> {
+        if self.linear_combinations.len() != self.image.len() {
+            // NOTE: This is a panic, rather than a returned error, because this can only happen if
+            // this implementation has a bug.
+            panic!("invalid LinearRelation: different number of constraints and image variables");
+        }
+
+        let mapped_scalars: Vec<(GroupVar<G>, G)> =
+            iter::zip(self.image.iter().copied(), self.evaluate(scalars)?).collect();
+
+        self.heap.assign_elements(mapped_scalars);
+        Ok(())
+    }
+
+    /// Returns the current group elements corresponding to the image variables.
+    ///
+    /// # Returns
+    ///
+    /// A vector of group elements (`Vec<G>`) representing the linear map's image.
+    // TODO: Should this return GroupMap?
+    pub fn image(&self) -> Result<Vec<G>, UnassignedGroupVarError> {
+        self.image
+            .iter()
+            .map(|&var| self.heap.get_element(var))
+            .collect()
+    }
+
+    /// Evaluates all linear combinations in the linear relation with the provided scalars.
     ///
     /// # Parameters
     /// - `scalars`: A slice of scalar values corresponding to the scalar variables.
@@ -228,143 +288,10 @@ impl<G: PrimeGroup> LinearMap<G> {
                         .collect::<Result<Vec<_>, UnassignedScalarVarError>>()?;
                 let elements =
                     lc.0.iter()
-                        .map(|weighted| self.group_elements.get(weighted.term.elem))
+                        .map(|weighted| self.heap.get_element(weighted.term.elem))
                         .collect::<Result<Vec<_>, _>>()?;
                 Ok(G::msm(&weighted_coefficients, &elements))
             })
-            .collect()
-    }
-}
-
-/// A wrapper struct coupling a [`LinearMap`] with the corresponding expected output (image) elements.
-///
-/// This structure represents the *preimage problem* for a group linear map: given a set of scalar inputs,
-/// determine whether their image under the linear map matches a target set of group elements.
-///
-/// Internally, the constraint system is defined through:
-/// - A list of group elements and linear equations (held in the [`LinearMap`] field),
-/// - A list of [`GroupVar`] references (`image`) that specify the expected output for each constraint.
-#[derive(Clone, Default, Debug)]
-pub struct LinearRelation<G: PrimeGroup> {
-    /// The underlying linear map describing the structure of the statement.
-    pub linear_map: LinearMap<G>,
-    /// References pointing to elements representing the "target" images for each constraint.
-    pub image: Vec<GroupVar<G>>,
-}
-
-impl<G: PrimeGroup> LinearRelation<G> {
-    /// Create a new empty [`LinearRelation`].
-    pub fn new() -> Self {
-        Self {
-            linear_map: LinearMap::new(),
-            image: Vec::new(),
-        }
-    }
-
-    /// Adds a new equation to the statement of the form:
-    /// `lhs = Σ weight_i * (scalar_i * point_i)`.
-    ///
-    /// # Parameters
-    /// - `lhs`: The image group element variable (left-hand side of the equation).
-    /// - `rhs`: An instance of [`LinearCombination`] representing the linear combination on the right-hand side.
-    pub fn append_equation(&mut self, lhs: GroupVar<G>, rhs: impl Into<LinearCombination<G>>) {
-        self.linear_map.append(rhs.into());
-        self.image.push(lhs);
-    }
-
-    /// Adds a new equation to the statement of the form:
-    /// `lhs = Σ weight_i * (scalar_i * point_i)` without allocating `lhs`.
-    ///
-    /// # Parameters
-    /// - `rhs`: An instance of [`LinearCombination`] representing the linear combination on the right-hand side.
-    pub fn allocate_eq(&mut self, rhs: impl Into<LinearCombination<G>>) -> GroupVar<G> {
-        let var = self.allocate_element();
-        self.append_equation(var, rhs);
-        var
-    }
-
-    /// Allocates a group element variable (i.e. elliptic curve point) and sets it immediately to the given value
-    pub fn allocate_element_with(&mut self, element: G) -> GroupVar<G> {
-        let var = self.allocate_element();
-        self.set_element(var, element);
-        var
-    }
-
-    /// Allocates a point variable (group element) and sets it immediately to the given value.
-    pub fn allocate_elements_with(&mut self, elements: &[G]) -> Vec<GroupVar<G>> {
-        elements
-            .iter()
-            .map(|element| self.allocate_element_with(*element))
-            .collect()
-    }
-
-    /// Assign a group element value to a point variable.
-    ///
-    /// # Parameters
-    ///
-    /// - `var`: The variable to assign.
-    /// - `element`: The value to assign to the variable.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the given assignment conflicts with the existing assignment.
-    pub fn set_element(&mut self, var: GroupVar<G>, element: G) {
-        self.linear_map.group_elements.assign_element(var, element)
-    }
-
-    /// Assigns specific group elements to variables.
-    ///
-    /// # Parameters
-    ///
-    /// - `assignments`: A collection of `(GroupVar, GroupElement)` pairs that can be iterated over.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the collection contains two conflicting assignments for the same variable.
-    pub fn set_elements(&mut self, assignments: impl IntoIterator<Item = (GroupVar<G>, G)>) {
-        self.linear_map.group_elements.assign_elements(assignments)
-    }
-
-    /// Evaluates all linear combinations in the linear map with the provided scalars, computing the
-    /// left-hand side of this constraints (i.e. the image).
-    ///
-    /// After calling this function, all point variables will be assigned.
-    ///
-    /// # Parameters
-    ///
-    /// - `scalars`: A slice of scalar values corresponding to the scalar variables.
-    ///
-    /// # Returns
-    ///
-    /// Return `Ok` on success, and an error if unassigned elements prevent the image from being
-    /// computed. Modifies the group elements assigned in the [LinearRelation].
-    pub fn compute_image(&mut self, scalars: impl ScalarAssignments<G>) -> Result<(), Error> {
-        if self.linear_map.num_constraints() != self.image.len() {
-            // NOTE: This is a panic, rather than a returned error, because this can only happen if
-            // this implementation has a bug.
-            panic!("invalid LinearRelation: different number of constraints and image variables");
-        }
-
-        let mapped_scalars = self.linear_map.evaluate(scalars)?;
-
-        for (mapped_scalar, lhs) in iter::zip(mapped_scalars, &self.image) {
-            self.linear_map
-                .group_elements
-                .assign_element(*lhs, mapped_scalar)
-        }
-        Ok(())
-    }
-
-    /// Returns the current group elements corresponding to the image variables.
-    ///
-    /// # Returns
-    ///
-    /// A vector of group elements (`Vec<G>`) representing the linear map's image.
-    // TODO: Should this return GroupMap?
-    pub fn image(&self) -> Result<Vec<G>, UnassignedGroupVarError> {
-        self.image
-            .iter()
-            .map(|&var| self.linear_map.group_elements.get(var))
             .collect()
     }
 
@@ -414,16 +341,24 @@ impl<G: PrimeGroup> LinearRelation<G> {
     }
 }
 
-impl<G: PrimeGroup> Allocator<G> for LinearRelation<G> {
+impl<G: PrimeGroup, A: Allocator<G = G>> Allocator for LinearRelation<G, A> {
+    type G = G;
+
     /// Allocates a scalar variable for use in the linear map.
     fn allocate_scalar(&mut self) -> ScalarVar<G> {
-        self.linear_map.num_scalars += 1;
-        ScalarVar(self.linear_map.num_scalars - 1, PhantomData)
+        self.heap.allocate_scalar()
     }
 
     /// Allocates a group element variable (i.e. elliptic curve point) for use in the linear map.
     fn allocate_element(&mut self) -> GroupVar<G> {
-        self.linear_map.num_elements += 1;
-        GroupVar(self.linear_map.num_elements - 1, PhantomData)
+        self.heap.allocate_element()
+    }
+
+    fn assign_element(&mut self, var: GroupVar<Self::G>, element: Self::G) {
+        self.heap.assign_element(var, element)
+    }
+
+    fn get_element(&self, var: GroupVar<Self::G>) -> Result<Self::G, UnassignedGroupVarError> {
+        self.heap.get_element(var)
     }
 }

@@ -49,7 +49,7 @@ fn prove(x: Scalar) -> Result<Vec<u8>, Error> {
 #[allow(non_snake_case)]
 fn verify(P: RistrettoPoint, proof: &[u8]) -> Result<(), Error> {
     let (mut relation, _, P_var) = create_relation();
-    relation.set_element(P_var, P);
+    relation.assign_element(P_var, P);
     relation
         .into_nizk(b"sigma-proofs-example")?
         .verify_batchable(proof)

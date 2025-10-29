@@ -21,7 +21,7 @@ mod instance_validation {
 
         // Set only one element, leaving var_g unassigned
         let x_val = G::generator() * Scalar::from(42u64);
-        relation.set_element(var_x_g, x_val);
+        relation.assign_element(var_x_g, x_val);
 
         // Add equation: X = x * G (but G is not set)
         relation.append_equation(var_x_g, var_x * var_g);
@@ -39,8 +39,8 @@ mod instance_validation {
         let [var_x] = relation.allocate_scalars();
         let [var_G] = relation.allocate_elements();
         let var_X = relation.allocate_eq(var_G * var_x);
-        relation.set_element(var_G, G::generator());
-        relation.set_element(var_X, G::identity());
+        relation.assign_element(var_G, G::generator());
+        relation.assign_element(var_X, G::identity());
         let result = CanonicalLinearRelation::try_from(&relation);
         assert!(result.is_err());
 
@@ -49,8 +49,8 @@ mod instance_validation {
         let mut relation = LinearRelation::<G>::new();
         let [var_B] = relation.allocate_elements();
         let var_X = relation.allocate_eq(var_B * Scalar::from(0));
-        relation.set_element(var_B, G::generator());
-        relation.set_element(var_X, G::identity());
+        relation.assign_element(var_B, G::generator());
+        relation.assign_element(var_X, G::identity());
         let result = CanonicalLinearRelation::try_from(&relation);
         assert!(result.is_ok());
 
@@ -60,8 +60,8 @@ mod instance_validation {
         let [var_x] = relation.allocate_scalars();
         let [var_C] = relation.allocate_elements();
         let var_X = relation.allocate_eq(var_C * var_x * Scalar::from(0));
-        relation.set_element(var_C, G::generator());
-        relation.set_element(var_X, G::identity());
+        relation.assign_element(var_C, G::generator());
+        relation.assign_element(var_X, G::identity());
         let result = CanonicalLinearRelation::try_from(&relation);
         assert!(result.is_ok());
     }
@@ -75,7 +75,7 @@ mod instance_validation {
         let x = relation.allocate_scalar();
         let var_B = relation.allocate_element();
         let var_X = relation.allocate_eq((x + (-Scalar::ONE)) * var_B + (-var_B));
-        relation.set_element(var_X, G::identity());
+        relation.assign_element(var_X, G::identity());
         assert!(CanonicalLinearRelation::try_from(&relation).is_err());
 
         // 2. because var_X is not assigned
@@ -83,7 +83,7 @@ mod instance_validation {
         let x = relation.allocate_scalar();
         let var_B = relation.allocate_element();
         let _var_X = relation.allocate_eq((x + (-Scalar::ONE)) * var_B + (-var_B));
-        relation.set_element(var_B, G::generator());
+        relation.assign_element(var_B, G::generator());
         assert!(CanonicalLinearRelation::try_from(&relation).is_err());
     }
 
@@ -93,7 +93,7 @@ mod instance_validation {
         let mut relation = LinearRelation::<G>::new();
         let [var_x] = relation.allocate_scalars();
         let [var_g, var_h] = relation.allocate_elements();
-        relation.set_elements([
+        relation.assign_elements([
             (var_g, G::generator()),
             (var_h, G::generator() * Scalar::from(2u64)),
         ]);
@@ -101,9 +101,9 @@ mod instance_validation {
         // Add two equations but only one image element
         let var_img_1 = relation.allocate_eq(var_x * var_g + var_h);
         relation.allocate_eq(var_x * var_h + var_g);
-        relation.set_element(var_g, G::generator());
-        relation.set_element(var_h, G::generator() * Scalar::from(2));
-        relation.set_element(var_img_1, G::generator() * Scalar::from(3));
+        relation.assign_element(var_g, G::generator());
+        relation.assign_element(var_h, G::generator() * Scalar::from(2));
+        relation.assign_element(var_img_1, G::generator() * Scalar::from(3));
         assert!(relation.canonical().is_err());
     }
 
@@ -118,7 +118,7 @@ mod instance_validation {
         let mut relation = LinearRelation::<G>::new();
         let var_B = relation.allocate_element();
         let var_C = relation.allocate_eq(var_B * Scalar::from(1));
-        relation.set_elements([(var_B, G::generator()), (var_C, G::generator())]);
+        relation.assign_elements([(var_B, G::generator()), (var_C, G::generator())]);
         assert!(CanonicalLinearRelation::try_from(&relation).is_ok());
     }
 
@@ -136,7 +136,7 @@ mod instance_validation {
         let mut linear_relation = LinearRelation::<G>::new();
         let B_var = linear_relation.allocate_element();
         let C_var = linear_relation.allocate_eq(B_var);
-        linear_relation.set_elements([(B_var, B), (C_var, C)]);
+        linear_relation.assign_elements([(B_var, B), (C_var, C)]);
         assert!(linear_relation
             .canonical()
             .err()
@@ -149,7 +149,7 @@ mod instance_validation {
         let mut linear_relation = LinearRelation::<G>::new();
         let [B_var, A_var] = linear_relation.allocate_elements();
         let X_var = linear_relation.allocate_eq(B_var * pub_scalar + A_var * Scalar::from(3));
-        linear_relation.set_elements([(B_var, B), (A_var, A), (X_var, X)]);
+        linear_relation.assign_elements([(B_var, B), (A_var, A), (X_var, X)]);
         assert!(linear_relation
             .canonical()
             .err()
@@ -161,7 +161,7 @@ mod instance_validation {
         let mut linear_relation = LinearRelation::<G>::new();
         let B_var = linear_relation.allocate_element();
         let C_var = linear_relation.allocate_eq(B_var);
-        linear_relation.set_elements([(B_var, B), (C_var, B)]);
+        linear_relation.assign_elements([(B_var, B), (C_var, B)]);
         assert!(linear_relation.canonical().is_ok());
 
         // The following relation is valid and should pass.
@@ -169,7 +169,7 @@ mod instance_validation {
         let mut linear_relation = LinearRelation::<G>::new();
         let [B_var, A_var] = linear_relation.allocate_elements();
         let C_var = linear_relation.allocate_eq(B_var * pub_scalar + A_var * Scalar::from(3));
-        linear_relation.set_elements([(B_var, B), (A_var, A), (C_var, C)]);
+        linear_relation.assign_elements([(B_var, B), (A_var, A), (C_var, C)]);
         assert!(linear_relation.canonical().is_ok());
 
         // The following relation is for
@@ -180,7 +180,7 @@ mod instance_validation {
         let [B_var, A_var] = linear_relation.allocate_elements();
         let X_var = linear_relation
             .allocate_eq(B_var * x_var + B_var * pub_scalar + A_var * Scalar::from(3));
-        linear_relation.set_elements([(B_var, B), (A_var, A), (X_var, X)]);
+        linear_relation.assign_elements([(B_var, B), (A_var, A), (X_var, X)]);
         assert!(linear_relation.canonical().is_ok());
     }
 
@@ -201,7 +201,7 @@ mod instance_validation {
 
         // The equation 0 = x*A + y*B + C
         // Has a non-trivial solution.
-        linear_relation.set_elements([(Z_var, Z), (A_var, A), (B_var, B), (C_var, C)]);
+        linear_relation.assign_elements([(Z_var, Z), (A_var, A), (B_var, B), (C_var, C)]);
         assert!(linear_relation.canonical().is_ok());
 
         // Adding more non-trivial statements does not affect the validity of the relation.
@@ -210,7 +210,7 @@ mod instance_validation {
         linear_relation.append_equation(F_var, f_var * A_var);
         let f = Scalar::random(&mut rng);
         let F = A * f;
-        linear_relation.set_elements([(F_var, F), (A_var, A)]);
+        linear_relation.assign_elements([(F_var, F), (A_var, A)]);
         assert!(linear_relation.canonical().is_ok());
     }
 }
@@ -239,7 +239,7 @@ mod proof_validation {
         let x = Scalar::from(42u64);
         let x_g = G::generator() * x;
 
-        relation.set_elements([(var_g, G::generator()), (var_x_g, x_g)]);
+        relation.assign_elements([(var_g, G::generator()), (var_x_g, x_g)]);
         relation.append_equation(var_x_g, var_x * var_g);
 
         let nizk = TestNizk::new(b"test_session", relation.canonical().unwrap());
@@ -406,15 +406,15 @@ mod proof_validation {
         let x_var = lr1.allocate_scalar();
         let A_var = lr1.allocate_element();
         let eq1 = lr1.allocate_eq(x_var * A_var);
-        lr1.set_element(A_var, A);
-        lr1.set_element(eq1, C);
+        lr1.assign_element(A_var, A);
+        lr1.assign_element(eq1, C);
         // Create the second branch: C = y*B
         let mut lr2 = LinearRelation::new();
         let y_var = lr2.allocate_scalar();
         let B_var = lr2.allocate_element();
         let eq2 = lr2.allocate_eq(y_var * B_var);
-        lr2.set_element(B_var, B);
-        lr2.set_element(eq2, C);
+        lr2.assign_element(B_var, B);
+        lr2.assign_element(eq2, C);
 
         // Create OR composition
         let or_relation =

@@ -123,7 +123,7 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
         };
 
         // Add to our group elements with new index (length)
-        let new_var = self.group_elements.insert(weighted_group);
+        let new_var = self.group_elements.allocate_element_with(weighted_group);
 
         // Cache the mapping for this group_var and weight
         entry.push((*weight, new_var));
@@ -154,7 +154,7 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
                 let canonical_group_var = self.get_or_create_weighted_group_var(
                     group_var,
                     weight,
-                    &original_relation.linear_map.group_elements,
+                    &original_relation.heap.elements,
                     weighted_group_cache,
                 )?;
 
@@ -163,12 +163,12 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
         }
 
         // Compute the canonical image by subtracting constant terms from the original image
-        let mut canonical_image = original_relation.linear_map.group_elements.get(image_var)?;
+        let mut canonical_image = original_relation.heap.elements.get(image_var)?;
         for weighted_term in equation.terms() {
             if let ScalarTerm::Unit = weighted_term.term.scalar {
                 let group_val = original_relation
-                    .linear_map
-                    .group_elements
+                    .heap
+                    .elements
                     .get(weighted_term.term.elem)?;
                 canonical_image -= group_val * weighted_term.weight;
             }
@@ -184,7 +184,7 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
             ));
         }
 
-        let canonical_image_group_var = self.group_elements.insert(canonical_image);
+        let canonical_image_group_var = self.group_elements.allocate_element_with(canonical_image);
         self.image.push(canonical_image_group_var);
         self.linear_combinations.push(rhs_terms);
 
@@ -385,7 +385,7 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
         // Add all group elements to the map
         let mut group_var_map = Vec::new();
         for elem in &group_elements_ordered {
-            let var = canonical.group_elements.insert(*elem);
+            let var = canonical.group_elements.allocate_element_with(*elem);
             group_var_map.push(var);
         }
 
@@ -430,14 +430,14 @@ impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
     type Error = InvalidInstance;
 
     fn try_from(relation: &LinearRelation<G>) -> Result<Self, Self::Error> {
-        if relation.image.len() != relation.linear_map.linear_combinations.len() {
+        if relation.image.len() != relation.linear_combinations.len() {
             return Err(InvalidInstance::new(
                 "Number of equations must be equal to number of image elements.",
             ));
         }
 
         let mut canonical = CanonicalLinearRelation::new();
-        canonical.num_scalars = relation.linear_map.num_scalars;
+        canonical.num_scalars = relation.heap.num_scalars;
 
         // Cache for deduplicating weighted group elements
         #[cfg(feature = "std")]
@@ -446,9 +446,9 @@ impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
         let mut weighted_group_cache = HashMap::with_hasher(RandomState::new());
 
         // Process each constraint using the modular helper method
-        for (lhs, rhs) in iter::zip(&relation.image, &relation.linear_map.linear_combinations) {
+        for (lhs, rhs) in iter::zip(&relation.image, &relation.linear_combinations) {
             // If any group element in the image is not assigned, return `InvalidInstance`.
-            let lhs_value = relation.linear_map.group_elements.get(*lhs)?;
+            let lhs_value = relation.heap.elements.get(*lhs)?;
 
             // Compute the constant terms on the right-hand side of the equation.
             // If any group element in the linear constraints is not assigned, return `InvalidInstance`.
@@ -457,7 +457,7 @@ impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
                 .iter()
                 .filter(|term| matches!(term.term.scalar, ScalarTerm::Unit))
                 .map(|term| {
-                    let elem = relation.linear_map.group_elements.get(term.term.elem)?;
+                    let elem = relation.heap.elements.get(term.term.elem)?;
                     let scalar = term.weight;
                     Ok((elem, scalar))
                 })

@@ -25,7 +25,7 @@ fn create_relation(P1: G, P2: G, Q: G, H: G) -> (ComposedRelation<G>, ScalarVar<
     let x1 = rel1.allocate_scalar();
     let G1 = rel1.allocate_element_with(G::generator());
     let P1_var = rel1.allocate_eq(x1 * G1);
-    rel1.set_element(P1_var, P1);
+    rel1.assign_element(P1_var, P1);
 
     // Second relation: DLEQ (P2 = x2 * G, Q = x2 * H)
     let mut rel2 = LinearRelation::<G>::new();
@@ -34,8 +34,8 @@ fn create_relation(P1: G, P2: G, Q: G, H: G) -> (ComposedRelation<G>, ScalarVar<
     let H_var = rel2.allocate_element_with(H);
     let P2_var = rel2.allocate_eq(x2 * G2);
     let Q_var = rel2.allocate_eq(x2 * H_var);
-    rel2.set_element(P2_var, P2);
-    rel2.set_element(Q_var, Q);
+    rel2.assign_element(P2_var, P2);
+    rel2.assign_element(Q_var, Q);
 
     // Compose into OR protocol
     (

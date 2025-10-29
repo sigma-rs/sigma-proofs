@@ -14,6 +14,17 @@ use super::{GroupVar, ScalarVar};
 pub struct GroupMap<G>(Vec<Option<G>>);
 
 impl<G: Group> GroupMap<G> {
+    pub fn allocate_element(&mut self) -> GroupVar<G> {
+        self.0.push(None);
+        GroupVar(self.0.len() - 1, PhantomData)
+    }
+
+    /// Add a new group element to the map and return its variable reference
+    pub fn allocate_element_with(&mut self, element: G) -> GroupVar<G> {
+        self.0.push(Some(element));
+        GroupVar(self.0.len() - 1, PhantomData)
+    }
+
     /// Assign a group element value to a variable.
     ///
     /// # Parameters
@@ -83,13 +94,6 @@ impl<G: Group> GroupMap<G> {
         (0..self.len()).map(|i| GroupVar(i, PhantomData))
     }
 
-    /// Add a new group element to the map and return its variable reference
-    pub fn insert(&mut self, element: G) -> GroupVar<G> {
-        let index = self.0.len();
-        self.0.push(Some(element));
-        GroupVar(index, PhantomData)
-    }
-
     /// Get the number of elements in the map
     pub fn len(&self) -> usize {
         self.0.len()
@@ -122,6 +126,17 @@ impl<G: Group> FromIterator<(GroupVar<G>, G)> for GroupMap<G> {
 pub struct ScalarMap<G: Group>(Vec<Option<G::Scalar>>);
 
 impl<G: Group> ScalarMap<G> {
+    pub fn allocate_scalar(&mut self) -> ScalarVar<G> {
+        self.0.push(None);
+        ScalarVar(self.0.len() - 1, PhantomData)
+    }
+
+    /// Add a new scalar to the map and return its variable reference
+    pub fn allocate_scalar_with(&mut self, scalar: G::Scalar) -> ScalarVar<G> {
+        self.0.push(Some(scalar));
+        ScalarVar(self.0.len() - 1, PhantomData)
+    }
+
     /// Assign a scalar value to a variable.
     ///
     /// # Parameters
@@ -212,13 +227,6 @@ impl<G: Group> ScalarMap<G> {
             .map(|var| (var, left.get(var).ok(), right.get(var).ok()))
     }
 
-    /// Add a new scalar to the map and return its variable reference
-    pub fn insert(&mut self, scalar: G::Scalar) -> ScalarVar<G> {
-        let index = self.0.len();
-        self.0.push(Some(scalar));
-        ScalarVar(index, PhantomData)
-    }
-
     /// Get the number of scalars in the map
     pub fn len(&self) -> usize {
         self.0.len()
@@ -258,7 +266,10 @@ impl<G: Group> FromIterator<(ScalarVar<G>, G::Scalar)> for ScalarMap<G> {
     }
 }
 
-/// A trait providing a mapping from [ScalarVar] for scalar values of type `G::Scalar`.
+// TODO(victor/scalarvars): Potentially fold this into the definitions in allocator.
+// A trait providing a mapping from [ScalarVar] for scalar values of type `G::Scalar`.
+// TODO: The generic should at least by an associated type instead. A single struct will not
+// implement multiple parameterizations of ScalarAssignments.
 pub trait ScalarAssignments<G: Group> {
     fn get(&self, var: ScalarVar<G>) -> Result<G::Scalar, UnassignedScalarVarError>;
 }
