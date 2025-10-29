@@ -468,7 +468,7 @@ fn nested_affine_relation<G: PrimeGroup, R: RngCore>(
 
 fn pedersen_commitment_equality<G: PrimeGroup, R: RngCore>(
     rng: &mut R,
-) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
+) -> (CanonicalLinearRelation<G>, ScalarMap<G>) {
     let mut instance = LinearRelation::new();
 
     let [m, r1, r2] = instance.allocate_scalars();
@@ -479,11 +479,11 @@ fn pedersen_commitment_equality<G: PrimeGroup, R: RngCore>(
 
     instance.set_elements([(var_G, G::generator()), (var_H, G::random(&mut *rng))]);
 
-    let witness = vec![
-        G::Scalar::from(42),
-        G::Scalar::random(&mut *rng),
-        G::Scalar::random(&mut *rng),
-    ];
+    let witness = ScalarMap::from_iter([
+        (m, G::Scalar::from(42)),
+        (r1, G::Scalar::random(&mut *rng)),
+        (r2, G::Scalar::random(&mut *rng)),
+    ]);
     instance.compute_image(&witness).unwrap();
 
     (instance.canonical().unwrap(), witness)
@@ -491,7 +491,7 @@ fn pedersen_commitment_equality<G: PrimeGroup, R: RngCore>(
 
 fn elgamal_subtraction<G: PrimeGroup, R: RngCore>(
     rng: &mut R,
-) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
+) -> (CanonicalLinearRelation<G>, ScalarMap<G>) {
     let mut instance = LinearRelation::new();
     let [dk, a, r] = instance.allocate_scalars();
     let [ek, C, D, H, G] = instance.allocate_elements();
@@ -505,11 +505,11 @@ fn elgamal_subtraction<G: PrimeGroup, R: RngCore>(
     instance.append_equation(C, G * v + dk * D + a * G);
 
     // set dk for testing to
-    let witness = vec![
-        G::Scalar::from(4242),
-        G::Scalar::from(1000),
-        G::Scalar::random(&mut *rng),
-    ];
+    let witness = ScalarMap::from_iter([
+        (dk, G::Scalar::from(4242)),
+        (a, G::Scalar::from(1000)),
+        (r, G::Scalar::random(&mut *rng)),
+    ]);
     let alt_gen = G::random(&mut *rng);
     instance.set_elements([(G, G::generator()), (H, alt_gen)]);
     instance.compute_image(&witness).unwrap();

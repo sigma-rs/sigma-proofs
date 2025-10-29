@@ -184,7 +184,7 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
             ));
         }
 
-        let canonical_image_group_var = self.group_elements.push(canonical_image);
+        let canonical_image_group_var = self.group_elements.insert(canonical_image);
         self.image.push(canonical_image_group_var);
         self.linear_combinations.push(rhs_terms);
 
@@ -461,7 +461,7 @@ impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
                     let scalar = term.weight;
                     Ok((elem, scalar))
                 })
-                .collect::<Result<(Vec<G>, Vec<G::Scalar>), _>>()?;
+                .collect::<Result<(Vec<G>, Vec<G::Scalar>), Self::Error>>()?;
 
             let rhs_constant_term = G::msm(&rhs_constant_terms.1, &rhs_constant_terms.0);
 
