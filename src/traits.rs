@@ -57,7 +57,7 @@ pub trait SigmaProtocol {
     /// - The internal state to use when computing the response.
     fn prover_commit(
         &self,
-        witness: &Self::Witness,
+        witness: Self::Witness,
         rng: &mut (impl Rng + CryptoRng),
     ) -> Result<(Self::Commitment, Self::ProverState), Error>;
 
