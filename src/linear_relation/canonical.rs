@@ -18,6 +18,7 @@ use super::{
 };
 use crate::errors::{Error, InvalidInstance};
 use crate::group::msm::VariableMultiScalarMul;
+use crate::linear_relation::Allocator;
 use crate::serialization::serialize_elements;
 
 // XXX. this definition is uncomfortably similar to LinearRelation, exception made for the weights.
@@ -132,11 +133,11 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
     }
 
     /// Process a single constraint equation and add it to the canonical relation.
-    fn process_constraint(
+    fn process_constraint<A: Allocator<G = G>>(
         &mut self,
         &image_var: &GroupVar<G>,
         equation: &LinearCombination<G>,
-        original_relation: &LinearRelation<G>,
+        original_relation: &LinearRelation<G, A>,
         weighted_group_cache: &mut WeightedGroupCache<G>,
     ) -> Result<(), InvalidInstance> {
         let mut rhs_terms = Vec::new();
@@ -418,18 +419,22 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
     }
 }
 
-impl<G: PrimeGroup> TryFrom<LinearRelation<G>> for CanonicalLinearRelation<G> {
+impl<G: PrimeGroup, A: Allocator<G = G>> TryFrom<LinearRelation<G, A>>
+    for CanonicalLinearRelation<G>
+{
     type Error = InvalidInstance;
 
-    fn try_from(value: LinearRelation<G>) -> Result<Self, Self::Error> {
+    fn try_from(value: LinearRelation<G, A>) -> Result<Self, Self::Error> {
         Self::try_from(&value)
     }
 }
 
-impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
+impl<G: PrimeGroup, A: Allocator<G = G>> TryFrom<&LinearRelation<G, A>>
+    for CanonicalLinearRelation<G>
+{
     type Error = InvalidInstance;
 
-    fn try_from(relation: &LinearRelation<G>) -> Result<Self, Self::Error> {
+    fn try_from(relation: &LinearRelation<G, A>) -> Result<Self, Self::Error> {
         if relation.image.len() != relation.linear_combinations.len() {
             return Err(InvalidInstance::new(
                 "Number of equations must be equal to number of image elements.",
@@ -448,7 +453,7 @@ impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
         // Process each constraint using the modular helper method
         for (lhs, rhs) in iter::zip(&relation.image, &relation.linear_combinations) {
             // If any group element in the image is not assigned, return `InvalidInstance`.
-            let lhs_value = relation.heap.elements.get(*lhs)?;
+            let lhs_value = relation.heap.get_element(*lhs)?;
 
             // Compute the constant terms on the right-hand side of the equation.
             // If any group element in the linear constraints is not assigned, return `InvalidInstance`.
@@ -457,7 +462,7 @@ impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
                 .iter()
                 .filter(|term| matches!(term.term.scalar, ScalarTerm::Unit))
                 .map(|term| {
-                    let elem = relation.heap.elements.get(term.term.elem)?;
+                    let elem = relation.heap.get_element(term.term.elem)?;
                     let scalar = term.weight;
                     Ok((elem, scalar))
                 })

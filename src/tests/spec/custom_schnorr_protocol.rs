@@ -2,16 +2,18 @@ use group::prime::PrimeGroup;
 use rand::{CryptoRng, Rng};
 
 use crate::errors::Error;
-use crate::linear_relation::{CanonicalLinearRelation, LinearRelation, ScalarMap};
+use crate::linear_relation::{Allocator, CanonicalLinearRelation, LinearRelation, ScalarMap};
 use crate::tests::spec::random::SRandom;
 use crate::traits::{SigmaProtocol, SigmaProtocolSimulator};
 
 pub struct DeterministicSchnorrProof<G: PrimeGroup>(pub CanonicalLinearRelation<G>);
 
-impl<G: PrimeGroup> TryFrom<LinearRelation<G>> for DeterministicSchnorrProof<G> {
+impl<G: PrimeGroup, A: Allocator<G = G>> TryFrom<LinearRelation<G, A>>
+    for DeterministicSchnorrProof<G>
+{
     type Error = Error;
 
-    fn try_from(linear_relation: LinearRelation<G>) -> Result<Self, Self::Error> {
+    fn try_from(linear_relation: LinearRelation<G, A>) -> Result<Self, Self::Error> {
         let relation = CanonicalLinearRelation::try_from(&linear_relation)?;
         Ok(Self(relation))
     }

@@ -13,6 +13,7 @@ use crate::linear_relation::{Allocator, CanonicalLinearRelation, LinearRelation,
 pub fn discrete_logarithm<G: PrimeGroup, R: rand::RngCore>(
     rng: &mut R,
 ) -> (CanonicalLinearRelation<G>, ScalarMap<G>) {
+    // TODO(victor/scalarvar): Why is type inference failing here?
     let x = G::Scalar::random(rng);
     let mut relation = LinearRelation::new();
 
@@ -25,7 +26,7 @@ pub fn discrete_logarithm<G: PrimeGroup, R: rand::RngCore>(
     let witness = ScalarMap::from_iter([(var_x, x)]);
     relation.compute_image(&witness).unwrap();
 
-    let X = relation.heap.elements.get(var_X).unwrap();
+    let X = relation.get_element(var_X).unwrap();
     assert_eq!(X, G::generator() * x);
 
     let instance = (&relation).try_into().unwrap();

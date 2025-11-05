@@ -31,7 +31,7 @@ use subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
 use crate::codec::Codec;
 use crate::errors::InvalidInstance;
 use crate::group::serialization::{deserialize_scalars, serialize_scalars};
-use crate::linear_relation::ScalarVar;
+use crate::linear_relation::{Allocator, ScalarVar};
 use crate::{
     codec::Shake128DuplexSponge,
     errors::Error,
@@ -71,10 +71,10 @@ impl<G: PrimeGroup> From<CanonicalLinearRelation<G>> for ComposedRelation<G> {
     }
 }
 
-impl<G: PrimeGroup> TryFrom<LinearRelation<G>> for ComposedRelation<G> {
+impl<G: PrimeGroup, A: Allocator<G = G>> TryFrom<LinearRelation<G, A>> for ComposedRelation<G> {
     type Error = InvalidInstance;
 
-    fn try_from(value: LinearRelation<G>) -> Result<Self, Self::Error> {
+    fn try_from(value: LinearRelation<G, A>) -> Result<Self, Self::Error> {
         Ok(Self::Simple(CanonicalLinearRelation::try_from(value)?))
     }
 }
