@@ -60,11 +60,13 @@ fn test_spec_testvectors() {
         // Decode the witness from the test vector
         let witness_vec = crate::group::serialization::deserialize_scalars::<G>(
             &vector.witness,
-            parsed_instance.num_scalars,
+            parsed_instance.scalar_vars.len(),
         )
         .expect("Failed to deserialize witness");
         let witness = parsed_instance
-            .scalar_vars()
+            .scalar_vars
+            .iter()
+            .copied()
             .zip(witness_vec)
             .collect::<ScalarMap<G>>();
 

@@ -50,7 +50,7 @@ impl<G: PrimeGroup> SigmaProtocol for CanonicalLinearRelation<G> {
         witness: Self::Witness,
         rng: &mut (impl RngCore + CryptoRng),
     ) -> Result<(Self::Commitment, Self::ProverState), Error> {
-        if witness.len() < self.num_scalars {
+        if witness.len() < self.scalar_vars.len() {
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
@@ -124,12 +124,14 @@ impl<G: PrimeGroup> SigmaProtocol for CanonicalLinearRelation<G> {
         challenge: &Self::Challenge,
         response: &Self::Response,
     ) -> Result<(), Error> {
-        if commitment.len() != self.image.len() || response.len() != self.num_scalars {
+        if commitment.len() != self.image.len() || response.len() != self.scalar_vars.len() {
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
         let response_map = self
-            .scalar_vars()
+            .scalar_vars
+            .iter()
+            .copied()
             .zip(response.iter().copied())
             .collect::<ScalarMap<G>>();
 
@@ -263,7 +265,9 @@ where
     /// # Returns
     /// - A commitment and response forming a valid proof for the given challenge.
     fn simulate_response<R: Rng + CryptoRng>(&self, rng: &mut R) -> Self::Response {
-        let response: Vec<G::Scalar> = (0..self.num_scalars)
+        let response: Vec<G::Scalar> = self
+            .scalar_vars
+            .iter()
             .map(|_| G::Scalar::random(&mut *rng))
             .collect();
         response
@@ -302,12 +306,14 @@ where
         challenge: &Self::Challenge,
         response: &Self::Response,
     ) -> Result<Self::Commitment, Error> {
-        if response.len() != self.num_scalars {
+        if response.len() != self.scalar_vars.len() {
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
         let response_map = self
-            .scalar_vars()
+            .scalar_vars
+            .iter()
+            .copied()
             .zip(response.iter().copied())
             .collect::<ScalarMap<G>>();
 
