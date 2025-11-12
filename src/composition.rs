@@ -65,6 +65,29 @@ impl<G: PrimeGroup> ComposedRelation<G> {
     }
 }
 
+impl<G: PrimeGroup> ComposedRelation<G>
+where
+    Self: SigmaProtocol,
+{
+    /// Convert this Protocol into a non-interactive zero-knowledge proof
+    /// using the Shake128DuplexSponge codec and a specified session identifier.
+    ///
+    /// This method provides a convenient way to create a NIZK from a Protocol
+    /// without exposing the specific codec type to the API caller.
+    ///
+    /// # Parameters
+    /// - `session_identifier`: Domain separator bytes for the Fiat-Shamir transform
+    ///
+    /// # Returns
+    /// A `Nizk` instance ready for proving and verification
+    pub fn into_nizk(self, session_identifier: &[u8]) -> Nizk<Self, Shake128DuplexSponge<G>>
+    where
+        Shake128DuplexSponge<G>: Codec<Challenge = <Self as SigmaProtocol>::Challenge>,
+    {
+        Nizk::new(session_identifier, self)
+    }
+}
+
 impl<G: PrimeGroup> From<CanonicalLinearRelation<G>> for ComposedRelation<G> {
     fn from(value: CanonicalLinearRelation<G>) -> Self {
         ComposedRelation::Simple(value)
@@ -249,29 +272,6 @@ type ComposedChallenge<G> = <CanonicalLinearRelation<G> as SigmaProtocol>::Chall
 
 const fn composed_challenge_size<G: PrimeGroup>() -> usize {
     (G::Scalar::NUM_BITS as usize).div_ceil(8)
-}
-
-impl<G: PrimeGroup> ComposedRelation<G>
-where
-    Self: SigmaProtocol,
-{
-    /// Convert this Protocol into a non-interactive zero-knowledge proof
-    /// using the Shake128DuplexSponge codec and a specified session identifier.
-    ///
-    /// This method provides a convenient way to create a NIZK from a Protocol
-    /// without exposing the specific codec type to the API caller.
-    ///
-    /// # Parameters
-    /// - `session_identifier`: Domain separator bytes for the Fiat-Shamir transform
-    ///
-    /// # Returns
-    /// A `Nizk` instance ready for proving and verification
-    pub fn into_nizk(self, session_identifier: &[u8]) -> Nizk<Self, Shake128DuplexSponge<G>>
-    where
-        Shake128DuplexSponge<G>: Codec<Challenge = <Self as SigmaProtocol>::Challenge>,
-    {
-        Nizk::new(session_identifier, self)
-    }
 }
 
 impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<G> {
