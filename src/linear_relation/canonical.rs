@@ -274,7 +274,9 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
 
         // Build the canonical relation
         let mut canonical = Self::new();
-        canonical.num_scalars = (max_scalar_index + 1) as usize;
+        canonical.scalar_vars = (0..=max_scalar_index as usize)
+            .map(|i| ScalarVar(i, PhantomData))
+            .collect();
 
         // Add all group elements to the map
         let mut group_var_map = Vec::new();
@@ -334,19 +336,8 @@ impl<G: PrimeGroup, A: Allocator<G = G>> TryFrom<&LinearRelation<G, A>>
             ));
         }
 
+        // Process each constraint using the canonical linear relation builder.
         let mut builder = CanonicalLinearRelationBuilder::default();
-
-        #[cfg(feature = "std")]
-        let mut scalar_vars = HashSet::<ScalarVar<G>>::new();
-        #[cfg(not(feature = "std"))]
-        let mut scalar_vars = HashSet::<ScalarVar<G>>::with_hasher(RandomState::new());
-        // Cache for deduplicating weighted group elements
-        #[cfg(feature = "std")]
-        let mut weighted_group_cache = HashMap::new();
-        #[cfg(not(feature = "std"))]
-        let mut weighted_group_cache = HashMap::with_hasher(RandomState::new());
-
-        // Process each constraint using the modular helper method
         for (lhs, rhs) in iter::zip(&relation.image, &relation.linear_combinations) {
             // If any group element in the image is not assigned, return `InvalidInstance`.
             let lhs_value = relation.heap.get_element(*lhs)?;
@@ -526,9 +517,14 @@ impl<G: PrimeGroup> CanonicalLinearRelationBuilder<G> {
 
 impl<G: PrimeGroup> Default for CanonicalLinearRelationBuilder<G> {
     fn default() -> Self {
+        #[cfg(feature = "std")]
+        let weighted_group_cache = HashMap::new();
+        #[cfg(not(feature = "std"))]
+        let weighted_group_cache = HashMap::with_hasher(RandomState::new());
+
         Self {
             relation: CanonicalLinearRelation::new(),
-            weighted_group_cache: Default::default(),
+            weighted_group_cache,
         }
     }
 }

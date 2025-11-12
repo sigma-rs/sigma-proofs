@@ -240,7 +240,7 @@ impl<G: PrimeGroup> SigmaProtocol for CanonicalLinearRelation<G> {
     /// # Errors
     /// - Returns [`Error::VerificationFailure`] if the byte data is malformed or the length is incorrect.
     fn deserialize_response(&self, data: &[u8]) -> Result<Self::Response, Error> {
-        deserialize_scalars::<G>(data, self.num_scalars).ok_or(Error::VerificationFailure)
+        deserialize_scalars::<G>(data, self.scalar_vars.len()).ok_or(Error::VerificationFailure)
     }
 
     fn instance_label(&self) -> impl AsRef<[u8]> {

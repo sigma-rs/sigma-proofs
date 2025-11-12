@@ -172,15 +172,23 @@ pub struct LinearRelation<G: PrimeGroup, A = Heap<G>> {
     pub image: Vec<GroupVar<G>>,
 }
 
-impl<G: PrimeGroup, A: Allocator<G = G>> LinearRelation<G, A> {
+impl<G: PrimeGroup> LinearRelation<G> {
     /// Create a new empty [`LinearRelation`].
-    pub fn new() -> Self
-    where
-        A: Default,
-    {
+    pub fn new() -> Self {
         Self {
             linear_combinations: Vec::new(),
             heap: Default::default(),
+            image: Vec::new(),
+        }
+    }
+}
+
+impl<G: PrimeGroup, A: Allocator<G = G>> LinearRelation<G, A> {
+    /// Create a new empty [`LinearRelation`] using the given [`Allocator`].
+    pub fn new_in(allocator: A) -> Self {
+        Self {
+            linear_combinations: Vec::new(),
+            heap: allocator,
             image: Vec::new(),
         }
     }
