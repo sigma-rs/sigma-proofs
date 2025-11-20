@@ -1,10 +1,10 @@
 use group::prime::PrimeGroup;
 use rand::{CryptoRng, Rng};
 
-use crate::errors::Error;
-use crate::linear_relation::{CanonicalLinearRelation, LinearRelation};
-use crate::tests::spec::random::SRandom;
-use crate::traits::{SigmaProtocol, SigmaProtocolSimulator};
+use crate::spec::random::SRandom;
+use sigma_proofs::errors::Error;
+use sigma_proofs::linear_relation::{CanonicalLinearRelation, LinearRelation};
+use sigma_proofs::traits::{SigmaProtocol, SigmaProtocolSimulator};
 
 pub struct DeterministicSchnorrProof<G: PrimeGroup>(pub CanonicalLinearRelation<G>);
 

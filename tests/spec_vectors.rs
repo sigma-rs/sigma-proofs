@@ -3,10 +3,12 @@ use hex::FromHex;
 use json::JsonValue;
 use std::collections::HashMap;
 
-use crate::codec::KeccakByteSchnorrCodec;
-use crate::fiat_shamir::Nizk;
-use crate::linear_relation::CanonicalLinearRelation;
-use crate::tests::spec::{custom_schnorr_protocol::DeterministicSchnorrProof, rng::TestDRNG};
+use sigma_proofs::codec::KeccakByteSchnorrCodec;
+use sigma_proofs::linear_relation::CanonicalLinearRelation;
+use sigma_proofs::Nizk;
+
+mod spec;
+use spec::{custom_schnorr_protocol::DeterministicSchnorrProof, rng::TestDRNG};
 
 type SchnorrNizk = Nizk<DeterministicSchnorrProof<G>, KeccakByteSchnorrCodec<G>>;
 
@@ -58,7 +60,7 @@ fn test_spec_testvectors() {
             .expect("Failed to parse statement");
 
         // Decode the witness from the test vector
-        let witness = crate::group::serialization::deserialize_scalars::<G>(
+        let witness = sigma_proofs::group::serialization::deserialize_scalars::<G>(
             &vector.witness,
             parsed_instance.num_scalars,
         )
@@ -78,7 +80,7 @@ fn test_spec_testvectors() {
         // Verify that the computed IV matches the test vector IV
         let protocol_id = b"draft-zkproof-fiat-shamir";
         let instance_label = parsed_instance.label();
-        let computed_iv = crate::codec::compute_iv::<crate::codec::KeccakDuplexSponge>(
+        let computed_iv = sigma_proofs::codec::compute_iv::<sigma_proofs::KeccakDuplexSponge>(
             protocol_id,
             &vector.session_id,
             &instance_label,
@@ -111,7 +113,7 @@ fn test_spec_testvectors() {
 fn extract_vectors_new() -> Result<HashMap<String, TestVector>, String> {
     use std::collections::HashMap;
 
-    let content = include_str!("./vectors/testSigmaProtocols.json");
+    let content = include_str!("./spec/vectors/testSigmaProtocols.json");
     let root: JsonValue = json::parse(content).map_err(|e| format!("JSON parsing error: {e}"))?;
 
     let mut vectors = HashMap::new();

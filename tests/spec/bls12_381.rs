@@ -6,7 +6,7 @@ use num_bigint::BigUint;
 use rand::{CryptoRng, Rng};
 use subtle::CtOption;
 
-use crate::tests::spec::random::{SInput, SRandom};
+use crate::spec::random::{SInput, SRandom};
 
 impl SInput for G1Projective {
     fn scalar_from_hex_be(hex_str: &str) -> Option<Self::Scalar> {

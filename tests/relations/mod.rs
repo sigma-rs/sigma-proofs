@@ -2,9 +2,7 @@ use ff::Field;
 use group::prime::PrimeGroup;
 use rand::RngCore;
 
-use crate::codec::Shake128DuplexSponge;
-use crate::fiat_shamir::Nizk;
-use crate::linear_relation::{CanonicalLinearRelation, LinearRelation, Sum};
+use sigma_proofs::linear_relation::{CanonicalLinearRelation, LinearRelation, Sum};
 
 /// LinearMap for knowledge of a discrete logarithm relative to a fixed basepoint.
 #[allow(non_snake_case)]
@@ -351,7 +349,7 @@ pub fn weird_linear_combination<G: PrimeGroup, R: RngCore>(
     (instance, witness)
 }
 
-fn simple_subtractions<G: PrimeGroup, R: RngCore>(
+pub fn simple_subtractions<G: PrimeGroup, R: RngCore>(
     mut rng: &mut R,
 ) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
     let x = G::Scalar::random(&mut rng);
@@ -370,7 +368,7 @@ fn simple_subtractions<G: PrimeGroup, R: RngCore>(
     (instance, witness)
 }
 
-fn subtractions_with_shift<G: PrimeGroup, R: RngCore>(
+pub fn subtractions_with_shift<G: PrimeGroup, R: RngCore>(
     rng: &mut R,
 ) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
     let B = G::generator();
@@ -390,7 +388,7 @@ fn subtractions_with_shift<G: PrimeGroup, R: RngCore>(
 }
 
 #[allow(non_snake_case)]
-fn cmz_wallet_spend_relation<G: PrimeGroup, R: RngCore>(
+pub fn cmz_wallet_spend_relation<G: PrimeGroup, R: RngCore>(
     mut rng: &mut R,
 ) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
     // Simulate the wallet spend relation from cmz
@@ -435,7 +433,7 @@ fn cmz_wallet_spend_relation<G: PrimeGroup, R: RngCore>(
     (instance, witness)
 }
 
-fn nested_affine_relation<G: PrimeGroup, R: RngCore>(
+pub fn nested_affine_relation<G: PrimeGroup, R: RngCore>(
     mut rng: &mut R,
 ) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
     let mut instance = LinearRelation::<G>::new();
@@ -459,7 +457,7 @@ fn nested_affine_relation<G: PrimeGroup, R: RngCore>(
     (instance, witness)
 }
 
-fn pedersen_commitment_equality<G: PrimeGroup, R: RngCore>(
+pub fn pedersen_commitment_equality<G: PrimeGroup, R: RngCore>(
     rng: &mut R,
 ) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
     let mut instance = LinearRelation::new();
@@ -482,7 +480,7 @@ fn pedersen_commitment_equality<G: PrimeGroup, R: RngCore>(
     (instance.canonical().unwrap(), witness)
 }
 
-fn elgamal_subtraction<G: PrimeGroup, R: RngCore>(
+pub fn elgamal_subtraction<G: PrimeGroup, R: RngCore>(
     rng: &mut R,
 ) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
     let mut instance = LinearRelation::new();
@@ -508,106 +506,4 @@ fn elgamal_subtraction<G: PrimeGroup, R: RngCore>(
     instance.compute_image(&witness).unwrap();
 
     (instance.canonical().unwrap(), witness)
-}
-
-#[test]
-fn test_cmz_wallet_with_fee() {
-    use group::Group;
-    type G = bls12_381::G1Projective;
-
-    let mut rng = rand::thread_rng();
-
-    // This version should fail with InvalidInstanceWitnessPair
-    // because it uses a scalar constant directly in the equation
-    let P_W = G::random(&mut rng);
-    let A = G::random(&mut rng);
-
-    let n_balance = <G as Group>::Scalar::random(&mut rng);
-    let i_price = <G as Group>::Scalar::random(&mut rng);
-    let _fee = <G as Group>::Scalar::from(5u64);
-    let z_w_balance = <G as Group>::Scalar::random(&mut rng);
-
-    let mut relation = LinearRelation::<G>::new();
-
-    let var_n_balance = relation.allocate_scalar();
-    let var_i_price = relation.allocate_scalar();
-    let var_z_w_balance = relation.allocate_scalar();
-
-    let var_P_W = relation.allocate_element();
-    let var_A = relation.allocate_element();
-
-    // This equation has a scalar constant (fee) which causes the error
-    let _var_C = relation.allocate_eq(
-        (var_n_balance + var_i_price + <G as Group>::Scalar::from(5)) * var_P_W
-            + var_z_w_balance * var_A,
-    );
-
-    relation.set_elements([(var_P_W, P_W), (var_A, A)]);
-    relation
-        .compute_image(&[n_balance, i_price, z_w_balance])
-        .unwrap();
-
-    // Try to convert to CanonicalLinearRelation - this should fail
-    let nizk = relation.into_nizk(b"session_identifier").unwrap();
-    let result = nizk.prove_batchable(&vec![n_balance, i_price, z_w_balance], &mut rng);
-    assert!(result.is_ok());
-    let proof = result.unwrap();
-    let verify_result = nizk.verify_batchable(&proof);
-    assert!(verify_result.is_ok());
-}
-
-/// Generic helper function to test both relation correctness and NIZK functionality
-#[test]
-fn test_relations() {
-    type G = bls12_381::G1Projective;
-
-    let instance_generators: Vec<(_, &'static dyn Fn(&mut _) -> _)> = vec![
-        ("dlog", &discrete_logarithm),
-        ("shifted_dlog", &shifted_dlog),
-        ("dleq", &dleq),
-        ("shifted_dleq", &shifted_dleq),
-        ("pedersen_commitment", &pedersen_commitment),
-        ("twisted_pedersen_commitment", &twisted_pedersen_commitment),
-        ("pedersen_commitment_dleq", &pedersen_commitment_equality),
-        ("bbs_blind_commitment", &bbs_blind_commitment),
-        ("test_range", &test_range),
-        ("weird_linear_combination", &weird_linear_combination),
-        ("simple_subtractions", &simple_subtractions),
-        ("subtractions_with_shift", &subtractions_with_shift),
-        ("cmz_wallet_spend_relation", &cmz_wallet_spend_relation),
-        ("nested_affine_relation", &nested_affine_relation),
-        ("elgamal_public_subtract", &elgamal_subtraction),
-    ];
-
-    for (relation_name, relation_sampler) in instance_generators.iter() {
-        let mut rng = rand::thread_rng();
-        let (canonical_relation, witness) = relation_sampler(&mut rng);
-
-        // Test the NIZK protocol
-        let domain_sep = format!("test-fiat-shamir-{relation_name}")
-            .as_bytes()
-            .to_vec();
-        let nizk = Nizk::<CanonicalLinearRelation<G>, Shake128DuplexSponge<G>>::new(
-            &domain_sep,
-            canonical_relation,
-        );
-
-        // Test both proof types
-        let proof_batchable = nizk
-            .prove_batchable(&witness, &mut rng)
-            .unwrap_or_else(|_| panic!("Failed to create batchable proof for {relation_name}"));
-        let proof_compact = nizk
-            .prove_compact(&witness, &mut rng)
-            .unwrap_or_else(|_| panic!("Failed to create compact proof for {relation_name}"));
-
-        // Verify both proof types
-        assert!(
-            nizk.verify_batchable(&proof_batchable).is_ok(),
-            "Batchable proof verification failed for {relation_name}"
-        );
-        assert!(
-            nizk.verify_compact(&proof_compact).is_ok(),
-            "Compact proof verification failed for {relation_name}"
-        );
-    }
 }

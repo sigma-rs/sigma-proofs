@@ -5,10 +5,10 @@
 
 #[cfg(test)]
 mod instance_validation {
-    use crate::linear_relation::{CanonicalLinearRelation, LinearRelation};
     use bls12_381::{G1Projective as G, Scalar};
     use ff::Field;
     use group::Group;
+    use sigma_proofs::linear_relation::{CanonicalLinearRelation, LinearRelation};
 
     #[test]
     fn test_unassigned_group_vars() {
@@ -217,13 +217,13 @@ mod instance_validation {
 
 #[cfg(test)]
 mod proof_validation {
-    use crate::codec::KeccakByteSchnorrCodec;
-    use crate::composition::{ComposedRelation, ComposedWitness};
-    use crate::fiat_shamir::Nizk;
-    use crate::linear_relation::{CanonicalLinearRelation, LinearRelation};
     use bls12_381::{G1Projective as G, Scalar};
     use ff::Field;
     use rand::RngCore;
+    use sigma_proofs::codec::KeccakByteSchnorrCodec;
+    use sigma_proofs::composition::{ComposedRelation, ComposedWitness};
+    use sigma_proofs::linear_relation::{CanonicalLinearRelation, LinearRelation};
+    use sigma_proofs::Nizk;
 
     type TestNizk = Nizk<CanonicalLinearRelation<G>, KeccakByteSchnorrCodec<G>>;
 
