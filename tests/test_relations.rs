@@ -8,6 +8,7 @@ mod relations;
 use relations::*;
 
 #[test]
+#[allow(non_snake_case)]
 fn test_cmz_wallet_with_fee() {
     use group::Group;
     type G = bls12_381::G1Projective;

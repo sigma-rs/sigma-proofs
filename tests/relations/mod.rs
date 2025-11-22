@@ -321,6 +321,7 @@ pub fn bbs_blind_commitment<G: PrimeGroup, R: RngCore>(
 }
 
 /// LinearMap for the user's specific relation: A * 1 + gen__disj1_x_r * B
+#[allow(non_snake_case)]
 pub fn weird_linear_combination<G: PrimeGroup, R: RngCore>(
     rng: &mut R,
 ) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
@@ -349,6 +350,7 @@ pub fn weird_linear_combination<G: PrimeGroup, R: RngCore>(
     (instance, witness)
 }
 
+#[allow(non_snake_case)]
 pub fn simple_subtractions<G: PrimeGroup, R: RngCore>(
     mut rng: &mut R,
 ) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
@@ -368,6 +370,7 @@ pub fn simple_subtractions<G: PrimeGroup, R: RngCore>(
     (instance, witness)
 }
 
+#[allow(non_snake_case)]
 pub fn subtractions_with_shift<G: PrimeGroup, R: RngCore>(
     rng: &mut R,
 ) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
@@ -433,6 +436,7 @@ pub fn cmz_wallet_spend_relation<G: PrimeGroup, R: RngCore>(
     (instance, witness)
 }
 
+#[allow(non_snake_case)]
 pub fn nested_affine_relation<G: PrimeGroup, R: RngCore>(
     mut rng: &mut R,
 ) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
@@ -457,6 +461,7 @@ pub fn nested_affine_relation<G: PrimeGroup, R: RngCore>(
     (instance, witness)
 }
 
+#[allow(non_snake_case)]
 pub fn pedersen_commitment_equality<G: PrimeGroup, R: RngCore>(
     rng: &mut R,
 ) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
@@ -480,6 +485,7 @@ pub fn pedersen_commitment_equality<G: PrimeGroup, R: RngCore>(
     (instance.canonical().unwrap(), witness)
 }
 
+#[allow(non_snake_case)]
 pub fn elgamal_subtraction<G: PrimeGroup, R: RngCore>(
     rng: &mut R,
 ) -> (CanonicalLinearRelation<G>, Vec<G::Scalar>) {
