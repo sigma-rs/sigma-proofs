@@ -1,7 +1,7 @@
 //! Encoding and decoding utilities for Fiat-Shamir and group operations.
 
 use crate::duplex_sponge::DuplexSpongeInterface;
-pub use crate::duplex_sponge::{keccak::KeccakDuplexSponge, shake::ShakeDuplexSponge};
+use crate::duplex_sponge::{keccak::KeccakDuplexSponge, shake::ShakeDuplexSponge};
 use alloc::vec;
 use ff::PrimeField;
 use group::prime::PrimeGroup;
@@ -23,7 +23,11 @@ pub trait Codec {
     type Challenge;
 
     /// Generates an empty codec that can be identified by a domain separator.
-    fn new(protocol_identifier: &[u8], session_identifier: &[u8], instance_label: &[u8]) -> Self;
+    fn new(
+        protocol_identifier: &[u8; 64],
+        session_identifier: &[u8],
+        instance_label: &[u8],
+    ) -> Self;
 
     /// Allows for precomputed initialization of the codec with a specific IV.
     fn from_iv(iv: [u8; 64]) -> Self;
@@ -65,12 +69,11 @@ fn length_to_bytes(x: usize) -> [u8; WORD_SIZE] {
 /// This function computes a deterministic IV from the protocol identifier,
 /// session identifier, and instance label using the specified duplex sponge.
 pub fn compute_iv<H: DuplexSpongeInterface>(
-    protocol_id: &[u8],
+    protocol_id: &[u8; 64],
     session_id: &[u8],
     instance_label: &[u8],
 ) -> [u8; 64] {
     let mut tmp = H::new([0u8; 64]);
-    tmp.absorb(&length_to_bytes(protocol_id.len()));
     tmp.absorb(protocol_id);
     tmp.absorb(&length_to_bytes(session_id.len()));
     tmp.absorb(session_id);
@@ -86,9 +89,16 @@ where
 {
     type Challenge = G::Scalar;
 
-    fn new(protocol_id: &[u8], session_id: &[u8], instance_label: &[u8]) -> Self {
-        let iv = compute_iv::<H>(protocol_id, session_id, instance_label);
-        Self::from_iv(iv)
+    fn new(protocol_id: &[u8; 64], session_id: &[u8], instance_label: &[u8]) -> Self {
+        let mut hasher = H::new(*protocol_id);
+        hasher.absorb(&length_to_bytes(session_id.len()));
+        hasher.absorb(session_id);
+        hasher.absorb(&length_to_bytes(instance_label.len()));
+        hasher.absorb(instance_label);
+        Self {
+            hasher,
+            _marker: core::marker::PhantomData,
+        }
     }
 
     fn from_iv(iv: [u8; 64]) -> Self {

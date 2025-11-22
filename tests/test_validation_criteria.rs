@@ -5,10 +5,10 @@
 
 #[cfg(test)]
 mod instance_validation {
-    use crate::linear_relation::{CanonicalLinearRelation, LinearRelation};
     use bls12_381::{G1Projective as G, Scalar};
     use ff::Field;
     use group::Group;
+    use sigma_proofs::linear_relation::{CanonicalLinearRelation, LinearRelation};
 
     #[test]
     fn test_unassigned_group_vars() {
@@ -32,6 +32,7 @@ mod instance_validation {
     }
 
     #[test]
+    #[allow(non_snake_case)]
     fn test_zero_image() {
         // Create a linear relation with zero elements in the image
         // 0 = x * G (which is invalid)
@@ -108,6 +109,7 @@ mod instance_validation {
     }
 
     #[test]
+    #[allow(non_snake_case)]
     fn test_empty_string() {
         let rng = &mut rand::thread_rng();
         let relation = LinearRelation::<G>::new();
@@ -123,6 +125,7 @@ mod instance_validation {
     }
 
     #[test]
+    #[allow(non_snake_case)]
     fn test_statement_without_witness() {
         let pub_scalar = Scalar::from(42);
         let A = G::generator();
@@ -185,6 +188,7 @@ mod instance_validation {
     }
 
     #[test]
+    #[allow(non_snake_case)]
     fn test_statement_with_trivial_image() {
         let mut rng = rand::thread_rng();
         let mut linear_relation = LinearRelation::new();
@@ -217,13 +221,13 @@ mod instance_validation {
 
 #[cfg(test)]
 mod proof_validation {
-    use crate::codec::KeccakByteSchnorrCodec;
-    use crate::composition::{ComposedRelation, ComposedWitness};
-    use crate::fiat_shamir::Nizk;
-    use crate::linear_relation::{CanonicalLinearRelation, LinearRelation};
     use bls12_381::{G1Projective as G, Scalar};
     use ff::Field;
     use rand::RngCore;
+    use sigma_proofs::codec::KeccakByteSchnorrCodec;
+    use sigma_proofs::composition::{ComposedRelation, ComposedWitness};
+    use sigma_proofs::linear_relation::{CanonicalLinearRelation, LinearRelation};
+    use sigma_proofs::Nizk;
 
     type TestNizk = Nizk<CanonicalLinearRelation<G>, KeccakByteSchnorrCodec<G>>;
 
@@ -385,6 +389,7 @@ mod proof_validation {
     }
 
     #[test]
+    #[allow(non_snake_case)]
     fn test_or_relation() {
         // This test reproduces the issue from sigma_compiler's simple_or test
         // where an OR relation fails verification when using the wrong branch

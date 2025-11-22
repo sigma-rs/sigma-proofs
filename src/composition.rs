@@ -556,7 +556,7 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> SigmaProtocol
         }
     }
 
-    fn protocol_identifier(&self) -> impl AsRef<[u8]> {
+    fn protocol_identifier(&self) -> [u8; 64] {
         let mut hasher = Sha3_256::new();
 
         match self {
@@ -569,19 +569,21 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> SigmaProtocol
                 let mut hasher = Sha3_256::new();
                 hasher.update([1u8; 32]);
                 for p in protocols {
-                    hasher.update(p.protocol_identifier());
+                    hasher.update(p.protocol_identifier().as_ref());
                 }
             }
             ComposedRelation::Or(protocols) => {
                 let mut hasher = Sha3_256::new();
                 hasher.update([2u8; 32]);
                 for p in protocols {
-                    hasher.update(p.protocol_identifier());
+                    hasher.update(p.protocol_identifier().as_ref());
                 }
             }
         }
 
-        hasher.finalize()
+        let mut protocol_id = [0u8; 64];
+        protocol_id[..32].clone_from_slice(&hasher.finalize());
+        protocol_id
     }
 
     fn serialize_response(&self, response: &Self::Response) -> Vec<u8> {

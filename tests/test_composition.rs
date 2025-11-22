@@ -1,10 +1,10 @@
-use curve25519_dalek::ristretto::RistrettoPoint;
+use curve25519_dalek::ristretto::RistrettoPoint as G;
 use group::Group;
 
-use super::test_relations::*;
-use crate::composition::{ComposedRelation, ComposedWitness};
+use sigma_proofs::composition::{ComposedRelation, ComposedWitness};
 
-type G = RistrettoPoint;
+mod relations;
+pub use relations::*;
 
 #[allow(non_snake_case)]
 #[test]

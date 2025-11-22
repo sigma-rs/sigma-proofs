@@ -1,8 +1,6 @@
-use crate::duplex_sponge::{
-    keccak::KeccakDuplexSponge, shake::ShakeDuplexSponge, DuplexSpongeInterface,
-};
 use libtest_mimic::{Arguments, Failed, Trial};
 use serde::{Deserialize, Serialize};
+use sigma_proofs::{DuplexSpongeInterface, KeccakDuplexSponge, ShakeDuplexSponge};
 use std::collections::HashMap;
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -35,7 +33,7 @@ fn hex_decode(hex_str: &str) -> Vec<u8> {
 }
 
 fn load_test_vectors() -> HashMap<String, TestVector> {
-    let json_data = include_str!("./vectors/duplexSpongeVectors.json");
+    let json_data = include_str!("./spec/vectors/duplexSpongeVectors.json");
     serde_json::from_str(json_data).expect("Failed to parse test vectors JSON")
 }
 

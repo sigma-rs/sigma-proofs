@@ -233,8 +233,11 @@ impl<G: PrimeGroup> SigmaProtocol for CanonicalLinearRelation<G> {
         self.label()
     }
 
-    fn protocol_identifier(&self) -> impl AsRef<[u8]> {
-        b"draft-zkproof-fiat-shamir"
+    fn protocol_identifier(&self) -> [u8; 64] {
+        const PROTOCOL_ID: &[u8; 32] = b"ietf sigma proof linear relation";
+        let mut protocol_id = [0; 64];
+        protocol_id[..32].clone_from_slice(PROTOCOL_ID);
+        protocol_id
     }
 }
 

@@ -72,17 +72,17 @@ extern crate alloc;
 pub mod codec;
 pub mod composition;
 pub mod errors;
+pub mod group;
 pub mod linear_relation;
 pub mod traits;
 
 pub(crate) mod duplex_sponge;
 pub(crate) mod fiat_shamir;
-pub(crate) mod group;
 pub(crate) mod schnorr_protocol;
 
-#[cfg(test)]
-pub mod tests;
-
+pub use duplex_sponge::{
+    keccak::KeccakDuplexSponge, shake::ShakeDuplexSponge, DuplexSpongeInterface,
+};
 pub use fiat_shamir::Nizk;
 pub use group::msm::VariableMultiScalarMul;
 pub use linear_relation::LinearRelation;
