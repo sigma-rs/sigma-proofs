@@ -182,27 +182,25 @@ pub fn range_instance_generation<G: PrimeGroup, R: RngCore>(
     let [var_G, var_H] = instance.allocate_elements();
     let [var_x, var_r] = instance.allocate_scalars();
     let vars_b = instance.allocate_scalars_vec(bases.len());
-    let vars_s = instance.allocate_scalars_vec(bases.len() - 1);
+    let vars_s = instance.allocate_scalars_vec(bases.len());
     let var_s2 = instance.allocate_scalars_vec(bases.len());
     let var_Ds = instance.allocate_elements_vec(bases.len());
 
     // `var_C` is a Pedersen commitment to `var_x`.
     let var_C = instance.allocate_eq(var_x * var_G + var_r * var_H);
     // `var_Ds[i]` are bit commitments...
-    for i in 1..bases.len() {
+    for i in 0..bases.len() {
         instance.append_equation(var_Ds[i], vars_b[i] * var_G + vars_s[i] * var_H);
         instance.append_equation(var_Ds[i], vars_b[i] * var_Ds[i] + var_s2[i] * var_H);
     }
     // ... satisfying that sum(Ds[i] * bases[i]) = C
     instance.append_equation(
-        var_Ds[0],
-        var_C
-            - var_G * G::Scalar::from(range.start)
-            - (1..bases.len())
+        var_C,
+        var_G * G::Scalar::from(range.start)
+            + (0..bases.len())
                 .map(|i| var_Ds[i] * G::Scalar::from(bases[i]))
                 .sum::<Sum<_>>(),
     );
-    instance.append_equation(var_Ds[0], vars_b[0] * var_Ds[0] + var_s2[0] * var_H);
 
     // Compute the witness
     let r = G::Scalar::random(&mut rng);
@@ -492,24 +490,26 @@ pub fn elgamal_subtraction<G: PrimeGroup, R: RngCore>(
     let mut instance = LinearRelation::new();
     let [dk, a, r] = instance.allocate_scalars();
     let [ek, C, D, H, G] = instance.allocate_elements();
-    let v = G::Scalar::from(100);
 
     instance.append_equation(ek, dk * H);
 
     instance.append_equation(D, r * H);
     instance.append_equation(C, r * ek + a * G);
 
-    instance.append_equation(C, G * v + dk * D + a * G);
+    instance.append_equation(C, dk * D + a * G);
 
-    // set dk for testing to
-    let witness = vec![
-        G::Scalar::from(4242),
-        G::Scalar::from(1000),
-        G::Scalar::random(&mut *rng),
-    ];
+    let witness_dk = G::Scalar::from(4242);
+    let witness_a = G::Scalar::from(1000);
+    let witness_r = G::Scalar::random(&mut *rng);
+    let witness = vec![witness_dk, witness_a, witness_r];
+
+    // Assign group elements consistent with the witness so compute_image is unnecessary.
     let alt_gen = G::random(&mut *rng);
     instance.set_elements([(G, G::generator()), (H, alt_gen)]);
-    instance.compute_image(&witness).unwrap();
+    let ek_val = alt_gen * witness_dk;
+    let D_val = alt_gen * witness_r;
+    let C_val = ek_val * witness_r + G::generator() * witness_a;
+    instance.set_elements([(ek, ek_val), (D, D_val), (C, C_val)]);
 
     (instance.canonical().unwrap(), witness)
 }

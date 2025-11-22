@@ -18,7 +18,6 @@ struct TestVector {
     session_id: Vec<u8>,
     statement: Vec<u8>,
     witness: Vec<u8>,
-    iv: Vec<u8>,
     proof: Vec<u8>,
 }
 
@@ -78,17 +77,10 @@ fn test_spec_testvectors() {
         let nizk = SchnorrNizk::new(&vector.session_id, protocol);
 
         // Verify that the computed IV matches the test vector IV
-        let protocol_id = b"draft-zkproof-fiat-shamir";
-        let instance_label = parsed_instance.label();
-        let computed_iv = sigma_proofs::codec::compute_iv::<sigma_proofs::KeccakDuplexSponge>(
-            protocol_id,
-            &vector.session_id,
-            &instance_label,
-        );
-        assert_eq!(
-            computed_iv,
-            vector.iv.as_slice(),
-            "Computed IV doesn't match test vector IV for {test_name}"
+        // Ensure the provided test vector proof verifies.
+        assert!(
+            nizk.verify_batchable(&vector.proof).is_ok(),
+            "Fiat-Shamir Schnorr proof from vectors did not verify for {test_name}"
         );
 
         // Generate proof with the proof generation RNG
@@ -145,15 +137,8 @@ fn extract_vectors_new() -> Result<HashMap<String, TestVector>, String> {
         )
         .map_err(|e| format!("Invalid hex in Witness for {name}: {e}"))?;
 
-        let iv = Vec::from_hex(
-            obj["IV"]
-                .as_str()
-                .ok_or_else(|| format!("IV field not found for {name}"))?,
-        )
-        .map_err(|e| format!("Invalid hex in IV for {name}: {e}"))?;
-
         let proof = Vec::from_hex(
-            obj["Proof"]
+            obj["Batchable Proof"]
                 .as_str()
                 .ok_or_else(|| format!("Proof field not found for {name}"))?,
         )
@@ -166,7 +151,6 @@ fn extract_vectors_new() -> Result<HashMap<String, TestVector>, String> {
                 session_id,
                 statement,
                 witness,
-                iv,
                 proof,
             },
         );

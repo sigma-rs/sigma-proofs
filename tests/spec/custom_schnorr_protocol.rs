@@ -88,7 +88,7 @@ impl<G: SRandom + PrimeGroup> SigmaProtocol for DeterministicSchnorrProof<G> {
         self.0.instance_label()
     }
 
-    fn protocol_identifier(&self) -> impl AsRef<[u8]> {
+    fn protocol_identifier(&self) -> [u8; 64] {
         self.0.protocol_identifier()
     }
 }
