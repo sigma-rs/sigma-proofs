@@ -582,7 +582,7 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> SigmaProtocol
         }
 
         let mut protocol_id = [0u8; 64];
-        (&mut protocol_id[..32]).clone_from_slice(&hasher.finalize());
+        protocol_id[..32].clone_from_slice(&hasher.finalize());
         protocol_id
     }
 
