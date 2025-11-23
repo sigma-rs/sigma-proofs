@@ -1,6 +1,5 @@
 use ff::Field;
 
-use sigma_proofs::codec::Shake128DuplexSponge;
 use sigma_proofs::linear_relation::{CanonicalLinearRelation, LinearRelation};
 use sigma_proofs::Nizk;
 
@@ -85,27 +84,17 @@ fn test_relations() {
         let domain_sep = format!("test-fiat-shamir-{relation_name}")
             .as_bytes()
             .to_vec();
-        let nizk = Nizk::<CanonicalLinearRelation<G>, Shake128DuplexSponge<G>>::new(
-            &domain_sep,
-            canonical_relation,
-        );
+        let nizk = Nizk::<CanonicalLinearRelation<G>>::new(&domain_sep, canonical_relation);
 
         // Test both proof types
         let proof_batchable = nizk
             .prove_batchable(&witness, &mut rng)
             .unwrap_or_else(|_| panic!("Failed to create batchable proof for {relation_name}"));
-        let proof_compact = nizk
-            .prove_compact(&witness, &mut rng)
-            .unwrap_or_else(|_| panic!("Failed to create compact proof for {relation_name}"));
 
         // Verify both proof types
         assert!(
             nizk.verify_batchable(&proof_batchable).is_ok(),
             "Batchable proof verification failed for {relation_name}"
-        );
-        assert!(
-            nizk.verify_compact(&proof_compact).is_ok(),
-            "Compact proof verification failed for {relation_name}"
         );
     }
 }

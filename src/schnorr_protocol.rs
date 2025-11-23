@@ -4,12 +4,10 @@
 //! a Sigma protocol proving different types of discrete logarithm relations (eg. Schnorr, Pedersen's commitments)
 //! through a group morphism abstraction (see [Maurer09](https://crypto-test.ethz.ch/publications/files/Maurer09.pdf)).
 
-use crate::errors::Error;
-use crate::group::serialization::{
-    deserialize_elements, deserialize_scalars, serialize_elements, serialize_scalars,
-};
+use crate::errors::{Error, Result};
 use crate::linear_relation::CanonicalLinearRelation;
-use crate::traits::{SigmaProtocol, SigmaProtocolSimulator};
+use crate::traits::{SigmaProtocol, SigmaProtocolSimulator, Transcript};
+use crate::{LinearRelation, Nizk};
 use alloc::vec::Vec;
 
 use ff::Field;
@@ -18,11 +16,16 @@ use group::prime::PrimeGroup;
 use rand::{CryptoRng, Rng, RngCore};
 #[cfg(not(feature = "std"))]
 use rand_core::{CryptoRng, RngCore, RngCore as Rng};
+use spongefish::{Decoding, Encoding, NargDeserialize, NargSerialize};
 
-impl<G: PrimeGroup> SigmaProtocol for CanonicalLinearRelation<G> {
-    type Commitment = Vec<G>;
+impl<G> SigmaProtocol for CanonicalLinearRelation<G>
+where
+    G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize,
+    G::Scalar: Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]>,
+{
+    type Commitment = G;
     type ProverState = (Vec<G::Scalar>, Vec<G::Scalar>);
-    type Response = Vec<G::Scalar>;
+    type Response = G::Scalar;
     type Witness = Vec<G::Scalar>;
     type Challenge = G::Scalar;
 
@@ -45,7 +48,7 @@ impl<G: PrimeGroup> SigmaProtocol for CanonicalLinearRelation<G> {
         &self,
         witness: &Self::Witness,
         rng: &mut (impl RngCore + CryptoRng),
-    ) -> Result<(Self::Commitment, Self::ProverState), Error> {
+    ) -> Result<(Vec<Self::Commitment>, Self::ProverState)> {
         if witness.len() < self.num_scalars {
             return Err(Error::InvalidInstanceWitnessPair);
         }
@@ -85,7 +88,7 @@ impl<G: PrimeGroup> SigmaProtocol for CanonicalLinearRelation<G> {
         &self,
         prover_state: Self::ProverState,
         challenge: &Self::Challenge,
-    ) -> Result<Self::Response, Error> {
+    ) -> Result<Vec<Self::Response>> {
         let (nonces, witness) = prover_state;
 
         let responses = nonces
@@ -113,10 +116,10 @@ impl<G: PrimeGroup> SigmaProtocol for CanonicalLinearRelation<G> {
     /// -[`Error::InvalidInstanceWitnessPair`] if the commitment or response length is incorrect.
     fn verifier(
         &self,
-        commitment: &Self::Commitment,
+        commitment: &[Self::Commitment],
         challenge: &Self::Challenge,
-        response: &Self::Response,
-    ) -> Result<(), Error> {
+        response: &[Self::Response],
+    ) -> Result<()> {
         if commitment.len() != self.image.len() || response.len() != self.num_scalars {
             return Err(Error::InvalidInstanceWitnessPair);
         }
@@ -132,101 +135,12 @@ impl<G: PrimeGroup> SigmaProtocol for CanonicalLinearRelation<G> {
             Err(Error::VerificationFailure)
         }
     }
-
-    /// Serializes the prover's commitment into a byte vector.
-    ///
-    /// This function encodes the vector of group elements (the commitment)
-    /// into a binary format suitable for transmission or storage. This is
-    /// typically the first message sent in a Sigma protocol round.
-    ///
-    /// # Parameters
-    /// - `commitment`: A vector of group elements representing the prover's commitment.
-    ///
-    /// # Returns
-    /// A `Vec<u8>` containing the serialized group elements.
-    fn serialize_commitment(&self, commitment: &Self::Commitment) -> Vec<u8> {
-        serialize_elements(commitment)
+    fn commitment_len(&self) -> usize {
+        self.image.len()
     }
 
-    /// Serializes the verifier's challenge scalar into bytes.
-    ///
-    /// Converts the challenge scalar into a fixed-length byte encoding. This can be used
-    /// for Fiat–Shamir hashing, transcript recording, or proof transmission.
-    ///
-    /// # Parameters
-    /// - `challenge`: The scalar challenge value.
-    ///
-    /// # Returns
-    /// A `Vec<u8>` containing the serialized scalar.
-    fn serialize_challenge(&self, &challenge: &Self::Challenge) -> Vec<u8> {
-        serialize_scalars::<G>(&[challenge])
-    }
-
-    /// Serializes the prover's response vector into a byte format.
-    ///
-    /// The response is a vector of scalars computed by the prover after receiving
-    /// the verifier's challenge. This function encodes the vector into a format
-    /// suitable for transmission or inclusion in a batchable proof.
-    ///
-    /// # Parameters
-    /// - `response`: A vector of scalar responses computed by the prover.
-    ///
-    /// # Returns
-    /// A `Vec<u8>` containing the serialized scalars.
-    fn serialize_response(&self, response: &Self::Response) -> Vec<u8> {
-        serialize_scalars::<G>(response)
-    }
-
-    /// Deserializes a byte slice into a vector of group elements (commitment).
-    ///
-    /// This function reconstructs the prover’s commitment from its binary representation.
-    /// The number of elements expected is determined by the number of linear constraints
-    /// in the underlying linear relation.
-    ///
-    /// # Parameters
-    /// - `data`: A byte slice containing the serialized commitment.
-    ///
-    /// # Returns
-    /// A `Vec<G>` containing the deserialized group elements.
-    ///
-    /// # Errors
-    /// - Returns [`Error::VerificationFailure`] if the data is malformed or contains an invalid encoding.
-    fn deserialize_commitment(&self, data: &[u8]) -> Result<Self::Commitment, Error> {
-        deserialize_elements::<G>(data, self.image.len()).ok_or(Error::VerificationFailure)
-    }
-
-    /// Deserializes a byte slice into a challenge scalar.
-    ///
-    /// This function expects a single scalar to be encoded and returns it as the verifier's challenge.
-    ///
-    /// # Parameters
-    /// - `data`: A byte slice containing the serialized scalar challenge.
-    ///
-    /// # Returns
-    /// The deserialized scalar challenge value.
-    ///
-    /// # Errors
-    /// - Returns [`Error::VerificationFailure`] if deserialization fails or data is invalid.
-    fn deserialize_challenge(&self, data: &[u8]) -> Result<Self::Challenge, Error> {
-        let scalars = deserialize_scalars::<G>(data, 1).ok_or(Error::VerificationFailure)?;
-        Ok(scalars[0])
-    }
-
-    /// Deserializes a byte slice into the prover's response vector.
-    ///
-    /// The response vector contains scalars used in the second round of the Sigma protocol.
-    /// The expected number of scalars matches the number of witness variables.
-    ///
-    /// # Parameters
-    /// - `data`: A byte slice containing the serialized response.
-    ///
-    /// # Returns
-    /// A vector of deserialized scalars.
-    ///
-    /// # Errors
-    /// - Returns [`Error::VerificationFailure`] if the byte data is malformed or the length is incorrect.
-    fn deserialize_response(&self, data: &[u8]) -> Result<Self::Response, Error> {
-        deserialize_scalars::<G>(data, self.num_scalars).ok_or(Error::VerificationFailure)
+    fn response_len(&self) -> usize {
+        self.num_scalars
     }
 
     fn instance_label(&self) -> impl AsRef<[u8]> {
@@ -234,16 +148,108 @@ impl<G: PrimeGroup> SigmaProtocol for CanonicalLinearRelation<G> {
     }
 
     fn protocol_identifier(&self) -> [u8; 64] {
-        const PROTOCOL_ID: &[u8; 32] = b"ietf sigma proof linear relation";
-        let mut protocol_id = [0; 64];
-        protocol_id[..32].clone_from_slice(PROTOCOL_ID);
-        protocol_id
+        let mut id = [0u8; 64];
+        id[..32].clone_from_slice(b"ietf sigma proof linear relation");
+        id
     }
 }
 
+impl<G> CanonicalLinearRelation<G>
+where
+    G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize,
+    G::Scalar: Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]>,
+{
+    /// Convert this LinearRelation into a non-interactive zero-knowledge protocol
+    /// using the ShakeCodec and a specified context/domain separator.
+    ///
+    /// # Parameters
+    /// - `context`: Domain separator bytes for the Fiat-Shamir transform
+    ///
+    /// # Returns
+    /// A `Nizk` instance ready for proving and verification
+    ///
+    /// # Example
+    /// ```
+    /// # use sigma_proofs::{LinearRelation, Nizk};
+    /// # use curve25519_dalek::RistrettoPoint as G;
+    /// # use curve25519_dalek::scalar::Scalar;
+    /// # use rand::rngs::OsRng;
+    /// # use group::Group;
+    ///
+    /// let mut relation = LinearRelation::<G>::new();
+    /// let x_var = relation.allocate_scalar();
+    /// let g_var = relation.allocate_element();
+    /// let p_var = relation.allocate_eq(x_var * g_var);
+    ///
+    /// relation.set_element(g_var, G::generator());
+    /// let x = Scalar::random(&mut OsRng);
+    /// relation.compute_image(&[x]).unwrap();
+    ///
+    /// // Convert to NIZK with custom context
+    /// let nizk = relation.into_nizk(b"my-protocol-v1").unwrap();
+    /// let proof = nizk.prove_batchable(&vec![x], &mut OsRng).unwrap();
+    /// assert!(nizk.verify_batchable(&proof).is_ok());
+    /// ```
+    pub fn into_nizk(self, session_identifier: &[u8]) -> Result<Nizk<CanonicalLinearRelation<G>>> {
+        Ok(Nizk::new(session_identifier, self))
+    }
+}
+
+impl<G> LinearRelation<G>
+where
+    G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize,
+    G::Scalar: Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]>,
+{
+    /// Convert this LinearRelation into a non-interactive zero-knowledge protocol
+    /// using the Fiat-Shamir transform.
+    ///
+    /// This is a convenience method that combines `.canonical()` and `.into_nizk()`.
+    ///
+    /// # Parameters
+    /// - `session_identifier`: Domain separator bytes for the Fiat-Shamir transform
+    ///
+    /// # Returns
+    /// A `Nizk` instance ready for proving and verification
+    ///
+    /// # Example
+    /// ```
+    /// # use sigma_proofs::{LinearRelation, Nizk};
+    /// # use curve25519_dalek::RistrettoPoint as G;
+    /// # use curve25519_dalek::scalar::Scalar;
+    /// # use rand::rngs::OsRng;
+    /// # use group::Group;
+    ///
+    /// let mut relation = LinearRelation::<G>::new();
+    /// let x_var = relation.allocate_scalar();
+    /// let g_var = relation.allocate_element();
+    /// let p_var = relation.allocate_eq(x_var * g_var);
+    ///
+    /// relation.set_element(g_var, G::generator());
+    /// let x = Scalar::random(&mut OsRng);
+    /// relation.compute_image(&[x]).unwrap();
+    ///
+    /// // Convert to NIZK directly
+    /// let nizk = relation.into_nizk(b"my-protocol-v1").unwrap();
+    /// let proof = nizk.prove_batchable(&vec![x], &mut OsRng).unwrap();
+    /// assert!(nizk.verify_batchable(&proof).is_ok());
+    /// ```
+    pub fn into_nizk(
+        self,
+        session_identifier: &[u8],
+    ) -> crate::errors::Result<crate::Nizk<CanonicalLinearRelation<G>>>
+    where
+        G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize,
+        G::Scalar: Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]>,
+    {
+        self.canonical()
+            .map_err(|_| crate::errors::Error::InvalidInstanceWitnessPair)?
+            .into_nizk(session_identifier)
+    }
+}
 impl<G> SigmaProtocolSimulator for CanonicalLinearRelation<G>
 where
-    G: PrimeGroup,
+    G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize,
+    G::Scalar: Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]>,
 {
     /// Simulates a valid transcript for a given challenge without a witness.
     ///
@@ -253,11 +259,10 @@ where
     ///
     /// # Returns
     /// - A commitment and response forming a valid proof for the given challenge.
-    fn simulate_response<R: Rng + CryptoRng>(&self, rng: &mut R) -> Self::Response {
-        let response: Vec<G::Scalar> = (0..self.num_scalars)
+    fn simulate_response<R: Rng + CryptoRng>(&self, rng: &mut R) -> Vec<Self::Response> {
+        (0..self.num_scalars)
             .map(|_| G::Scalar::random(&mut *rng))
-            .collect();
-        response
+            .collect()
     }
 
     /// Simulates a full proof transcript using a randomly generated challenge.
@@ -267,10 +272,7 @@ where
     ///
     /// # Returns
     /// - A tuple `(commitment, challenge, response)` forming a valid proof.
-    fn simulate_transcript<R: Rng + CryptoRng>(
-        &self,
-        rng: &mut R,
-    ) -> Result<(Self::Commitment, Self::Challenge, Self::Response), Error> {
+    fn simulate_transcript<R: Rng + CryptoRng>(&self, rng: &mut R) -> Result<Transcript<Self>> {
         let challenge = G::Scalar::random(&mut *rng);
         let response = self.simulate_response(&mut *rng);
         let commitment = self.simulate_commitment(&challenge, &response)?;
@@ -291,8 +293,8 @@ where
     fn simulate_commitment(
         &self,
         challenge: &Self::Challenge,
-        response: &Self::Response,
-    ) -> Result<Self::Commitment, Error> {
+        response: &[Self::Response],
+    ) -> Result<Vec<Self::Commitment>> {
         if response.len() != self.num_scalars {
             return Err(Error::InvalidInstanceWitnessPair);
         }

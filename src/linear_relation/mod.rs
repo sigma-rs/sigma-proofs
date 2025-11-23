@@ -13,13 +13,10 @@ use alloc::vec::Vec;
 use core::iter;
 use core::marker::PhantomData;
 
-use ff::Field;
-use group::prime::PrimeGroup;
-
-use crate::codec::Shake128DuplexSponge;
 use crate::errors::{Error, InvalidInstance};
 use crate::group::msm::VariableMultiScalarMul;
-use crate::Nizk;
+use ff::Field;
+use group::prime::PrimeGroup;
 
 /// Implementations of conversion operations such as From and FromIterator for var and term types.
 mod convert;
@@ -553,44 +550,6 @@ impl<G: PrimeGroup> LinearRelation<G> {
             .iter()
             .map(|&var| self.linear_map.group_elements.get(var))
             .collect()
-    }
-
-    /// Convert this LinearRelation into a non-interactive zero-knowledge protocol
-    /// using the ShakeCodec and a specified context/domain separator.
-    ///
-    /// # Parameters
-    /// - `context`: Domain separator bytes for the Fiat-Shamir transform
-    ///
-    /// # Returns
-    /// A `Nizk` instance ready for proving and verification
-    ///
-    /// # Example
-    /// ```
-    /// # use sigma_proofs::{LinearRelation, Nizk};
-    /// # use curve25519_dalek::RistrettoPoint as G;
-    /// # use curve25519_dalek::scalar::Scalar;
-    /// # use rand::rngs::OsRng;
-    /// # use group::Group;
-    ///
-    /// let mut relation = LinearRelation::<G>::new();
-    /// let x_var = relation.allocate_scalar();
-    /// let g_var = relation.allocate_element();
-    /// let p_var = relation.allocate_eq(x_var * g_var);
-    ///
-    /// relation.set_element(g_var, G::generator());
-    /// let x = Scalar::random(&mut OsRng);
-    /// relation.compute_image(&[x]).unwrap();
-    ///
-    /// // Convert to NIZK with custom context
-    /// let nizk = relation.into_nizk(b"my-protocol-v1").unwrap();
-    /// let proof = nizk.prove_batchable(&vec![x], &mut OsRng).unwrap();
-    /// assert!(nizk.verify_batchable(&proof).is_ok());
-    /// ```
-    pub fn into_nizk(
-        self,
-        session_identifier: &[u8],
-    ) -> Result<Nizk<CanonicalLinearRelation<G>, Shake128DuplexSponge<G>>, InvalidInstance> {
-        Ok(Nizk::new(session_identifier, self.try_into()?))
     }
 
     /// Construct a [CanonicalLinearRelation] from this generalized linear relation.

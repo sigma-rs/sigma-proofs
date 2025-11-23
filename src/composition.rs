@@ -19,19 +19,20 @@
 //! ```
 
 use alloc::vec::Vec;
-use ff::{Field, PrimeField};
+use ff::Field;
 use group::prime::PrimeGroup;
 #[cfg(feature = "std")]
 use rand::{CryptoRng, Rng};
 #[cfg(not(feature = "std"))]
 use rand_core::{CryptoRng, RngCore as Rng};
 use sha3::{Digest, Sha3_256};
+use spongefish::{
+    Decoding, Encoding, NargDeserialize, NargSerialize, VerificationError, VerificationResult,
+};
 use subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
 
 use crate::errors::InvalidInstance;
-use crate::group::serialization::{deserialize_scalars, serialize_scalars};
 use crate::{
-    codec::Shake128DuplexSponge,
     errors::Error,
     fiat_shamir::Nizk,
     linear_relation::{CanonicalLinearRelation, LinearRelation},
@@ -79,15 +80,22 @@ impl<G: PrimeGroup> TryFrom<LinearRelation<G>> for ComposedRelation<G> {
 
 // Structure representing the Commitment type of Protocol as SigmaProtocol
 #[derive(Clone)]
-pub enum ComposedCommitment<G: PrimeGroup> {
-    Simple(<CanonicalLinearRelation<G> as SigmaProtocol>::Commitment),
+pub enum ComposedCommitment<G>
+where
+    G: PrimeGroup + ConditionallySelectable + Encoding<[u8]> + NargSerialize + NargDeserialize,
+    G::Scalar:
+        Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]> + ConditionallySelectable,
+{
+    Simple(Vec<G>),
     And(Vec<ComposedCommitment<G>>),
     Or(Vec<ComposedCommitment<G>>),
 }
 
 impl<G: PrimeGroup> ComposedCommitment<G>
 where
-    G: ConditionallySelectable,
+    G: ConditionallySelectable + Encoding<[u8]> + NargSerialize + NargDeserialize,
+    G::Scalar:
+        Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]> + ConditionallySelectable,
 {
     /// Conditionally select between two ComposedCommitment values.
     /// This function performs constant-time selection of the commitment values.
@@ -129,29 +137,238 @@ where
 }
 
 // Structure representing the ProverState type of Protocol as SigmaProtocol
-pub enum ComposedProverState<G: PrimeGroup + ConstantTimeEq> {
+pub enum ComposedProverState<G>
+where
+    G: PrimeGroup
+        + ConstantTimeEq
+        + ConditionallySelectable
+        + Encoding<[u8]>
+        + NargSerialize
+        + NargDeserialize,
+    G::Scalar:
+        Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]> + ConditionallySelectable,
+{
     Simple(<CanonicalLinearRelation<G> as SigmaProtocol>::ProverState),
     And(Vec<ComposedProverState<G>>),
     Or(ComposedOrProverState<G>),
 }
 
 pub type ComposedOrProverState<G> = Vec<ComposedOrProverStateEntry<G>>;
-pub struct ComposedOrProverStateEntry<G: PrimeGroup + ConstantTimeEq>(
+pub struct ComposedOrProverStateEntry<G>(
     Choice,
     ComposedProverState<G>,
     ComposedChallenge<G>,
     ComposedResponse<G>,
-);
+)
+where
+    G: PrimeGroup
+        + ConstantTimeEq
+        + ConditionallySelectable
+        + Encoding<[u8]>
+        + NargSerialize
+        + NargDeserialize,
+    G::Scalar:
+        Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]> + ConditionallySelectable;
 
 // Structure representing the Response type of Protocol as SigmaProtocol
 #[derive(Clone)]
-pub enum ComposedResponse<G: PrimeGroup> {
-    Simple(<CanonicalLinearRelation<G> as SigmaProtocol>::Response),
+pub enum ComposedResponse<G>
+where
+    G: PrimeGroup + ConditionallySelectable + Encoding<[u8]> + NargSerialize + NargDeserialize,
+    G::Scalar:
+        Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]> + ConditionallySelectable,
+{
+    Simple(Vec<<CanonicalLinearRelation<G> as SigmaProtocol>::Response>),
     And(Vec<ComposedResponse<G>>),
     Or(Vec<ComposedChallenge<G>>, Vec<ComposedResponse<G>>),
 }
 
-impl<G: PrimeGroup> ComposedResponse<G> {
+const TAG_SIMPLE: u8 = 0;
+const TAG_AND: u8 = 1;
+const TAG_OR: u8 = 2;
+
+fn read_u32(buf: &mut &[u8]) -> VerificationResult<u32> {
+    if buf.len() < 4 {
+        return Err(VerificationError);
+    }
+    let (head, tail) = buf.split_at(4);
+    *buf = tail;
+    Ok(u32::from_le_bytes(head.try_into().unwrap()))
+}
+
+fn write_len(out: &mut Vec<u8>, len: usize) {
+    out.extend_from_slice(&(len as u32).to_le_bytes());
+}
+
+impl<G> Encoding<[u8]> for ComposedCommitment<G>
+where
+    G: PrimeGroup + ConditionallySelectable + Encoding<[u8]> + NargSerialize + NargDeserialize,
+    G::Scalar:
+        Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]> + ConditionallySelectable,
+{
+    fn encode(&self) -> impl AsRef<[u8]> {
+        let mut out = Vec::new();
+        match self {
+            ComposedCommitment::Simple(elems) => {
+                out.push(TAG_SIMPLE);
+                write_len(&mut out, elems.len());
+                for elem in elems {
+                    elem.serialize_into_narg(&mut out);
+                }
+            }
+            ComposedCommitment::And(cs) => {
+                out.push(TAG_AND);
+                write_len(&mut out, cs.len());
+                for c in cs {
+                    c.serialize_into_narg(&mut out);
+                }
+            }
+            ComposedCommitment::Or(cs) => {
+                out.push(TAG_OR);
+                write_len(&mut out, cs.len());
+                for c in cs {
+                    c.serialize_into_narg(&mut out);
+                }
+            }
+        }
+        out
+    }
+}
+
+impl<G> NargDeserialize for ComposedCommitment<G>
+where
+    G: PrimeGroup + ConditionallySelectable + Encoding<[u8]> + NargSerialize + NargDeserialize,
+    G::Scalar:
+        Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]> + ConditionallySelectable,
+{
+    fn deserialize_from_narg(buf: &mut &[u8]) -> VerificationResult<Self> {
+        if buf.is_empty() {
+            return Err(VerificationError);
+        }
+        let (tag_bytes, rest) = buf.split_at(1);
+        *buf = rest;
+        match tag_bytes[0] {
+            TAG_SIMPLE => {
+                let len = read_u32(buf)? as usize;
+                let mut elems = Vec::with_capacity(len);
+                for _ in 0..len {
+                    elems.push(G::deserialize_from_narg(buf)?);
+                }
+                Ok(ComposedCommitment::Simple(elems))
+            }
+            TAG_AND => {
+                let len = read_u32(buf)? as usize;
+                let mut entries = Vec::with_capacity(len);
+                for _ in 0..len {
+                    entries.push(ComposedCommitment::deserialize_from_narg(buf)?);
+                }
+                Ok(ComposedCommitment::And(entries))
+            }
+            TAG_OR => {
+                let len = read_u32(buf)? as usize;
+                let mut entries = Vec::with_capacity(len);
+                for _ in 0..len {
+                    entries.push(ComposedCommitment::deserialize_from_narg(buf)?);
+                }
+                Ok(ComposedCommitment::Or(entries))
+            }
+            _ => Err(VerificationError),
+        }
+    }
+}
+
+impl<G> Encoding<[u8]> for ComposedResponse<G>
+where
+    G: PrimeGroup + ConditionallySelectable + Encoding<[u8]> + NargSerialize + NargDeserialize,
+    G::Scalar:
+        Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]> + ConditionallySelectable,
+{
+    fn encode(&self) -> impl AsRef<[u8]> {
+        let mut out = Vec::new();
+        match self {
+            ComposedResponse::Simple(responses) => {
+                out.push(TAG_SIMPLE);
+                write_len(&mut out, responses.len());
+                for r in responses {
+                    r.serialize_into_narg(&mut out);
+                }
+            }
+            ComposedResponse::And(entries) => {
+                out.push(TAG_AND);
+                write_len(&mut out, entries.len());
+                for r in entries {
+                    r.serialize_into_narg(&mut out);
+                }
+            }
+            ComposedResponse::Or(challenges, responses) => {
+                out.push(TAG_OR);
+                write_len(&mut out, challenges.len());
+                for c in challenges {
+                    c.serialize_into_narg(&mut out);
+                }
+                write_len(&mut out, responses.len());
+                for r in responses {
+                    r.serialize_into_narg(&mut out);
+                }
+            }
+        }
+        out
+    }
+}
+
+impl<G> NargDeserialize for ComposedResponse<G>
+where
+    G: PrimeGroup + ConditionallySelectable + Encoding<[u8]> + NargSerialize + NargDeserialize,
+    G::Scalar:
+        Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]> + ConditionallySelectable,
+{
+    fn deserialize_from_narg(buf: &mut &[u8]) -> VerificationResult<Self> {
+        if buf.is_empty() {
+            return Err(VerificationError);
+        }
+        let (tag_bytes, rest) = buf.split_at(1);
+        *buf = rest;
+        match tag_bytes[0] {
+            TAG_SIMPLE => {
+                let len = read_u32(buf)? as usize;
+                let mut elems = Vec::with_capacity(len);
+                for _ in 0..len {
+                    elems.push(G::Scalar::deserialize_from_narg(buf)?);
+                }
+                Ok(ComposedResponse::Simple(elems))
+            }
+            TAG_AND => {
+                let len = read_u32(buf)? as usize;
+                let mut entries = Vec::with_capacity(len);
+                for _ in 0..len {
+                    entries.push(ComposedResponse::deserialize_from_narg(buf)?);
+                }
+                Ok(ComposedResponse::And(entries))
+            }
+            TAG_OR => {
+                let ch_len = read_u32(buf)? as usize;
+                let mut challenges = Vec::with_capacity(ch_len);
+                for _ in 0..ch_len {
+                    challenges.push(G::Scalar::deserialize_from_narg(buf)?);
+                }
+                let resp_len = read_u32(buf)? as usize;
+                let mut responses = Vec::with_capacity(resp_len);
+                for _ in 0..resp_len {
+                    responses.push(ComposedResponse::deserialize_from_narg(buf)?);
+                }
+                Ok(ComposedResponse::Or(challenges, responses))
+            }
+            _ => Err(VerificationError),
+        }
+    }
+}
+
+impl<G> ComposedResponse<G>
+where
+    G: PrimeGroup + ConditionallySelectable + Encoding<[u8]> + NargSerialize + NargDeserialize,
+    G::Scalar:
+        Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]> + ConditionallySelectable,
+{
     /// Conditionally select between two ComposedResponse values.
     /// This function performs constant-time selection of the response values.
     pub fn conditional_select(a: &Self, b: &Self, choice: Choice) -> Self {
@@ -205,13 +422,21 @@ impl<G: PrimeGroup> ComposedResponse<G> {
 
 // Structure representing the Witness type of Protocol as SigmaProtocol
 #[derive(Clone)]
-pub enum ComposedWitness<G: PrimeGroup> {
+pub enum ComposedWitness<G>
+where
+    G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize,
+    G::Scalar: Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]>,
+{
     Simple(<CanonicalLinearRelation<G> as SigmaProtocol>::Witness),
     And(Vec<ComposedWitness<G>>),
     Or(Vec<ComposedWitness<G>>),
 }
 
-impl<G: PrimeGroup> ComposedWitness<G> {
+impl<G> ComposedWitness<G>
+where
+    G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize,
+    G::Scalar: Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]>,
+{
     /// Create a [ComposedWitness] for an AND relation from the given list of witnesses.
     pub fn and<T: Into<ComposedWitness<G>>>(witness: impl IntoIterator<Item = T>) -> Self {
         Self::And(witness.into_iter().map(|x| x.into()).collect())
@@ -223,8 +448,11 @@ impl<G: PrimeGroup> ComposedWitness<G> {
     }
 }
 
-impl<G: PrimeGroup> From<<CanonicalLinearRelation<G> as SigmaProtocol>::Witness>
-    for ComposedWitness<G>
+impl<G> From<<CanonicalLinearRelation<G> as SigmaProtocol>::Witness> for ComposedWitness<G>
+where
+    G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize,
+    G::Scalar:
+        Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]> + ConditionallySelectable,
 {
     fn from(value: <CanonicalLinearRelation<G> as SigmaProtocol>::Witness) -> Self {
         Self::Simple(value)
@@ -233,11 +461,17 @@ impl<G: PrimeGroup> From<<CanonicalLinearRelation<G> as SigmaProtocol>::Witness>
 
 type ComposedChallenge<G> = <CanonicalLinearRelation<G> as SigmaProtocol>::Challenge;
 
-const fn composed_challenge_size<G: PrimeGroup>() -> usize {
-    (G::Scalar::NUM_BITS as usize).div_ceil(8)
-}
-
-impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<G> {
+impl<G> ComposedRelation<G>
+where
+    G: PrimeGroup
+        + ConstantTimeEq
+        + ConditionallySelectable
+        + Encoding<[u8]>
+        + NargSerialize
+        + NargDeserialize,
+    G::Scalar:
+        Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]> + ConditionallySelectable,
+{
     fn is_witness_valid(&self, witness: &ComposedWitness<G>) -> Choice {
         match (self, witness) {
             (ComposedRelation::Simple(instance), ComposedWitness::Simple(witness)) => {
@@ -295,8 +529,12 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<
         let mut prover_states = Vec::with_capacity(protocols.len());
 
         for (p, w) in protocols.iter().zip(witnesses.iter()) {
-            let (c, s) = p.prover_commit(w, rng)?;
-            commitments.push(c);
+            let (mut c, s) = p.prover_commit(w, rng)?;
+            let commitment = c.pop().ok_or(Error::InvalidInstanceWitnessPair)?;
+            if !c.is_empty() {
+                return Err(Error::InvalidInstanceWitnessPair);
+            }
+            commitments.push(commitment);
             prover_states.push(s);
         }
 
@@ -318,7 +556,10 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<
         let responses: Result<Vec<_>, _> = instances
             .iter()
             .zip(prover_state)
-            .map(|(p, s)| p.prover_response(s, challenge))
+            .map(|(p, s)| {
+                let mut res = p.prover_response(s, challenge)?;
+                res.pop().ok_or(Error::InvalidInstanceWitnessPair)
+            })
             .collect();
 
         Ok(ComposedResponse::And(responses?))
@@ -342,9 +583,28 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<
         // Selector value set when the first valid witness is found.
         let mut valid_witness_found = Choice::from(0);
         for (i, w) in witnesses.iter().enumerate() {
-            let (commitment, prover_state) = instances[i].prover_commit(w, rng)?;
-            let (simulated_commitment, simulated_challenge, simulated_response) =
+            let (mut commitment_vec, prover_state) = instances[i].prover_commit(w, rng)?;
+            let commitment = commitment_vec
+                .pop()
+                .ok_or(Error::InvalidInstanceWitnessPair)?;
+            if !commitment_vec.is_empty() {
+                return Err(Error::InvalidInstanceWitnessPair);
+            }
+
+            let (mut simulated_commitment_vec, simulated_challenge, mut simulated_response_vec) =
                 instances[i].simulate_transcript(rng)?;
+            let simulated_commitment = simulated_commitment_vec
+                .pop()
+                .ok_or(Error::InvalidInstanceWitnessPair)?;
+            if !simulated_commitment_vec.is_empty() {
+                return Err(Error::InvalidInstanceWitnessPair);
+            }
+            let simulated_response = simulated_response_vec
+                .pop()
+                .ok_or(Error::InvalidInstanceWitnessPair)?;
+            if !simulated_response_vec.is_empty() {
+                return Err(Error::InvalidInstanceWitnessPair);
+            }
 
             let valid_witness = instances[i].is_witness_valid(w) & !valid_witness_found;
             let select_witness = valid_witness;
@@ -415,7 +675,13 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<
                 valid_witness,
             );
 
-            let response = instance.prover_response(prover_state, &challenge_i)?;
+            let mut response_vec = instance.prover_response(prover_state, &challenge_i)?;
+            let response = response_vec
+                .pop()
+                .ok_or(Error::InvalidInstanceWitnessPair)?;
+            if !response_vec.is_empty() {
+                return Err(Error::InvalidInstanceWitnessPair);
+            }
             let response =
                 ComposedResponse::conditional_select(&simulated_response, &response, valid_witness);
 
@@ -428,8 +694,16 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<
     }
 }
 
-impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> SigmaProtocol
-    for ComposedRelation<G>
+impl<G> SigmaProtocol for ComposedRelation<G>
+where
+    G: PrimeGroup
+        + ConstantTimeEq
+        + ConditionallySelectable
+        + Encoding<[u8]>
+        + NargSerialize
+        + NargDeserialize,
+    G::Scalar:
+        Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]> + ConditionallySelectable,
 {
     type Commitment = ComposedCommitment<G>;
     type ProverState = ComposedProverState<G>;
@@ -441,8 +715,8 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> SigmaProtocol
         &self,
         witness: &Self::Witness,
         rng: &mut (impl Rng + CryptoRng),
-    ) -> Result<(Self::Commitment, Self::ProverState), Error> {
-        match (self, witness) {
+    ) -> Result<(Vec<Self::Commitment>, Self::ProverState), Error> {
+        let (commitment, state) = match (self, witness) {
             (ComposedRelation::Simple(p), ComposedWitness::Simple(w)) => {
                 Self::prover_commit_simple(p, w, rng)
             }
@@ -453,15 +727,16 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> SigmaProtocol
                 Self::prover_commit_or(ps, witnesses, rng)
             }
             _ => Err(Error::InvalidInstanceWitnessPair),
-        }
+        }?;
+        Ok((vec![commitment], state))
     }
 
     fn prover_response(
         &self,
         state: Self::ProverState,
         challenge: &Self::Challenge,
-    ) -> Result<Self::Response, Error> {
-        match (self, state) {
+    ) -> Result<Vec<Self::Response>, Error> {
+        let response = match (self, state) {
             (ComposedRelation::Simple(instance), ComposedProverState::Simple(state)) => {
                 Self::prover_response_simple(instance, state, challenge)
             }
@@ -472,15 +747,21 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> SigmaProtocol
                 Self::prover_response_or(instances, prover_state, challenge)
             }
             _ => Err(Error::InvalidInstanceWitnessPair),
-        }
+        }?;
+        Ok(vec![response])
     }
 
     fn verifier(
         &self,
-        commitment: &Self::Commitment,
+        commitment: &[Self::Commitment],
         challenge: &Self::Challenge,
-        response: &Self::Response,
+        response: &[Self::Response],
     ) -> Result<(), Error> {
+        let (commitment, response) = match (commitment.first(), response.first()) {
+            (Some(c), Some(r)) => (c, r),
+            _ => return Err(Error::InvalidInstanceWitnessPair),
+        };
+
         match (self, commitment, response) {
             (
                 ComposedRelation::Simple(p),
@@ -491,46 +772,52 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> SigmaProtocol
                 ComposedRelation::And(ps),
                 ComposedCommitment::And(commitments),
                 ComposedResponse::And(responses),
-            ) => ps
-                .iter()
-                .zip(commitments)
-                .zip(responses)
-                .try_for_each(|((p, c), r)| p.verifier(c, challenge, r)),
+            ) => {
+                if ps.len() != commitments.len() || commitments.len() != responses.len() {
+                    return Err(Error::InvalidInstanceWitnessPair);
+                }
+                ps.iter()
+                    .zip(commitments)
+                    .zip(responses)
+                    .try_for_each(|((p, c), r)| {
+                        p.verifier(
+                            core::slice::from_ref(c),
+                            challenge,
+                            core::slice::from_ref(r),
+                        )
+                    })
+            }
             (
                 ComposedRelation::Or(ps),
                 ComposedCommitment::Or(commitments),
                 ComposedResponse::Or(challenges, responses),
             ) => {
+                if ps.len() != commitments.len() || commitments.len() != responses.len() {
+                    return Err(Error::InvalidInstanceWitnessPair);
+                }
                 let last_challenge = *challenge - challenges.iter().sum::<G::Scalar>();
                 ps.iter()
                     .zip(commitments)
                     .zip(challenges.iter().chain(&Some(last_challenge)))
                     .zip(responses)
                     .try_for_each(|(((p, commitment), challenge), response)| {
-                        p.verifier(commitment, challenge, response)
+                        p.verifier(
+                            core::slice::from_ref(commitment),
+                            challenge,
+                            core::slice::from_ref(response),
+                        )
                     })
             }
             _ => Err(Error::InvalidInstanceWitnessPair),
         }
     }
 
-    fn serialize_commitment(&self, commitment: &Self::Commitment) -> Vec<u8> {
-        match (self, commitment) {
-            (ComposedRelation::Simple(p), ComposedCommitment::Simple(c)) => {
-                p.serialize_commitment(c)
-            }
-            (ComposedRelation::And(ps), ComposedCommitment::And(commitments))
-            | (ComposedRelation::Or(ps), ComposedCommitment::Or(commitments)) => ps
-                .iter()
-                .zip(commitments)
-                .flat_map(|(p, c)| p.serialize_commitment(c))
-                .collect(),
-            _ => unreachable!(),
-        }
+    fn commitment_len(&self) -> usize {
+        1
     }
 
-    fn serialize_challenge(&self, challenge: &Self::Challenge) -> Vec<u8> {
-        serialize_scalars::<G>(&[*challenge])
+    fn response_len(&self) -> usize {
+        1
     }
 
     fn instance_label(&self) -> impl AsRef<[u8]> {
@@ -566,14 +853,12 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> SigmaProtocol
                 hasher.update(p.protocol_identifier());
             }
             ComposedRelation::And(protocols) => {
-                let mut hasher = Sha3_256::new();
                 hasher.update([1u8; 32]);
                 for p in protocols {
                     hasher.update(p.protocol_identifier().as_ref());
                 }
             }
             ComposedRelation::Or(protocols) => {
-                let mut hasher = Sha3_256::new();
                 hasher.update([2u8; 32]);
                 for p in protocols {
                     hasher.update(p.protocol_identifier().as_ref());
@@ -585,124 +870,39 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> SigmaProtocol
         protocol_id[..32].clone_from_slice(&hasher.finalize());
         protocol_id
     }
-
-    fn serialize_response(&self, response: &Self::Response) -> Vec<u8> {
-        match (self, response) {
-            (ComposedRelation::Simple(p), ComposedResponse::Simple(r)) => p.serialize_response(r),
-            (ComposedRelation::And(ps), ComposedResponse::And(responses)) => {
-                let mut bytes = Vec::new();
-                for (i, p) in ps.iter().enumerate() {
-                    bytes.extend(p.serialize_response(&responses[i]));
-                }
-                bytes
-            }
-            (ComposedRelation::Or(instances), ComposedResponse::Or(challenges, responses)) => {
-                let mut bytes = Vec::new();
-
-                // write challenges first
-                for (x, c) in instances.iter().zip(challenges) {
-                    bytes.extend(x.serialize_challenge(c));
-                }
-
-                for (x, r) in instances.iter().zip(responses) {
-                    bytes.extend(x.serialize_response(r));
-                }
-
-                bytes
-            }
-            _ => unreachable!(),
-        }
-    }
-
-    fn deserialize_commitment(&self, data: &[u8]) -> Result<Self::Commitment, Error> {
-        match self {
-            ComposedRelation::Simple(p) => {
-                let c = p.deserialize_commitment(data)?;
-                Ok(ComposedCommitment::Simple(c))
-            }
-            ComposedRelation::And(ps) | ComposedRelation::Or(ps) => {
-                let mut cursor = 0;
-                let mut commitments = Vec::with_capacity(ps.len());
-
-                for p in ps {
-                    let c = p.deserialize_commitment(&data[cursor..])?;
-                    let size = p.serialize_commitment(&c).len();
-                    cursor += size;
-                    commitments.push(c);
-                }
-
-                Ok(match self {
-                    ComposedRelation::And(_) => ComposedCommitment::And(commitments),
-                    ComposedRelation::Or(_) => ComposedCommitment::Or(commitments),
-                    _ => unreachable!(),
-                })
-            }
-        }
-    }
-
-    fn deserialize_challenge(&self, data: &[u8]) -> Result<Self::Challenge, Error> {
-        let scalars = deserialize_scalars::<G>(data, 1).ok_or(Error::VerificationFailure)?;
-        Ok(scalars[0])
-    }
-
-    fn deserialize_response(&self, data: &[u8]) -> Result<Self::Response, Error> {
-        match self {
-            ComposedRelation::Simple(p) => {
-                let r = p.deserialize_response(data)?;
-                Ok(ComposedResponse::Simple(r))
-            }
-            ComposedRelation::And(ps) => {
-                let mut cursor = 0;
-                let mut responses = Vec::with_capacity(ps.len());
-                for p in ps {
-                    let r = p.deserialize_response(&data[cursor..])?;
-                    let size = p.serialize_response(&r).len();
-                    cursor += size;
-                    responses.push(r);
-                }
-                Ok(ComposedResponse::And(responses))
-            }
-            ComposedRelation::Or(ps) => {
-                let ch_bytes_len = composed_challenge_size::<G>();
-                let challenges_size = (ps.len() - 1) * ch_bytes_len;
-                let challenges_bytes = &data[..challenges_size];
-                let response_bytes = &data[challenges_size..];
-                let challenges = deserialize_scalars::<G>(challenges_bytes, ps.len() - 1)
-                    .ok_or(Error::VerificationFailure)?;
-
-                let mut cursor = 0;
-                let mut responses = Vec::with_capacity(ps.len());
-                for p in ps {
-                    let r = p.deserialize_response(&response_bytes[cursor..])?;
-                    let size = p.serialize_response(&r).len();
-                    cursor += size;
-                    responses.push(r);
-                }
-                Ok(ComposedResponse::Or(challenges, responses))
-            }
-        }
-    }
 }
 
-impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> SigmaProtocolSimulator
-    for ComposedRelation<G>
+impl<G> SigmaProtocolSimulator for ComposedRelation<G>
+where
+    G: PrimeGroup
+        + ConstantTimeEq
+        + ConditionallySelectable
+        + Encoding<[u8]>
+        + NargSerialize
+        + NargDeserialize,
+    G::Scalar:
+        Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]> + ConditionallySelectable,
 {
     fn simulate_commitment(
         &self,
         challenge: &Self::Challenge,
-        response: &Self::Response,
-    ) -> Result<Self::Commitment, Error> {
-        match (self, response) {
-            (ComposedRelation::Simple(p), ComposedResponse::Simple(r)) => Ok(
-                ComposedCommitment::Simple(p.simulate_commitment(challenge, r)?),
-            ),
+        response: &[Self::Response],
+    ) -> Result<Vec<Self::Commitment>, Error> {
+        let response = response.first().ok_or(Error::InvalidInstanceWitnessPair)?;
+        let commitment = match (self, response) {
+            (ComposedRelation::Simple(p), ComposedResponse::Simple(r)) => {
+                ComposedCommitment::Simple(p.simulate_commitment(challenge, r)?)
+            }
             (ComposedRelation::And(ps), ComposedResponse::And(rs)) => {
                 let commitments = ps
                     .iter()
                     .zip(rs)
-                    .map(|(p, r)| p.simulate_commitment(challenge, r))
+                    .map(|(p, r)| {
+                        p.simulate_commitment(challenge, std::slice::from_ref(r))
+                            .and_then(|mut c| c.pop().ok_or(Error::InvalidInstanceWitnessPair))
+                    })
                     .collect::<Result<Vec<_>, _>>()?;
-                Ok(ComposedCommitment::And(commitments))
+                ComposedCommitment::And(commitments)
             }
             (ComposedRelation::Or(ps), ComposedResponse::Or(challenges, rs)) => {
                 let last_challenge = *challenge - challenges.iter().sum::<G::Scalar>();
@@ -710,19 +910,32 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> SigmaProtocolSimu
                     .iter()
                     .zip(challenges.iter().chain(&Some(last_challenge)))
                     .zip(rs)
-                    .map(|((p, ch), r)| p.simulate_commitment(ch, r))
+                    .map(|((p, ch), r)| {
+                        p.simulate_commitment(ch, std::slice::from_ref(r))
+                            .and_then(|mut c| c.pop().ok_or(Error::InvalidInstanceWitnessPair))
+                    })
                     .collect::<Result<Vec<_>, _>>()?;
-                Ok(ComposedCommitment::Or(commitments))
+                ComposedCommitment::Or(commitments)
             }
             _ => unreachable!(),
-        }
+        };
+
+        Ok(vec![commitment])
     }
 
-    fn simulate_response<R: Rng + CryptoRng>(&self, rng: &mut R) -> Self::Response {
-        match self {
+    fn simulate_response<R: Rng + CryptoRng>(&self, rng: &mut R) -> Vec<Self::Response> {
+        let response = match self {
             ComposedRelation::Simple(p) => ComposedResponse::Simple(p.simulate_response(rng)),
             ComposedRelation::And(ps) => {
-                ComposedResponse::And(ps.iter().map(|p| p.simulate_response(rng)).collect())
+                let responses = ps
+                    .iter()
+                    .map(|p| {
+                        let mut r = p.simulate_response(rng);
+                        r.pop().ok_or(Error::InvalidInstanceWitnessPair)
+                    })
+                    .collect::<Result<Vec<_>, _>>()
+                    .expect("simulate_response invariant");
+                ComposedResponse::And(responses)
             }
             ComposedRelation::Or(ps) => {
                 let mut challenges = Vec::with_capacity(ps.len());
@@ -731,67 +944,113 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> SigmaProtocolSimu
                     challenges.push(G::Scalar::random(&mut *rng));
                 }
                 for p in ps.iter() {
-                    responses.push(p.simulate_response(&mut *rng));
+                    let mut r = p.simulate_response(&mut *rng);
+                    let resp = r
+                        .pop()
+                        .expect("simulate_response should return at least one element");
+                    responses.push(resp);
                 }
                 ComposedResponse::Or(challenges, responses)
             }
-        }
+        };
+        vec![response]
     }
 
     fn simulate_transcript<R: Rng + CryptoRng>(
         &self,
         rng: &mut R,
-    ) -> Result<(Self::Commitment, Self::Challenge, Self::Response), Error> {
+    ) -> Result<(Vec<Self::Commitment>, Self::Challenge, Vec<Self::Response>), Error> {
         match self {
             ComposedRelation::Simple(p) => {
                 let (c, ch, r) = p.simulate_transcript(rng)?;
                 Ok((
-                    ComposedCommitment::Simple(c),
+                    vec![ComposedCommitment::Simple(c)],
                     ch,
-                    ComposedResponse::Simple(r),
+                    vec![ComposedResponse::Simple(r)],
                 ))
             }
             ComposedRelation::And(ps) => {
                 let challenge = G::Scalar::random(&mut *rng);
                 let mut responses = Vec::with_capacity(ps.len());
                 for p in ps.iter() {
-                    responses.push(p.simulate_response(&mut *rng));
+                    let mut resp = p.simulate_response(&mut *rng);
+                    let response = resp.pop().ok_or(Error::InvalidInstanceWitnessPair)?;
+                    if !resp.is_empty() {
+                        return Err(Error::InvalidInstanceWitnessPair);
+                    }
+                    responses.push(response);
                 }
                 let commitments = ps
                     .iter()
                     .enumerate()
-                    .map(|(i, p)| p.simulate_commitment(&challenge, &responses[i]))
+                    .map(|(i, p)| {
+                        p.simulate_commitment(&challenge, &[responses[i].clone()])
+                            .and_then(|mut c| {
+                                let first = c.pop().ok_or(Error::InvalidInstanceWitnessPair)?;
+                                if !c.is_empty() {
+                                    return Err(Error::InvalidInstanceWitnessPair);
+                                }
+                                Ok(first)
+                            })
+                    })
                     .collect::<Result<Vec<_>, Error>>()?;
 
                 Ok((
-                    ComposedCommitment::And(commitments),
+                    vec![ComposedCommitment::And(commitments)],
                     challenge,
-                    ComposedResponse::And(responses),
+                    vec![ComposedResponse::And(responses)],
                 ))
             }
             ComposedRelation::Or(ps) => {
-                let mut commitments = Vec::with_capacity(ps.len());
-                let mut challenges = Vec::with_capacity(ps.len());
+                let mut challenges = Vec::with_capacity(ps.len() - 1);
                 let mut responses = Vec::with_capacity(ps.len());
-
-                for p in ps.iter() {
-                    let (c, ch, r) = p.simulate_transcript(rng)?;
-                    commitments.push(c);
-                    challenges.push(ch);
-                    responses.push(r);
+                for _ in 0..ps.len() - 1 {
+                    challenges.push(G::Scalar::random(&mut *rng));
                 }
-                let challenge = challenges.iter().sum();
+                for p in ps.iter() {
+                    let mut resp = p.simulate_response(&mut *rng);
+                    let response = resp.pop().ok_or(Error::InvalidInstanceWitnessPair)?;
+                    if !resp.is_empty() {
+                        return Err(Error::InvalidInstanceWitnessPair);
+                    }
+                    responses.push(response);
+                }
+
+                let mut commitments = Vec::with_capacity(ps.len());
+                for i in 0..ps.len() {
+                    let mut commitment = ps[i].simulate_commitment(
+                        &if i == ps.len() - 1 {
+                            challenges.iter().fold(G::Scalar::ZERO, |acc, x| acc - x)
+                        } else {
+                            challenges[i]
+                        },
+                        &[responses[i].clone()],
+                    )?;
+                    let commitment = commitment.pop().ok_or(Error::InvalidInstanceWitnessPair)?;
+                    commitments.push(commitment);
+                }
+
                 Ok((
-                    ComposedCommitment::Or(commitments),
-                    challenge,
-                    ComposedResponse::Or(challenges, responses),
+                    vec![ComposedCommitment::Or(commitments)],
+                    challenges.iter().sum::<G::Scalar>(),
+                    vec![ComposedResponse::Or(challenges, responses)],
                 ))
             }
         }
     }
 }
 
-impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<G> {
+impl<G> ComposedRelation<G>
+where
+    G: PrimeGroup
+        + ConstantTimeEq
+        + ConditionallySelectable
+        + Encoding<[u8]>
+        + NargSerialize
+        + NargDeserialize,
+    G::Scalar:
+        Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]> + ConditionallySelectable,
+{
     /// Convert this Protocol into a non-interactive zero-knowledge proof
     /// using the Shake128DuplexSponge codec and a specified session identifier.
     ///
@@ -803,10 +1062,7 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<
     ///
     /// # Returns
     /// A `Nizk` instance ready for proving and verification
-    pub fn into_nizk(
-        self,
-        session_identifier: &[u8],
-    ) -> Nizk<ComposedRelation<G>, Shake128DuplexSponge<G>> {
+    pub fn into_nizk(self, session_identifier: &[u8]) -> Nizk<ComposedRelation<G>> {
         Nizk::new(session_identifier, self)
     }
 }
