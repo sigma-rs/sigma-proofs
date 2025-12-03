@@ -31,7 +31,7 @@ use subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
 use crate::codec::Codec;
 use crate::errors::InvalidInstance;
 use crate::group::serialization::{deserialize_scalars, serialize_scalars};
-use crate::linear_relation::{Allocator, ScalarVar};
+use crate::linear_relation::{Allocator, Heap, ScalarAssignments, ScalarVar};
 use crate::{
     codec::Shake128DuplexSponge,
     errors::Error,
@@ -55,13 +55,13 @@ pub enum ComposedRelation<G: PrimeGroup> {
 
 impl<G: PrimeGroup> ComposedRelation<G> {
     /// Create a [ComposedRelation] for an AND relation from the given list of relations.
-    pub fn and<T: Into<ComposedRelation<G>>>(witness: impl IntoIterator<Item = T>) -> Self {
-        Self::And(witness.into_iter().map(|x| x.into()).collect())
+    pub fn and<T: Into<ComposedRelation<G>>>(relation: impl IntoIterator<Item = T>) -> Self {
+        Self::And(relation.into_iter().map(|x| x.into()).collect())
     }
 
     /// Create a [ComposedRelation] for an OR relation from the given list of relations.
-    pub fn or<T: Into<ComposedRelation<G>>>(witness: impl IntoIterator<Item = T>) -> Self {
-        Self::Or(witness.into_iter().map(|x| x.into()).collect())
+    pub fn or<T: Into<ComposedRelation<G>>>(relation: impl IntoIterator<Item = T>) -> Self {
+        Self::Or(relation.into_iter().map(|x| x.into()).collect())
     }
 }
 
@@ -99,6 +99,44 @@ impl<G: PrimeGroup, A: Allocator<G = G>> TryFrom<LinearRelation<G, A>> for Compo
 
     fn try_from(value: LinearRelation<G, A>) -> Result<Self, Self::Error> {
         Ok(Self::Simple(CanonicalLinearRelation::try_from(value)?))
+    }
+}
+
+#[derive(Clone)]
+pub enum ComposedLinearRelation<G: PrimeGroup, A = Heap<G>> {
+    Simple(LinearRelation<G, A>),
+    And(Vec<ComposedLinearRelation<G, A>>),
+    Or(Vec<ComposedLinearRelation<G, A>>),
+}
+
+impl<G: PrimeGroup, A> ComposedLinearRelation<G, A> {
+    /// Create a [ComposedLinearRelation] for an AND relation from the given list of relations.
+    pub fn and<T: Into<ComposedLinearRelation<G, A>>>(
+        relation: impl IntoIterator<Item = T>,
+    ) -> Self {
+        Self::And(relation.into_iter().map(|x| x.into()).collect())
+    }
+
+    /// Create a [ComposedLinearRelation] for an OR relation from the given list of relations.
+    pub fn or<T: Into<ComposedLinearRelation<G, A>>>(
+        relation: impl IntoIterator<Item = T>,
+    ) -> Self {
+        Self::Or(relation.into_iter().map(|x| x.into()).collect())
+    }
+
+    pub fn compute_image(&mut self, scalars: impl ScalarAssignments<G> + Clone) -> Result<(), Error>
+    where
+        A: Allocator<G = G>,
+    {
+        match self {
+            Self::Simple(relation) => relation.compute_image(scalars),
+            Self::And(relations) => relations
+                .iter_mut()
+                .try_for_each(|relation| relation.compute_image(scalars.clone())),
+            Self::Or(relations) => relations
+                .iter_mut()
+                .try_for_each(|relation| relation.compute_image(scalars.clone())),
+        }
     }
 }
 
