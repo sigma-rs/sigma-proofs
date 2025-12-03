@@ -26,9 +26,10 @@ fn test_composition_example() {
     let (relation4, witness4) = pedersen_commitment(&mut rng);
     let (relation5, witness5) = bbs_blind_commitment(&mut rng);
 
-    let wrong_witness2 = (0..witness2.len())
-        .map(|_| <G as Group>::Scalar::random(&mut rng))
-        .collect::<Vec<_>>();
+    let wrong_witness2 = witness2
+        .vars()
+        .map(|var| (var, <G as Group>::Scalar::random(&mut rng)))
+        .collect();
     // second layer protocol definitions
     let or_protocol1 = ComposedRelation::<G>::or([relation1, relation2]);
     let or_witness1 = ComposedWitness::or([witness1, wrong_witness2]);
@@ -43,8 +44,8 @@ fn test_composition_example() {
     let nizk = instance.into_nizk(domain_sep);
 
     // Batchable and compact proofs
-    let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
-    let proof_compact_bytes = nizk.prove_compact(&witness, &mut rng).unwrap();
+    let proof_batchable_bytes = nizk.prove_batchable(witness.clone(), &mut rng).unwrap();
+    let proof_compact_bytes = nizk.prove_compact(witness, &mut rng).unwrap();
     // Verify proofs
     assert!(nizk.verify_batchable(&proof_batchable_bytes).is_ok());
     assert!(nizk.verify_compact(&proof_compact_bytes).is_ok());
@@ -60,12 +61,14 @@ fn test_or_one_true() {
     let (relation1, witness1) = dleq::<G, _>(&mut rng);
     let (relation2, witness2) = dleq::<G, _>(&mut rng);
 
-    let wrong_witness1 = (0..witness1.len())
-        .map(|_| <G as Group>::Scalar::random(&mut rng))
-        .collect::<Vec<_>>();
-    let wrong_witness2 = (0..witness2.len())
-        .map(|_| <G as Group>::Scalar::random(&mut rng))
-        .collect::<Vec<_>>();
+    let wrong_witness1 = witness1
+        .vars()
+        .map(|var| (var, <G as Group>::Scalar::random(&mut rng)))
+        .collect();
+    let wrong_witness2 = witness2
+        .vars()
+        .map(|var| (var, <G as Group>::Scalar::random(&mut rng)))
+        .collect();
 
     let or_protocol = ComposedRelation::or([relation1, relation2]);
 
@@ -77,8 +80,8 @@ fn test_or_one_true() {
 
     for witness in [witness_or_1, witness_or_2] {
         // Batchable and compact proofs
-        let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
-        let proof_compact_bytes = nizk.prove_compact(&witness, &mut rng).unwrap();
+        let proof_batchable_bytes = nizk.prove_batchable(witness.clone(), &mut rng).unwrap();
+        let proof_compact_bytes = nizk.prove_compact(witness, &mut rng).unwrap();
         // Verify proofs
         assert!(nizk.verify_batchable(&proof_batchable_bytes).is_ok());
         assert!(nizk.verify_compact(&proof_compact_bytes).is_ok());
@@ -101,8 +104,8 @@ fn test_or_both_true() {
     let nizk = or_protocol.into_nizk(b"test_or_both_true");
 
     // Batchable and compact proofs
-    let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
-    let proof_compact_bytes = nizk.prove_compact(&witness, &mut rng).unwrap();
+    let proof_batchable_bytes = nizk.prove_batchable(witness.clone(), &mut rng).unwrap();
+    let proof_compact_bytes = nizk.prove_compact(witness, &mut rng).unwrap();
     // Verify proofs
     assert!(nizk.verify_batchable(&proof_batchable_bytes).is_ok());
     assert!(nizk.verify_compact(&proof_compact_bytes).is_ok());

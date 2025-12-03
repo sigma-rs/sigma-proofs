@@ -1,13 +1,14 @@
+mod spec;
+
 use bls12_381::G1Projective as G;
 use hex::FromHex;
 use json::JsonValue;
 use std::collections::HashMap;
 
-use sigma_proofs::codec::KeccakByteSchnorrCodec;
-use sigma_proofs::linear_relation::CanonicalLinearRelation;
 use sigma_proofs::Nizk;
+use sigma_proofs::codec::KeccakByteSchnorrCodec;
+use sigma_proofs::linear_relation::{CanonicalLinearRelation, ScalarMap};
 
-mod spec;
 use spec::{custom_schnorr_protocol::DeterministicSchnorrProof, rng::TestDRNG};
 
 type SchnorrNizk = Nizk<DeterministicSchnorrProof<G>, KeccakByteSchnorrCodec<G>>;
@@ -59,11 +60,17 @@ fn test_spec_testvectors() {
             .expect("Failed to parse statement");
 
         // Decode the witness from the test vector
-        let witness = sigma_proofs::group::serialization::deserialize_scalars::<G>(
+        let witness_vec = sigma_proofs::group::serialization::deserialize_scalars::<G>(
             &vector.witness,
-            parsed_instance.num_scalars,
+            parsed_instance.scalar_vars.len(),
         )
         .expect("Failed to deserialize witness");
+        let witness = parsed_instance
+            .scalar_vars
+            .iter()
+            .copied()
+            .zip(witness_vec)
+            .collect::<ScalarMap<G>>();
 
         // Verify the parsed instance can be re-serialized to the same label
         assert_eq!(
@@ -85,7 +92,7 @@ fn test_spec_testvectors() {
 
         // Generate proof with the proof generation RNG
         let mut proof_rng = TestDRNG::new(proof_generation_rng_seed);
-        let proof_bytes = nizk.prove_batchable(&witness, &mut proof_rng).unwrap();
+        let proof_bytes = nizk.prove_batchable(witness, &mut proof_rng).unwrap();
 
         // Verify the proof matches
         assert_eq!(

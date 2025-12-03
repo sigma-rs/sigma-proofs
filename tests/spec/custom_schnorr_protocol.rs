@@ -1,17 +1,22 @@
 use group::prime::PrimeGroup;
 use rand::{CryptoRng, Rng};
 
-use crate::spec::random::SRandom;
 use sigma_proofs::errors::Error;
-use sigma_proofs::linear_relation::{CanonicalLinearRelation, LinearRelation};
+use sigma_proofs::linear_relation::{
+    Allocator, CanonicalLinearRelation, LinearRelation, ScalarMap,
+};
 use sigma_proofs::traits::{SigmaProtocol, SigmaProtocolSimulator};
+
+use super::random::SRandom;
 
 pub struct DeterministicSchnorrProof<G: PrimeGroup>(pub CanonicalLinearRelation<G>);
 
-impl<G: PrimeGroup> TryFrom<LinearRelation<G>> for DeterministicSchnorrProof<G> {
+impl<G: PrimeGroup, A: Allocator<G = G>> TryFrom<LinearRelation<G, A>>
+    for DeterministicSchnorrProof<G>
+{
     type Error = Error;
 
-    fn try_from(linear_relation: LinearRelation<G>) -> Result<Self, Self::Error> {
+    fn try_from(linear_relation: LinearRelation<G, A>) -> Result<Self, Self::Error> {
         let relation = CanonicalLinearRelation::try_from(&linear_relation)?;
         Ok(Self(relation))
     }
@@ -32,15 +37,15 @@ impl<G: SRandom + PrimeGroup> SigmaProtocol for DeterministicSchnorrProof<G> {
 
     fn prover_commit(
         &self,
-        witness: &Self::Witness,
+        witness: Self::Witness,
         rng: &mut (impl Rng + CryptoRng),
     ) -> Result<(Self::Commitment, Self::ProverState), Error> {
-        let mut nonces: Vec<G::Scalar> = Vec::new();
-        for _i in 0..self.0.num_scalars {
-            nonces.push(<G as SRandom>::random_scalar_elt(rng));
-        }
+        let nonces = witness
+            .vars()
+            .map(|var| (var, <G as SRandom>::random_scalar_elt(rng)))
+            .collect::<ScalarMap<G>>();
         let commitment = self.0.evaluate(&nonces);
-        let prover_state = (nonces.to_vec(), witness.to_vec());
+        let prover_state = (nonces, witness.clone());
         Ok((commitment, prover_state))
     }
 
