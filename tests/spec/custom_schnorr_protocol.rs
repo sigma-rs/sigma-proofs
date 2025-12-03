@@ -1,10 +1,13 @@
 use group::prime::PrimeGroup;
 use rand::{CryptoRng, Rng};
 
-use crate::errors::Error;
-use crate::linear_relation::{Allocator, CanonicalLinearRelation, LinearRelation, ScalarMap};
-use crate::tests::spec::random::SRandom;
-use crate::traits::{SigmaProtocol, SigmaProtocolSimulator};
+use sigma_proofs::errors::Error;
+use sigma_proofs::linear_relation::{
+    Allocator, CanonicalLinearRelation, LinearRelation, ScalarMap,
+};
+use sigma_proofs::traits::{SigmaProtocol, SigmaProtocolSimulator};
+
+use super::random::SRandom;
 
 pub struct DeterministicSchnorrProof<G: PrimeGroup>(pub CanonicalLinearRelation<G>);
 
@@ -90,7 +93,7 @@ impl<G: SRandom + PrimeGroup> SigmaProtocol for DeterministicSchnorrProof<G> {
         self.0.instance_label()
     }
 
-    fn protocol_identifier(&self) -> impl AsRef<[u8]> {
+    fn protocol_identifier(&self) -> [u8; 64] {
         self.0.protocol_identifier()
     }
 }

@@ -98,7 +98,7 @@ pub trait SigmaProtocol {
     /// Deserializes a response from bytes.
     fn deserialize_response(&self, data: &[u8]) -> Result<Self::Response, Error>;
 
-    fn protocol_identifier(&self) -> impl AsRef<[u8]>;
+    fn protocol_identifier(&self) -> [u8; 64];
 
     fn instance_label(&self) -> impl AsRef<[u8]>;
 }

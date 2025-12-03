@@ -1,12 +1,15 @@
+mod spec;
+
 use bls12_381::G1Projective as G;
 use hex::FromHex;
 use json::JsonValue;
 use std::collections::HashMap;
 
-use crate::codec::KeccakByteSchnorrCodec;
-use crate::fiat_shamir::Nizk;
-use crate::linear_relation::{CanonicalLinearRelation, ScalarMap};
-use crate::tests::spec::{custom_schnorr_protocol::DeterministicSchnorrProof, rng::TestDRNG};
+use sigma_proofs::Nizk;
+use sigma_proofs::codec::KeccakByteSchnorrCodec;
+use sigma_proofs::linear_relation::{CanonicalLinearRelation, ScalarMap};
+
+use spec::{custom_schnorr_protocol::DeterministicSchnorrProof, rng::TestDRNG};
 
 type SchnorrNizk = Nizk<DeterministicSchnorrProof<G>, KeccakByteSchnorrCodec<G>>;
 
@@ -16,7 +19,6 @@ struct TestVector {
     session_id: Vec<u8>,
     statement: Vec<u8>,
     witness: Vec<u8>,
-    iv: Vec<u8>,
     proof: Vec<u8>,
 }
 
@@ -58,7 +60,7 @@ fn test_spec_testvectors() {
             .expect("Failed to parse statement");
 
         // Decode the witness from the test vector
-        let witness_vec = crate::group::serialization::deserialize_scalars::<G>(
+        let witness_vec = sigma_proofs::group::serialization::deserialize_scalars::<G>(
             &vector.witness,
             parsed_instance.scalar_vars.len(),
         )
@@ -82,17 +84,10 @@ fn test_spec_testvectors() {
         let nizk = SchnorrNizk::new(&vector.session_id, protocol);
 
         // Verify that the computed IV matches the test vector IV
-        let protocol_id = b"draft-zkproof-fiat-shamir";
-        let instance_label = parsed_instance.label();
-        let computed_iv = crate::codec::compute_iv::<crate::codec::KeccakDuplexSponge>(
-            protocol_id,
-            &vector.session_id,
-            &instance_label,
-        );
-        assert_eq!(
-            computed_iv,
-            vector.iv.as_slice(),
-            "Computed IV doesn't match test vector IV for {test_name}"
+        // Ensure the provided test vector proof verifies.
+        assert!(
+            nizk.verify_batchable(&vector.proof).is_ok(),
+            "Fiat-Shamir Schnorr proof from vectors did not verify for {test_name}"
         );
 
         // Generate proof with the proof generation RNG
@@ -117,7 +112,7 @@ fn test_spec_testvectors() {
 fn extract_vectors_new() -> Result<HashMap<String, TestVector>, String> {
     use std::collections::HashMap;
 
-    let content = include_str!("./vectors/testSigmaProtocols.json");
+    let content = include_str!("./spec/vectors/testSigmaProtocols.json");
     let root: JsonValue = json::parse(content).map_err(|e| format!("JSON parsing error: {e}"))?;
 
     let mut vectors = HashMap::new();
@@ -149,15 +144,8 @@ fn extract_vectors_new() -> Result<HashMap<String, TestVector>, String> {
         )
         .map_err(|e| format!("Invalid hex in Witness for {name}: {e}"))?;
 
-        let iv = Vec::from_hex(
-            obj["IV"]
-                .as_str()
-                .ok_or_else(|| format!("IV field not found for {name}"))?,
-        )
-        .map_err(|e| format!("Invalid hex in IV for {name}: {e}"))?;
-
         let proof = Vec::from_hex(
-            obj["Proof"]
+            obj["Batchable Proof"]
                 .as_str()
                 .ok_or_else(|| format!("Proof field not found for {name}"))?,
         )
@@ -170,7 +158,6 @@ fn extract_vectors_new() -> Result<HashMap<String, TestVector>, String> {
                 session_id,
                 statement,
                 witness,
-                iv,
                 proof,
             },
         );
