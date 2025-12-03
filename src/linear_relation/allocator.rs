@@ -1,11 +1,11 @@
 use core::{array, iter::zip, marker::PhantomData};
 
-use group::{prime::PrimeGroup, Group};
+use group::{Group, prime::PrimeGroup};
 
 use crate::{
+    LinearRelation,
     errors::UnassignedGroupVarError,
     linear_relation::{GroupMap, GroupVar, ScalarMap, ScalarVar},
-    LinearRelation,
 };
 
 pub trait Allocator {
