@@ -88,7 +88,7 @@ fn msm_pippenger<G: PrimeGroup>(bases: &[G], scalars: &[G::Scalar]) -> G {
     let windows = (0..num_bits).step_by(c);
     let buckets_num = 1 << c;
 
-    let mut window_buckets = Vec::with_capacity(windows.len());
+    let mut window_buckets = Vec::new();
     for window in windows {
         window_buckets.push((window, vec![G::identity(); buckets_num]));
     }
