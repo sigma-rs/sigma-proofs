@@ -10,7 +10,7 @@ const fn ln_without_floats(a: usize) -> usize {
         1
     } else {
         // log2(a) * ln(2), ensure minimum value of 1
-        let result = (64 - (a - 1).leading_zeros()) as usize * 69 / 100;
+        let result = (usize::BITS - (a - 1).leading_zeros()) as usize * 69 / 100;
         if result == 0 {
             1
         } else {
