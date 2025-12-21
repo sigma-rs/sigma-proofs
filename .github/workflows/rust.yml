@@ -89,7 +89,6 @@ jobs:
         target: wasm32-wasip1
         toolchain: stable
         profile: minimal
-        override: true
     - name: Setup `wasmtime`
       uses: bytecodealliance/actions/wasmtime/setup@v1
     - name: Build
