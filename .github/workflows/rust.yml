@@ -89,6 +89,8 @@ jobs:
         target: wasm32-wasip1
         toolchain: stable
         profile: minimal
+    - name: Install build dependencies
+      run: sudo apt-get update && sudo apt-get install build-essential libc6-dev
     - name: Setup `wasmtime`
       uses: bytecodealliance/actions/wasmtime/setup@v1
     - name: Build
