@@ -55,10 +55,10 @@ sha2 = "0.10"
 
 # Include criterion without rayon when compiling for the WASM WASIv1 environment, and with rayon otherwise.
 [target.'cfg(not(all(target_os = "wasi", target_env = "p1")))'.dev-dependencies]
-criterion = { version = "0.7", features = ["html_reports"] }
+criterion = { version = "0.8", features = ["html_reports"] }
 
 [target.'cfg(all(target_os = "wasi", target_env = "p1"))'.dev-dependencies]
-criterion = { version = "0.7", default-features = false, features = ["html_reports", "cargo_bench_support", "plotters"] }
+criterion = { version = "0.8", default-features = false, features = ["html_reports", "cargo_bench_support", "plotters"] }
 
 [[bench]]
 name = "msm"
