@@ -56,9 +56,9 @@ sha2 = "0.10"
 # Include criterion without rayon when compiling for the WASM WASIv1 environment, and with rayon otherwise.
 [target.'cfg(not(all(target_os = "wasi", target_env = "p1")))'.dev-dependencies]
 criterion = { version = "0.8", features = ["html_reports"] }
-
-[target.'cfg(all(target_os = "wasi", target_env = "p1"))'.dev-dependencies]
-criterion = { version = "0.8", default-features = false }
+# TODO(victor): Benchmarking works on my machine in WASM, but criterion does not build in CI right now.
+# [target.'cfg(all(target_os = "wasi", target_env = "p1"))'.dev-dependencies]
+# criterion = { version = "0.8", default-features = false }
 
 [[bench]]
 name = "msm"
