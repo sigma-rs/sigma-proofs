@@ -58,7 +58,7 @@ sha2 = "0.10"
 criterion = { version = "0.8", features = ["html_reports"] }
 
 [target.'cfg(all(target_os = "wasi", target_env = "p1"))'.dev-dependencies]
-criterion = { version = "0.8", default-features = false, features = ["html_reports", "cargo_bench_support", "plotters"] }
+criterion = { version = "0.8", default-features = false }
 
 [[bench]]
 name = "msm"
