@@ -14,13 +14,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
-    - name: Install Rust toolchain
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-        profile: minimal
-        override: true
+    - uses: actions/checkout@v6
     - name: Build
       run: cargo build --verbose
     - name: Run tests
@@ -33,13 +27,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
-    - name: Install Rust toolchain
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-        profile: minimal
-        override: true
+    - uses: actions/checkout@v6
     - name: Check no_std compilation
       run: |
         echo "Checking no_std compilation..."
@@ -62,15 +50,8 @@ jobs:
         toolchain: [nightly]
 
     steps:
-    - uses: actions/checkout@v3
-    - name: Install Rust toolchain
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: ${{ matrix.toolchain }}
-        profile: minimal
-        override: true
-        components: rustfmt, clippy
-
+    - uses: actions/checkout@v6
+    - run: rustup update ${{ matrix.toolchain }}
     - name: Build (nightly)
       run: cargo +${{ matrix.toolchain }} build --all-features --verbose
     - name: Build no_std (nightly)
@@ -82,15 +63,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
-    - name: Install Rust toolchain
-      uses: actions-rs/toolchain@v1
-      with:
-        target: wasm32-wasip1
-        toolchain: stable
-        profile: minimal
-    - name: Install build dependencies
-      run: sudo apt-get update && sudo apt-get install build-essential libc6-dev
+    - uses: actions/checkout@v6
     - name: Setup `wasmtime`
       uses: bytecodealliance/actions/wasmtime/setup@v1
     - name: Build
