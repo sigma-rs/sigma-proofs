@@ -34,7 +34,7 @@ pub use canonical::CanonicalLinearRelation;
 ///
 /// Used to reference scalars in sparse linear combinations.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct ScalarVar<G>(usize, PhantomData<G>);
+pub struct ScalarVar<G>(pub(crate) usize, PhantomData<G>);
 
 impl<G> ScalarVar<G> {
     pub fn index(&self) -> usize {
