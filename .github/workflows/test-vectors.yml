@@ -15,7 +15,7 @@ jobs:
   verify-checksums:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - run: |
           curl -sL https://raw.githubusercontent.com/mmaker/draft-irtf-cfrg-sigma-protocols/main/poc/vectors/duplexSpongeVectors.json -o /tmp/duplexSpongeVectors.json
           [ "$(sha256sum src/tests/spec/vectors/duplexSpongeVectors.json | cut -d' ' -f1)" = "$(sha256sum /tmp/duplexSpongeVectors.json | cut -d' ' -f1)" ] || exit 1

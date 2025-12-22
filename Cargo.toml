@@ -25,8 +25,11 @@ default = ["std"]
 std = ["thiserror", "rand", "num-bigint/std", "num-traits/std", "sha3/std", "rand_core/std"]
 
 [dependencies]
+ahash = { version = "0.8", default-features = false }
 ff = { version = "0.13", features = ["derive"] }
 group = "0.13.0"
+hashbrown = { version = "0.15", default-features = false }
+keccak = { version = "0.1.5", default-features = false }
 num-bigint = { version = "0.4.6", default-features = false }
 num-traits = { version = "0.2.19", default-features = false, features = ["libm"] }
 rand = { version = "0.8.5", optional = true }
@@ -34,15 +37,11 @@ rand_core = { version = "0.6", default-features = false }
 sha3 = { version = "0.10.8", default-features = false }
 subtle = { version = "2.6.1", default-features = false }
 thiserror = { version = "1", optional = true }
-keccak = { version = "0.1.5", default-features = false }
 zerocopy = { version = "0.8", default-features = false }
 zeroize = { version = "1.8.1", default-features = false, features = ["alloc"] }
-hashbrown = { version = "0.15", default-features = false }
-ahash = { version = "0.8", default-features = false }
 
 [dev-dependencies]
 bls12_381 = "0.8.0"
-criterion = { version = "0.7", features = ["html_reports"] }
 curve25519-dalek = { version = "4", default-features = false, features = ["serde", "rand_core", "alloc", "digest", "precomputed-tables", "group"] }
 hex = "0.4"
 hex-literal = "0.4"
@@ -53,6 +52,13 @@ p256 = { version = "0.13", features = ["arithmetic"] }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
 sha2 = "0.10"
+
+# Include criterion without rayon when compiling for the WASM WASIv1 environment, and with rayon otherwise.
+[target.'cfg(not(all(target_os = "wasi", target_env = "p1")))'.dev-dependencies]
+criterion = { version = "0.8", features = ["html_reports"] }
+# TODO(victor): Benchmarking works on my machine in WASM, but criterion does not build in CI right now.
+# [target.'cfg(all(target_os = "wasi", target_env = "p1"))'.dev-dependencies]
+# criterion = { version = "0.8", default-features = false }
 
 [[bench]]
 name = "msm"
