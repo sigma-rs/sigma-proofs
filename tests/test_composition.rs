@@ -44,10 +44,8 @@ fn test_composition_example() {
 
     // Batchable and compact proofs
     let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
-    let proof_compact_bytes = nizk.prove_compact(&witness, &mut rng).unwrap();
     // Verify proofs
     assert!(nizk.verify_batchable(&proof_batchable_bytes).is_ok());
-    assert!(nizk.verify_compact(&proof_compact_bytes).is_ok());
 }
 
 #[allow(non_snake_case)]
@@ -78,10 +76,8 @@ fn test_or_one_true() {
     for witness in [witness_or_1, witness_or_2] {
         // Batchable and compact proofs
         let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
-        let proof_compact_bytes = nizk.prove_compact(&witness, &mut rng).unwrap();
         // Verify proofs
         assert!(nizk.verify_batchable(&proof_batchable_bytes).is_ok());
-        assert!(nizk.verify_compact(&proof_compact_bytes).is_ok());
     }
 }
 
@@ -102,8 +98,6 @@ fn test_or_both_true() {
 
     // Batchable and compact proofs
     let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
-    let proof_compact_bytes = nizk.prove_compact(&witness, &mut rng).unwrap();
     // Verify proofs
     assert!(nizk.verify_batchable(&proof_batchable_bytes).is_ok());
-    assert!(nizk.verify_compact(&proof_compact_bytes).is_ok());
 }

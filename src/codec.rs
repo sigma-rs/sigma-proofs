@@ -29,9 +29,6 @@ pub trait Codec {
         instance_label: &[u8],
     ) -> Self;
 
-    /// Allows for precomputed initialization of the codec with a specific IV.
-    fn from_iv(iv: [u8; 64]) -> Self;
-
     /// Absorbs data into the codec.
     fn prover_message(&mut self, data: &[u8]);
 
@@ -97,13 +94,6 @@ where
         hasher.absorb(instance_label);
         Self {
             hasher,
-            _marker: core::marker::PhantomData,
-        }
-    }
-
-    fn from_iv(iv: [u8; 64]) -> Self {
-        Self {
-            hasher: H::new(iv),
             _marker: core::marker::PhantomData,
         }
     }
