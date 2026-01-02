@@ -48,6 +48,12 @@ fn test_composition_example() {
     // Verify proofs
     assert!(nizk.verify_batchable(&proof_batchable_bytes).is_ok());
     assert!(nizk.verify_compact(&proof_compact_bytes).is_ok());
+
+    let narg_string = proof_compact_bytes;
+    for chunk in narg_string.chunks_exact(4) {
+        let value = u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
+        assert_ne!(value, 0);
+    }
 }
 
 #[allow(non_snake_case)]
