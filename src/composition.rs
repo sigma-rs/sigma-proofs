@@ -385,6 +385,112 @@ fn expand_threshold_challenges<G: PrimeGroup>(
     Ok(challenges)
 }
 
+#[derive(Clone, Copy)]
+struct ThresholdPoint<G: PrimeGroup> {
+    x: G::Scalar,
+    challenge: G::Scalar,
+}
+
+impl<G: PrimeGroup> ConditionallySelectable for ThresholdPoint<G>
+where
+    G::Scalar: ConditionallySelectable,
+{
+    fn conditional_select(a: &Self, b: &Self, choice: Choice) -> Self {
+        ThresholdPoint {
+            x: G::Scalar::conditional_select(&a.x, &b.x, choice),
+            challenge: G::Scalar::conditional_select(&a.challenge, &b.challenge, choice),
+        }
+    }
+}
+
+fn conditional_swap_point<G: PrimeGroup + ConditionallySelectable>(
+    points: &mut [ThresholdPoint<G>],
+    left: usize,
+    right: usize,
+    swap: Choice,
+) {
+    if left == right {
+        return;
+    }
+    if left < right {
+        let (head, tail) = points.split_at_mut(right);
+        ThresholdPoint::conditional_swap(&mut head[left], &mut tail[0], swap);
+    } else {
+        let (head, tail) = points.split_at_mut(left);
+        ThresholdPoint::conditional_swap(&mut tail[0], &mut head[right], swap);
+    }
+}
+
+fn oroffcompact_points<G: PrimeGroup + ConditionallySelectable>(
+    points: &mut [ThresholdPoint<G>],
+    marks: &[Choice],
+    offset: usize,
+) {
+    let n = points.len();
+    if n <= 1 {
+        return;
+    }
+    debug_assert_eq!(n, marks.len());
+    debug_assert!(n.is_power_of_two());
+
+    let half = n / 2;
+    let mut m = 0usize;
+    for mark in &marks[..half] {
+        m += mark.unwrap_u8() as usize;
+    }
+
+    if n == 2 {
+        let z = Choice::from((offset & 1) as u8);
+        let b = ((!marks[0]) & marks[1]) ^ z;
+        conditional_swap_point(points, 0, 1, b);
+        return;
+    }
+
+    let offset_mod = offset % half;
+    oroffcompact_points(&mut points[..half], &marks[..half], offset_mod);
+    let offset_plus_m_mod = (offset + m) % half;
+    oroffcompact_points(
+        &mut points[half..],
+        &marks[half..],
+        offset_plus_m_mod,
+    );
+
+    let s = Choice::from(((offset_mod + m) >= half) as u8)
+        ^ Choice::from((offset >= half) as u8);
+    for i in 0..half {
+        let b = s ^ Choice::from((i >= offset_plus_m_mod) as u8);
+        conditional_swap_point(points, i, i + half, b);
+    }
+}
+
+fn orcompact_points<G: PrimeGroup + ConditionallySelectable>(
+    points: &mut [ThresholdPoint<G>],
+    marks: &[Choice],
+) {
+    let n = points.len();
+    if n == 0 {
+        return;
+    }
+    debug_assert_eq!(n, marks.len());
+
+    let n1 = 1usize << (usize::BITS as usize - 1 - n.leading_zeros() as usize);
+    let n2 = n - n1;
+    let mut m = 0usize;
+    for mark in &marks[..n2] {
+        m += mark.unwrap_u8() as usize;
+    }
+
+    if n2 > 0 {
+        orcompact_points(&mut points[..n2], &marks[..n2]);
+    }
+    oroffcompact_points(&mut points[n2..], &marks[n2..], (n1 - n2 + m) % n1);
+
+    for i in 0..n2 {
+        let b = Choice::from((i >= m) as u8);
+        conditional_swap_point(points, i, i + n1, b);
+    }
+}
+
 impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<G> {
     fn is_witness_valid(&self, witness: &ComposedWitness<G>) -> Choice {
         match (self, witness) {
@@ -668,23 +774,37 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<
         let degree = instances.len() - threshold;
         let required_points = degree + 1;
 
-        let mut points = Vec::with_capacity(required_points);
-        points.push((G::Scalar::ZERO, *challenge));
+        let mut points: Vec<ThresholdPoint<G>> = Vec::with_capacity(instances.len());
+        let mut marks = Vec::with_capacity(instances.len());
+        let mut marked_count = 0usize;
 
         for (index, entry) in prover_state.iter().enumerate() {
             let x = threshold_x::<G>(index);
             let use_simulated = !entry.valid_witness;
             let use_seeded = entry.seeded_share;
-            let use_point = use_simulated | use_seeded;
+            let mark = use_simulated | use_seeded;
             let challenge = G::Scalar::conditional_select(
                 &entry.seeded_challenge,
                 &entry.simulated_challenge,
                 use_simulated,
             );
-            if use_point.unwrap_u8() == 1 {
-                points.push((x, challenge));
-            }
+            points.push(ThresholdPoint { x, challenge });
+            marks.push(mark);
+            marked_count += mark.unwrap_u8() as usize;
         }
+
+        if marked_count != degree {
+            return Err(Error::InvalidInstanceWitnessPair);
+        }
+
+        orcompact_points(&mut points, &marks);
+
+        let mut points = points
+            .into_iter()
+            .take(degree)
+            .map(|point| (point.x, point.challenge))
+            .collect::<Vec<_>>();
+        points.insert(0, (G::Scalar::ZERO, *challenge));
 
         if points.len() != required_points {
             return Err(Error::InvalidInstanceWitnessPair);
