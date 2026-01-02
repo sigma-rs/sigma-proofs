@@ -132,3 +132,37 @@ fn test_threshold_two_of_three() {
     assert!(nizk.verify_batchable(&proof_batchable_bytes).is_ok());
     assert!(nizk.verify_compact(&proof_compact_bytes).is_ok());
 }
+
+#[allow(non_snake_case)]
+#[test]
+fn test_threshold_two_of_ten_three_valid() {
+    // Test composition of a 2-out-of-10 threshold protocol with three valid witnesses.
+
+    let mut rng = rand::thread_rng();
+
+    let mut relations = Vec::new();
+    let mut witnesses = Vec::new();
+    for _ in 0..10 {
+        let (relation, witness) = dleq::<G, _>(&mut rng);
+        relations.push(relation);
+        witnesses.push(witness);
+    }
+
+    // Keep three valid witnesses, corrupt the remaining seven.
+    for witness in witnesses.iter_mut().skip(3) {
+        *witness = (0..witness.len())
+            .map(|_| <G as Group>::Scalar::random(&mut rng))
+            .collect::<Vec<_>>();
+    }
+
+    let threshold_protocol =
+        ComposedRelation::threshold(2, relations.into_iter().collect::<Vec<_>>());
+    let witness = ComposedWitness::threshold(witnesses.into_iter().collect::<Vec<_>>());
+    let nizk = threshold_protocol.into_nizk(b"test_threshold_two_of_ten_three_valid");
+
+    let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
+    let proof_compact_bytes = nizk.prove_compact(&witness, &mut rng).unwrap();
+
+    assert!(nizk.verify_batchable(&proof_batchable_bytes).is_ok());
+    assert!(nizk.verify_compact(&proof_compact_bytes).is_ok());
+}
