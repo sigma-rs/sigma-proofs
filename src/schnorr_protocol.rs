@@ -50,17 +50,6 @@ impl<G: PrimeGroup> SigmaProtocol for CanonicalLinearRelation<G> {
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
-        // TODO: Check this when constructing the CanonicalLinearRelation instead of here.
-        // If the image is the identity, then the relation must be
-        // trivial, or else the proof will be unsound
-        if self
-            .image_elements()
-            .zip(self.linear_combinations.iter())
-            .any(|(x, c)| x == G::identity() && !c.is_empty())
-        {
-            return Err(Error::InvalidInstanceWitnessPair);
-        }
-
         let nonces = (0..self.num_scalars)
             .map(|_| G::Scalar::random(&mut *rng))
             .collect::<Vec<_>>();
