@@ -48,6 +48,12 @@ fn test_composition_example() {
     // Verify proofs
     assert!(nizk.verify_batchable(&proof_batchable_bytes).is_ok());
     assert!(nizk.verify_compact(&proof_compact_bytes).is_ok());
+
+    let narg_string = proof_compact_bytes;
+    for chunk in narg_string.chunks_exact(4) {
+        let value = u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
+        assert_ne!(value, 0);
+    }
 }
 
 #[allow(non_snake_case)]
@@ -104,6 +110,65 @@ fn test_or_both_true() {
     let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
     let proof_compact_bytes = nizk.prove_compact(&witness, &mut rng).unwrap();
     // Verify proofs
+    assert!(nizk.verify_batchable(&proof_batchable_bytes).is_ok());
+    assert!(nizk.verify_compact(&proof_compact_bytes).is_ok());
+}
+
+#[allow(non_snake_case)]
+#[test]
+fn test_threshold_two_of_three() {
+    // Test composition of a 2-out-of-3 threshold protocol.
+
+    let mut rng = rand::thread_rng();
+    let (relation1, witness1) = dleq::<G, _>(&mut rng);
+    let (relation2, witness2) = dleq::<G, _>(&mut rng);
+    let (relation3, witness3) = dleq::<G, _>(&mut rng);
+
+    let wrong_witness3 = (0..witness3.len())
+        .map(|_| <G as Group>::Scalar::random(&mut rng))
+        .collect::<Vec<_>>();
+
+    let threshold_protocol = ComposedRelation::threshold(2, [relation1, relation2, relation3]);
+    let witness = ComposedWitness::threshold([witness1, witness2, wrong_witness3]);
+    let nizk = threshold_protocol.into_nizk(b"test_threshold_two_of_three");
+
+    let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
+    let proof_compact_bytes = nizk.prove_compact(&witness, &mut rng).unwrap();
+
+    assert!(nizk.verify_batchable(&proof_batchable_bytes).is_ok());
+    assert!(nizk.verify_compact(&proof_compact_bytes).is_ok());
+}
+
+#[allow(non_snake_case)]
+#[test]
+fn test_threshold_two_of_ten_three_valid() {
+    // Test composition of a 2-out-of-10 threshold protocol with three valid witnesses.
+
+    let mut rng = rand::thread_rng();
+
+    let mut relations = Vec::new();
+    let mut witnesses = Vec::new();
+    for _ in 0..10 {
+        let (relation, witness) = dleq::<G, _>(&mut rng);
+        relations.push(relation);
+        witnesses.push(witness);
+    }
+
+    // Keep three valid witnesses, corrupt the remaining seven.
+    for witness in witnesses.iter_mut().skip(3) {
+        *witness = (0..witness.len())
+            .map(|_| <G as Group>::Scalar::random(&mut rng))
+            .collect::<Vec<_>>();
+    }
+
+    let threshold_protocol =
+        ComposedRelation::threshold(2, relations.into_iter().collect::<Vec<_>>());
+    let witness = ComposedWitness::threshold(witnesses.into_iter().collect::<Vec<_>>());
+    let nizk = threshold_protocol.into_nizk(b"test_threshold_two_of_ten_three_valid");
+
+    let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
+    let proof_compact_bytes = nizk.prove_compact(&witness, &mut rng).unwrap();
+
     assert!(nizk.verify_batchable(&proof_batchable_bytes).is_ok());
     assert!(nizk.verify_compact(&proof_compact_bytes).is_ok());
 }

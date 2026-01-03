@@ -18,9 +18,11 @@ use crate::errors::{Error, InvalidInstance};
 use crate::group::msm::VariableMultiScalarMul;
 use crate::serialization::serialize_elements;
 
-// XXX. this definition is uncomfortably similar to LinearRelation, exception made for the weights.
-// It'd be nice to better compress potentially duplicated code.
-/// A normalized form of the [`LinearRelation`], which is used for serialization into the transcript.
+/// A [`LinearRelation`] in canonical form, compatible with the IETF spec.
+///
+/// This relation is type-safe:
+/// it can be instantiated only if all group vars are assigned,
+/// size match, and the relation is not trivially false.
 ///
 /// This struct represents a normalized form of a linear relation where each
 /// constraint is of the form: image_i = Σ (scalar_j * group_element_k)
