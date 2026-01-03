@@ -19,8 +19,8 @@
 //! )
 //! ```
 
-use alloc::vec::Vec;
 use ff::{Field, PrimeField};
+use alloc::{vec, vec::Vec};
 use group::prime::PrimeGroup;
 #[cfg(feature = "std")]
 use rand::{CryptoRng, Rng};
