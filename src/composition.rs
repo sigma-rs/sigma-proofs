@@ -756,8 +756,7 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
-        let remaining_seeds = degree - invalid_count;
-        let mut seeded_choices = Vec::with_capacity(instances.len());
+        let mut remaining_seeds = (degree - invalid_count) as u32;
         let mut commitments = Vec::with_capacity(instances.len());
         let mut prover_states = Vec::with_capacity(instances.len());
         for (i, (instance, witness)) in instances.iter().zip(witnesses.iter()).enumerate() {
@@ -766,9 +765,8 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<
                 instance.simulate_transcript(rng)?;
 
             let valid_witness = valid_witnesses[i];
-            let seeded_count = count_choices(&seeded_choices);
-            let should_seed = Choice::from((seeded_count < remaining_seeds) as u8) & valid_witness;
-            seeded_choices.push(should_seed);
+            let should_seed = valid_witness & Choice::from((remaining_seeds != 0) as u8);
+            remaining_seeds = remaining_seeds.wrapping_sub(should_seed.unwrap_u8() as u32);
             let use_simulator = (!valid_witness) | should_seed;
             let commitment = ComposedCommitment::conditional_select(
                 &commitment,
