@@ -1,4 +1,4 @@
-use group::{prime::PrimeGroup, Group};
+use group::{Group, prime::PrimeGroup};
 use num_bigint::BigUint;
 use rand::{CryptoRng, Rng};
 

@@ -30,12 +30,15 @@
 //! instance.set_elements([(var_G, RistrettoPoint::generator()), (var_H, RistrettoPoint::random(&mut rng))]);
 //!
 //! // Assign the image of the linear map.
-//! let witness = vec![Scalar::random(&mut rng), Scalar::random(&mut rng)];
-//! instance.compute_image(&witness);
+//! let witness = [
+//!     (var_x, Scalar::random(&mut rng)),
+//!     (var_r, Scalar::random(&mut rng))
+//! ];
+//! instance.compute_image(witness);
 //!
 //! // Create a non-interactive argument for the instance.
 //! let nizk = instance.into_nizk(b"your session identifier").unwrap();
-//! let narg_string: Vec<u8> = nizk.prove_batchable(&witness, &mut rng).unwrap();
+//! let narg_string: Vec<u8> = nizk.prove_batchable(witness, &mut rng).unwrap();
 //! // Print the narg string.
 //! println!("{}", hex::encode(narg_string));
 //! ```
@@ -81,11 +84,11 @@ pub(crate) mod fiat_shamir;
 pub(crate) mod schnorr_protocol;
 
 pub use duplex_sponge::{
-    keccak::KeccakDuplexSponge, shake::ShakeDuplexSponge, DuplexSpongeInterface,
+    DuplexSpongeInterface, keccak::KeccakDuplexSponge, shake::ShakeDuplexSponge,
 };
 pub use fiat_shamir::Nizk;
 pub use group::msm::VariableMultiScalarMul;
-pub use linear_relation::LinearRelation;
+pub use linear_relation::{Allocator, LinearRelation};
 
 #[deprecated = "Use sigma_proofs::group::serialization instead"]
 pub use group::serialization;

@@ -7,6 +7,8 @@ use alloc::vec::Vec;
 use ff::PrimeField;
 use group::prime::PrimeGroup;
 
+// TODO: If we constrain G::Repr to be Sized, then we can drop this function and make this whole
+// thing a bit less fragile.
 /// Get the serialized length of a group element in bytes.
 ///
 /// # Returns
@@ -39,24 +41,15 @@ pub fn serialize_elements<'a, G: PrimeGroup>(elements: impl IntoIterator<Item = 
 /// # Returns
 /// - `Some(Vec<G>)`: The deserialized group elements if all are valid.
 /// - `None`: If the byte slice length is incorrect or any element is invalid.
-pub fn deserialize_elements<G: PrimeGroup>(data: &[u8], count: usize) -> Option<Vec<G>> {
-    let element_len = group_elt_serialized_len::<G>();
-    let expected_len = count * element_len;
-
-    if data.len() < expected_len {
-        return None;
-    }
-
+pub fn deserialize_elements<G: PrimeGroup>(data: &mut &[u8], count: usize) -> Option<Vec<G>> {
     let mut elements = Vec::with_capacity(count);
-    for i in 0..count {
-        let start = i * element_len;
-        let end = start + element_len;
-        let slice = &data[start..end];
-
+    for _ in 0..count {
         let mut repr = G::Repr::default();
-        repr.as_mut().copy_from_slice(slice);
-        let element = G::from_bytes(&repr).into();
-        let element: Option<G> = element;
+        let repr_mut = repr.as_mut();
+        let slice = data.split_off(..repr_mut.len())?;
+        repr_mut.copy_from_slice(slice);
+
+        let element: Option<G> = G::from_bytes(&repr).into();
         elements.push(element?);
     }
 
@@ -73,7 +66,7 @@ pub fn deserialize_elements<G: PrimeGroup>(data: &[u8], count: usize) -> Option<
 ///
 /// # Returns
 /// - A `Vec<u8>` containing the scalar bytes in big-endian order.
-pub fn serialize_scalars<G: PrimeGroup>(scalars: &[G::Scalar]) -> Vec<u8> {
+pub fn serialize_scalars<F: PrimeField>(scalars: &[F]) -> Vec<u8> {
     let mut bytes = Vec::new();
     for scalar in scalars {
         let mut scalar_bytes = scalar.to_repr().as_ref().to_vec();
@@ -92,27 +85,16 @@ pub fn serialize_scalars<G: PrimeGroup>(scalars: &[G::Scalar]) -> Vec<u8> {
 /// # Returns
 /// - `Some(Vec<G::Scalar>)`: The deserialized scalars if all are valid.
 /// - `None`: If the byte slice length is incorrect or any scalar is invalid.
-pub fn deserialize_scalars<G: PrimeGroup>(data: &[u8], count: usize) -> Option<Vec<G::Scalar>> {
-    #[allow(clippy::manual_div_ceil)]
-    let scalar_len = (G::Scalar::NUM_BITS as usize + 7) / 8;
-    let expected_len = count * scalar_len;
-
-    if data.len() < expected_len {
-        return None;
-    }
-
+pub fn deserialize_scalars<F: PrimeField>(data: &mut &[u8], count: usize) -> Option<Vec<F>> {
     let mut scalars = Vec::with_capacity(count);
-    for i in 0..count {
-        let start = i * scalar_len;
-        let end = start + scalar_len;
-        let slice = &data[start..end];
+    for _ in 0..count {
+        let mut repr = F::Repr::default();
+        let repr_mut = repr.as_mut();
+        let slice = data.split_off(..repr_mut.len())?;
+        repr_mut.copy_from_slice(slice);
+        repr_mut.reverse();
 
-        let mut repr = <G::Scalar as PrimeField>::Repr::default();
-        repr.as_mut().copy_from_slice(slice);
-        repr.as_mut().reverse();
-
-        let scalar = G::Scalar::from_repr(repr).into();
-        let scalar: Option<G::Scalar> = scalar;
+        let scalar = F::from_repr_vartime(repr);
         scalars.push(scalar?);
     }
 

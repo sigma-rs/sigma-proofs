@@ -1,17 +1,23 @@
 use group::prime::PrimeGroup;
 use rand::{CryptoRng, Rng};
 
-use crate::spec::random::SRandom;
 use sigma_proofs::errors::Error;
-use sigma_proofs::linear_relation::{CanonicalLinearRelation, LinearRelation};
+use sigma_proofs::linear_relation::{
+    Allocator, CanonicalLinearRelation, LinearRelation, ScalarMap,
+};
 use sigma_proofs::traits::{SigmaProtocol, SigmaProtocolSimulator};
+use subtle::{Choice, ConstantTimeEq};
+
+use super::random::SRandom;
 
 pub struct DeterministicSchnorrProof<G: PrimeGroup>(pub CanonicalLinearRelation<G>);
 
-impl<G: PrimeGroup> TryFrom<LinearRelation<G>> for DeterministicSchnorrProof<G> {
+impl<G: PrimeGroup, A: Allocator<G = G>> TryFrom<LinearRelation<G, A>>
+    for DeterministicSchnorrProof<G>
+{
     type Error = Error;
 
-    fn try_from(linear_relation: LinearRelation<G>) -> Result<Self, Self::Error> {
+    fn try_from(linear_relation: LinearRelation<G, A>) -> Result<Self, Self::Error> {
         let relation = CanonicalLinearRelation::try_from(&linear_relation)?;
         Ok(Self(relation))
     }
@@ -32,15 +38,15 @@ impl<G: SRandom + PrimeGroup> SigmaProtocol for DeterministicSchnorrProof<G> {
 
     fn prover_commit(
         &self,
-        witness: &Self::Witness,
+        witness: Self::Witness,
         rng: &mut (impl Rng + CryptoRng),
     ) -> Result<(Self::Commitment, Self::ProverState), Error> {
-        let mut nonces: Vec<G::Scalar> = Vec::new();
-        for _i in 0..self.0.num_scalars {
-            nonces.push(<G as SRandom>::random_scalar_elt(rng));
-        }
+        let nonces = witness
+            .vars()
+            .map(|var| (var, <G as SRandom>::random_scalar_elt(rng)))
+            .collect::<ScalarMap<G>>();
         let commitment = self.0.evaluate(&nonces);
-        let prover_state = (nonces.to_vec(), witness.to_vec());
+        let prover_state = (nonces, witness.clone());
         Ok((commitment, prover_state))
     }
 
@@ -73,15 +79,15 @@ impl<G: SRandom + PrimeGroup> SigmaProtocol for DeterministicSchnorrProof<G> {
         self.0.serialize_response(response)
     }
 
-    fn deserialize_commitment(&self, data: &[u8]) -> Result<Self::Commitment, Error> {
+    fn deserialize_commitment(&self, data: &mut &[u8]) -> Result<Self::Commitment, Error> {
         self.0.deserialize_commitment(data)
     }
 
-    fn deserialize_challenge(&self, data: &[u8]) -> Result<Self::Challenge, Error> {
+    fn deserialize_challenge(&self, data: &mut &[u8]) -> Result<Self::Challenge, Error> {
         self.0.deserialize_challenge(data)
     }
 
-    fn deserialize_response(&self, data: &[u8]) -> Result<Self::Response, Error> {
+    fn deserialize_response(&self, data: &mut &[u8]) -> Result<Self::Response, Error> {
         self.0.deserialize_response(data)
     }
     fn instance_label(&self) -> impl AsRef<[u8]> {
@@ -93,7 +99,9 @@ impl<G: SRandom + PrimeGroup> SigmaProtocol for DeterministicSchnorrProof<G> {
     }
 }
 
-impl<G: SRandom + PrimeGroup> SigmaProtocolSimulator for DeterministicSchnorrProof<G> {
+impl<G: SRandom + PrimeGroup + ConstantTimeEq> SigmaProtocolSimulator
+    for DeterministicSchnorrProof<G>
+{
     fn simulate_response<R: Rng + CryptoRng>(&self, rng: &mut R) -> Self::Response {
         self.0.simulate_response(rng)
     }
@@ -111,5 +119,9 @@ impl<G: SRandom + PrimeGroup> SigmaProtocolSimulator for DeterministicSchnorrPro
         response: &Self::Response,
     ) -> Result<Self::Commitment, Error> {
         self.0.simulate_commitment(challenge, response)
+    }
+
+    fn is_witness_valid(&self, witness: &Self::Witness) -> Choice {
+        self.0.is_witness_valid(witness)
     }
 }

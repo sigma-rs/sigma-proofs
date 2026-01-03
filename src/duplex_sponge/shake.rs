@@ -5,8 +5,8 @@
 use crate::duplex_sponge::DuplexSpongeInterface;
 use alloc::vec;
 use alloc::vec::Vec;
-use sha3::digest::{ExtendableOutput, Update};
 use sha3::Shake128;
+use sha3::digest::{ExtendableOutput, Update};
 
 /// Duplex sponge construction using SHAKE128.
 #[derive(Clone, Debug)]

@@ -19,8 +19,10 @@
 //! )
 //! ```
 
+pub mod new;
+
 use alloc::{vec, vec::Vec};
-use ff::{Field, PrimeField};
+use ff::Field;
 use group::prime::PrimeGroup;
 #[cfg(feature = "std")]
 use rand::{CryptoRng, Rng};
@@ -29,8 +31,10 @@ use rand_core::{CryptoRng, RngCore as Rng};
 use sha3::{Digest, Sha3_256};
 use subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
 
+use crate::codec::Codec;
 use crate::errors::InvalidInstance;
 use crate::group::serialization::{deserialize_scalars, serialize_scalars};
+use crate::linear_relation::{Allocator, Heap, ScalarAssignments, ScalarVar};
 use crate::{
     codec::Shake128DuplexSponge,
     errors::Error,
@@ -53,15 +57,38 @@ pub enum ComposedRelation<G: PrimeGroup> {
     Threshold(usize, Vec<ComposedRelation<G>>),
 }
 
-impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<G> {
+impl<G: PrimeGroup> ComposedRelation<G> {
     /// Create a [ComposedRelation] for an AND relation from the given list of relations.
-    pub fn and<T: Into<ComposedRelation<G>>>(witness: impl IntoIterator<Item = T>) -> Self {
-        Self::And(witness.into_iter().map(|x| x.into()).collect())
+    pub fn and<T: Into<ComposedRelation<G>>>(relation: impl IntoIterator<Item = T>) -> Self {
+        Self::And(relation.into_iter().map(|x| x.into()).collect())
     }
 
     /// Create a [ComposedRelation] for an OR relation from the given list of relations.
-    pub fn or<T: Into<ComposedRelation<G>>>(witness: impl IntoIterator<Item = T>) -> Self {
-        Self::Or(witness.into_iter().map(|x| x.into()).collect())
+    pub fn or<T: Into<ComposedRelation<G>>>(relation: impl IntoIterator<Item = T>) -> Self {
+        Self::Or(relation.into_iter().map(|x| x.into()).collect())
+    }
+}
+
+impl<G: PrimeGroup> ComposedRelation<G>
+where
+    Self: SigmaProtocol,
+{
+    /// Convert this Protocol into a non-interactive zero-knowledge proof
+    /// using the Shake128DuplexSponge codec and a specified session identifier.
+    ///
+    /// This method provides a convenient way to create a NIZK from a Protocol
+    /// without exposing the specific codec type to the API caller.
+    ///
+    /// # Parameters
+    /// - `session_identifier`: Domain separator bytes for the Fiat-Shamir transform
+    ///
+    /// # Returns
+    /// A `Nizk` instance ready for proving and verification
+    pub fn into_nizk(self, session_identifier: &[u8]) -> Nizk<Self, Shake128DuplexSponge<G>>
+    where
+        Shake128DuplexSponge<G>: Codec<Challenge = <Self as SigmaProtocol>::Challenge>,
+    {
+        Nizk::new(session_identifier, self)
     }
 
     /// Create a [ComposedRelation] for a threshold relation from the given list of relations.
@@ -79,11 +106,49 @@ impl<G: PrimeGroup> From<CanonicalLinearRelation<G>> for ComposedRelation<G> {
     }
 }
 
-impl<G: PrimeGroup> TryFrom<LinearRelation<G>> for ComposedRelation<G> {
+impl<G: PrimeGroup, A: Allocator<G = G>> TryFrom<LinearRelation<G, A>> for ComposedRelation<G> {
     type Error = InvalidInstance;
 
-    fn try_from(value: LinearRelation<G>) -> Result<Self, Self::Error> {
+    fn try_from(value: LinearRelation<G, A>) -> Result<Self, Self::Error> {
         Ok(Self::Simple(CanonicalLinearRelation::try_from(value)?))
+    }
+}
+
+#[derive(Clone)]
+pub enum ComposedLinearRelation<G: PrimeGroup, A = Heap<G>> {
+    Simple(LinearRelation<G, A>),
+    And(Vec<ComposedLinearRelation<G, A>>),
+    Or(Vec<ComposedLinearRelation<G, A>>),
+}
+
+impl<G: PrimeGroup, A> ComposedLinearRelation<G, A> {
+    /// Create a [ComposedLinearRelation] for an AND relation from the given list of relations.
+    pub fn and<T: Into<ComposedLinearRelation<G, A>>>(
+        relation: impl IntoIterator<Item = T>,
+    ) -> Self {
+        Self::And(relation.into_iter().map(|x| x.into()).collect())
+    }
+
+    /// Create a [ComposedLinearRelation] for an OR relation from the given list of relations.
+    pub fn or<T: Into<ComposedLinearRelation<G, A>>>(
+        relation: impl IntoIterator<Item = T>,
+    ) -> Self {
+        Self::Or(relation.into_iter().map(|x| x.into()).collect())
+    }
+
+    pub fn compute_image(&mut self, scalars: impl ScalarAssignments<G> + Clone) -> Result<(), Error>
+    where
+        A: Allocator<G = G>,
+    {
+        match self {
+            Self::Simple(relation) => relation.compute_image(scalars),
+            Self::And(relations) => relations
+                .iter_mut()
+                .try_for_each(|relation| relation.compute_image(scalars.clone())),
+            Self::Or(relations) => relations
+                .iter_mut()
+                .try_for_each(|relation| relation.compute_image(scalars.clone())),
+        }
     }
 }
 
@@ -212,6 +277,7 @@ impl<G: PrimeGroup> ComposedResponse<G> {
                 ComposedResponse::Or(a_challenges, a_responses),
                 ComposedResponse::Or(b_challenges, b_responses),
             ) => {
+                // TODO: Why is this a debug_assert_eq rather than assert_eq?
                 debug_assert_eq!(a_challenges.len(), b_challenges.len());
                 debug_assert_eq!(a_responses.len(), b_responses.len());
 
@@ -280,6 +346,18 @@ impl<G: PrimeGroup> ComposedWitness<G> {
     /// Create a [ComposedWitness] for a threshold relation from the given list of witnesses.
     pub fn threshold<T: Into<ComposedWitness<G>>>(witness: impl IntoIterator<Item = T>) -> Self {
         Self::Threshold(witness.into_iter().map(|x| x.into()).collect())
+    }
+}
+
+impl<G: PrimeGroup, const N: usize> From<[(ScalarVar<G>, G::Scalar); N]> for ComposedWitness<G> {
+    fn from(value: [(ScalarVar<G>, G::Scalar); N]) -> Self {
+        Self::Simple(value.into())
+    }
+}
+
+impl<G: PrimeGroup> From<Vec<(ScalarVar<G>, G::Scalar)>> for ComposedWitness<G> {
+    fn from(value: Vec<(ScalarVar<G>, G::Scalar)>) -> Self {
+        Self::Simple(value.into())
     }
 }
 
@@ -534,10 +612,12 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<
             _ => Choice::from(0),
         }
     }
+}
 
+impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<G> {
     fn prover_commit_simple(
         protocol: &CanonicalLinearRelation<G>,
-        witness: &<CanonicalLinearRelation<G> as SigmaProtocol>::Witness,
+        witness: <CanonicalLinearRelation<G> as SigmaProtocol>::Witness,
         rng: &mut (impl Rng + CryptoRng),
     ) -> Result<(ComposedCommitment<G>, ComposedProverState<G>), Error> {
         protocol.prover_commit(witness, rng).map(|(c, s)| {
@@ -560,7 +640,7 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<
 
     fn prover_commit_and(
         protocols: &[ComposedRelation<G>],
-        witnesses: &[ComposedWitness<G>],
+        witnesses: Vec<ComposedWitness<G>>,
         rng: &mut (impl Rng + CryptoRng),
     ) -> Result<(ComposedCommitment<G>, ComposedProverState<G>), Error> {
         if protocols.len() != witnesses.len() {
@@ -570,7 +650,7 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<
         let mut commitments = Vec::with_capacity(protocols.len());
         let mut prover_states = Vec::with_capacity(protocols.len());
 
-        for (p, w) in protocols.iter().zip(witnesses.iter()) {
+        for (p, w) in protocols.iter().zip(witnesses.into_iter()) {
             let (c, s) = p.prover_commit(w, rng)?;
             commitments.push(c);
             prover_states.push(s);
@@ -602,7 +682,7 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<
 
     fn prover_commit_or(
         instances: &[ComposedRelation<G>],
-        witnesses: &[ComposedWitness<G>],
+        witnesses: Vec<ComposedWitness<G>>,
         rng: &mut (impl Rng + CryptoRng),
     ) -> Result<(ComposedCommitment<G>, ComposedProverState<G>), Error>
     where
@@ -617,13 +697,14 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<
 
         // Selector value set when the first valid witness is found.
         let mut valid_witness_found = Choice::from(0);
-        for (i, w) in witnesses.iter().enumerate() {
+        for (i, w) in witnesses.into_iter().enumerate() {
+            // Determine whether or not to use the real witness for this relation. This rule uses
+            // the first valid witness found in the given list.
+            let select_witness = instances[i].is_witness_valid(&w) & !valid_witness_found;
+
             let (commitment, prover_state) = instances[i].prover_commit(w, rng)?;
             let (simulated_commitment, simulated_challenge, simulated_response) =
                 instances[i].simulate_transcript(rng)?;
-
-            let valid_witness = instances[i].is_witness_valid(w) & !valid_witness_found;
-            let select_witness = valid_witness;
 
             let commitment = ComposedCommitment::conditional_select(
                 &simulated_commitment,
@@ -639,7 +720,7 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<
                 simulated_response,
             ));
 
-            valid_witness_found |= valid_witness;
+            valid_witness_found |= select_witness;
         }
 
         if valid_witness_found.unwrap_u8() == 0 {
@@ -850,7 +931,7 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> SigmaProtocol
 
     fn prover_commit(
         &self,
-        witness: &Self::Witness,
+        witness: Self::Witness,
         rng: &mut (impl Rng + CryptoRng),
     ) -> Result<(Self::Commitment, Self::ProverState), Error> {
         match (self, witness) {
@@ -979,7 +1060,7 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> SigmaProtocol
     }
 
     fn serialize_challenge(&self, challenge: &Self::Challenge) -> Vec<u8> {
-        serialize_scalars::<G>(&[*challenge])
+        serialize_scalars(&[*challenge])
     }
 
     fn instance_label(&self) -> impl AsRef<[u8]> {
@@ -1094,7 +1175,7 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> SigmaProtocol
         }
     }
 
-    fn deserialize_commitment(&self, data: &[u8]) -> Result<Self::Commitment, Error> {
+    fn deserialize_commitment(&self, data: &mut &[u8]) -> Result<Self::Commitment, Error> {
         match self {
             ComposedRelation::Simple(p) => {
                 let c = p.deserialize_commitment(data)?;
@@ -1103,13 +1184,9 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> SigmaProtocol
             ComposedRelation::And(ps)
             | ComposedRelation::Or(ps)
             | ComposedRelation::Threshold(_, ps) => {
-                let mut cursor = 0;
                 let mut commitments = Vec::with_capacity(ps.len());
-
                 for p in ps {
-                    let c = p.deserialize_commitment(&data[cursor..])?;
-                    let size = p.serialize_commitment(&c).len();
-                    cursor += size;
+                    let c = p.deserialize_commitment(data)?;
                     commitments.push(c);
                 }
 
@@ -1123,42 +1200,32 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> SigmaProtocol
         }
     }
 
-    fn deserialize_challenge(&self, data: &[u8]) -> Result<Self::Challenge, Error> {
-        let scalars = deserialize_scalars::<G>(data, 1).ok_or(Error::VerificationFailure)?;
-        Ok(scalars[0])
+    fn deserialize_challenge(&self, data: &mut &[u8]) -> Result<Self::Challenge, Error> {
+        Ok(deserialize_scalars(data, 1).ok_or(Error::VerificationFailure)?[0])
     }
 
-    fn deserialize_response(&self, data: &[u8]) -> Result<Self::Response, Error> {
+    // TODO: How to ensure that the entire buffer of data gets consumed?
+    fn deserialize_response(&self, data: &mut &[u8]) -> Result<Self::Response, Error> {
         match self {
             ComposedRelation::Simple(p) => {
                 let r = p.deserialize_response(data)?;
                 Ok(ComposedResponse::Simple(r))
             }
             ComposedRelation::And(ps) => {
-                let mut cursor = 0;
                 let mut responses = Vec::with_capacity(ps.len());
                 for p in ps {
-                    let r = p.deserialize_response(&data[cursor..])?;
-                    let size = p.serialize_response(&r).len();
-                    cursor += size;
+                    let r = p.deserialize_response(data)?;
                     responses.push(r);
                 }
                 Ok(ComposedResponse::And(responses))
             }
             ComposedRelation::Or(ps) => {
-                let ch_bytes_len = composed_challenge_size::<G>();
-                let challenges_size = (ps.len() - 1) * ch_bytes_len;
-                let challenges_bytes = &data[..challenges_size];
-                let response_bytes = &data[challenges_size..];
-                let challenges = deserialize_scalars::<G>(challenges_bytes, ps.len() - 1)
-                    .ok_or(Error::VerificationFailure)?;
+                let challenges =
+                    deserialize_scalars(data, ps.len() - 1).ok_or(Error::VerificationFailure)?;
 
-                let mut cursor = 0;
                 let mut responses = Vec::with_capacity(ps.len());
                 for p in ps {
-                    let r = p.deserialize_response(&response_bytes[cursor..])?;
-                    let size = p.serialize_response(&r).len();
-                    cursor += size;
+                    let r = p.deserialize_response(data)?;
                     responses.push(r);
                 }
                 Ok(ComposedResponse::Or(challenges, responses))
@@ -1189,6 +1256,27 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> SigmaProtocol
 impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> SigmaProtocolSimulator
     for ComposedRelation<G>
 {
+    fn is_witness_valid(&self, witness: &Self::Witness) -> Choice {
+        match (self, witness) {
+            (ComposedRelation::Simple(instance), ComposedWitness::Simple(witness)) => {
+                instance.is_witness_valid(witness)
+            }
+            (ComposedRelation::And(instances), ComposedWitness::And(witnesses)) => instances
+                .iter()
+                .zip(witnesses)
+                .fold(Choice::from(1), |bit, (instance, witness)| {
+                    bit & instance.is_witness_valid(witness)
+                }),
+            (ComposedRelation::Or(instances), ComposedWitness::Or(witnesses)) => instances
+                .iter()
+                .zip(witnesses)
+                .fold(Choice::from(0), |bit, (instance, witness)| {
+                    bit | instance.is_witness_valid(witness)
+                }),
+            _ => Choice::from(0),
+        }
+    }
+
     fn simulate_commitment(
         &self,
         challenge: &Self::Challenge,
@@ -1361,25 +1449,5 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> SigmaProtocolSimu
                 ))
             }
         }
-    }
-}
-
-impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<G> {
-    /// Convert this Protocol into a non-interactive zero-knowledge proof
-    /// using the Shake128DuplexSponge codec and a specified session identifier.
-    ///
-    /// This method provides a convenient way to create a NIZK from a Protocol
-    /// without exposing the specific codec type to the API caller.
-    ///
-    /// # Parameters
-    /// - `session_identifier`: Domain separator bytes for the Fiat-Shamir transform
-    ///
-    /// # Returns
-    /// A `Nizk` instance ready for proving and verification
-    pub fn into_nizk(
-        self,
-        session_identifier: &[u8],
-    ) -> Nizk<ComposedRelation<G>, Shake128DuplexSponge<G>> {
-        Nizk::new(session_identifier, self)
     }
 }

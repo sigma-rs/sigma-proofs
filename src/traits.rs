@@ -10,6 +10,7 @@ use alloc::vec::Vec;
 use rand::{CryptoRng, Rng};
 #[cfg(not(feature = "std"))]
 use rand_core::{CryptoRng, RngCore as Rng};
+use subtle::Choice;
 
 /// A trait defining the behavior of a generic Sigma protocol.
 ///
@@ -57,7 +58,7 @@ pub trait SigmaProtocol {
     /// - The internal state to use when computing the response.
     fn prover_commit(
         &self,
-        witness: &Self::Witness,
+        witness: Self::Witness,
         rng: &mut (impl Rng + CryptoRng),
     ) -> Result<(Self::Commitment, Self::ProverState), Error>;
 
@@ -90,13 +91,13 @@ pub trait SigmaProtocol {
     fn serialize_response(&self, response: &Self::Response) -> Vec<u8>;
 
     /// Deserializes a commitment from bytes.
-    fn deserialize_commitment(&self, data: &[u8]) -> Result<Self::Commitment, Error>;
+    fn deserialize_commitment(&self, data: &mut &[u8]) -> Result<Self::Commitment, Error>;
 
     /// Deserializes a challenge from bytes.
-    fn deserialize_challenge(&self, data: &[u8]) -> Result<Self::Challenge, Error>;
+    fn deserialize_challenge(&self, data: &mut &[u8]) -> Result<Self::Challenge, Error>;
 
     /// Deserializes a response from bytes.
-    fn deserialize_response(&self, data: &[u8]) -> Result<Self::Response, Error>;
+    fn deserialize_response(&self, data: &mut &[u8]) -> Result<Self::Response, Error>;
 
     fn protocol_identifier(&self) -> [u8; 64];
 
@@ -121,6 +122,8 @@ type Transcript<P> = (
 /// - `simulate_proof`
 /// - `simulate_transcript`
 pub trait SigmaProtocolSimulator: SigmaProtocol {
+    fn is_witness_valid(&self, witness: &Self::Witness) -> Choice;
+
     /// Generates a random response (e.g. for simulation or OR composition).
     ///
     /// Typically used to simulate a proof without a witness.
