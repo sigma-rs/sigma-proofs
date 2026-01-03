@@ -349,24 +349,6 @@ fn evaluate_polynomial<F: Field>(coeffs: &[F], x: F) -> F {
         .fold(F::ZERO, |acc, coeff| acc * x + coeff)
 }
 
-fn binomial<F: PrimeField>(n: usize, k: usize) -> F {
-    if k > n {
-        return F::ZERO;
-    }
-    let k = if k > n - k { n - k } else { k };
-    if k == 0 {
-        return F::ONE;
-    }
-
-    let mut num = F::ONE;
-    let mut denom = F::ONE;
-    for i in 0..k {
-        num *= F::from((n - i) as u64);
-        denom *= F::from((i + 1) as u64);
-    }
-    num * denom.invert().unwrap_or(F::ZERO)
-}
-
 fn expand_threshold_challenges<F: PrimeField>(
     threshold: usize,
     total: usize,
@@ -382,31 +364,25 @@ fn expand_threshold_challenges<F: PrimeField>(
         return Err(Error::InvalidInstanceWitnessPair);
     }
 
+    let mut points = Vec::with_capacity(degree + 1);
+    points.push(Evaluation {
+        x: F::ZERO,
+        y: challenge,
+    });
+    for (index, share) in compressed_challenges.iter().enumerate() {
+        points.push(Evaluation {
+            x: threshold_x::<F>(index),
+            y: *share,
+        });
+    }
+
+    let coeffs = interpolate_polynomial::<F>(&points)?;
     let mut challenges = Vec::with_capacity(total);
-    for k in 1..=total {
-        if k <= degree {
-            challenges.push(compressed_challenges[k - 1]);
-            continue;
-        }
-
-        let mut sum = F::ZERO;
-        for i in 0..=degree {
-            let p_i = if i == 0 {
-                challenge
-            } else {
-                compressed_challenges[i - 1]
-            };
-            let denom = F::from((k - i) as u64);
-            let denom_inv = denom.invert().unwrap_or(F::ZERO);
-            let sign_i = if i % 2 == 0 { F::ONE } else { -F::ONE };
-            let binom_d_i = binomial::<F>(degree, i);
-            sum += denom_inv * sign_i * binom_d_i * p_i;
-        }
-
-        let sign_d = if degree % 2 == 0 { F::ONE } else { -F::ONE };
-        let k_minus_d = F::from((k - degree) as u64);
-        let binom_k_d = binomial::<F>(k, degree);
-        challenges.push(sign_d * k_minus_d * binom_k_d * sum);
+    for index in 0..total {
+        challenges.push(evaluate_polynomial::<F>(
+            &coeffs,
+            threshold_x::<F>(index),
+        ));
     }
 
     Ok(challenges)
