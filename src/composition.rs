@@ -171,8 +171,8 @@ pub type ComposedThresholdProverState<G> = Vec<ComposedThresholdProverStateEntry
 pub struct ComposedThresholdProverStateEntry<G: PrimeGroup + ConstantTimeEq> {
     use_simulator: Choice,
     prover_state: ComposedProverState<G>,
-    challenge: ComposedChallenge<G>,
-    response: ComposedResponse<G>,
+    simulated_challenge: ComposedChallenge<G>,
+    simulated_response: ComposedResponse<G>,
 }
 
 // Structure representing the Response type of Protocol as SigmaProtocol
@@ -310,9 +310,7 @@ fn poly_mul_linear<F: Field>(coeffs: &[F], constant: F) -> Vec<F> {
     out
 }
 
-fn interpolate_polynomial<F: Field>(
-    points: &[Evaluation<F>],
-) -> Result<Vec<F>, Error> {
+fn interpolate_polynomial<F: Field>(points: &[Evaluation<F>]) -> Result<Vec<F>, Error> {
     if points.is_empty() {
         return Err(Error::InvalidInstanceWitnessPair);
     }
@@ -344,7 +342,7 @@ fn interpolate_polynomial<F: Field>(
     Ok(coeffs)
 }
 
-fn evaluate_polynomial<F: Field>(coeffs: &[F], x:F) -> F {
+fn evaluate_polynomial<F: Field>(coeffs: &[F], x: F) -> F {
     coeffs
         .iter()
         .rev()
@@ -381,7 +379,10 @@ fn expand_threshold_challenges<F: PrimeField>(
     let coeffs = interpolate_polynomial::<F>(&points)?;
     let mut challenges = Vec::with_capacity(total);
     for index in 0..total {
-        challenges.push(evaluate_polynomial::<F>(&coeffs, threshold_x::<F>(index)));
+        challenges.push(evaluate_polynomial::<F>(
+            &coeffs,
+            threshold_x::<F>(index),
+        ));
     }
 
     Ok(challenges)
@@ -402,9 +403,7 @@ struct Evaluation<T> {
     y: T,
 }
 
-impl<T: ConditionallySelectable> ConditionallySelectable for Evaluation<T>
-where
-{
+impl<T: ConditionallySelectable> ConditionallySelectable for Evaluation<T> {
     fn conditional_select(a: &Self, b: &Self, choice: Choice) -> Self {
         Evaluation {
             x: T::conditional_select(&a.x, &b.x, choice),
@@ -423,7 +422,7 @@ impl<T> From<(T, T)> for Evaluation<T> {
 }
 
 fn conditional_swap_point<T: ConditionallySelectable>(
-    points: &mut [Evaluation<T>],
+    points: &mut [T],
     left: usize,
     right: usize,
     swap: Choice,
@@ -433,15 +432,15 @@ fn conditional_swap_point<T: ConditionallySelectable>(
     }
     if left < right {
         let (head, tail) = points.split_at_mut(right);
-        Evaluation::conditional_swap(&mut head[left], &mut tail[0], swap);
+        T::conditional_swap(&mut head[left], &mut tail[0], swap);
     } else {
         let (head, tail) = points.split_at_mut(left);
-        Evaluation::conditional_swap(&mut tail[0], &mut head[right], swap);
+        T::conditional_swap(&mut tail[0], &mut head[right], swap);
     }
 }
 
 fn oroffcompact_points<T: ConditionallySelectable>(
-    points: &mut [Evaluation<T>],
+    points: &mut [T],
     marks: &[Choice],
     offset: usize,
 ) {
@@ -478,7 +477,7 @@ fn oroffcompact_points<T: ConditionallySelectable>(
 }
 
 fn oblivious_compact_points<T: ConditionallySelectable>(
-    points: &mut [Evaluation<T>],
+    points: &mut [T],
     marks: &[Choice],
 ) {
     let n = points.len();
@@ -724,27 +723,7 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<
         }
         let degree = instances.len() - threshold;
 
-        let mut real_commitments = Vec::with_capacity(instances.len());
-        let mut simulated_commitments = Vec::with_capacity(instances.len());
-        let mut valid_witnesses = Vec::with_capacity(instances.len());
-        let mut prover_states = Vec::with_capacity(instances.len());
-
-        for (instance, witness) in instances.iter().zip(witnesses.iter()) {
-            let (commitment, prover_state) = instance.prover_commit(witness, rng)?;
-            let (simulated_commitment, simulated_challenge, simulated_response) =
-                instance.simulate_transcript(rng)?;
-
-            let valid_witness = instance.is_witness_valid(witness);
-            real_commitments.push(commitment);
-            simulated_commitments.push(simulated_commitment);
-            valid_witnesses.push(valid_witness);
-            prover_states.push(ComposedThresholdProverStateEntry {
-                use_simulator: Choice::from(0),
-                challenge: simulated_challenge,
-                prover_state,
-                response: simulated_response,
-            });
-        }
+        let valid_witnesses = instances.iter().zip(witnesses.iter()).map(|(instance, witness)| instance.is_witness_valid(witness)).collect::<Vec<Choice>>();
 
         // Degree-(t-1) interpolation can only satisfy t fixed points.
         let invalid_count = instances.len() - count_choices(&valid_witnesses);
@@ -753,20 +732,31 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<
         }
 
         let remaining_seeds = degree - invalid_count;
-        let mut seeded_count = 0usize;
+        let mut seeded_choices = Vec::with_capacity(instances.len());
         let mut commitments = Vec::with_capacity(instances.len());
-        for (index, entry) in prover_states.iter_mut().enumerate() {
+        let mut prover_states = Vec::with_capacity(instances.len());
+        for (index, (instance, witness)) in instances.iter().zip(witnesses.iter()).enumerate() {
+            let (commitment, prover_state) = instance.prover_commit(witness, rng)?;
+            let (simulated_commitment, simulated_challenge, simulated_response) =
+                instance.simulate_transcript(rng)?;
+
             let valid_witness = valid_witnesses[index];
+            let seeded_count = count_choices(&seeded_choices);
             let should_seed = Choice::from((seeded_count < remaining_seeds) as u8) & valid_witness;
+            seeded_choices.push(should_seed);
             let use_simulator = (!valid_witness) | should_seed;
-            entry.use_simulator = use_simulator;
             let commitment = ComposedCommitment::conditional_select(
-                &real_commitments[index],
-                &simulated_commitments[index],
+                &commitment,
+                &simulated_commitment,
                 use_simulator,
             );
             commitments.push(commitment);
-            seeded_count += should_seed.unwrap_u8() as usize;
+            prover_states.push(ComposedThresholdProverStateEntry {
+                use_simulator,
+                prover_state,
+                simulated_challenge,
+                simulated_response,
+            });
         }
 
         Ok((
@@ -778,35 +768,30 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<
     fn prover_response_threshold(
         threshold: usize,
         instances: &[ComposedRelation<G>],
-        prover_state: ComposedThresholdProverState<G>,
+        prover_states: ComposedThresholdProverState<G>,
         challenge: &ComposedChallenge<G>,
     ) -> Result<ComposedResponse<G>, Error> {
-        if threshold == 0 || threshold > instances.len() || instances.len() != prover_state.len() {
+        if threshold == 0 || threshold > instances.len() || instances.len() != prover_states.len() {
             return Err(Error::InvalidInstanceWitnessPair);
         }
         let degree = instances.len() - threshold;
 
-        let marks = prover_state.iter().map(|entry| entry.use_simulator).collect::<Vec<_>>();
+        let marks = prover_states
+            .iter()
+            .map(|entry| entry.use_simulator)
+            .collect::<Vec<_>>();
+        debug_assert_eq!(count_choices(&marks), degree);
 
-        let mut points = prover_state
+        let mut points = prover_states
             .iter()
             .enumerate()
-            .map(|(index, entry)| Evaluation {
-                x: threshold_x::<G::Scalar>(index),
-                y: entry.challenge,
+            .map(|(i, entry)| Evaluation {
+                x: threshold_x::<G::Scalar>(i),
+                y: entry.simulated_challenge,
             })
             .collect::<Vec<Evaluation<G::Scalar>>>();
-
-        if count_choices(&marks) != degree {
-            return Err(Error::InvalidInstanceWitnessPair);
-        }
-
         oblivious_compact_points(&mut points, &marks);
         points.drain(degree..);
-
-        if points.len() != degree {
-            return Err(Error::InvalidInstanceWitnessPair);
-        }
 
         let mut full_points = Vec::with_capacity(degree + 1);
         full_points.push(Evaluation {
@@ -833,19 +818,19 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<
 
         let mut responses = Vec::with_capacity(instances.len());
 
-        for (index, (instance, entry)) in instances.iter().zip(prover_state).enumerate() {
-            let poly_challenge = expanded_challenges[index];
+        for (i, (instance, prover_state)) in instances.iter().zip(prover_states).enumerate() {
+            let poly_challenge = expanded_challenges[i];
             let challenge = G::Scalar::conditional_select(
                 &poly_challenge,
-                &entry.challenge,
-                entry.use_simulator,
+                &prover_state.simulated_challenge,
+                prover_state.use_simulator,
             );
 
-            let response = instance.prover_response(entry.prover_state, &challenge)?;
+            let response = instance.prover_response(prover_state.prover_state, &challenge)?;
             let response = ComposedResponse::conditional_select(
                 &response,
-                &entry.response,
-                entry.use_simulator,
+                &prover_state.simulated_response,
+                prover_state.use_simulator,
             );
 
             responses.push(response);
@@ -961,13 +946,12 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> SigmaProtocol
                     return Err(Error::InvalidInstanceWitnessPair);
                 }
 
-                let full_challenges =
-                    expand_threshold_challenges::<G::Scalar>(
-                        *threshold,
-                        ps.len(),
-                        *challenge,
-                        challenges,
-                    )?;
+                let full_challenges = expand_threshold_challenges::<G::Scalar>(
+                    *threshold,
+                    ps.len(),
+                    *challenge,
+                    challenges,
+                )?;
 
                 ps.iter()
                     .zip(commitments)
@@ -1243,13 +1227,13 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> SigmaProtocolSimu
                 if rs.len() != ps.len() || challenges.len() != ps.len() - threshold {
                     return Err(Error::InvalidInstanceWitnessPair);
                 }
-                let full_challenges =
-                    expand_threshold_challenges::<G::Scalar>(
-                        *threshold,
-                        ps.len(),
-                        *challenge,
-                        challenges,
-                    )?;
+
+                let full_challenges = expand_threshold_challenges::<G::Scalar>(
+                    *threshold,
+                    ps.len(),
+                    *challenge,
+                    challenges,
+                )?;
                 let commitments = ps
                     .iter()
                     .zip(full_challenges.iter())
@@ -1285,21 +1269,14 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> SigmaProtocolSimu
                 }
 
                 let degree = ps.len() - *threshold;
-                let coeffs = (0..(degree + 1))
-                    .map(|_| G::Scalar::random(&mut *rng))
-                    .collect::<Vec<_>>();
-                let mut challenges = Vec::with_capacity(ps.len());
+                let mut compressed_challenges = Vec::with_capacity(degree);
                 let mut responses = Vec::with_capacity(ps.len());
-                for index in 0..ps.len() {
-                    challenges.push(evaluate_polynomial::<G::Scalar>(
-                        &coeffs,
-                        threshold_x::<G::Scalar>(index),
-                    ));
+                for _ in 0..degree {
+                    compressed_challenges.push(G::Scalar::random(&mut *rng));
                 }
                 for p in ps.iter() {
                     responses.push(p.simulate_response(&mut *rng));
                 }
-                let compressed_challenges = challenges[..degree].to_vec();
                 ComposedResponse::Threshold(compressed_challenges, responses)
             }
         }
@@ -1369,7 +1346,7 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> SigmaProtocolSimu
                 }
 
                 let challenge = G::Scalar::random(&mut *rng);
-                let full_challenges = expand_threshold_challenges::<G::Scalar>(
+                let full_challenges = expand_threshold_challenges(
                     *threshold,
                     ps.len(),
                     challenge,
