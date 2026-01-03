@@ -349,6 +349,24 @@ fn evaluate_polynomial<F: Field>(coeffs: &[F], x: F) -> F {
         .fold(F::ZERO, |acc, coeff| acc * x + coeff)
 }
 
+fn binomial<F: PrimeField>(n: usize, k: usize) -> F {
+    if k > n {
+        return F::ZERO;
+    }
+    let k = if k > n - k { n - k } else { k };
+    if k == 0 {
+        return F::ONE;
+    }
+
+    let mut num = F::ONE;
+    let mut denom = F::ONE;
+    for i in 0..k {
+        num *= F::from((n - i) as u64);
+        denom *= F::from((i + 1) as u64);
+    }
+    num * denom.invert().unwrap_or(F::ZERO)
+}
+
 fn expand_threshold_challenges<F: PrimeField>(
     threshold: usize,
     total: usize,
@@ -364,25 +382,31 @@ fn expand_threshold_challenges<F: PrimeField>(
         return Err(Error::InvalidInstanceWitnessPair);
     }
 
-    let mut points = Vec::with_capacity(degree + 1);
-    points.push(Evaluation {
-        x: F::ZERO,
-        y: challenge,
-    });
-    for (index, share) in compressed_challenges.iter().enumerate() {
-        points.push(Evaluation {
-            x: threshold_x::<F>(index),
-            y: *share,
-        });
-    }
-
-    let coeffs = interpolate_polynomial::<F>(&points)?;
     let mut challenges = Vec::with_capacity(total);
-    for index in 0..total {
-        challenges.push(evaluate_polynomial::<F>(
-            &coeffs,
-            threshold_x::<F>(index),
-        ));
+    for k in 1..=total {
+        if k <= degree {
+            challenges.push(compressed_challenges[k - 1]);
+            continue;
+        }
+
+        let mut sum = F::ZERO;
+        for i in 0..=degree {
+            let p_i = if i == 0 {
+                challenge
+            } else {
+                compressed_challenges[i - 1]
+            };
+            let denom = F::from((k - i) as u64);
+            let denom_inv = denom.invert().unwrap_or(F::ZERO);
+            let sign_i = if i % 2 == 0 { F::ONE } else { -F::ONE };
+            let binom_d_i = binomial::<F>(degree, i);
+            sum += denom_inv * sign_i * binom_d_i * p_i;
+        }
+
+        let sign_d = if degree % 2 == 0 { F::ONE } else { -F::ONE };
+        let k_minus_d = F::from((k - degree) as u64);
+        let binom_k_d = binomial::<F>(k, degree);
+        challenges.push(sign_d * k_minus_d * binom_k_d * sum);
     }
 
     Ok(challenges)
@@ -476,10 +500,7 @@ fn oroffcompact_points<T: ConditionallySelectable>(
     }
 }
 
-fn oblivious_compact_points<T: ConditionallySelectable>(
-    points: &mut [T],
-    marks: &[Choice],
-) {
+fn oblivious_compact_points<T: ConditionallySelectable>(points: &mut [T], marks: &[Choice]) {
     let n = points.len();
     if n == 0 {
         return;
@@ -723,7 +744,11 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<
         }
         let degree = instances.len() - threshold;
 
-        let valid_witnesses = instances.iter().zip(witnesses.iter()).map(|(instance, witness)| instance.is_witness_valid(witness)).collect::<Vec<Choice>>();
+        let valid_witnesses = instances
+            .iter()
+            .zip(witnesses.iter())
+            .map(|(x, w)| x.is_witness_valid(w))
+            .collect::<Vec<Choice>>();
 
         // Degree-(t-1) interpolation can only satisfy t fixed points.
         let invalid_count = instances.len() - count_choices(&valid_witnesses);
@@ -735,12 +760,12 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<
         let mut seeded_choices = Vec::with_capacity(instances.len());
         let mut commitments = Vec::with_capacity(instances.len());
         let mut prover_states = Vec::with_capacity(instances.len());
-        for (index, (instance, witness)) in instances.iter().zip(witnesses.iter()).enumerate() {
+        for (i, (instance, witness)) in instances.iter().zip(witnesses.iter()).enumerate() {
             let (commitment, prover_state) = instance.prover_commit(witness, rng)?;
             let (simulated_commitment, simulated_challenge, simulated_response) =
                 instance.simulate_transcript(rng)?;
 
-            let valid_witness = valid_witnesses[index];
+            let valid_witness = valid_witnesses[i];
             let seeded_count = count_choices(&seeded_choices);
             let should_seed = Choice::from((seeded_count < remaining_seeds) as u8) & valid_witness;
             seeded_choices.push(should_seed);
