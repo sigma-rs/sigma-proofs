@@ -19,8 +19,8 @@
 //! )
 //! ```
 
-use ff::{Field, PrimeField};
 use alloc::{vec, vec::Vec};
+use ff::{Field, PrimeField};
 use group::prime::PrimeGroup;
 #[cfg(feature = "std")]
 use rand::{CryptoRng, Rng};
@@ -379,10 +379,7 @@ fn expand_threshold_challenges<F: PrimeField>(
     let coeffs = interpolate_polynomial::<F>(&points)?;
     let mut challenges = Vec::with_capacity(total);
     for index in 0..total {
-        challenges.push(evaluate_polynomial::<F>(
-            &coeffs,
-            threshold_x::<F>(index),
-        ));
+        challenges.push(evaluate_polynomial::<F>(&coeffs, threshold_x::<F>(index)));
     }
 
     Ok(challenges)
