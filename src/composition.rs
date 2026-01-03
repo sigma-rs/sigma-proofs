@@ -169,8 +169,7 @@ pub struct ComposedOrProverStateEntry<G: PrimeGroup + ConstantTimeEq>(
 
 pub type ComposedThresholdProverState<G> = Vec<ComposedThresholdProverStateEntry<G>>;
 pub struct ComposedThresholdProverStateEntry<G: PrimeGroup + ConstantTimeEq> {
-    valid_witness: Choice,
-    seeded_share: Choice,
+    use_simulator: Choice,
     prover_state: ComposedProverState<G>,
     challenge: ComposedChallenge<G>,
     response: ComposedResponse<G>,
@@ -717,7 +716,9 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<
         }
         let degree = instances.len() - threshold;
 
-        let mut commitments = Vec::with_capacity(instances.len());
+        let mut real_commitments = Vec::with_capacity(instances.len());
+        let mut simulated_commitments = Vec::with_capacity(instances.len());
+        let mut valid_witnesses = Vec::with_capacity(instances.len());
         let mut prover_states = Vec::with_capacity(instances.len());
 
         for (instance, witness) in instances.iter().zip(witnesses.iter()) {
@@ -726,17 +727,11 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<
                 instance.simulate_transcript(rng)?;
 
             let valid_witness = instance.is_witness_valid(witness);
-
-            let commitment = ComposedCommitment::conditional_select(
-                &simulated_commitment,
-                &commitment,
-                valid_witness,
-            );
-
-            commitments.push(commitment);
+            real_commitments.push(commitment);
+            simulated_commitments.push(simulated_commitment);
+            valid_witnesses.push(valid_witness);
             prover_states.push(ComposedThresholdProverStateEntry {
-                valid_witness,
-                seeded_share: Choice::from(0),
+                use_simulator: Choice::from(0),
                 challenge: simulated_challenge,
                 prover_state,
                 response: simulated_response,
@@ -744,20 +739,26 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<
         }
 
         // Degree-(t-1) interpolation can only satisfy t fixed points.
-        let invalid_count = prover_states.iter().map(|state| (!state.valid_witness).unwrap_u8() as usize).sum::<usize>();
+        let invalid_count = instances.len() - count_choices(&valid_witnesses);
         if invalid_count > degree {
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
         let remaining_seeds = degree - invalid_count;
         let mut seeded_count = 0usize;
-        for entry in prover_states.iter_mut() {
+        let mut commitments = Vec::with_capacity(instances.len());
+        for (index, entry) in prover_states.iter_mut().enumerate() {
+            let valid_witness = valid_witnesses[index];
             let should_seed =
-                Choice::from((seeded_count < remaining_seeds) as u8) & entry.valid_witness;
-            let random_challenge = G::Scalar::random(&mut *rng);
-            entry.seeded_share = should_seed;
-            entry.challenge =
-                G::Scalar::conditional_select(&entry.challenge, &random_challenge, should_seed);
+                Choice::from((seeded_count < remaining_seeds) as u8) & valid_witness;
+            let use_simulator = (!valid_witness) | should_seed;
+            entry.use_simulator = use_simulator;
+            let commitment = ComposedCommitment::conditional_select(
+                &real_commitments[index],
+                &simulated_commitments[index],
+                use_simulator,
+            );
+            commitments.push(commitment);
             seeded_count += should_seed.unwrap_u8() as usize;
         }
 
@@ -782,7 +783,7 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<
         let mut marks = Vec::with_capacity(instances.len());
 
         for (index, entry) in prover_state.iter().enumerate() {
-            let mark = (!entry.valid_witness) | entry.seeded_share;
+            let mark = entry.use_simulator;
             points.push(Evaluation {
                 x: threshold_x::<G>(index),
                 y: entry.challenge,
@@ -814,16 +815,12 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<
         for (index, (instance, entry)) in instances.iter().zip(prover_state).enumerate() {
             let x = threshold_x::<G>(index);
             let poly_challenge = evaluate_polynomial::<G>(&coeffs, x);
-            let use_fixed = (!entry.valid_witness) | entry.seeded_share;
             let challenge =
-                G::Scalar::conditional_select(&poly_challenge, &entry.challenge, use_fixed);
+                G::Scalar::conditional_select(&poly_challenge, &entry.challenge, entry.use_simulator);
 
             let response = instance.prover_response(entry.prover_state, &challenge)?;
-            let response = ComposedResponse::conditional_select(
-                &entry.response,
-                &response,
-                entry.valid_witness,
-            );
+            let response =
+                ComposedResponse::conditional_select(&response, &entry.response, entry.use_simulator);
 
             challenges.push(challenge);
             responses.push(response);
