@@ -22,7 +22,7 @@
 pub mod new;
 
 use alloc::{vec, vec::Vec};
-use ff::Field;
+use ff::{Field, PrimeField};
 use group::prime::PrimeGroup;
 #[cfg(feature = "std")]
 use rand::{CryptoRng, Rng};
@@ -370,10 +370,6 @@ impl<G: PrimeGroup> From<<CanonicalLinearRelation<G> as SigmaProtocol>::Witness>
 }
 
 type ComposedChallenge<G> = <CanonicalLinearRelation<G> as SigmaProtocol>::Challenge;
-
-const fn composed_challenge_size<G: PrimeGroup>() -> usize {
-    (G::Scalar::NUM_BITS as usize).div_ceil(8)
-}
 
 fn threshold_x<F: PrimeField>(index: usize) -> F {
     F::from((index + 1) as u64)
@@ -814,7 +810,7 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<
         let mut commitments = Vec::with_capacity(instances.len());
         let mut prover_states = Vec::with_capacity(instances.len());
         for (i, (instance, witness)) in instances.iter().zip(witnesses.iter()).enumerate() {
-            let (commitment, prover_state) = instance.prover_commit(witness, rng)?;
+            let (commitment, prover_state) = instance.prover_commit(witness.clone(), rng)?;
             let (simulated_commitment, simulated_challenge, simulated_response) =
                 instance.simulate_transcript(rng)?;
 
@@ -945,7 +941,7 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> SigmaProtocol
                 Self::prover_commit_or(ps, witnesses, rng)
             }
             (ComposedRelation::Threshold(threshold, ps), ComposedWitness::Threshold(witnesses)) => {
-                Self::prover_commit_threshold(*threshold, ps, witnesses, rng)
+                Self::prover_commit_threshold(*threshold, ps, &witnesses, rng)
             }
             _ => Err(Error::InvalidInstanceWitnessPair),
         }
@@ -1231,20 +1227,12 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> SigmaProtocol
                 Ok(ComposedResponse::Or(challenges, responses))
             }
             ComposedRelation::Threshold(threshold, ps) => {
-                let ch_bytes_len = composed_challenge_size::<G>();
-                let challenges_size = (ps.len().saturating_sub(*threshold)) * ch_bytes_len;
-                let challenges_bytes = &data[..challenges_size];
-                let response_bytes = &data[challenges_size..];
-                let challenges =
-                    deserialize_scalars::<G>(challenges_bytes, ps.len().saturating_sub(*threshold))
-                        .ok_or(Error::VerificationFailure)?;
+                let challenges = deserialize_scalars(data, ps.len().saturating_sub(*threshold))
+                    .ok_or(Error::VerificationFailure)?;
 
-                let mut cursor = 0;
                 let mut responses = Vec::with_capacity(ps.len());
                 for p in ps {
-                    let r = p.deserialize_response(&response_bytes[cursor..])?;
-                    let size = p.serialize_response(&r).len();
-                    cursor += size;
+                    let r = p.deserialize_response(data)?;
                     responses.push(r);
                 }
                 Ok(ComposedResponse::Threshold(challenges, responses))

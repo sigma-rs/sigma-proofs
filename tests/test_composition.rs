@@ -1,7 +1,10 @@
 use curve25519_dalek::ristretto::RistrettoPoint as G;
 use group::Group;
 
-use sigma_proofs::composition::{ComposedRelation, ComposedWitness};
+use sigma_proofs::{
+    composition::{ComposedRelation, ComposedWitness},
+    linear_relation::ScalarMap,
+};
 
 mod relations;
 pub use relations::*;
@@ -127,16 +130,17 @@ fn test_threshold_two_of_three() {
     let (relation2, witness2) = dleq::<G, _>(&mut rng);
     let (relation3, witness3) = dleq::<G, _>(&mut rng);
 
-    let wrong_witness3 = (0..witness3.len())
-        .map(|_| <G as Group>::Scalar::random(&mut rng))
-        .collect::<Vec<_>>();
+    let wrong_witness3 = witness3
+        .vars()
+        .map(|var| (var, <G as Group>::Scalar::random(&mut rng)))
+        .collect::<ScalarMap<_>>();
 
     let threshold_protocol = ComposedRelation::threshold(2, [relation1, relation2, relation3]);
     let witness = ComposedWitness::threshold([witness1, witness2, wrong_witness3]);
     let nizk = threshold_protocol.into_nizk(b"test_threshold_two_of_three");
 
-    let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
-    let proof_compact_bytes = nizk.prove_compact(&witness, &mut rng).unwrap();
+    let proof_batchable_bytes = nizk.prove_batchable(witness.clone(), &mut rng).unwrap();
+    let proof_compact_bytes = nizk.prove_compact(witness, &mut rng).unwrap();
 
     assert!(nizk.verify_batchable(&proof_batchable_bytes).is_ok());
     assert!(nizk.verify_compact(&proof_compact_bytes).is_ok());
@@ -159,9 +163,10 @@ fn test_threshold_two_of_ten_three_valid() {
 
     // Keep three valid witnesses, corrupt the remaining seven.
     for witness in witnesses.iter_mut().skip(3) {
-        *witness = (0..witness.len())
-            .map(|_| <G as Group>::Scalar::random(&mut rng))
-            .collect::<Vec<_>>();
+        *witness = witness
+            .vars()
+            .map(|var| (var, <G as Group>::Scalar::random(&mut rng)))
+            .collect::<ScalarMap<_>>();
     }
 
     let threshold_protocol =
@@ -169,8 +174,8 @@ fn test_threshold_two_of_ten_three_valid() {
     let witness = ComposedWitness::threshold(witnesses.into_iter().collect::<Vec<_>>());
     let nizk = threshold_protocol.into_nizk(b"test_threshold_two_of_ten_three_valid");
 
-    let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
-    let proof_compact_bytes = nizk.prove_compact(&witness, &mut rng).unwrap();
+    let proof_batchable_bytes = nizk.prove_batchable(witness.clone(), &mut rng).unwrap();
+    let proof_compact_bytes = nizk.prove_compact(witness, &mut rng).unwrap();
 
     assert!(nizk.verify_batchable(&proof_batchable_bytes).is_ok());
     assert!(nizk.verify_compact(&proof_compact_bytes).is_ok());

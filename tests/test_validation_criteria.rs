@@ -8,7 +8,10 @@ mod instance_validation {
     use bls12_381::{G1Projective as G, Scalar};
     use ff::Field;
     use group::Group;
-    use sigma_proofs::linear_relation::{Allocator, CanonicalLinearRelation, LinearRelation};
+    use sigma_proofs::{
+        errors::Error,
+        linear_relation::{Allocator, CanonicalLinearRelation, LinearRelation},
+    };
 
     #[test]
     fn test_unassigned_group_vars() {
@@ -141,10 +144,10 @@ mod instance_validation {
         let mut linear_relation = LinearRelation::<G>::new();
         let B_var = linear_relation.allocate_element();
         let C_var = linear_relation.allocate_eq(B_var);
-        linear_relation.set_elements([(B_var, B), (C_var, C)]);
+        linear_relation.assign_elements([(B_var, B), (C_var, C)]);
         let nizk = linear_relation.into_nizk(b"test_session").unwrap();
         assert!(matches!(
-            nizk.verify_batchable(&nizk.prove_batchable(&vec![], rng).unwrap())
+            nizk.verify_batchable(&nizk.prove_batchable([], rng).unwrap())
                 .unwrap_err(),
             Error::VerificationFailure
         ));
@@ -154,9 +157,9 @@ mod instance_validation {
         let mut linear_relation = LinearRelation::<G>::new();
         let [B_var, A_var] = linear_relation.allocate_elements();
         let X_var = linear_relation.allocate_eq(B_var * pub_scalar + A_var * Scalar::from(3));
-        linear_relation.set_elements([(B_var, B), (A_var, A), (X_var, X)]);
+        linear_relation.assign_elements([(B_var, B), (A_var, A), (X_var, X)]);
         assert!(matches!(
-            nizk.verify_batchable(&nizk.prove_batchable(&vec![], rng).unwrap())
+            nizk.verify_batchable(&nizk.prove_batchable([], rng).unwrap())
                 .unwrap_err(),
             Error::VerificationFailure
         ));
