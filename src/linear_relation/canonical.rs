@@ -180,8 +180,8 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
             // branch may still be provable.
             //
             // TODO: In this case, we can optimize and improve error reporting by having this
-            // library special-case trvially false statements. One appraoch would be to return an
-            // error here and handle it in the OR composition.
+            // library special-case trvially false statements.
+            // One approach would be to return an error here and handle it in the OR composition.
         }
 
         let canonical_image_group_var = self.group_elements.push(canonical_image);
