@@ -228,10 +228,10 @@ mod proof_validation {
     use bls12_381::{G1Projective as G, Scalar};
     use ff::Field;
     use rand::RngCore;
-    use sigma_proofs::Nizk;
     use sigma_proofs::codec::KeccakByteSchnorrCodec;
     use sigma_proofs::composition::{ComposedRelation, ComposedWitness};
     use sigma_proofs::linear_relation::{CanonicalLinearRelation, LinearRelation};
+    use sigma_proofs::Nizk;
 
     type TestNizk = Nizk<CanonicalLinearRelation<G>, KeccakByteSchnorrCodec<G>>;
 
