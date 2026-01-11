@@ -89,3 +89,6 @@ pub use linear_relation::LinearRelation;
 
 #[deprecated = "Use sigma_proofs::group::serialization instead"]
 pub use group::serialization;
+
+#[allow(unused)]
+mod compressed;

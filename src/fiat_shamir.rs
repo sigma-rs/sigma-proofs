@@ -13,7 +13,7 @@
 //! - `C`: the codec ([`Codec`] trait).
 
 use crate::errors::Error;
-use crate::traits::SigmaProtocol;
+use crate::traits::{InteractiveProof, SigmaProtocol};
 use crate::{codec::Codec, traits::SigmaProtocolSimulator};
 use alloc::vec::Vec;
 
@@ -26,6 +26,12 @@ type Transcript<P> = (
     <P as SigmaProtocol>::Commitment,
     <P as SigmaProtocol>::Challenge,
     <P as SigmaProtocol>::Response,
+);
+
+#[allow(unused)]
+type MultiRoundTranscript<P> = (
+    Vec<<P as InteractiveProof>::ProverMessage>,
+    Vec<<P as InteractiveProof>::Challenge>,
 );
 
 /// A Fiat-Shamir transformation of a [`SigmaProtocol`] into a non-interactive proof.
@@ -302,5 +308,88 @@ where
             .simulate_commitment(&challenge, &response)?;
         // Verify the proof
         self.verify(&commitment, &challenge, &response)
+    }
+}
+
+#[allow(unused)]
+pub struct MultiRoundNizk<P, C>
+where
+    P: InteractiveProof,
+    P::Challenge: PartialEq,
+    C: Codec<Challenge = P::Challenge>,
+{
+    /// Current codec state.
+    pub hash_state: C,
+    /// Underlying interactive proof.
+    pub interactive_proof: P,
+}
+
+#[allow(unused)]
+impl<P, C> MultiRoundNizk<P, C>
+where
+    P: InteractiveProof,
+    P::Challenge: PartialEq,
+    C: Codec<Challenge = P::Challenge> + Clone,
+{
+    /// Constructs a new [`MultiRoundNizk`] instance.
+    ///
+    /// # Parameters
+    /// - `iv`: Domain separation tag for the hash function (e.g., protocol name or context).
+    /// - `instance`: An instance of the [`InteractiveProof`].
+    ///
+    /// # Returns
+    /// A new [`MultiRoundNizk`] that can generate and verify non-interactive proofs.
+    pub fn new(session_identifier: &[u8], interactive_proof: P) -> Self {
+        let hash_state = C::new(
+            interactive_proof.protocol_identifier().as_ref(),
+            session_identifier,
+            interactive_proof.instance_label().as_ref(),
+        );
+        Self {
+            hash_state,
+            interactive_proof,
+        }
+    }
+
+    pub fn from_iv(iv: [u8; 64], interactive_proof: P) -> Self {
+        let hash_state = C::from_iv(iv);
+        Self {
+            hash_state,
+            interactive_proof,
+        }
+    }
+
+    pub fn prove(&self, witness: &P::Witness) -> Result<MultiRoundTranscript<P>, Error> {
+        let mut hash_state = self.hash_state.clone();
+        let num_rounds = self.interactive_proof.num_rounds();
+        let mut statement = self.interactive_proof.get_initial_prover_state(witness);
+        let mut messages = vec![];
+        let mut challenges = vec![];
+        (0..num_rounds).for_each(|_| {
+            let challenge = hash_state.verifier_challenge();
+            let message = self
+                .interactive_proof
+                .prover_message(&mut statement, &challenge)
+                .unwrap();
+            let serialized_message = self.interactive_proof.serialize_message(&message);
+            hash_state.prover_message(&serialized_message);
+            messages.push(message);
+            challenges.push(challenge);
+        });
+        Ok((messages, challenges))
+    }
+
+    pub fn verify(&self, prover_messages: &[P::ProverMessage]) -> Result<(), Error> {
+        let mut hash_state = self.hash_state.clone();
+        let num_rounds = self.interactive_proof.num_rounds();
+        assert_eq!(prover_messages.len(), num_rounds);
+        let mut statement = self.interactive_proof.get_initial_verifier_state();
+        for message in prover_messages {
+            let challenge = hash_state.verifier_challenge();
+            P::update_verifier_state(message, &mut statement, &challenge)?;
+            let serialized_message = self.interactive_proof.serialize_message(&message);
+            hash_state.prover_message(&serialized_message);
+        }
+        Ok(())
     }
 }
