@@ -1,8 +1,8 @@
 use ff::Field;
 
+use sigma_proofs::Nizk;
 use sigma_proofs::codec::Shake128DuplexSponge;
 use sigma_proofs::linear_relation::{CanonicalLinearRelation, LinearRelation};
-use sigma_proofs::Nizk;
 
 mod relations;
 use relations::*;
