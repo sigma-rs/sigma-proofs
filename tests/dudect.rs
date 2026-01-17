@@ -27,34 +27,39 @@ impl<G: Group> Rng<G> for RiggedRng {
     }
 }
 
-// TODO:
-// * Setup a rigged RNG for generating random points and scalars equal to one.
-// * Run a bunch of samples with the real RNG and with the rigged RNG.
-// * Copy the stats computation from dudect here and run it on the collected stats.
-// * Print the stats to console and set a threshold for them.
 #[test]
-fn a() {
+fn baseline() {
+    let stats = compare(&mut rand::thread_rng(), &mut rand::thread_rng());
+    println!("baseline: {stats}");
+}
+
+#[test]
+fn test() {
+    let stats = compare(&mut rand::thread_rng(), &mut RiggedRng);
+    println!("test: {stats}");
+}
+
+fn compare(rng_left: &mut impl Rng<G>, rng_right: &mut impl Rng<G>) -> CtSummary {
     let (left_times, right_times): (Vec<u64>, Vec<u64>) = (0..10000)
         .map(|_| {
-            // TODO: The generation of the relation also contains some computation over witness
-            // data in the form of `compute_image`. How should we measure this?
-            let (left_rel, left_witness) = black_box(relations::pedersen_commitment::<G, _>(
-                &mut rand::thread_rng(),
-            ));
-            let (right_rel, right_witness) =
-                black_box(relations::pedersen_commitment::<G, _>(&mut RiggedRng));
-
             (
-                time_prove(left_rel, left_witness).as_nanos() as u64,
-                time_prove(right_rel, right_witness).as_nanos() as u64,
+                time_prove_sample(rng_left).as_nanos() as u64,
+                time_prove_sample(rng_right).as_nanos() as u64,
             )
         })
         .collect();
 
-    let stats = ct_stats(&left_times, &right_times);
-    println!("{stats}");
+    ct_stats(&left_times, &right_times)
 }
 
+/// Time the call to [Nizk::prove_compact] with a relation and witness drawn from the distribution
+/// defined by the given [Rng]. The `rng` defines the class of the input.
+fn time_prove_sample(rng: &mut impl Rng<G>) -> Duration {
+    let (rel, witness) = black_box(relations::pedersen_commitment::<G, _>(rng));
+    time_prove(rel, witness)
+}
+
+/// Time the call to [Nizk::prove_compact] with the given relation and witness.
 #[inline(never)]
 fn time_prove(rel: CanonicalLinearRelation<G>, wit: Vec<Scalar>) -> Duration {
     let nizk = Nizk::<_, Shake128DuplexSponge<G>>::new(b"sigma-proofs-dudect-test", rel);
