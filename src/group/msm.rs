@@ -11,11 +11,7 @@ const fn ln_without_floats(a: usize) -> usize {
     } else {
         // log2(a) * ln(2), ensure minimum value of 1
         let result = (usize::BITS - (a - 1).leading_zeros()) as usize * 69 / 100;
-        if result == 0 {
-            1
-        } else {
-            result
-        }
+        if result == 0 { 1 } else { result }
     }
 }
 
@@ -68,8 +64,8 @@ impl<G: PrimeGroup> VariableMultiScalarMul for G {
         // msm_naive past a small constant size, but is significantly slower for very small MSMs.
         match scalars.len() {
             0 => Self::identity(),
-            1..16 => msm_naive(bases, scalars),
-            16.. => msm_pippenger(bases, scalars),
+            1.. => msm_naive(bases, scalars),
+            //16.. => msm_pippenger(bases, scalars),
         }
     }
 }
@@ -81,6 +77,7 @@ fn msm_naive<G: PrimeGroup>(bases: &[G], scalars: &[G::Scalar]) -> G {
 
 /// An MSM implementation that employ's Pippenger's algorithm and works for all groups that
 /// implement `PrimeGroup`.
+#[expect(dead_code)]
 fn msm_pippenger<G: PrimeGroup>(bases: &[G], scalars: &[G::Scalar]) -> G {
     let c = ln_without_floats(scalars.len());
     let num_bits = <G::Scalar as PrimeField>::NUM_BITS as usize;
