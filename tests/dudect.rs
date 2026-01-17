@@ -8,10 +8,12 @@ use std::{
     time::{Duration, Instant},
 };
 
+use anyhow::Context;
 use curve25519_dalek::{RistrettoPoint as G, Scalar};
 use ff::Field;
 use group::Group;
 
+use rand::seq::SliceRandom;
 use rand_chacha::{ChaCha12Rng, rand_core::SeedableRng};
 use relations::Rng;
 use sigma_proofs::{Nizk, codec::Shake128DuplexSponge, linear_relation::CanonicalLinearRelation};
@@ -28,14 +30,33 @@ impl<G: Group> Rng<G> for RiggedRng {
     }
 }
 
+/// Set the current thread's core affinity to a random core.
+///
+/// This discourages the OS from switching witch thread the test is running on in the middle of the
+/// test, providing some decrease in the amount of noise.
+fn set_core_affinity() -> anyhow::Result<()> {
+    let core_ids = core_affinity2::get_core_ids().context("Failed to get core IDs")?;
+
+    let Some(core_id) = core_ids.choose(&mut rand::thread_rng()) else {
+        anyhow::bail!("No core IDs available");
+    };
+    core_id
+        .set_affinity_forced()
+        .context("Failed to set affinity for core {core_id:?}")
+}
+
 #[test]
 fn baseline() {
+    // Try to pin this test to a core. Continue if this does not work.
+    set_core_affinity().ok();
     let stats = compare(&mut rand::thread_rng(), &mut rand::thread_rng());
     println!("baseline: {stats}");
 }
 
 #[test]
 fn test() {
+    // Try to pin this test to a core. Continue if this does not work.
+    set_core_affinity().ok();
     let stats = compare(&mut rand::thread_rng(), &mut RiggedRng);
     println!("test: {stats}");
 }

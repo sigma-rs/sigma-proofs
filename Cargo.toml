@@ -41,7 +41,9 @@ zerocopy = { version = "0.8", default-features = false }
 zeroize = { version = "1.8.1", default-features = false, features = ["alloc"] }
 
 [dev-dependencies]
+anyhow = "1.0.100"
 bls12_381 = "0.8.0"
+core_affinity2 = "0.15.4"
 curve25519-dalek = { version = "4", default-features = false, features = ["serde", "rand_core", "alloc", "digest", "precomputed-tables", "group"] }
 hex = "0.4"
 hex-literal = "0.4"
