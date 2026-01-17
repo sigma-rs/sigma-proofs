@@ -12,6 +12,7 @@ use curve25519_dalek::{RistrettoPoint as G, Scalar};
 use ff::Field;
 use group::Group;
 
+use rand_chacha::{ChaCha12Rng, rand_core::SeedableRng};
 use relations::Rng;
 use sigma_proofs::{Nizk, codec::Shake128DuplexSponge, linear_relation::CanonicalLinearRelation};
 
@@ -62,10 +63,11 @@ fn time_prove_sample(rng: &mut impl Rng<G>) -> Duration {
 /// Time the call to [Nizk::prove_compact] with the given relation and witness.
 #[inline(never)]
 fn time_prove(rel: CanonicalLinearRelation<G>, wit: Vec<Scalar>) -> Duration {
+    let mut rng = ChaCha12Rng::from_rng(rand::thread_rng()).unwrap();
     let nizk = Nizk::<_, Shake128DuplexSponge<G>>::new(b"sigma-proofs-dudect-test", rel);
 
     let start = Instant::now();
-    nizk.prove_compact(&wit, &mut rand::thread_rng()).unwrap();
+    let _ = black_box(nizk.prove_compact(&wit, &mut rng));
     start.elapsed()
 }
 
