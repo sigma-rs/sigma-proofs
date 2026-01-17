@@ -248,6 +248,22 @@ mod add {
         }
     }
 
+    impl<G: Group> Add<Weighted<GroupVar<G>, G::Scalar>> for Sum<Term<G>> {
+        type Output = Sum<Weighted<Term<G>, G::Scalar>>;
+
+        fn add(self, rhs: Weighted<GroupVar<G>, G::Scalar>) -> Self::Output {
+            Sum::<Weighted<Term<G>, G::Scalar>>::from(self) + rhs
+        }
+    }
+
+    impl<G: Group> Add<Sum<Term<G>>> for Weighted<GroupVar<G>, G::Scalar> {
+        type Output = Sum<Weighted<Term<G>, G::Scalar>>;
+
+        fn add(self, rhs: Sum<Term<G>>) -> Self::Output {
+            rhs + self
+        }
+    }
+
     impl<G: Group> Add<Sum<Weighted<Term<G>, G::Scalar>>> for Weighted<GroupVar<G>, G::Scalar> {
         type Output = Sum<Weighted<Term<G>, G::Scalar>>;
 
@@ -260,6 +276,38 @@ mod add {
                 weight: self.weight,
             };
             rhs + weighted_term
+        }
+    }
+
+    impl<G: Group> Add<Term<G>> for Sum<Weighted<GroupVar<G>, G::Scalar>> {
+        type Output = Sum<Weighted<Term<G>, G::Scalar>>;
+
+        fn add(self, rhs: Term<G>) -> Self::Output {
+            Sum::<Weighted<Term<G>, G::Scalar>>::from(self) + rhs
+        }
+    }
+
+    impl<G: Group> Add<Sum<Term<G>>> for Sum<Weighted<GroupVar<G>, G::Scalar>> {
+        type Output = Sum<Weighted<Term<G>, G::Scalar>>;
+
+        fn add(self, rhs: Sum<Term<G>>) -> Self::Output {
+            Sum::<Weighted<Term<G>, G::Scalar>>::from(self) + rhs
+        }
+    }
+
+    impl<G: Group> Add<Sum<Weighted<GroupVar<G>, G::Scalar>>> for Term<G> {
+        type Output = Sum<Weighted<Term<G>, G::Scalar>>;
+
+        fn add(self, rhs: Sum<Weighted<GroupVar<G>, G::Scalar>>) -> Self::Output {
+            Sum::<Weighted<Term<G>, G::Scalar>>::from(rhs) + self
+        }
+    }
+
+    impl<G: Group> Add<Sum<Weighted<GroupVar<G>, G::Scalar>>> for Sum<Term<G>> {
+        type Output = Sum<Weighted<Term<G>, G::Scalar>>;
+
+        fn add(self, rhs: Sum<Weighted<GroupVar<G>, G::Scalar>>) -> Self::Output {
+            self + Sum::<Weighted<Term<G>, G::Scalar>>::from(rhs)
         }
     }
 
@@ -1118,6 +1166,148 @@ mod tests {
         assert_eq!(mixed.terms()[2].term.scalar, z.into());
         assert_eq!(mixed.terms()[2].term.elem, k);
         assert_eq!(mixed.terms()[2].weight, Scalar::from(3u64));
+    }
+
+    #[test]
+    fn test_sum_term_plus_weighted_group_var() {
+        let x = scalar_var(0);
+        let y = scalar_var(1);
+        let g = group_var(0);
+        let h = group_var(1);
+
+        let sum_term = x * g + y * h;
+        let weighted = h * Scalar::from(3u64);
+        let result = sum_term + weighted;
+
+        assert_eq!(result.terms().len(), 3);
+        assert_eq!(result.terms()[0].term.scalar, x.into());
+        assert_eq!(result.terms()[0].term.elem, g);
+        assert_eq!(result.terms()[0].weight, Scalar::ONE);
+        assert_eq!(result.terms()[1].term.scalar, y.into());
+        assert_eq!(result.terms()[1].term.elem, h);
+        assert_eq!(result.terms()[1].weight, Scalar::ONE);
+        assert_eq!(result.terms()[2].term.scalar, ScalarTerm::Unit);
+        assert_eq!(result.terms()[2].term.elem, h);
+        assert_eq!(result.terms()[2].weight, Scalar::from(3u64));
+    }
+
+    #[test]
+    fn test_weighted_group_var_plus_sum_term() {
+        let x = scalar_var(0);
+        let y = scalar_var(1);
+        let g = group_var(0);
+        let h = group_var(1);
+
+        let sum_term = x * g + y * h;
+        let weighted = h * Scalar::from(5u64);
+        let result = weighted + sum_term;
+
+        assert_eq!(result.terms().len(), 3);
+        assert_eq!(result.terms()[0].term.scalar, x.into());
+        assert_eq!(result.terms()[0].term.elem, g);
+        assert_eq!(result.terms()[0].weight, Scalar::ONE);
+        assert_eq!(result.terms()[1].term.scalar, y.into());
+        assert_eq!(result.terms()[1].term.elem, h);
+        assert_eq!(result.terms()[1].weight, Scalar::ONE);
+        assert_eq!(result.terms()[2].term.scalar, ScalarTerm::Unit);
+        assert_eq!(result.terms()[2].term.elem, h);
+        assert_eq!(result.terms()[2].weight, Scalar::from(5u64));
+    }
+
+    #[test]
+    fn test_sum_weighted_group_var_plus_term() {
+        let x = scalar_var(0);
+        let g = group_var(0);
+        let h = group_var(1);
+
+        let sum_weighted = g * Scalar::from(2u64) + h * Scalar::from(3u64);
+        let term = x * g;
+        let result = sum_weighted + term;
+
+        assert_eq!(result.terms().len(), 3);
+        assert_eq!(result.terms()[0].term.scalar, ScalarTerm::Unit);
+        assert_eq!(result.terms()[0].term.elem, g);
+        assert_eq!(result.terms()[0].weight, Scalar::from(2u64));
+        assert_eq!(result.terms()[1].term.scalar, ScalarTerm::Unit);
+        assert_eq!(result.terms()[1].term.elem, h);
+        assert_eq!(result.terms()[1].weight, Scalar::from(3u64));
+        assert_eq!(result.terms()[2].term.scalar, x.into());
+        assert_eq!(result.terms()[2].term.elem, g);
+        assert_eq!(result.terms()[2].weight, Scalar::ONE);
+    }
+
+    #[test]
+    fn test_sum_weighted_group_var_plus_sum_term() {
+        let x = scalar_var(0);
+        let y = scalar_var(1);
+        let g = group_var(0);
+        let h = group_var(1);
+
+        let sum_weighted = g * Scalar::from(2u64) + h * Scalar::from(3u64);
+        let sum_term = x * g + y * h;
+        let result = sum_weighted + sum_term;
+
+        assert_eq!(result.terms().len(), 4);
+        assert_eq!(result.terms()[0].term.scalar, ScalarTerm::Unit);
+        assert_eq!(result.terms()[0].term.elem, g);
+        assert_eq!(result.terms()[0].weight, Scalar::from(2u64));
+        assert_eq!(result.terms()[1].term.scalar, ScalarTerm::Unit);
+        assert_eq!(result.terms()[1].term.elem, h);
+        assert_eq!(result.terms()[1].weight, Scalar::from(3u64));
+        assert_eq!(result.terms()[2].term.scalar, x.into());
+        assert_eq!(result.terms()[2].term.elem, g);
+        assert_eq!(result.terms()[2].weight, Scalar::ONE);
+        assert_eq!(result.terms()[3].term.scalar, y.into());
+        assert_eq!(result.terms()[3].term.elem, h);
+        assert_eq!(result.terms()[3].weight, Scalar::ONE);
+    }
+
+    #[test]
+    fn test_term_plus_sum_weighted_group_var() {
+        let x = scalar_var(0);
+        let g = group_var(0);
+        let h = group_var(1);
+
+        let term = x * g;
+        let sum_weighted = g * Scalar::from(2u64) + h * Scalar::from(3u64);
+        let result = term + sum_weighted;
+
+        assert_eq!(result.terms().len(), 3);
+        assert_eq!(result.terms()[0].term.scalar, ScalarTerm::Unit);
+        assert_eq!(result.terms()[0].term.elem, g);
+        assert_eq!(result.terms()[0].weight, Scalar::from(2u64));
+        assert_eq!(result.terms()[1].term.scalar, ScalarTerm::Unit);
+        assert_eq!(result.terms()[1].term.elem, h);
+        assert_eq!(result.terms()[1].weight, Scalar::from(3u64));
+        assert_eq!(result.terms()[2].term.scalar, x.into());
+        assert_eq!(result.terms()[2].term.elem, g);
+        assert_eq!(result.terms()[2].weight, Scalar::ONE);
+    }
+
+    #[test]
+    fn test_sum_term_plus_sum_weighted_group_var() {
+        let x = scalar_var(0);
+        let y = scalar_var(1);
+        let g = group_var(0);
+        let h = group_var(1);
+
+        let sum_term = x * g + y * h;
+        let sum_weighted = g * Scalar::from(2u64) + h * Scalar::from(3u64);
+        let result = sum_term + sum_weighted;
+
+        assert_eq!(result.terms().len(), 4);
+        assert_eq!(result.terms()[0].term.scalar, ScalarTerm::Unit);
+        assert_eq!(result.terms()[0].term.elem, g);
+        assert_eq!(result.terms()[0].weight, Scalar::from(2u64));
+        assert_eq!(result.terms()[1].term.scalar, ScalarTerm::Unit);
+        assert_eq!(result.terms()[1].term.elem, h);
+        assert_eq!(result.terms()[1].weight, Scalar::from(3u64));
+        assert_eq!(result.terms()[2].term.scalar, x.into());
+        assert_eq!(result.terms()[2].term.elem, g);
+        assert_eq!(result.terms()[2].weight, Scalar::ONE);
+        assert_eq!(result.terms()[3].term.scalar, y.into());
+        assert_eq!(result.terms()[3].term.elem, h);
+        assert_eq!(result.terms()[3].weight, Scalar::ONE);
     }
 
     #[test]
