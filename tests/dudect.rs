@@ -1,7 +1,6 @@
 #[allow(unused)]
 mod relations;
 
-use core::iter;
 use std::{
     cmp,
     fmt::Display,
@@ -46,10 +45,12 @@ fn set_core_affinity() -> anyhow::Result<()> {
         .context("Failed to set affinity for core {core_id:?}")
 }
 
+// NOTE: Using dyn for the Rng type here reduces complexity of the compare function, and
+// empirically reduces variance when using two different Rng types.
 #[allow(clippy::type_complexity)]
-fn instance_generators<R: Rng<G>>() -> Vec<(
+fn instance_generators() -> Vec<(
     &'static str,
-    fn(&mut R) -> (CanonicalLinearRelation<G>, Vec<Scalar>),
+    fn(&mut (dyn Rng<G> + 'static)) -> (CanonicalLinearRelation<G>, Vec<Scalar>),
 )> {
     vec![
         ("dlog", relations::discrete_logarithm),
@@ -86,14 +87,14 @@ fn instance_generators<R: Rng<G>>() -> Vec<(
 }
 
 #[test]
-#[ignore = "Used to exstablish a baseline noise on a given system"]
+#[ignore = "used to exstablish a baseline noise on a given system"]
 fn baseline() {
     // Try to pin this test to a core. Continue if this does not work.
     set_core_affinity().ok();
-    for ((name, left), (_, right)) in iter::zip(instance_generators(), instance_generators()) {
+    for (name, instanciate) in instance_generators() {
         let stats = compare(
-            left.distribution(rand::thread_rng()),
-            right.distribution(rand::thread_rng()),
+            instanciate.distribution(&mut rand::thread_rng()),
+            instanciate.distribution(&mut rand::thread_rng()),
         );
         println!("baseline {name}: {stats}");
     }
@@ -103,10 +104,10 @@ fn baseline() {
 fn test() {
     // Try to pin this test to a core. Continue if this does not work.
     set_core_affinity().ok();
-    for ((name, left), (_, right)) in iter::zip(instance_generators(), instance_generators()) {
+    for (name, instanciate) in instance_generators() {
         let stats = compare(
-            left.distribution(rand::thread_rng()),
-            right.distribution(RiggedRng),
+            instanciate.distribution(&mut rand::thread_rng()),
+            instanciate.distribution(&mut RiggedRng),
         );
         println!("test {name}: {stats}");
     }
@@ -126,12 +127,11 @@ fn compare(mut left: impl InstanceDist, mut right: impl InstanceDist) -> CtSumma
 }
 
 trait InstanceFn<R: ?Sized>: Fn(&mut R) -> (CanonicalLinearRelation<G>, Vec<Scalar>) {
-    fn distribution(self, mut rng: R) -> impl InstanceDist
+    fn distribution(self, rng: &mut R) -> impl InstanceDist
     where
         Self: Sized,
-        R: Sized,
     {
-        move || (self)(&mut rng)
+        move || (self)(rng)
     }
 }
 
