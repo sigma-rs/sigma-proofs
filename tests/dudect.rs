@@ -50,9 +50,8 @@ fn baseline() {
     // Try to pin this test to a core. Continue if this does not work.
     set_core_affinity().ok();
     let stats = compare(
-        &relations::pedersen_commitment,
-        &mut rand::thread_rng(),
-        &mut rand::thread_rng(),
+        relations::pedersen_commitment.distribution(rand::thread_rng()),
+        relations::pedersen_commitment.distribution(rand::thread_rng()),
     );
     println!("baseline: {stats}");
 }
@@ -62,23 +61,18 @@ fn test() {
     // Try to pin this test to a core. Continue if this does not work.
     set_core_affinity().ok();
     let stats = compare(
-        &relations::pedersen_commitment,
-        &mut rand::thread_rng(),
-        &mut RiggedRng,
+        relations::pedersen_commitment.distribution(rand::thread_rng()),
+        relations::pedersen_commitment.distribution(RiggedRng),
     );
-    println!("baseline: {stats}");
+    println!("test: {stats}");
 }
 
-fn compare(
-    instanciate: &impl InstanceFn<dyn Rng<G>>,
-    rng_left: &mut (dyn Rng<G> + 'static),
-    rng_right: &mut (dyn Rng<G> + 'static),
-) -> CtSummary {
+fn compare(mut left: impl InstanceDist, mut right: impl InstanceDist) -> CtSummary {
     let (left_times, right_times): (Vec<u64>, Vec<u64>) = (0..10000)
         .map(|_| {
             (
-                time_prove_sample(instanciate, rng_left).as_nanos() as u64,
-                time_prove_sample(instanciate, rng_right).as_nanos() as u64,
+                time_prove(left()).as_nanos() as u64,
+                time_prove(right()).as_nanos() as u64,
             )
         })
         .collect();
@@ -86,23 +80,28 @@ fn compare(
     ct_stats(&left_times, &right_times)
 }
 
-trait InstanceFn<R: ?Sized>: Fn(&mut R) -> (CanonicalLinearRelation<G>, Vec<Scalar>) {}
+trait InstanceFn<R: ?Sized>: Fn(&mut R) -> (CanonicalLinearRelation<G>, Vec<Scalar>) {
+    fn distribution(self, mut rng: R) -> impl InstanceDist
+    where
+        Self: Sized,
+        R: Sized,
+    {
+        move || (self)(&mut rng)
+    }
+}
+
+trait InstanceDist: FnMut() -> (CanonicalLinearRelation<G>, Vec<Scalar>) {}
 
 impl<R: ?Sized, F> InstanceFn<R> for F where
     F: Fn(&mut R) -> (CanonicalLinearRelation<G>, Vec<Scalar>)
 {
 }
 
-/// Time the call to [Nizk::prove_compact] with a relation and witness drawn from the distribution
-/// defined by the given [Rng]. The `rng` defines the class of the input.
-fn time_prove_sample<R: Rng<G> + ?Sized>(instanciate: impl InstanceFn<R>, rng: &mut R) -> Duration {
-    let (rel, witness) = instanciate(rng);
-    time_prove(rel, witness)
-}
+impl<F> InstanceDist for F where F: FnMut() -> (CanonicalLinearRelation<G>, Vec<Scalar>) {}
 
 /// Time the call to [Nizk::prove_compact] with the given relation and witness.
 #[inline(never)]
-fn time_prove(rel: CanonicalLinearRelation<G>, wit: Vec<Scalar>) -> Duration {
+fn time_prove((rel, wit): (CanonicalLinearRelation<G>, Vec<Scalar>)) -> Duration {
     let mut rng = ChaCha12Rng::from_rng(rand::thread_rng()).unwrap();
     let nizk = Nizk::<_, Shake128DuplexSponge<G>>::new(b"sigma-proofs-dudect-test", rel);
 
