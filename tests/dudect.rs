@@ -49,7 +49,11 @@ fn set_core_affinity() -> anyhow::Result<()> {
 fn baseline() {
     // Try to pin this test to a core. Continue if this does not work.
     set_core_affinity().ok();
-    let stats = compare(&mut rand::thread_rng(), &mut rand::thread_rng());
+    let stats = compare(
+        &relations::pedersen_commitment,
+        &mut rand::thread_rng(),
+        &mut rand::thread_rng(),
+    );
     println!("baseline: {stats}");
 }
 
@@ -57,16 +61,24 @@ fn baseline() {
 fn test() {
     // Try to pin this test to a core. Continue if this does not work.
     set_core_affinity().ok();
-    let stats = compare(&mut rand::thread_rng(), &mut RiggedRng);
-    println!("test: {stats}");
+    let stats = compare(
+        &relations::pedersen_commitment,
+        &mut rand::thread_rng(),
+        &mut RiggedRng,
+    );
+    println!("baseline: {stats}");
 }
 
-fn compare(rng_left: &mut impl Rng<G>, rng_right: &mut impl Rng<G>) -> CtSummary {
+fn compare(
+    instanciate: &impl InstanceFn<dyn Rng<G>>,
+    rng_left: &mut (dyn Rng<G> + 'static),
+    rng_right: &mut (dyn Rng<G> + 'static),
+) -> CtSummary {
     let (left_times, right_times): (Vec<u64>, Vec<u64>) = (0..10000)
         .map(|_| {
             (
-                time_prove_sample(rng_left).as_nanos() as u64,
-                time_prove_sample(rng_right).as_nanos() as u64,
+                time_prove_sample(instanciate, rng_left).as_nanos() as u64,
+                time_prove_sample(instanciate, rng_right).as_nanos() as u64,
             )
         })
         .collect();
@@ -74,10 +86,17 @@ fn compare(rng_left: &mut impl Rng<G>, rng_right: &mut impl Rng<G>) -> CtSummary
     ct_stats(&left_times, &right_times)
 }
 
+trait InstanceFn<R: ?Sized>: Fn(&mut R) -> (CanonicalLinearRelation<G>, Vec<Scalar>) {}
+
+impl<R: ?Sized, F> InstanceFn<R> for F where
+    F: Fn(&mut R) -> (CanonicalLinearRelation<G>, Vec<Scalar>)
+{
+}
+
 /// Time the call to [Nizk::prove_compact] with a relation and witness drawn from the distribution
 /// defined by the given [Rng]. The `rng` defines the class of the input.
-fn time_prove_sample(rng: &mut impl Rng<G>) -> Duration {
-    let (rel, witness) = black_box(relations::pedersen_commitment::<G, _>(rng));
+fn time_prove_sample<R: Rng<G> + ?Sized>(instanciate: impl InstanceFn<R>, rng: &mut R) -> Duration {
+    let (rel, witness) = instanciate(rng);
     time_prove(rel, witness)
 }
 
