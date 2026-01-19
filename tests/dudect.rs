@@ -1,6 +1,7 @@
 #[allow(unused)]
 mod relations;
 
+use core::iter;
 use std::{
     cmp,
     fmt::Display,
@@ -45,26 +46,70 @@ fn set_core_affinity() -> anyhow::Result<()> {
         .context("Failed to set affinity for core {core_id:?}")
 }
 
+#[allow(clippy::type_complexity)]
+fn instance_generators<R: Rng<G>>() -> Vec<(
+    &'static str,
+    fn(&mut R) -> (CanonicalLinearRelation<G>, Vec<Scalar>),
+)> {
+    vec![
+        ("dlog", relations::discrete_logarithm),
+        ("shifted_dlog", relations::shifted_dlog),
+        ("dleq", relations::dleq),
+        ("shifted_dleq", relations::shifted_dleq),
+        ("pedersen_commitment", relations::pedersen_commitment),
+        (
+            "twisted_pedersen_commitment",
+            relations::twisted_pedersen_commitment,
+        ),
+        (
+            "pedersen_commitment_dleq",
+            relations::pedersen_commitment_equality,
+        ),
+        ("bbs_blind_commitment", relations::bbs_blind_commitment),
+        ("test_range", relations::test_range),
+        (
+            "weird_linear_combination",
+            relations::weird_linear_combination,
+        ),
+        ("simple_subtractions", relations::simple_subtractions),
+        (
+            "subtractions_with_shift",
+            relations::subtractions_with_shift,
+        ),
+        (
+            "cmz_wallet_spend_relation",
+            relations::cmz_wallet_spend_relation,
+        ),
+        ("nested_affine_relation", relations::nested_affine_relation),
+        ("elgamal_public_subtract", relations::elgamal_subtraction),
+    ]
+}
+
 #[test]
+#[ignore = "Used to exstablish a baseline noise on a given system"]
 fn baseline() {
     // Try to pin this test to a core. Continue if this does not work.
     set_core_affinity().ok();
-    let stats = compare(
-        relations::pedersen_commitment.distribution(rand::thread_rng()),
-        relations::pedersen_commitment.distribution(rand::thread_rng()),
-    );
-    println!("baseline: {stats}");
+    for ((name, left), (_, right)) in iter::zip(instance_generators(), instance_generators()) {
+        let stats = compare(
+            left.distribution(rand::thread_rng()),
+            right.distribution(rand::thread_rng()),
+        );
+        println!("baseline {name}: {stats}");
+    }
 }
 
 #[test]
 fn test() {
     // Try to pin this test to a core. Continue if this does not work.
     set_core_affinity().ok();
-    let stats = compare(
-        relations::pedersen_commitment.distribution(rand::thread_rng()),
-        relations::pedersen_commitment.distribution(RiggedRng),
-    );
-    println!("test: {stats}");
+    for ((name, left), (_, right)) in iter::zip(instance_generators(), instance_generators()) {
+        let stats = compare(
+            left.distribution(rand::thread_rng()),
+            right.distribution(RiggedRng),
+        );
+        println!("test {name}: {stats}");
+    }
 }
 
 fn compare(mut left: impl InstanceDist, mut right: impl InstanceDist) -> CtSummary {
