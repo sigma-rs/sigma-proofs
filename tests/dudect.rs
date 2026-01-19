@@ -19,6 +19,7 @@ use relations::Rng;
 use sigma_proofs::{
     Nizk,
     codec::Shake128DuplexSponge,
+    composition::{ComposedRelation, ComposedWitness},
     linear_relation::CanonicalLinearRelation,
     traits::{SigmaProtocol, SigmaProtocolSimulator},
 };
@@ -94,7 +95,6 @@ fn instance_generators() -> Vec<(
 #[test]
 #[ignore = "used to exstablish a baseline noise on a given system"]
 fn baseline() {
-    // Try to pin this test to a core. Continue if this does not work.
     set_core_affinity().ok();
     for (name, instanciate) in instance_generators() {
         let stats = compare(
@@ -107,7 +107,6 @@ fn baseline() {
 
 #[test]
 fn test() {
-    // Try to pin this test to a core. Continue if this does not work.
     set_core_affinity().ok();
     for (name, instanciate) in instance_generators() {
         let stats = compare(
@@ -116,6 +115,36 @@ fn test() {
         );
         println!("test {name}: {stats}");
     }
+}
+
+fn composed_relation<R: Rng<G> + ?Sized>(
+    rng: &mut R,
+    left: bool,
+    right: bool,
+) -> impl InstanceDist<Protocol = ComposedRelation<G>> + use<'_, R> {
+    move || {
+        let (rel_a, mut wit_a) = relations::pedersen_commitment(rng);
+        let (rel_b, mut wit_b) = relations::pedersen_commitment(rng);
+        let rel = ComposedRelation::or([rel_a, rel_b]);
+
+        if !left {
+            wit_a = vec![Scalar::ZERO; wit_a.len()];
+        }
+        if !right {
+            wit_b = vec![Scalar::ZERO; wit_b.len()];
+        }
+        let wit = ComposedWitness::or([wit_a, wit_b]);
+        (rel, wit)
+    }
+}
+
+#[test]
+fn test_composition() {
+    let stats = compare(
+        composed_relation(&mut rand::thread_rng(), true, false),
+        composed_relation(&mut rand::thread_rng(), false, true),
+    );
+    println!("test_composition: {stats}");
 }
 
 fn compare(mut left: impl InstanceDist, mut right: impl InstanceDist) -> CtSummary {
