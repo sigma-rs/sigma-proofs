@@ -16,7 +16,12 @@ use group::Group;
 use rand::seq::SliceRandom;
 use rand_chacha::{ChaCha12Rng, rand_core::SeedableRng};
 use relations::Rng;
-use sigma_proofs::{Nizk, codec::Shake128DuplexSponge, linear_relation::CanonicalLinearRelation};
+use sigma_proofs::{
+    Nizk,
+    codec::Shake128DuplexSponge,
+    linear_relation::CanonicalLinearRelation,
+    traits::{SigmaProtocol, SigmaProtocolSimulator},
+};
 
 struct RiggedRng;
 
@@ -126,7 +131,11 @@ fn compare(mut left: impl InstanceDist, mut right: impl InstanceDist) -> CtSumma
     ct_stats(&left_times, &right_times)
 }
 
-trait InstanceFn<R: ?Sized>: Fn(&mut R) -> (CanonicalLinearRelation<G>, Vec<Scalar>) {
+trait InstanceFn<R: ?Sized>:
+    Fn(&mut R) -> (Self::Protocol, <Self::Protocol as SigmaProtocol>::Witness)
+{
+    type Protocol: SigmaProtocol<Challenge = Scalar> + SigmaProtocolSimulator;
+
     fn distribution(self, rng: &mut R) -> impl InstanceDist
     where
         Self: Sized,
@@ -135,18 +144,34 @@ trait InstanceFn<R: ?Sized>: Fn(&mut R) -> (CanonicalLinearRelation<G>, Vec<Scal
     }
 }
 
-trait InstanceDist: FnMut() -> (CanonicalLinearRelation<G>, Vec<Scalar>) {}
-
-impl<R: ?Sized, F> InstanceFn<R> for F where
-    F: Fn(&mut R) -> (CanonicalLinearRelation<G>, Vec<Scalar>)
-{
+trait InstanceDist: FnMut() -> (Self::Protocol, <Self::Protocol as SigmaProtocol>::Witness) {
+    type Protocol: SigmaProtocol<Challenge = Scalar> + SigmaProtocolSimulator;
 }
 
-impl<F> InstanceDist for F where F: FnMut() -> (CanonicalLinearRelation<G>, Vec<Scalar>) {}
+impl<R: ?Sized, F, P> InstanceFn<R> for F
+where
+    P: SigmaProtocol<Challenge = Scalar> + SigmaProtocolSimulator,
+    F: Fn(&mut R) -> (P, P::Witness),
+{
+    type Protocol = P;
+}
+
+impl<F, P> InstanceDist for F
+where
+    P: SigmaProtocol<Challenge = Scalar> + SigmaProtocolSimulator,
+    F: FnMut() -> (P, P::Witness),
+{
+    type Protocol = P;
+}
 
 /// Time the call to [Nizk::prove_compact] with the given relation and witness.
 #[inline(never)]
-fn time_prove((rel, wit): (CanonicalLinearRelation<G>, Vec<Scalar>)) -> Duration {
+fn time_prove<P>((rel, wit): (P, P::Witness)) -> Duration
+where
+    P: SigmaProtocol<Challenge = Scalar> + SigmaProtocolSimulator,
+{
+    // NOTE: Creating a new RNG here was found to be important, compared to using `rand::thread_rng`
+    // directly, when the instance generation uses `rand::thread_rng`.
     let mut rng = ChaCha12Rng::from_rng(rand::thread_rng()).unwrap();
     let nizk = Nizk::<_, Shake128DuplexSponge<G>>::new(b"sigma-proofs-dudect-test", rel);
 
