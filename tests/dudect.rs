@@ -102,6 +102,7 @@ fn baseline() {
             instanciate.distribution(&mut rand::thread_rng()),
         );
         println!("baseline {name}: {stats}");
+        assert!(stats.max_t.abs() < 20.0);
     }
 }
 
@@ -114,6 +115,7 @@ fn test() {
             instanciate.distribution(&mut RiggedRng),
         );
         println!("test {name}: {stats}");
+        assert!(stats.max_t.abs() < 20.0);
     }
 }
 
@@ -147,6 +149,7 @@ fn test_composition() {
         composed_relation(&mut rand::thread_rng(), false, true),
     );
     println!("test_composition: {stats}");
+    assert!(stats.max_t.abs() < 20.0);
 }
 
 fn compare(mut left: impl InstanceDist, mut right: impl InstanceDist) -> CtSummary {
