@@ -117,6 +117,8 @@ fn test() {
     }
 }
 
+/// Construct a composed relation, providing the real witness on each branch depending on `left`
+/// and `right`, to use for comparing the timing of each.
 fn composed_relation<R: Rng<G> + ?Sized>(
     rng: &mut R,
     left: bool,
@@ -124,7 +126,7 @@ fn composed_relation<R: Rng<G> + ?Sized>(
 ) -> impl InstanceDist<Protocol = ComposedRelation<G>> + use<'_, R> {
     move || {
         let (rel_a, mut wit_a) = relations::pedersen_commitment(rng);
-        let (rel_b, mut wit_b) = relations::pedersen_commitment(rng);
+        let (rel_b, mut wit_b) = relations::bbs_blind_commitment(rng);
         let rel = ComposedRelation::or([rel_a, rel_b]);
 
         if !left {
