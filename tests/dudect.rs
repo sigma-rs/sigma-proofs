@@ -143,10 +143,22 @@ fn composed_relation<R: Rng<G> + ?Sized>(
 }
 
 #[test]
-fn test_composition() {
+fn test_composition_left_right() {
+    set_core_affinity().ok();
     let stats = compare(
         composed_relation(&mut rand::thread_rng(), true, false),
         composed_relation(&mut rand::thread_rng(), false, true),
+    );
+    println!("test_composition: {stats}");
+    assert!(stats.max_t.abs() < 20.0);
+}
+
+#[test]
+fn test_composition_witness_dist() {
+    set_core_affinity().ok();
+    let stats = compare(
+        composed_relation(&mut rand::thread_rng(), true, false),
+        composed_relation(&mut RiggedRng, false, true),
     );
     println!("test_composition: {stats}");
     assert!(stats.max_t.abs() < 20.0);
