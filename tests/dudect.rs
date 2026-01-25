@@ -9,6 +9,7 @@ use std::{
 };
 
 use anyhow::Context;
+use currying::Curry;
 use curve25519_dalek::{RistrettoPoint as G, Scalar};
 use ff::Field;
 use group::Group;
@@ -17,7 +18,7 @@ use rand::seq::SliceRandom;
 use rand_chacha::{ChaCha12Rng, rand_core::SeedableRng};
 use relations::Rng;
 use sigma_proofs::{
-    Nizk,
+    LinearRelation, Nizk,
     codec::Shake128DuplexSponge,
     composition::{ComposedRelation, ComposedWitness},
     linear_relation::CanonicalLinearRelation,
@@ -122,43 +123,60 @@ fn test() {
 /// Construct a composed relation, providing the real witness on each branch depending on `left`
 /// and `right`, to use for comparing the timing of each.
 fn composed_relation<R: Rng<G> + ?Sized>(
-    rng: &mut R,
     left: bool,
     right: bool,
-) -> impl InstanceDist<Protocol = ComposedRelation<G>> + use<'_, R> {
-    move || {
-        let (rel_a, mut wit_a) = relations::pedersen_commitment(rng);
-        let (rel_b, mut wit_b) = relations::bbs_blind_commitment(rng);
-        let rel = ComposedRelation::or([rel_a, rel_b]);
+    rng: &mut R,
+) -> (ComposedRelation<G>, ComposedWitness<G>) {
+    let (rel_a, mut wit_a) = relations::pedersen_commitment(rng);
+    let (rel_b, mut wit_b) = relations::bbs_blind_commitment(rng);
+    let rel = ComposedRelation::or([rel_a, rel_b]);
 
-        if !left {
-            wit_a = vec![Scalar::ZERO; wit_a.len()];
-        }
-        if !right {
-            wit_b = vec![Scalar::ZERO; wit_b.len()];
-        }
-        let wit = ComposedWitness::or([wit_a, wit_b]);
-        (rel, wit)
+    if !left {
+        wit_a = vec![Scalar::ZERO; wit_a.len()];
     }
+    if !right {
+        wit_b = vec![Scalar::ZERO; wit_b.len()];
+    }
+    let wit = ComposedWitness::or([wit_a, wit_b]);
+    (rel, wit)
+}
+
+fn wide_relation<R: Rng<G> + ?Sized>(
+    width: usize,
+    rng: &mut R,
+) -> (ComposedRelation<G>, ComposedWitness<G>) {
+    let mut rel = LinearRelation::new();
 }
 
 #[test]
 fn test_composition_left_right() {
     set_core_affinity().ok();
     let stats = compare(
-        composed_relation(&mut rand::thread_rng(), true, false),
-        composed_relation(&mut rand::thread_rng(), false, true),
+        composed_relation
+            .curry(true)
+            .curry(false)
+            .distribution(&mut rand::thread_rng()),
+        composed_relation
+            .curry(false)
+            .curry(true)
+            .distribution(&mut rand::thread_rng()),
     );
     println!("test_composition: {stats}");
     assert!(stats.max_t.abs() < 20.0);
 }
 
 #[test]
-fn test_composition_witness_dist() {
+fn test_composition_left_right() {
     set_core_affinity().ok();
     let stats = compare(
-        composed_relation(&mut rand::thread_rng(), true, false),
-        composed_relation(&mut RiggedRng, false, true),
+        composed_relation
+            .curry(true)
+            .curry(false)
+            .distribution(&mut rand::thread_rng()),
+        composed_relation
+            .curry(false)
+            .curry(true)
+            .distribution(&mut RiggedRng),
     );
     println!("test_composition: {stats}");
     assert!(stats.max_t.abs() < 20.0);
