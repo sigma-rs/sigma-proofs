@@ -9,7 +9,6 @@ use std::{
 };
 
 use anyhow::Context;
-use currying::Curry;
 use curve25519_dalek::{RistrettoPoint as G, Scalar};
 use ff::Field;
 use group::Group;
@@ -21,7 +20,7 @@ use sigma_proofs::{
     LinearRelation, Nizk,
     codec::Shake128DuplexSponge,
     composition::{ComposedRelation, ComposedWitness},
-    linear_relation::CanonicalLinearRelation,
+    linear_relation::{CanonicalLinearRelation, Sum},
     traits::{SigmaProtocol, SigmaProtocolSimulator},
 };
 
@@ -120,62 +119,28 @@ fn test() {
     }
 }
 
-/// Construct a composed relation, providing the real witness on each branch depending on `left`
-/// and `right`, to use for comparing the timing of each.
-fn composed_relation<R: Rng<G> + ?Sized>(
-    left: bool,
-    right: bool,
-    rng: &mut R,
-) -> (ComposedRelation<G>, ComposedWitness<G>) {
-    let (rel_a, mut wit_a) = relations::pedersen_commitment(rng);
-    let (rel_b, mut wit_b) = relations::bbs_blind_commitment(rng);
-    let rel = ComposedRelation::or([rel_a, rel_b]);
+#[allow(dead_code)]
+fn wide_relation<const WIDTH: usize>(
+    rng: &mut (impl Rng<G> + ?Sized),
+) -> (CanonicalLinearRelation<G>, Vec<Scalar>) {
+    let mut rel = LinearRelation::<G>::new();
+    let constraint: Sum<_> = (0..WIDTH)
+        .map(|_| rel.allocate_scalar() * rel.allocate_element_with(rng.random_elem()))
+        .sum();
+    let _ = rel.allocate_eq(constraint);
 
-    if !left {
-        wit_a = vec![Scalar::ZERO; wit_a.len()];
-    }
-    if !right {
-        wit_b = vec![Scalar::ZERO; wit_b.len()];
-    }
-    let wit = ComposedWitness::or([wit_a, wit_b]);
-    (rel, wit)
-}
-
-fn wide_relation<R: Rng<G> + ?Sized>(
-    width: usize,
-    rng: &mut R,
-) -> (ComposedRelation<G>, ComposedWitness<G>) {
-    let mut rel = LinearRelation::new();
+    let wit: Vec<_> = (0..WIDTH).map(|_| rng.random_scalar()).collect();
+    rel.compute_image(&wit).unwrap();
+    (rel.try_into().unwrap(), wit)
 }
 
 #[test]
 fn test_composition_left_right() {
     set_core_affinity().ok();
     let stats = compare(
-        composed_relation
-            .curry(true)
-            .curry(false)
+        or(falsify(relations::pedersen_commitment), wide_relation::<16>)
             .distribution(&mut rand::thread_rng()),
-        composed_relation
-            .curry(false)
-            .curry(true)
-            .distribution(&mut rand::thread_rng()),
-    );
-    println!("test_composition: {stats}");
-    assert!(stats.max_t.abs() < 20.0);
-}
-
-#[test]
-fn test_composition_left_right() {
-    set_core_affinity().ok();
-    let stats = compare(
-        composed_relation
-            .curry(true)
-            .curry(false)
-            .distribution(&mut rand::thread_rng()),
-        composed_relation
-            .curry(false)
-            .curry(true)
+        or(falsify(relations::pedersen_commitment), wide_relation::<16>)
             .distribution(&mut RiggedRng),
     );
     println!("test_composition: {stats}");
@@ -193,6 +158,67 @@ fn compare(mut left: impl InstanceDist, mut right: impl InstanceDist) -> CtSumma
         .collect();
 
     ct_stats(&left_times, &right_times)
+}
+
+trait FalsifyWitness {
+    fn falsify(self) -> Self;
+}
+
+impl FalsifyWitness for Vec<Scalar> {
+    fn falsify(self) -> Self {
+        // Assumes that the zero-witness is false for all relations.
+        // This is not strictly true, since you can have trivial relation for which the zero
+        // witness if valid.
+        (0..self.len()).map(|_| Scalar::ZERO).collect()
+    }
+}
+
+impl FalsifyWitness for ComposedWitness<G> {
+    fn falsify(self) -> Self {
+        match self {
+            ComposedWitness::Simple(wit) => ComposedWitness::Simple(wit.falsify()),
+            ComposedWitness::And(items) => ComposedWitness::And(items.falsify()),
+            ComposedWitness::Or(items) => ComposedWitness::Or(items.falsify()),
+            ComposedWitness::Threshold(items) => ComposedWitness::Threshold(items.falsify()),
+        }
+    }
+}
+
+impl FalsifyWitness for Vec<ComposedWitness<G>> {
+    fn falsify(self) -> Self {
+        self.into_iter().map(|x| x.falsify()).collect()
+    }
+}
+
+/// Transform an [InstanceFn] by falsifying the generated witness data. This can be used in an or
+/// composition to create false branches.
+fn falsify<R: ?Sized, F: InstanceFn<R>>(f: F) -> impl InstanceFn<R, Protocol = F::Protocol>
+where
+    <F::Protocol as SigmaProtocol>::Witness: FalsifyWitness,
+{
+    move |rng| {
+        let (rel, wit) = f(rng);
+        (rel, wit.falsify())
+    }
+}
+
+fn or<R: ?Sized, FL, FR>(left: FL, right: FR) -> impl InstanceFn<R>
+where
+    FL: InstanceFn<R>,
+    FR: InstanceFn<R>,
+    FL::Protocol: Into<ComposedRelation<G>>,
+    FR::Protocol: Into<ComposedRelation<G>>,
+    <FL::Protocol as SigmaProtocol>::Witness: Into<ComposedWitness<G>>,
+    <FR::Protocol as SigmaProtocol>::Witness: Into<ComposedWitness<G>>,
+{
+    move |rng| {
+        let (left_rel, left_wit) = left(rng);
+        let (right_rel, right_wit) = right(rng);
+        (
+            ComposedRelation::or([left_rel.into(), right_rel.into()]),
+            ComposedWitness::or([left_wit.into(), right_wit.into()]),
+        )
+    }
 }
 
 trait InstanceFn<R: ?Sized>:
