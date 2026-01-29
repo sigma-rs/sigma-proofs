@@ -13,18 +13,18 @@ use ff::Field;
 use group::Group;
 
 use rand::seq::SliceRandom;
-use rand_chacha::{ChaCha12Rng, rand_core::SeedableRng};
+use rand_chacha::{rand_core::SeedableRng, ChaCha12Rng};
 use relations::TestRng;
 use serial_test::serial;
 use sigma_proofs::{
-    LinearRelation, Nizk,
     codec::Shake128DuplexSponge,
     composition::{ComposedRelation, ComposedWitness},
     linear_relation::{CanonicalLinearRelation, Sum},
     traits::{SigmaProtocol, SigmaProtocolSimulator},
+    LinearRelation, Nizk,
 };
 
-use crate::stats::{CtSummary, ct_stats};
+use crate::stats::{ct_stats, CtSummary};
 
 /// Maximum value for the max_t value. If the T value is higher, the test will fail.
 const T_VALUE_THRESHOLD: f64 = 20.0;

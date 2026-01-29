@@ -81,7 +81,7 @@ pub(crate) mod fiat_shamir;
 pub(crate) mod schnorr_protocol;
 
 pub use duplex_sponge::{
-    DuplexSpongeInterface, keccak::KeccakDuplexSponge, shake::ShakeDuplexSponge,
+    keccak::KeccakDuplexSponge, shake::ShakeDuplexSponge, DuplexSpongeInterface,
 };
 pub use fiat_shamir::Nizk;
 pub use group::msm::MultiScalarMul;

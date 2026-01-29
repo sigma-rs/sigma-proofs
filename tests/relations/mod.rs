@@ -1,5 +1,5 @@
 use ff::Field;
-use group::{Group, prime::PrimeGroup};
+use group::{prime::PrimeGroup, Group};
 
 use sigma_proofs::linear_relation::{CanonicalLinearRelation, LinearRelation, Sum};
 
