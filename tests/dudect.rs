@@ -101,9 +101,11 @@ fn wide_relation<const WIDTH: usize>(
     (rel.try_into().unwrap(), wit)
 }
 
+/// Create two OR composition instances, one with the left branch false and one with the right
+/// branch false, along with the used of [FixedRng] to check for basic constant-timedness.
 #[test]
 #[serial]
-fn test_composition_left_right() {
+fn test_ct_or_composition() {
     set_core_affinity().ok();
     let stats = compare(
         or(relations::pedersen_commitment, falsify(wide_relation::<16>))
