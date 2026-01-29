@@ -15,7 +15,7 @@ use group::Group;
 
 use rand::seq::SliceRandom;
 use rand_chacha::{ChaCha12Rng, rand_core::SeedableRng};
-use relations::Rng;
+use relations::TestRng;
 use sigma_proofs::{
     LinearRelation, Nizk,
     codec::Shake128DuplexSponge,
@@ -24,39 +24,18 @@ use sigma_proofs::{
     traits::{SigmaProtocol, SigmaProtocolSimulator},
 };
 
-struct RiggedRng;
+/// Maximum value for the max_t value. If the T value is higher, the test will fail.
+const T_VALUE_THRESHOLD: f64 = 20.0;
+/// Number of samples to take when comparing two distributions.
+const SAMPLES: usize = 10000;
 
-impl<G: Group> Rng<G> for RiggedRng {
-    fn random_elem(&mut self) -> G {
-        G::random(&mut rand::thread_rng())
-    }
-
-    fn random_scalar(&mut self) -> <G as Group>::Scalar {
-        G::Scalar::ONE
-    }
-}
-
-/// Set the current thread's core affinity to a random core.
-///
-/// This discourages the OS from switching witch thread the test is running on in the middle of the
-/// test, providing some decrease in the amount of noise.
-fn set_core_affinity() -> anyhow::Result<()> {
-    let core_ids = core_affinity2::get_core_ids().context("Failed to get core IDs")?;
-
-    let Some(core_id) = core_ids.choose(&mut rand::thread_rng()) else {
-        anyhow::bail!("No core IDs available");
-    };
-    core_id
-        .set_affinity_forced()
-        .context("Failed to set affinity for core {core_id:?}")
-}
-
+/// A list of instance generating functions, used in the tests below.
 // NOTE: Using dyn for the Rng type here reduces complexity of the compare function, and
 // empirically reduces variance when using two different Rng types.
 #[allow(clippy::type_complexity)]
 fn instance_generators() -> Vec<(
     &'static str,
-    fn(&mut (dyn Rng<G> + 'static)) -> (CanonicalLinearRelation<G>, Vec<Scalar>),
+    fn(&mut (dyn TestRng<G> + 'static)) -> (CanonicalLinearRelation<G>, Vec<Scalar>),
 )> {
     vec![
         ("dlog", relations::discrete_logarithm),
@@ -93,16 +72,17 @@ fn instance_generators() -> Vec<(
 }
 
 #[test]
-#[ignore = "used to exstablish a baseline noise on a given system"]
+#[ignore = "used to establish a baseline noise on a given system"]
 fn baseline() {
     set_core_affinity().ok();
     for (name, instanciate) in instance_generators() {
+        // These two distributions are the same.
         let stats = compare(
             instanciate.distribution(&mut rand::thread_rng()),
             instanciate.distribution(&mut rand::thread_rng()),
         );
         println!("baseline {name}: {stats}");
-        assert!(stats.max_t.abs() < 20.0);
+        assert!(stats.max_t.abs() < T_VALUE_THRESHOLD);
     }
 }
 
@@ -112,16 +92,15 @@ fn test() {
     for (name, instanciate) in instance_generators() {
         let stats = compare(
             instanciate.distribution(&mut rand::thread_rng()),
-            instanciate.distribution(&mut RiggedRng),
+            instanciate.distribution(&mut FixedRng),
         );
         println!("test {name}: {stats}");
-        assert!(stats.max_t.abs() < 20.0);
+        assert!(stats.max_t.abs() < T_VALUE_THRESHOLD);
     }
 }
 
-#[allow(dead_code)]
 fn wide_relation<const WIDTH: usize>(
-    rng: &mut (impl Rng<G> + ?Sized),
+    rng: &mut (impl TestRng<G> + ?Sized),
 ) -> (CanonicalLinearRelation<G>, Vec<Scalar>) {
     let mut rel = LinearRelation::<G>::new();
     let constraint: Sum<_> = (0..WIDTH)
@@ -141,14 +120,14 @@ fn test_composition_left_right() {
         or(falsify(relations::pedersen_commitment), wide_relation::<16>)
             .distribution(&mut rand::thread_rng()),
         or(falsify(relations::pedersen_commitment), wide_relation::<16>)
-            .distribution(&mut RiggedRng),
+            .distribution(&mut FixedRng),
     );
     println!("test_composition: {stats}");
-    assert!(stats.max_t.abs() < 20.0);
+    assert!(stats.max_t.abs() < T_VALUE_THRESHOLD);
 }
 
 fn compare(mut left: impl InstanceDist, mut right: impl InstanceDist) -> CtSummary {
-    let (left_times, right_times): (Vec<u64>, Vec<u64>) = (0..10000)
+    let (left_times, right_times): (Vec<u64>, Vec<u64>) = (0..SAMPLES)
         .map(|_| {
             (
                 time_prove(left()).as_nanos() as u64,
@@ -158,6 +137,53 @@ fn compare(mut left: impl InstanceDist, mut right: impl InstanceDist) -> CtSumma
         .collect();
 
     ct_stats(&left_times, &right_times)
+}
+
+/// Time the call to [Nizk::prove_compact] with the given relation and witness.
+#[inline(never)]
+fn time_prove<P>((rel, wit): (P, P::Witness)) -> Duration
+where
+    P: SigmaProtocol<Challenge = Scalar> + SigmaProtocolSimulator,
+{
+    // NOTE: Creating a new RNG here was found to be important, compared to using `rand::thread_rng`
+    // directly, when the instance generation uses `rand::thread_rng`. Otherwise caching behavior
+    // leads to false positive timing variance.
+    let mut rng = ChaCha12Rng::from_rng(rand::thread_rng()).unwrap();
+    let nizk = Nizk::<_, Shake128DuplexSponge<G>>::new(b"sigma-proofs-dudect-test", rel);
+
+    let start = Instant::now();
+    let _ = black_box(nizk.prove_compact(&wit, &mut rng));
+    start.elapsed()
+}
+
+/// A [TestRng] implementation that returns random values for group elements, but always returns a
+/// fixed value for scalars. Used with [relations], this generates statements with fixed-value
+/// witnesses.
+struct FixedRng;
+
+impl<G: Group> TestRng<G> for FixedRng {
+    fn random_elem(&mut self) -> G {
+        G::random(&mut rand::thread_rng())
+    }
+
+    fn random_scalar(&mut self) -> <G as Group>::Scalar {
+        G::Scalar::ONE
+    }
+}
+
+/// Set the current thread's core affinity to a random core.
+///
+/// This discourages the OS from switching witch thread the test is running on in the middle of the
+/// test, providing some decrease in the amount of noise.
+fn set_core_affinity() -> anyhow::Result<()> {
+    let core_ids = core_affinity2::get_core_ids().context("Failed to get core IDs")?;
+
+    let Some(core_id) = core_ids.choose(&mut rand::thread_rng()) else {
+        anyhow::bail!("No core IDs available");
+    };
+    core_id
+        .set_affinity_forced()
+        .context("Failed to set affinity for core {core_id:?}")
 }
 
 trait FalsifyWitness {
@@ -252,22 +278,6 @@ where
     F: FnMut() -> (P, P::Witness),
 {
     type Protocol = P;
-}
-
-/// Time the call to [Nizk::prove_compact] with the given relation and witness.
-#[inline(never)]
-fn time_prove<P>((rel, wit): (P, P::Witness)) -> Duration
-where
-    P: SigmaProtocol<Challenge = Scalar> + SigmaProtocolSimulator,
-{
-    // NOTE: Creating a new RNG here was found to be important, compared to using `rand::thread_rng`
-    // directly, when the instance generation uses `rand::thread_rng`.
-    let mut rng = ChaCha12Rng::from_rng(rand::thread_rng()).unwrap();
-    let nizk = Nizk::<_, Shake128DuplexSponge<G>>::new(b"sigma-proofs-dudect-test", rel);
-
-    let start = Instant::now();
-    let _ = black_box(nizk.prove_compact(&wit, &mut rng));
-    start.elapsed()
 }
 
 // The following code is copied from the dudect_bencher, then modified here.
