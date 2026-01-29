@@ -1,3 +1,22 @@
+//! Statistical testing for constant-timedness of proving with respect to secret witness data,
+//! based on [dudect](https://github.com/oreparaz/dudect)
+//!
+//! To run this test and print the observed statistics, you can use the following command:
+//!
+//! ```sh
+//! DUDECT_SAMPLES=10000 cargo test --test dudect -- --nocapture --test-threads=1
+//! ```
+//!
+//! This will run all of the tests with 10k samples each. You can specify more or fewer samples as
+//! desired. `--nocapture` ensures the computed statistics are printed to the terminal.
+//! `--test-threads=1` avoids warnings about tests taking too long. The tests in this module always
+//! run in serial to reduce noise.
+//!
+//! By default, when DUDECT_SAMPLES is not set, the tests here use a small number of samples. This
+//! serves as a "smoke-test" in that it ensures the test harness still runs, and would catch
+//! egregious violations of constant-timedness. It is, however, insufficient to detect smaller
+//! differences.
+
 #[allow(unused)]
 mod relations;
 
