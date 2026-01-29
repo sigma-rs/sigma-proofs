@@ -26,12 +26,10 @@ use std::{
     time::{Duration, Instant},
 };
 
-use anyhow::Context;
 use curve25519_dalek::{RistrettoPoint as G, Scalar};
 use ff::Field;
 use group::Group;
 
-use rand::seq::SliceRandom;
 use rand_chacha::{rand_core::SeedableRng, ChaCha12Rng};
 use relations::TestRng;
 use serial_test::serial;
@@ -188,7 +186,11 @@ impl<G: Group> TestRng<G> for FixedRng {
 ///
 /// This discourages the OS from switching witch thread the test is running on in the middle of the
 /// test, providing some decrease in the amount of noise.
+#[cfg(not(target_arch = "wasm32"))]
 fn set_core_affinity() -> anyhow::Result<()> {
+    use anyhow::Context;
+    use rand::seq::SliceRandom;
+
     let core_ids = core_affinity2::get_core_ids().context("Failed to get core IDs")?;
 
     let Some(core_id) = core_ids.choose(&mut rand::thread_rng()) else {
@@ -197,6 +199,11 @@ fn set_core_affinity() -> anyhow::Result<()> {
     core_id
         .set_affinity_forced()
         .context("Failed to set affinity for core {core_id:?}")
+}
+
+#[cfg(target_arch = "wasm32")]
+fn set_core_affinity() -> anyhow::Result<()> {
+    anyhow::bail!("set_core_affinity not supported in WASM")
 }
 
 trait FalsifyWitness {
