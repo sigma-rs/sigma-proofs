@@ -1156,7 +1156,8 @@ where
                 prover_state.use_simulator,
             );
 
-            let mut response_vec = instance.prover_response(prover_state.prover_state, &challenge)?;
+            let mut response_vec =
+                instance.prover_response(prover_state.prover_state, &challenge)?;
             let response = response_vec
                 .pop()
                 .ok_or(Error::InvalidInstanceWitnessPair)?;
@@ -1438,7 +1439,7 @@ where
                     .iter()
                     .zip(rs)
                     .map(|(p, r)| {
-                        p.simulate_commitment(challenge, std::slice::from_ref(r))
+                        p.simulate_commitment(challenge, core::slice::from_ref(r))
                             .and_then(|mut c| c.pop().ok_or(Error::InvalidInstanceWitnessPair))
                     })
                     .collect::<Result<Vec<_>, _>>()?;
@@ -1451,7 +1452,7 @@ where
                     .zip(challenges.iter().chain(&Some(last_challenge)))
                     .zip(rs)
                     .map(|((p, ch), r)| {
-                        p.simulate_commitment(ch, std::slice::from_ref(r))
+                        p.simulate_commitment(ch, core::slice::from_ref(r))
                             .and_then(|mut c| c.pop().ok_or(Error::InvalidInstanceWitnessPair))
                     })
                     .collect::<Result<Vec<_>, _>>()?;
@@ -1667,7 +1668,10 @@ where
                 Ok((
                     vec![ComposedCommitment::Threshold(commitments)],
                     challenge,
-                    vec![ComposedResponse::Threshold(compressed_challenges, responses)],
+                    vec![ComposedResponse::Threshold(
+                        compressed_challenges,
+                        responses,
+                    )],
                 ))
             }
         }

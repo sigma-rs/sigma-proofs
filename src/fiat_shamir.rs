@@ -16,7 +16,7 @@ use crate::duplex_sponge::DuplexSpongeInterface;
 use crate::errors::Error;
 use crate::traits::SigmaProtocol;
 use crate::traits::SigmaProtocolSimulator;
-use alloc::vec::Vec;
+use alloc::{vec, vec::Vec};
 use ff::PrimeField;
 use num_bigint::BigUint;
 use num_traits::identities::One;
