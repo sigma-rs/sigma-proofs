@@ -29,74 +29,51 @@ const T_VALUE_THRESHOLD: f64 = 20.0;
 /// Number of samples to take when comparing two distributions.
 const SAMPLES: usize = 10000;
 
-/// A list of instance generating functions, used in the tests below.
-// NOTE: Using dyn for the Rng type here reduces complexity of the compare function, and
-// empirically reduces variance when using two different Rng types.
-#[allow(clippy::type_complexity)]
-fn instance_generators() -> Vec<(
-    &'static str,
-    fn(&mut (dyn TestRng<G> + 'static)) -> (CanonicalLinearRelation<G>, Vec<Scalar>),
-)> {
-    vec![
-        ("dlog", relations::discrete_logarithm),
-        ("shifted_dlog", relations::shifted_dlog),
-        ("dleq", relations::dleq),
-        ("shifted_dleq", relations::shifted_dleq),
-        ("pedersen_commitment", relations::pedersen_commitment),
-        (
-            "twisted_pedersen_commitment",
-            relations::twisted_pedersen_commitment,
-        ),
-        (
-            "pedersen_commitment_dleq",
-            relations::pedersen_commitment_equality,
-        ),
-        ("bbs_blind_commitment", relations::bbs_blind_commitment),
-        ("test_range", relations::test_range),
-        (
-            "weird_linear_combination",
-            relations::weird_linear_combination,
-        ),
-        ("simple_subtractions", relations::simple_subtractions),
-        (
-            "subtractions_with_shift",
-            relations::subtractions_with_shift,
-        ),
-        (
-            "cmz_wallet_spend_relation",
-            relations::cmz_wallet_spend_relation,
-        ),
-        ("nested_affine_relation", relations::nested_affine_relation),
-        ("elgamal_public_subtract", relations::elgamal_subtraction),
-    ]
+mod relation_ct_tests {
+    use super::*;
+
+    macro_rules! relation_ct_test {
+        ($name:ident) => {
+            #[test]
+            fn $name() {
+                set_core_affinity().ok();
+                let stats = compare::<CanonicalLinearRelation<G>>(
+                    relations::$name.distribution(&mut rand::thread_rng()),
+                    relations::$name.distribution(&mut FixedRng),
+                );
+                println!("test {}: {stats}", stringify!($name));
+                assert!(stats.max_t.abs() < T_VALUE_THRESHOLD);
+            }
+        };
+    }
+
+    relation_ct_test!(discrete_logarithm);
+    relation_ct_test!(shifted_dlog);
+    relation_ct_test!(dleq);
+    relation_ct_test!(shifted_dleq);
+    relation_ct_test!(pedersen_commitment);
+    relation_ct_test!(twisted_pedersen_commitment);
+    relation_ct_test!(pedersen_commitment_equality);
+    relation_ct_test!(bbs_blind_commitment);
+    relation_ct_test!(test_range);
+    relation_ct_test!(weird_linear_combination);
+    relation_ct_test!(simple_subtractions);
+    relation_ct_test!(subtractions_with_shift);
+    relation_ct_test!(cmz_wallet_spend_relation);
+    relation_ct_test!(nested_affine_relation);
+    relation_ct_test!(elgamal_subtraction);
 }
 
 #[test]
 #[ignore = "used to establish a baseline noise on a given system"]
 fn baseline() {
     set_core_affinity().ok();
-    for (name, instanciate) in instance_generators() {
-        // These two distributions are the same.
-        let stats = compare(
-            instanciate.distribution(&mut rand::thread_rng()),
-            instanciate.distribution(&mut rand::thread_rng()),
-        );
-        println!("baseline {name}: {stats}");
-        assert!(stats.max_t.abs() < T_VALUE_THRESHOLD);
-    }
-}
-
-#[test]
-fn test() {
-    set_core_affinity().ok();
-    for (name, instanciate) in instance_generators() {
-        let stats = compare(
-            instanciate.distribution(&mut rand::thread_rng()),
-            instanciate.distribution(&mut FixedRng),
-        );
-        println!("test {name}: {stats}");
-        assert!(stats.max_t.abs() < T_VALUE_THRESHOLD);
-    }
+    let stats = compare::<CanonicalLinearRelation<G>>(
+        relations::pedersen_commitment.distribution(&mut rand::thread_rng()),
+        relations::pedersen_commitment.distribution(&mut rand::thread_rng()),
+    );
+    println!("baseline: {stats}");
+    assert!(stats.max_t.abs() < T_VALUE_THRESHOLD);
 }
 
 fn wide_relation<const WIDTH: usize>(
@@ -126,7 +103,10 @@ fn test_composition_left_right() {
     assert!(stats.max_t.abs() < T_VALUE_THRESHOLD);
 }
 
-fn compare(mut left: impl InstanceDist, mut right: impl InstanceDist) -> CtSummary {
+fn compare<P: SigmaProtocol>(
+    mut left: impl InstanceDist<Protocol = P>,
+    mut right: impl InstanceDist<Protocol = P>,
+) -> CtSummary {
     let (left_times, right_times): (Vec<u64>, Vec<u64>) = (0..SAMPLES)
         .map(|_| {
             (
@@ -228,7 +208,7 @@ where
     }
 }
 
-fn or<R: ?Sized, FL, FR>(left: FL, right: FR) -> impl InstanceFn<R>
+fn or<R: ?Sized, FL, FR>(left: FL, right: FR) -> impl InstanceFn<R, Protocol = ComposedRelation<G>>
 where
     FL: InstanceFn<R>,
     FR: InstanceFn<R>,
@@ -252,7 +232,7 @@ trait InstanceFn<R: ?Sized>:
 {
     type Protocol: SigmaProtocol<Challenge = Scalar> + SigmaProtocolSimulator;
 
-    fn distribution(self, rng: &mut R) -> impl InstanceDist
+    fn distribution(self, rng: &mut R) -> impl InstanceDist<Protocol = Self::Protocol>
     where
         Self: Sized,
     {
