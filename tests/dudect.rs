@@ -103,7 +103,7 @@ fn test_composition_left_right() {
     assert!(stats.max_t.abs() < T_VALUE_THRESHOLD);
 }
 
-fn compare<P: SigmaProtocol>(
+fn compare<P: SigmaProtocol<Challenge = Scalar> + SigmaProtocolSimulator>(
     mut left: impl InstanceDist<Protocol = P>,
     mut right: impl InstanceDist<Protocol = P>,
 ) -> CtSummary {
