@@ -19,7 +19,7 @@ use group::prime::PrimeGroup;
 use crate::Nizk;
 use crate::codec::Shake128DuplexSponge;
 use crate::errors::{Error, InvalidInstance};
-use crate::group::msm::VariableMultiScalarMul;
+use crate::group::msm::MultiScalarMul;
 
 /// Implementations of conversion operations such as From and FromIterator for var and term types.
 mod convert;

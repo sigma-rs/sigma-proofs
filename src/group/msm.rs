@@ -17,13 +17,18 @@ const fn ln_without_floats(a: usize) -> usize {
 
 /// Trait for performing Multi-Scalar Multiplication (MSM).
 ///
+/// Runtime is guarenteed to be constant with repsect to the scalars. No constant time guarentees
+/// are provided with respect to the bases.
+///
 /// MSM computes the sum:
+///
 /// ```text
 /// result = Σ (scalar[i] * point[i])
 /// ```
+///
 /// Implementations can override this with optimized algorithms for specific groups,
 /// while a default naive implementation is provided for all [`PrimeGroup`] types.
-pub trait VariableMultiScalarMul {
+pub trait MultiScalarMul {
     /// The scalar field type associated with the group.
     type Scalar;
     /// The group element (point) type.
@@ -43,7 +48,7 @@ pub trait VariableMultiScalarMul {
     fn msm(scalars: &[Self::Scalar], bases: &[Self::Point]) -> Self;
 }
 
-impl<G: PrimeGroup> VariableMultiScalarMul for G {
+impl<G: PrimeGroup> MultiScalarMul for G {
     type Scalar = G::Scalar;
     type Point = G;
 
@@ -60,13 +65,10 @@ impl<G: PrimeGroup> VariableMultiScalarMul for G {
     fn msm(scalars: &[Self::Scalar], bases: &[Self::Point]) -> Self {
         assert_eq!(scalars.len(), bases.len());
 
-        // NOTE: Based on the msm benchmark in this repo, msm_pippenger provides improvements over
-        // msm_naive past a small constant size, but is significantly slower for very small MSMs.
-        const MSM_PIPPENGER_THESHOLD: usize = 16;
+        // TODO: Implement a faster constant-time MSM, e.g. based on Straus.
         match scalars.len() {
             0 => Self::identity(),
-            1..MSM_PIPPENGER_THESHOLD => msm_naive(bases, scalars),
-            MSM_PIPPENGER_THESHOLD.. => msm_pippenger(bases, scalars),
+            1.. => msm_naive(bases, scalars),
         }
     }
 }
@@ -76,8 +78,11 @@ fn msm_naive<G: PrimeGroup>(bases: &[G], scalars: &[G::Scalar]) -> G {
     core::iter::zip(bases, scalars).map(|(g, x)| *g * x).sum()
 }
 
+// NOTE: msm_pippenger is currently unused. It was previously used to implement the MSM trait,
+// but removed because it does not provide constant time guarentees.
 /// An MSM implementation that employ's Pippenger's algorithm and works for all groups that
-/// implement `PrimeGroup`.
+/// implement `PrimeGroup`. Variable time with respect to scalars.
+#[expect(dead_code)]
 fn msm_pippenger<G: PrimeGroup>(bases: &[G], scalars: &[G::Scalar]) -> G {
     let c = ln_without_floats(scalars.len());
     let num_bits = <G::Scalar as PrimeField>::NUM_BITS as usize;

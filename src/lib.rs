@@ -81,10 +81,10 @@ pub(crate) mod fiat_shamir;
 pub(crate) mod schnorr_protocol;
 
 pub use duplex_sponge::{
-    keccak::KeccakDuplexSponge, shake::ShakeDuplexSponge, DuplexSpongeInterface,
+    DuplexSpongeInterface, keccak::KeccakDuplexSponge, shake::ShakeDuplexSponge,
 };
 pub use fiat_shamir::Nizk;
-pub use group::msm::VariableMultiScalarMul;
+pub use group::msm::MultiScalarMul;
 pub use linear_relation::LinearRelation;
 
 #[deprecated = "Use sigma_proofs::group::serialization instead"]
