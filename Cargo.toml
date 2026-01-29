@@ -59,6 +59,7 @@ p256 = { version = "0.13", features = ["arithmetic"] }
 rand_chacha = { version = "0.3.1" }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
+serial_test = "3.3.1"
 sha2 = "0.10"
 
 # Include criterion without rayon when compiling for the WASM WASIv1 environment, and with rayon otherwise.
@@ -75,4 +76,3 @@ harness = false
 [profile.dev]
 # Makes tests run much faster at the cost of slightly longer builds and worse debug info.
 opt-level = 1
-
