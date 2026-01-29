@@ -21,7 +21,7 @@ const fn ln_without_floats(a: usize) -> usize {
 
 /// Trait for performing Multi-Scalar Multiplication (MSM).
 ///
-/// Runtime is guarenteed to be constant with repsect to the scalars. No constant time guarentees
+/// Runtime is guaranteed to be constant with respect to the scalars. No constant time guarantees
 /// are provided with respect to the bases.
 ///
 /// MSM computes the sum:
@@ -83,7 +83,7 @@ fn msm_naive<G: PrimeGroup>(bases: &[G], scalars: &[G::Scalar]) -> G {
 }
 
 // NOTE: msm_pippenger is currently unused. It was previously used to implement the MSM trait,
-// but removed because it does not provide constant time guarentees.
+// but removed because it does not provide constant time guarantees.
 /// An MSM implementation that employ's Pippenger's algorithm and works for all groups that
 /// implement `PrimeGroup`. Variable time with respect to scalars.
 #[expect(dead_code)]
