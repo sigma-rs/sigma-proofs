@@ -15,7 +15,7 @@ use subtle::{Choice, ConstantTimeEq};
 
 use super::{GroupMap, GroupVar, LinearCombination, LinearRelation, ScalarTerm, ScalarVar};
 use crate::errors::{Error, InvalidInstance};
-use crate::group::msm::VariableMultiScalarMul;
+use crate::group::msm::MultiScalarMul;
 use crate::serialization::serialize_elements;
 
 /// A [`LinearRelation`] in canonical form, compatible with the IETF spec.

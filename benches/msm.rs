@@ -4,7 +4,7 @@ use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use ff::Field;
 use group::Group;
 use rand::thread_rng;
-use sigma_proofs::VariableMultiScalarMul;
+use sigma_proofs::MultiScalarMul;
 
 fn bench_msm_curve25519_dalek(c: &mut Criterion) {
     use curve25519_dalek::{RistrettoPoint, Scalar};
