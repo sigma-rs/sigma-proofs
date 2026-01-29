@@ -106,7 +106,7 @@ fn wide_relation<const WIDTH: usize>(
 fn test_composition_left_right() {
     set_core_affinity().ok();
     let stats = compare(
-        or(falsify(relations::pedersen_commitment), wide_relation::<16>)
+        or(relations::pedersen_commitment, falsify(wide_relation::<16>))
             .distribution(&mut rand::thread_rng()),
         or(falsify(relations::pedersen_commitment), wide_relation::<16>)
             .distribution(&mut FixedRng),
