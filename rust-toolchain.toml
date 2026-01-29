@@ -1,0 +1,7 @@
+[toolchain]
+channel = "1.91"
+components = ["rustfmt", "clippy"]
+# Add the wasm32-wasip1 target, used for running tests.
+targets = ["wasm32-wasip1"]
+profile = "minimal"
+

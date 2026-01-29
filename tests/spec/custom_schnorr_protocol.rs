@@ -1,7 +1,6 @@
 use group::prime::PrimeGroup;
 use rand::{CryptoRng, Rng};
 
-use crate::spec::random::SRandom;
 use sigma_proofs::errors::Error;
 use sigma_proofs::linear_relation::{CanonicalLinearRelation, LinearRelation};
 use sigma_proofs::traits::{SigmaProtocol, SigmaProtocolSimulator};
@@ -26,7 +25,7 @@ impl<G: PrimeGroup> From<CanonicalLinearRelation<G>> for DeterministicSchnorrPro
 
 impl<G> SigmaProtocol for DeterministicSchnorrProof<G>
 where
-    G: SRandom + PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize,
+    G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize,
     G::Scalar: Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]>,
 {
     type Commitment = <CanonicalLinearRelation<G> as SigmaProtocol>::Commitment;
@@ -79,7 +78,7 @@ where
 
 impl<G> SigmaProtocolSimulator for DeterministicSchnorrProof<G>
 where
-    G: SRandom + PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize,
+    G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize,
     G::Scalar: Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]>,
 {
     fn simulate_response<R: Rng + CryptoRng>(&self, rng: &mut R) -> Vec<Self::Response> {

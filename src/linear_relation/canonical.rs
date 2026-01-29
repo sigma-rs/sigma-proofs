@@ -18,9 +18,11 @@ use crate::errors::{Error, InvalidInstance};
 use crate::group::msm::VariableMultiScalarMul;
 use crate::serialization::serialize_elements;
 
-// XXX. this definition is uncomfortably similar to LinearRelation, exception made for the weights.
-// It'd be nice to better compress potentially duplicated code.
-/// A normalized form of the [`LinearRelation`], which is used for serialization into the transcript.
+/// A [`LinearRelation`] in canonical form, compatible with the IETF spec.
+///
+/// This relation is type-safe:
+/// it can be instantiated only if all group vars are assigned,
+/// size match, and the relation is not trivially false.
 ///
 /// This struct represents a normalized form of a linear relation where each
 /// constraint is of the form: image_i = Σ (scalar_j * group_element_k)
@@ -167,13 +169,19 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
         }
 
         // Only include constraints that are non-trivial (not zero constraints).
+        #[expect(clippy::collapsible_if)]
         if rhs_terms.is_empty() {
             if canonical_image.is_identity().into() {
                 return Ok(());
             }
-            return Err(InvalidInstance::new(
-                "trivially false constraint: constraint has empty right-hand side and non-identity left-hand side",
-            ));
+            // In this location, we have determined that the constraint is trivially false.
+            // If the constraint is added to the relation, proving will always fail for this
+            // constraint. A composed relation containing a trivially false constraint in an OR
+            // branch may still be provable.
+            //
+            // TODO: In this case, we can optimize and improve error reporting by having this
+            // library special-case trvially false statements.
+            // One approach would be to return an error here and handle it in the OR composition.
         }
 
         let canonical_image_group_var = self.group_elements.push(canonical_image);
