@@ -1,10 +1,10 @@
 use group::prime::PrimeGroup;
 use rand::{CryptoRng, Rng};
 
-use crate::spec::random::SRandom;
 use sigma_proofs::errors::Error;
 use sigma_proofs::linear_relation::{CanonicalLinearRelation, LinearRelation};
 use sigma_proofs::traits::{SigmaProtocol, SigmaProtocolSimulator};
+use spongefish::{Decoding, Encoding, NargDeserialize, NargSerialize};
 
 pub struct DeterministicSchnorrProof<G: PrimeGroup>(pub CanonicalLinearRelation<G>);
 
@@ -23,7 +23,11 @@ impl<G: PrimeGroup> From<CanonicalLinearRelation<G>> for DeterministicSchnorrPro
     }
 }
 
-impl<G: SRandom + PrimeGroup> SigmaProtocol for DeterministicSchnorrProof<G> {
+impl<G> SigmaProtocol for DeterministicSchnorrProof<G>
+where
+    G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize,
+    G::Scalar: Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]>,
+{
     type Commitment = <CanonicalLinearRelation<G> as SigmaProtocol>::Commitment;
     type ProverState = <CanonicalLinearRelation<G> as SigmaProtocol>::ProverState;
     type Response = <CanonicalLinearRelation<G> as SigmaProtocol>::Response;
@@ -34,56 +38,35 @@ impl<G: SRandom + PrimeGroup> SigmaProtocol for DeterministicSchnorrProof<G> {
         &self,
         witness: &Self::Witness,
         rng: &mut (impl Rng + CryptoRng),
-    ) -> Result<(Self::Commitment, Self::ProverState), Error> {
-        let mut nonces: Vec<G::Scalar> = Vec::new();
-        for _i in 0..self.0.num_scalars {
-            nonces.push(<G as SRandom>::random_scalar_elt(rng));
-        }
-        let commitment = self.0.evaluate(&nonces);
-        let prover_state = (nonces.to_vec(), witness.to_vec());
-        Ok((commitment, prover_state))
+    ) -> Result<(Vec<Self::Commitment>, Self::ProverState), Error> {
+        self.0.prover_commit(witness, rng)
     }
 
     fn prover_response(
         &self,
         state: Self::ProverState,
         challenge: &Self::Challenge,
-    ) -> Result<Self::Response, Error> {
+    ) -> Result<Vec<Self::Response>, Error> {
         self.0.prover_response(state, challenge)
     }
 
     fn verifier(
         &self,
-        commitment: &Self::Commitment,
+        commitment: &[Self::Commitment],
         challenge: &Self::Challenge,
-        response: &Self::Response,
+        response: &[Self::Response],
     ) -> Result<(), Error> {
         self.0.verifier(commitment, challenge, response)
     }
 
-    fn serialize_commitment(&self, commitment: &Self::Commitment) -> Vec<u8> {
-        self.0.serialize_commitment(commitment)
+    fn commitment_len(&self) -> usize {
+        self.0.commitment_len()
     }
 
-    fn serialize_challenge(&self, challenge: &Self::Challenge) -> Vec<u8> {
-        self.0.serialize_challenge(challenge)
+    fn response_len(&self) -> usize {
+        self.0.response_len()
     }
 
-    fn serialize_response(&self, response: &Self::Response) -> Vec<u8> {
-        self.0.serialize_response(response)
-    }
-
-    fn deserialize_commitment(&self, data: &[u8]) -> Result<Self::Commitment, Error> {
-        self.0.deserialize_commitment(data)
-    }
-
-    fn deserialize_challenge(&self, data: &[u8]) -> Result<Self::Challenge, Error> {
-        self.0.deserialize_challenge(data)
-    }
-
-    fn deserialize_response(&self, data: &[u8]) -> Result<Self::Response, Error> {
-        self.0.deserialize_response(data)
-    }
     fn instance_label(&self) -> impl AsRef<[u8]> {
         self.0.instance_label()
     }
@@ -93,23 +76,27 @@ impl<G: SRandom + PrimeGroup> SigmaProtocol for DeterministicSchnorrProof<G> {
     }
 }
 
-impl<G: SRandom + PrimeGroup> SigmaProtocolSimulator for DeterministicSchnorrProof<G> {
-    fn simulate_response<R: Rng + CryptoRng>(&self, rng: &mut R) -> Self::Response {
+impl<G> SigmaProtocolSimulator for DeterministicSchnorrProof<G>
+where
+    G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize,
+    G::Scalar: Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]>,
+{
+    fn simulate_response<R: Rng + CryptoRng>(&self, rng: &mut R) -> Vec<Self::Response> {
         self.0.simulate_response(rng)
     }
 
     fn simulate_transcript<R: Rng + CryptoRng>(
         &self,
         rng: &mut R,
-    ) -> Result<(Self::Commitment, Self::Challenge, Self::Response), Error> {
+    ) -> Result<(Vec<Self::Commitment>, Self::Challenge, Vec<Self::Response>), Error> {
         self.0.simulate_transcript(rng)
     }
 
     fn simulate_commitment(
         &self,
         challenge: &Self::Challenge,
-        response: &Self::Response,
-    ) -> Result<Self::Commitment, Error> {
+        response: &[Self::Response],
+    ) -> Result<Vec<Self::Commitment>, Error> {
         self.0.simulate_commitment(challenge, response)
     }
 }

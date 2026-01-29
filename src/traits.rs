@@ -4,12 +4,19 @@
 //! used to describe interactive zero-knowledge proofs of knowledge,
 //! such as Schnorr proofs, that follow the 3-message Sigma protocol structure.
 
-use crate::errors::Error;
+use crate::errors::Result;
 use alloc::vec::Vec;
 #[cfg(feature = "std")]
 use rand::{CryptoRng, Rng};
 #[cfg(not(feature = "std"))]
 use rand_core::{CryptoRng, RngCore as Rng};
+use spongefish::{Decoding, Encoding, NargDeserialize, NargSerialize};
+
+pub type Transcript<P> = (
+    Vec<<P as SigmaProtocol>::Commitment>,
+    <P as SigmaProtocol>::Challenge,
+    Vec<<P as SigmaProtocol>::Response>,
+);
 
 /// A trait defining the behavior of a generic Sigma protocol.
 ///
@@ -46,11 +53,11 @@ use rand_core::{CryptoRng, RngCore as Rng};
 /// - `protocol_identifier` — A fixed byte identifier of the protocol.
 /// - `instance_label` — A label specific to the instance being proven.
 pub trait SigmaProtocol {
-    type Commitment;
+    type Commitment: Encoding<[u8]> + NargSerialize + NargDeserialize;
+    type Challenge: Decoding<[u8]>;
+    type Response: Encoding<[u8]> + NargSerialize + NargDeserialize;
     type ProverState;
-    type Response;
     type Witness;
-    type Challenge;
 
     /// First step of the protocol. Given the witness and RNG, this generates:
     /// - A public commitment to send to the verifier.
@@ -59,14 +66,14 @@ pub trait SigmaProtocol {
         &self,
         witness: &Self::Witness,
         rng: &mut (impl Rng + CryptoRng),
-    ) -> Result<(Self::Commitment, Self::ProverState), Error>;
+    ) -> Result<(Vec<Self::Commitment>, Self::ProverState)>;
 
     /// Computes the prover's response to a challenge based on the prover state.
     fn prover_response(
         &self,
         state: Self::ProverState,
         challenge: &Self::Challenge,
-    ) -> Result<Self::Response, Error>;
+    ) -> Result<Vec<Self::Response>>;
 
     /// Final step of the protocol: checks that the commitment, challenge, and response form a valid transcript.
     ///
@@ -75,39 +82,19 @@ pub trait SigmaProtocol {
     /// - `Err(())` otherwise.
     fn verifier(
         &self,
-        commitment: &Self::Commitment,
+        commitment: &[Self::Commitment],
         challenge: &Self::Challenge,
-        response: &Self::Response,
-    ) -> Result<(), Error>;
+        response: &[Self::Response],
+    ) -> Result<()>;
 
-    /// Serializes a commitment to bytes.
-    fn serialize_commitment(&self, commitment: &Self::Commitment) -> Vec<u8>;
+    fn commitment_len(&self) -> usize;
 
-    /// Serializes a challenge to bytes.
-    fn serialize_challenge(&self, challenge: &Self::Challenge) -> Vec<u8>;
-
-    /// Serializes a response to bytes.
-    fn serialize_response(&self, response: &Self::Response) -> Vec<u8>;
-
-    /// Deserializes a commitment from bytes.
-    fn deserialize_commitment(&self, data: &[u8]) -> Result<Self::Commitment, Error>;
-
-    /// Deserializes a challenge from bytes.
-    fn deserialize_challenge(&self, data: &[u8]) -> Result<Self::Challenge, Error>;
-
-    /// Deserializes a response from bytes.
-    fn deserialize_response(&self, data: &[u8]) -> Result<Self::Response, Error>;
+    fn response_len(&self) -> usize;
 
     fn protocol_identifier(&self) -> [u8; 64];
 
     fn instance_label(&self) -> impl AsRef<[u8]>;
 }
-
-type Transcript<P> = (
-    <P as SigmaProtocol>::Commitment,
-    <P as SigmaProtocol>::Challenge,
-    <P as SigmaProtocol>::Response,
-);
 
 /// A trait defining the behavior of a Sigma protocol for which simulation of transcripts is necessary.
 ///
@@ -124,7 +111,7 @@ pub trait SigmaProtocolSimulator: SigmaProtocol {
     /// Generates a random response (e.g. for simulation or OR composition).
     ///
     /// Typically used to simulate a proof without a witness.
-    fn simulate_response<R: Rng + CryptoRng>(&self, rng: &mut R) -> Self::Response;
+    fn simulate_response<R: Rng + CryptoRng>(&self, rng: &mut R) -> Vec<Self::Response>;
 
     /// Simulates a commitment for which ('commitment', 'challenge', 'response') is a valid transcript.
     ///
@@ -132,13 +119,10 @@ pub trait SigmaProtocolSimulator: SigmaProtocol {
     fn simulate_commitment(
         &self,
         challenge: &Self::Challenge,
-        response: &Self::Response,
-    ) -> Result<Self::Commitment, Error>;
+        response: &[Self::Response],
+    ) -> Result<Vec<Self::Commitment>>;
 
     /// Generates a full simulated proof transcript (commitment, challenge, response)
     /// without requiring knowledge of a witness.
-    fn simulate_transcript<R: Rng + CryptoRng>(
-        &self,
-        rng: &mut R,
-    ) -> Result<Transcript<Self>, Error>;
+    fn simulate_transcript<R: Rng + CryptoRng>(&self, rng: &mut R) -> Result<Transcript<Self>>;
 }

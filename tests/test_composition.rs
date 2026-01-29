@@ -42,18 +42,10 @@ fn test_composition_example() {
 
     let nizk = instance.into_nizk(domain_sep);
 
-    // Batchable and compact proofs
+    // Batchable proofs
     let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
-    let proof_compact_bytes = nizk.prove_compact(&witness, &mut rng).unwrap();
     // Verify proofs
     assert!(nizk.verify_batchable(&proof_batchable_bytes).is_ok());
-    assert!(nizk.verify_compact(&proof_compact_bytes).is_ok());
-
-    let narg_string = proof_compact_bytes;
-    for chunk in narg_string.chunks_exact(4) {
-        let value = u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
-        assert_ne!(value, 0);
-    }
 }
 
 #[allow(non_snake_case)]
@@ -82,12 +74,10 @@ fn test_or_one_true() {
     let nizk = or_protocol.into_nizk(b"test_or_one_true");
 
     for witness in [witness_or_1, witness_or_2] {
-        // Batchable and compact proofs
+        // Batchable proofs
         let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
-        let proof_compact_bytes = nizk.prove_compact(&witness, &mut rng).unwrap();
         // Verify proofs
         assert!(nizk.verify_batchable(&proof_batchable_bytes).is_ok());
-        assert!(nizk.verify_compact(&proof_compact_bytes).is_ok());
     }
 }
 
@@ -106,12 +96,10 @@ fn test_or_both_true() {
     let witness = ComposedWitness::or([witness1, witness2]);
     let nizk = or_protocol.into_nizk(b"test_or_both_true");
 
-    // Batchable and compact proofs
+    // Batchable proofs
     let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
-    let proof_compact_bytes = nizk.prove_compact(&witness, &mut rng).unwrap();
     // Verify proofs
     assert!(nizk.verify_batchable(&proof_batchable_bytes).is_ok());
-    assert!(nizk.verify_compact(&proof_compact_bytes).is_ok());
 }
 
 #[allow(non_snake_case)]
@@ -133,10 +121,8 @@ fn test_threshold_two_of_three() {
     let nizk = threshold_protocol.into_nizk(b"test_threshold_two_of_three");
 
     let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
-    let proof_compact_bytes = nizk.prove_compact(&witness, &mut rng).unwrap();
 
     assert!(nizk.verify_batchable(&proof_batchable_bytes).is_ok());
-    assert!(nizk.verify_compact(&proof_compact_bytes).is_ok());
 }
 
 #[allow(non_snake_case)]
@@ -167,8 +153,6 @@ fn test_threshold_two_of_ten_three_valid() {
     let nizk = threshold_protocol.into_nizk(b"test_threshold_two_of_ten_three_valid");
 
     let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
-    let proof_compact_bytes = nizk.prove_compact(&witness, &mut rng).unwrap();
 
     assert!(nizk.verify_batchable(&proof_batchable_bytes).is_ok());
-    assert!(nizk.verify_compact(&proof_compact_bytes).is_ok());
 }
