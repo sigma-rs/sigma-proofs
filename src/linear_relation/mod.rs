@@ -14,7 +14,7 @@ use core::iter;
 use core::marker::PhantomData;
 
 use crate::errors::{Error, InvalidInstance};
-use crate::group::msm::VariableMultiScalarMul;
+use crate::group::msm::MultiScalarMul;
 use ff::Field;
 use group::prime::PrimeGroup;
 
