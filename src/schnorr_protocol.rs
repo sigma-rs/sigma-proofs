@@ -6,16 +6,11 @@
 
 use crate::errors::{Error, Result};
 use crate::linear_relation::CanonicalLinearRelation;
-use crate::traits::{SigmaProtocol, SigmaProtocolSimulator, Transcript};
+use crate::traits::{Prng, SigmaProtocol, SigmaProtocolSimulator, Transcript};
 use crate::{LinearRelation, Nizk};
 use alloc::vec::Vec;
 
-use ff::Field;
 use group::prime::PrimeGroup;
-#[cfg(feature = "std")]
-use rand::{CryptoRng, Rng, RngCore};
-#[cfg(not(feature = "std"))]
-use rand_core::{CryptoRng, RngCore, RngCore as Rng};
 use spongefish::{Decoding, Encoding, NargDeserialize, NargSerialize};
 
 impl<G> SigmaProtocol for CanonicalLinearRelation<G>
@@ -47,16 +42,13 @@ where
     fn prover_commit(
         &self,
         witness: &Self::Witness,
-        rng: &mut (impl RngCore + CryptoRng),
+        rng: &mut impl Prng,
     ) -> Result<(Vec<Self::Commitment>, Self::ProverState)> {
         if witness.len() < self.num_scalars {
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
-        let nonces = (0..self.num_scalars)
-            .map(|_| G::Scalar::random(&mut *rng))
-            .collect::<Vec<_>>();
-
+        let nonces = rng.random_scalars_vec::<G>(self.num_scalars);
         let commitment = self.evaluate(&nonces);
         let prover_state = (nonces.to_vec(), witness.to_vec());
         Ok((commitment, prover_state))
@@ -248,10 +240,8 @@ where
     ///
     /// # Returns
     /// - A commitment and response forming a valid proof for the given challenge.
-    fn simulate_response<R: Rng + CryptoRng>(&self, rng: &mut R) -> Vec<Self::Response> {
-        (0..self.num_scalars)
-            .map(|_| G::Scalar::random(&mut *rng))
-            .collect()
+    fn simulate_response(&self, rng: &mut impl Prng) -> Vec<Self::Response> {
+        rng.random_scalars_vec::<G>(self.num_scalars)
     }
 
     /// Simulates a full proof transcript using a randomly generated challenge.
@@ -261,9 +251,9 @@ where
     ///
     /// # Returns
     /// - A tuple `(commitment, challenge, response)` forming a valid proof.
-    fn simulate_transcript<R: Rng + CryptoRng>(&self, rng: &mut R) -> Result<Transcript<Self>> {
-        let challenge = G::Scalar::random(&mut *rng);
-        let response = self.simulate_response(&mut *rng);
+    fn simulate_transcript(&self, rng: &mut impl Prng) -> Result<Transcript<Self>> {
+        let [challenge] = rng.random_scalars::<G, _>();
+        let response = self.simulate_response(rng);
         let commitment = self.simulate_commitment(&challenge, &response)?;
         Ok((commitment, challenge, response))
     }

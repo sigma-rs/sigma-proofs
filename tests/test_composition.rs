@@ -63,8 +63,8 @@ fn test_or_one_true() {
 
     // definitions of the underlying protocols
     let mut rng = rand::thread_rng();
-    let (relation1, witness1) = dleq::<G, _>(&mut rng);
-    let (relation2, witness2) = dleq::<G, _>(&mut rng);
+    let (relation1, witness1) = dleq::<G>(&mut rng);
+    let (relation2, witness2) = dleq::<G>(&mut rng);
 
     let wrong_witness1 = (0..witness1.len())
         .map(|_| <G as Group>::Scalar::random(&mut rng))
@@ -98,8 +98,8 @@ fn test_or_both_true() {
 
     // definitions of the underlying protocols
     let mut rng = rand::thread_rng();
-    let (relation1, witness1) = dleq::<G, _>(&mut rng);
-    let (relation2, witness2) = dleq::<G, _>(&mut rng);
+    let (relation1, witness1) = dleq::<G>(&mut rng);
+    let (relation2, witness2) = dleq::<G>(&mut rng);
 
     let or_protocol = ComposedRelation::or([relation1, relation2]);
 
@@ -120,9 +120,9 @@ fn test_threshold_two_of_three() {
     // Test composition of a 2-out-of-3 threshold protocol.
 
     let mut rng = rand::thread_rng();
-    let (relation1, witness1) = dleq::<G, _>(&mut rng);
-    let (relation2, witness2) = dleq::<G, _>(&mut rng);
-    let (relation3, witness3) = dleq::<G, _>(&mut rng);
+    let (relation1, witness1) = dleq::<G>(&mut rng);
+    let (relation2, witness2) = dleq::<G>(&mut rng);
+    let (relation3, witness3) = dleq::<G>(&mut rng);
 
     let wrong_witness3 = (0..witness3.len())
         .map(|_| <G as Group>::Scalar::random(&mut rng))
@@ -149,7 +149,7 @@ fn test_threshold_two_of_ten_three_valid() {
     let mut relations = Vec::new();
     let mut witnesses = Vec::new();
     for _ in 0..10 {
-        let (relation, witness) = dleq::<G, _>(&mut rng);
+        let (relation, witness) = dleq::<G>(&mut rng);
         relations.push(relation);
         witnesses.push(witness);
     }

@@ -17,9 +17,9 @@
 //! egregious violations of constant-timedness. It is, however, insufficient to detect smaller
 //! differences.
 
-#[allow(unused)]
 mod relations;
 
+use core::{array::from_fn, iter::repeat_with};
 use std::{
     hint::black_box,
     sync::LazyLock,
@@ -27,16 +27,14 @@ use std::{
 };
 
 use curve25519_dalek::{RistrettoPoint as G, Scalar};
-use ff::Field;
-use group::Group;
+use group::{ff::Field, Group};
 
 use rand_chacha::{rand_core::SeedableRng, ChaCha12Rng};
-use relations::TestRng;
 use serial_test::serial;
 use sigma_proofs::{
     composition::{ComposedRelation, ComposedWitness},
     linear_relation::{CanonicalLinearRelation, Sum},
-    traits::{SigmaProtocol, SigmaProtocolSimulator},
+    traits::{Prng, SigmaProtocol, SigmaProtocolSimulator},
     LinearRelation, Nizk,
 };
 
@@ -104,17 +102,17 @@ fn baseline() {
 }
 
 fn wide_relation<const WIDTH: usize>(
-    rng: &mut (impl TestRng<G> + ?Sized),
+    rng: &mut impl Prng,
 ) -> (CanonicalLinearRelation<G>, Vec<Scalar>) {
     let mut rel = LinearRelation::<G>::new();
     let constraint: Sum<_> = (0..WIDTH)
-        .map(|_| rel.allocate_scalar() * rel.allocate_element_with(rng.random_elem()))
+        .map(|_| rel.allocate_scalar() * rel.allocate_element_with(relations::random_elem(rng)))
         .sum();
     let _ = rel.allocate_eq(constraint);
 
-    let wit: Vec<_> = (0..WIDTH).map(|_| rng.random_scalar()).collect();
+    let wit = rng.random_scalars::<G, WIDTH>();
     rel.compute_image(&wit).unwrap();
-    (rel.try_into().unwrap(), wit)
+    (rel.try_into().unwrap(), wit.to_vec())
 }
 
 /// Create two OR composition instances, one with the left branch false and one with the right
@@ -171,13 +169,13 @@ where
 /// witnesses.
 struct FixedRng;
 
-impl<G: Group> TestRng<G> for FixedRng {
-    fn random_elem(&mut self) -> G {
-        G::random(&mut rand::thread_rng())
+impl Prng for FixedRng {
+    fn random_scalars<G: Group, const N: usize>(&mut self) -> [G::Scalar; N] {
+        from_fn(|_| <G::Scalar as Field>::ONE)
     }
 
-    fn random_scalar(&mut self) -> <G as Group>::Scalar {
-        G::Scalar::ONE
+    fn random_scalars_vec<G: Group>(&mut self, n: usize) -> Vec<G::Scalar> {
+        repeat_with(|| <G::Scalar as Field>::ONE).take(n).collect()
     }
 }
 
