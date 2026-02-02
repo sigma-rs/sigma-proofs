@@ -11,12 +11,12 @@ use crate::{LinearRelation, MultiScalarMul, Nizk};
 use alloc::vec::Vec;
 
 use group::prime::PrimeGroup;
-use spongefish::{Decoding, Encoding, NargDeserialize, NargSerialize};
+use spongefish::{Codec, Decoding, Encoding, NargDeserialize, NargSerialize};
 
 impl<G> SigmaProtocol for CanonicalLinearRelation<G>
 where
     G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize + MultiScalarMul,
-    G::Scalar: Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]>,
+    G::Scalar: Codec,
 {
     type Commitment = G;
     type ProverState = (Vec<G::Scalar>, Vec<G::Scalar>);

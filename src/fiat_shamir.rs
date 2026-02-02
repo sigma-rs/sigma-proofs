@@ -11,16 +11,17 @@
 //! This struct is generic over:
 //! - `P`: the underlying Sigma protocol ([`SigmaProtocol`] trait).
 
+use crate::alloc::string::ToString;
 use crate::duplex_sponge::keccak::KeccakDuplexSponge;
 use crate::duplex_sponge::DuplexSpongeInterface;
 use crate::errors::Error;
 use crate::traits::ScalarRng;
 use crate::traits::SigmaProtocol;
 use crate::traits::SigmaProtocolSimulator;
-use alloc::{vec, vec::Vec};
+use alloc::vec::Vec;
 use ff::PrimeField;
 use num_bigint::BigUint;
-use num_traits::identities::One;
+use num_traits::Num;
 use spongefish::{Encoding, NargDeserialize, NargSerialize};
 
 /// A Fiat-Shamir transformation of a [`SigmaProtocol`] into a non-interactive proof.
@@ -245,26 +246,17 @@ fn initialize_sponge(
     sponge
 }
 
-fn field_cardinality<F: PrimeField>() -> BigUint {
-    let bytes = (F::ZERO - F::ONE).to_repr();
-    BigUint::from_bytes_le(bytes.as_ref()) + BigUint::one()
-}
-
 fn derive_challenge<F: PrimeField>(sponge: &mut KeccakDuplexSponge) -> F {
     let scalar_byte_length = (F::NUM_BITS as usize).div_ceil(8);
     let uniform_bytes = sponge.squeeze(scalar_byte_length + 16);
     let scalar = BigUint::from_bytes_be(&uniform_bytes);
-    let reduced = scalar % field_cardinality::<F>();
-
-    let mut bytes = vec![0u8; scalar_byte_length];
-    let reduced_bytes = reduced.to_bytes_be();
-    let start = bytes.len().saturating_sub(reduced_bytes.len());
-    bytes[start..start + reduced_bytes.len()].copy_from_slice(&reduced_bytes);
-    bytes.reverse();
-
-    let mut repr = F::Repr::default();
-    repr.as_mut().copy_from_slice(&bytes);
-    F::from_repr(repr).expect("challenge reduction should not fail")
+    let mut order_str = F::MODULUS;
+    if order_str.starts_with("0x") {
+        order_str = &order_str[2..]
+    }
+    let order = BigUint::from_str_radix(order_str, 16).unwrap();
+    let reduced = scalar % order;
+    F::from_str_vartime(&reduced.to_string()).unwrap() // TODO: Replace with constant time code.
 }
 
 fn serialize_messages_into<T: NargSerialize>(messages: &[T], out: &mut Vec<u8>) {

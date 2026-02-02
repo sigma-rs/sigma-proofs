@@ -7,7 +7,7 @@
 use crate::errors::Result;
 use alloc::vec::Vec;
 use group::Group;
-use spongefish::{Decoding, Encoding, NargDeserialize, NargSerialize};
+use spongefish::{Codec, Decoding, Encoding, NargDeserialize, NargSerialize};
 
 /// An automatic trait helper for sampling scalars from an RNG.
 ///
@@ -15,8 +15,12 @@ use spongefish::{Decoding, Encoding, NargDeserialize, NargSerialize};
 /// Passing any cryptographically-secure random number generator (CSRNG) is
 /// recommended for creating proofs.
 pub trait ScalarRng {
-    fn random_scalars<G: Group, const N: usize>(&mut self) -> [G::Scalar; N];
-    fn random_scalars_vec<G: Group>(&mut self, n: usize) -> Vec<G::Scalar>;
+    fn random_scalars<G: Group, const N: usize>(&mut self) -> [G::Scalar; N]
+    where
+        G::Scalar: Codec;
+    fn random_scalars_vec<G: Group>(&mut self, n: usize) -> Vec<G::Scalar>
+    where
+        G::Scalar: Codec;
 }
 
 pub type Transcript<P> = (

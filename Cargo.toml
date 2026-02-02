@@ -51,9 +51,7 @@ p256 = { version = "0.13", default-features = false, features = ["arithmetic"], 
 rand = { version = "0.8.5", optional = true }
 rand_core = { version = "0.6", default-features = false }
 sha3 = { version = "0.10.8", default-features = false }
-# TODO: Publish the latest version of spongefish and change this to a crates.io dependency.
-# This crate cannot be published while its still using a git dependency.
-spongefish = { git = "https://github.com/arkworks-rs/spongefish", features = ["derive"] }
+spongefish = { git = "https://github.com/armfazh/spongefish", features = ["derive"], rev = "4e5265736cbb0003e1230854735e4f020f592e79" } # See PR: https://github.com/arkworks-rs/spongefish/pull/79
 subtle = { version = "2.6.1", default-features = false }
 thiserror = { version = "1", optional = true }
 zerocopy = { version = "0.8", default-features = false }
@@ -76,7 +74,11 @@ serde_json = "1.0.140"
 serde_with = { version = "3.16.1", features = ["hex"] }
 serial_test = "3.3.1"
 sha2 = "0.10"
-spongefish = { git = "https://github.com/arkworks-rs/spongefish", features = ["curve25519-dalek", "p256", "bls12_381", "derive", "keccak", "std"] }
+spongefish = { git = "https://github.com/armfazh/spongefish", features = ["curve25519-dalek", "bls12_381", "p256", "derive", "keccak", "std"], rev = "4e5265736cbb0003e1230854735e4f020f592e79" } # See PR: https://github.com/arkworks-rs/spongefish/pull/79
+
+# Include criterion without rayon when compiling for the WASM WASIv1 environment, and with rayon otherwise.
+[target.'cfg(not(all(target_os = "wasi", target_env = "p1")))'.dev-dependencies]
+criterion = { version = "0.8", features = ["html_reports"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 core_affinity2 = "0.15.4"

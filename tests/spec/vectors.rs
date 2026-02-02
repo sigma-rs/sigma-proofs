@@ -10,9 +10,12 @@ pub struct Hex(#[serde_as(as = "hex::Hex")] pub Vec<u8>);
 pub struct TestVector {
     pub protocol: String,
     pub ciphersuite: String,
+    pub hash: String,
     pub session_id: Hex,
     pub statement: Hex,
     pub witness: Vec<Hex>,
-    pub randomness: Vec<Hex>,
-    pub proof_batchable: Hex,
+    pub randomness_chal_resp: Vec<Hex>,
+    pub proof_chal_resp: Hex,
+    pub randomness_comm_resp: Vec<Hex>,
+    pub proof_comm_resp: Hex,
 }

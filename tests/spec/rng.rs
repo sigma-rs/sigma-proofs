@@ -1,27 +1,30 @@
 use core::{array::from_fn, iter::repeat_with};
 
-use group::{ff::PrimeField, Group};
-use rand_core::{Error, RngCore, SeedableRng};
+use group::Group;
+use rand_core::{Error, RngCore};
 use sha3::{
     digest::{ExtendableOutput, Update, XofReader},
     Shake128,
 };
 
 use sigma_proofs::traits::ScalarRng;
+use spongefish::{Codec, Encoding, NargDeserialize};
 
-pub struct Shake128PRNG(<Shake128 as ExtendableOutput>::Reader);
+pub struct SeededScalarRng(<Shake128 as ExtendableOutput>::Reader);
 
-impl SeedableRng for Shake128PRNG {
-    type Seed = [u8; 32];
+impl SeededScalarRng {
+    pub fn from_seed(seed: &[u8]) -> Self {
+        if seed.len() < 32 {
+            panic!("seed length must be at least 32 bytes")
+        }
 
-    fn from_seed(seed: Self::Seed) -> Self {
         let mut shake = Shake128::default();
-        shake.update(&seed);
+        shake.update(seed);
         Self(shake.finalize_xof())
     }
 }
 
-impl RngCore for Shake128PRNG {
+impl RngCore for SeededScalarRng {
     fn next_u32(&mut self) -> u32 {
         unimplemented!()
     }
@@ -40,12 +43,12 @@ impl RngCore for Shake128PRNG {
     }
 }
 
-pub struct TracingPRNG<R: ScalarRng> {
+pub struct TracingScalarRng<R: ScalarRng> {
     inner: R,
     store: Vec<Vec<u8>>,
 }
 
-impl<R: ScalarRng> TracingPRNG<R> {
+impl<R: ScalarRng> TracingScalarRng<R> {
     pub fn new(rng: R) -> Self {
         Self {
             inner: rng,
@@ -58,39 +61,52 @@ impl<R: ScalarRng> TracingPRNG<R> {
     }
 }
 
-impl<R: ScalarRng> ScalarRng for TracingPRNG<R> {
-    fn random_scalars<G: Group, const N: usize>(&mut self) -> [G::Scalar; N] {
+impl<R: ScalarRng> ScalarRng for TracingScalarRng<R> {
+    fn random_scalars<G: Group, const N: usize>(&mut self) -> [G::Scalar; N]
+    where
+        G::Scalar: Codec,
+    {
         let scalars = self.inner.random_scalars::<G, N>();
         self.store
-            .extend(scalars.iter().map(|s| s.to_repr().as_ref().to_vec()));
+            .extend(scalars.iter().map(|s| s.encode().as_ref().to_vec()));
         scalars
     }
 
-    fn random_scalars_vec<G: Group>(&mut self, n: usize) -> Vec<G::Scalar> {
+    fn random_scalars_vec<G: Group>(&mut self, n: usize) -> Vec<G::Scalar>
+    where
+        G::Scalar: Codec,
+    {
         let scalars = self.inner.random_scalars_vec::<G>(n);
         self.store
-            .extend(scalars.iter().map(|s| s.to_repr().as_ref().to_vec()));
+            .extend(scalars.iter().map(|s| s.encode().as_ref().to_vec()));
         scalars
     }
 }
 
-pub struct MockPRNG<I: Iterator<Item = Vec<u8>>>(pub I);
+pub struct MockScalarRng<I: Iterator<Item = Vec<u8>>>(pub I);
 
-impl<I: Iterator<Item = Vec<u8>>> MockPRNG<I> {
-    fn next<G: Group>(&mut self) -> G::Scalar {
+impl<I: Iterator<Item = Vec<u8>>> MockScalarRng<I> {
+    fn next<G: Group>(&mut self) -> G::Scalar
+    where
+        <G as Group>::Scalar: NargDeserialize,
+    {
         let scalar = self.0.next().unwrap();
-        let mut repr = <G::Scalar as PrimeField>::Repr::default();
-        repr.as_mut().copy_from_slice(&scalar);
-        G::Scalar::from_repr(repr).unwrap()
+        G::Scalar::deserialize_from_narg(&mut scalar.as_slice()).unwrap()
     }
 }
 
-impl<I: Iterator<Item = Vec<u8>>> ScalarRng for MockPRNG<I> {
-    fn random_scalars<G: Group, const N: usize>(&mut self) -> [G::Scalar; N] {
+impl<I: Iterator<Item = Vec<u8>>> ScalarRng for MockScalarRng<I> {
+    fn random_scalars<G: Group, const N: usize>(&mut self) -> [G::Scalar; N]
+    where
+        G::Scalar: Codec,
+    {
         from_fn(|_| self.next::<G>())
     }
 
-    fn random_scalars_vec<G: Group>(&mut self, n: usize) -> Vec<G::Scalar> {
+    fn random_scalars_vec<G: Group>(&mut self, n: usize) -> Vec<G::Scalar>
+    where
+        G::Scalar: Codec,
+    {
         let mut v = Vec::with_capacity(n);
         v.extend(repeat_with(|| self.next::<G>()).take(n));
         v
@@ -101,13 +117,13 @@ impl<I: Iterator<Item = Vec<u8>>> ScalarRng for MockPRNG<I> {
 fn test_rng() {
     type G = bls12_381::G1Projective;
     let seed = *b"0x0102030405060708090a0b0c0d0e0f";
-    let seedable = Shake128PRNG::from_seed(seed);
+    let seedable = SeededScalarRng::from_seed(&seed);
 
-    let mut trace = TracingPRNG::new(seedable);
+    let mut trace = TracingScalarRng::new(seedable);
     let want = trace.random_scalars_vec::<G>(3);
     let scalars = trace.collect();
 
-    let mut mock = MockPRNG(scalars.into_iter());
+    let mut mock = MockScalarRng(scalars.into_iter());
     let got = mock.random_scalars_vec::<G>(3);
 
     assert_eq!(got, want);
