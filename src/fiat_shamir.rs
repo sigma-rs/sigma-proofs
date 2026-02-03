@@ -192,6 +192,8 @@ where
     pub fn verify_compact(&self, proof: &[u8]) -> Result<(), Error> {
         // Deserialize challenge and response from compact proof
         let mut cursor = proof;
+        let protocol_id = self.interactive_proof.protocol_identifier();
+        let instance_label = self.interactive_proof.instance_label();
         let challenge = P::Challenge::deserialize_from_narg(&mut cursor)?;
         let response_len = self.interactive_proof.response_len();
         let response = deserialize_messages(response_len, &mut cursor)?;
@@ -205,6 +207,17 @@ where
         let commitment = self
             .interactive_proof
             .simulate_commitment(&challenge, &response)?;
+
+        // Re-compute the challenge and ensure it's the same as the one
+        // we received
+        let mut keccak = initialize_sponge(protocol_id, &self.session_id, instance_label.as_ref());
+        let commitment_bytes = serialize_messages(&commitment);
+        keccak.absorb(&commitment_bytes);
+        let recomputed_challenge = derive_challenge::<P::Challenge>(&mut keccak);
+        if challenge != recomputed_challenge {
+            return Err(Error::VerificationFailure);
+        }
+
         // Verify the proof
         self.interactive_proof
             .verifier(&commitment, &challenge, &response)
