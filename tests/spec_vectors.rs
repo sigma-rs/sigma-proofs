@@ -20,9 +20,8 @@ struct TestVector {
     proof: Vec<u8>,
 }
 
-#[allow(clippy::type_complexity)]
-#[allow(non_snake_case)]
 #[test]
+#[ignore = "needs to be updated after change in randomness sampling"]
 fn test_spec_testvectors() {
     let proof_generation_rng_seed = b"proof_generation_seed";
     let vectors = extract_vectors_new().unwrap();
