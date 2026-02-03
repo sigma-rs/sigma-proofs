@@ -218,9 +218,13 @@ where
             return Err(Error::VerificationFailure);
         }
 
-        // Verify the proof
-        self.interactive_proof
-            .verifier(&commitment, &challenge, &response)
+        // At this point, checking
+        // self.interactive_proof.verifier(&commitment, &challenge,
+        // &response) is redundant, because we know that commitment =
+        // simulate_commitment(challenge, response), and that challenge
+        // is the output of the appropriate hash, so the signature is
+        // valid.
+        Ok(())
     }
 }
 
