@@ -60,6 +60,12 @@ pub enum Error {
     },
 }
 
+impl From<spongefish::VerificationError> for Error {
+    fn from(_value: spongefish::VerificationError) -> Self {
+        Error::VerificationFailure
+    }
+}
+
 // Manual Display implementation for no_std compatibility
 #[cfg(not(feature = "std"))]
 impl fmt::Display for InvalidInstance {

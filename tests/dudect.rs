@@ -34,7 +34,6 @@ use rand_chacha::{rand_core::SeedableRng, ChaCha12Rng};
 use relations::TestRng;
 use serial_test::serial;
 use sigma_proofs::{
-    codec::Shake128DuplexSponge,
     composition::{ComposedRelation, ComposedWitness},
     linear_relation::{CanonicalLinearRelation, Sum},
     traits::{SigmaProtocol, SigmaProtocolSimulator},
@@ -160,7 +159,7 @@ where
     // directly, when the instance generation uses `rand::thread_rng`. Otherwise caching behavior
     // leads to false positive timing variance.
     let mut rng = ChaCha12Rng::from_rng(rand::thread_rng()).unwrap();
-    let nizk = Nizk::<_, Shake128DuplexSponge<G>>::new(b"sigma-proofs-dudect-test", rel);
+    let nizk = Nizk::new(b"sigma-proofs-dudect-test", rel);
 
     let start = Instant::now();
     let _ = black_box(nizk.prove_compact(&wit, &mut rng));
