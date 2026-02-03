@@ -19,7 +19,9 @@ description = "A toolkit for auto-generated implementations of Σ-protocols"
 exclude = [".gitignore"]
 
 [features]
-default = ["std"]
+# Include commonly used curved in default features.
+# Increases the default compile times, but makes the crate just-work for most users.
+default = ["std", "bls12_381", "curve25519-dalek", "k256"]
 std = [
     "thiserror",
     "rand",
@@ -27,7 +29,11 @@ std = [
     "num-traits/std",
     "sha3/std",
     "rand_core/std",
+    "spongefish/std",
 ]
+bls12_381 = ["spongefish/bls12_381"]
+curve25519-dalek = ["spongefish/curve25519-dalek"]
+k256 = ["spongefish/k256"]
 
 [dependencies]
 ahash = { version = "0.8", default-features = false }
@@ -40,14 +46,13 @@ num-traits = { version = "0.2.19", default-features = false, features = ["libm"]
 rand = { version = "0.8.5", optional = true }
 rand_core = { version = "0.6", default-features = false }
 sha3 = { version = "0.10.8", default-features = false }
+# TODO: Publish the latest version of spongefish and change this to a crates.io dependency.
+# This crate cannot be published while its still using a git dependency.
+spongefish = { git = "https://github.com/arkworks-rs/spongefish", features = ["derive"] }
 subtle = { version = "2.6.1", default-features = false }
 thiserror = { version = "1", optional = true }
 zerocopy = { version = "0.8", default-features = false }
 zeroize = { version = "1.8.1", default-features = false, features = ["alloc"] }
-
-[dependencies.spongefish]
-git = "https://github.com/arkworks-rs/spongefish"
-features = ["bls12_381", "derive", "keccak", "std"]
 
 [dev-dependencies]
 anyhow = "1.0.100"
@@ -64,11 +69,7 @@ serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
 serial_test = "3.3.1"
 sha2 = "0.10"
-spongefish = {git = "https://github.com/arkworks-rs/spongefish",  features = ["curve25519-dalek", "bls12_381", "derive", "keccak", "std"] }
-
-[[example]]
-name = "schnorr"
-required-features = ["spongefish/curve25519-dalek"]
+spongefish = { git = "https://github.com/arkworks-rs/spongefish", features = ["curve25519-dalek", "bls12_381", "derive", "keccak", "std"] }
 
 # Include criterion without rayon when compiling for the WASM WASIv1 environment, and with rayon otherwise.
 [target.'cfg(not(all(target_os = "wasi", target_env = "p1")))'.dev-dependencies]
@@ -76,6 +77,10 @@ criterion = { version = "0.8", features = ["html_reports"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 core_affinity2 = "0.15.4"
+
+[[example]]
+name = "schnorr"
+required-features = ["curve25519-dalek"]
 
 # TODO(victor): Benchmarking works on my machine in WASM, but criterion does not build in CI right now.
 # [target.'cfg(all(target_os = "wasi", target_env = "p1"))'.dev-dependencies]

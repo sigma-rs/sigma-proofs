@@ -88,8 +88,7 @@ where
     ) -> Result<Vec<u8>, Error> {
         let protocol_id = self.interactive_proof.protocol_identifier();
         let instance_label = self.interactive_proof.instance_label();
-        let instance_label = instance_label.as_ref();
-        let mut keccak = initialize_sponge(protocol_id, &self.session_id, instance_label);
+        let mut keccak = initialize_sponge(protocol_id, &self.session_id, instance_label.as_ref());
         let (commitment, ip_state) = self.interactive_proof.prover_commit(witness, rng)?;
         let commitment_bytes = serialize_messages(&commitment);
         keccak.absorb(&commitment_bytes);
@@ -118,13 +117,12 @@ where
     pub fn verify_batchable(&self, narg_string: &[u8]) -> Result<(), Error> {
         let protocol_id = self.interactive_proof.protocol_identifier();
         let instance_label = self.interactive_proof.instance_label();
-        let instance_label = instance_label.as_ref();
         let commitment_len = self.interactive_proof.commitment_len();
         let response_len = self.interactive_proof.response_len();
         let mut cursor = narg_string;
         let commitment = deserialize_messages(commitment_len, &mut cursor)?;
         let commitment_bytes_len = narg_string.len().saturating_sub(cursor.len());
-        let mut keccak = initialize_sponge(protocol_id, &self.session_id, instance_label);
+        let mut keccak = initialize_sponge(protocol_id, &self.session_id, instance_label.as_ref());
         keccak.absorb(&narg_string[..commitment_bytes_len]);
         let challenge = derive_challenge::<P::Challenge>(&mut keccak);
         let response = deserialize_messages(response_len, &mut cursor)?;
@@ -139,76 +137,78 @@ where
 impl<P> Nizk<P>
 where
     P: SigmaProtocol + SigmaProtocolSimulator,
-    P::Challenge: PartialEq,
+    P::Challenge: PartialEq + NargDeserialize + NargSerialize + PrimeField,
 {
-    // /// Generates a compact serialized proof.
-    // ///
-    // /// Uses a more space-efficient representation compared to batchable proofs.
-    // ///
-    // /// # Parameters
-    // /// - `witness`: The secret witness.
-    // /// - `rng`: A cryptographically secure random number generator.
-    // ///
-    // /// # Returns
-    // /// A compact, serialized proof.
-    // ///
-    // /// # Panics
-    // /// Panics if serialization fails.
-    // pub fn prove_compact(
-    //     &self,
-    //     witness: &P::Witness,
-    //     rng: &mut (impl RngCore + CryptoRng),
-    // ) -> Result<Vec<u8>, Error> {
-    //     let (_commitment, challenge, response) = self.prove(witness, rng)?;
-    //     let mut bytes = Vec::new();
-    //     bytes.extend_from_slice(&self.interactive_proof.serialize_challenge(&challenge));
-    //     bytes.extend_from_slice(&self.interactive_proof.serialize_response(&response));
-    //     Ok(bytes)
-    // }
+    /// Generates a compact serialized proof.
+    ///
+    /// Uses a more space-efficient representation compared to batchable proofs.
+    ///
+    /// # Parameters
+    /// - `witness`: The secret witness.
+    /// - `rng`: A cryptographically secure random number generator.
+    ///
+    /// # Returns
+    /// A compact, serialized proof.
+    ///
+    /// # Panics
+    /// Panics if serialization fails.
+    pub fn prove_compact(
+        &self,
+        witness: &P::Witness,
+        rng: &mut (impl RngCore + CryptoRng),
+    ) -> Result<Vec<u8>, Error> {
+        let protocol_id = self.interactive_proof.protocol_identifier();
+        let instance_label = self.interactive_proof.instance_label();
+        let mut keccak = initialize_sponge(protocol_id, &self.session_id, instance_label.as_ref());
+        let (commitment, ip_state) = self.interactive_proof.prover_commit(witness, rng)?;
+        keccak.absorb(&serialize_messages(&commitment));
+        let challenge = derive_challenge::<P::Challenge>(&mut keccak);
+        let response = self
+            .interactive_proof
+            .prover_response(ip_state, &challenge)?;
 
-    // /// Verifies a compact proof.
-    // ///
-    // /// Recomputes the commitment from the challenge and response, then verifies it.
-    // ///
-    // /// # Parameters
-    // /// - `proof`: A compact serialized proof.
-    // ///
-    // /// # Returns
-    // /// - `Ok(())` if the proof is valid.
-    // /// - `Err(Error)` if deserialization or verification fails.
-    // ///
-    // /// # Errors
-    // /// - Returns [`Error::VerificationFailure`] if:
-    // ///   - Deserialization fails.
-    // ///   - The recomputed commitment or response is invalid under the Sigma protocol.
-    // pub fn verify_compact(&self, proof: &[u8]) -> Result<(), Error> {
-    //     // Deserialize challenge and response from compact proof
-    //     let challenge = self.interactive_proof.deserialize_challenge(proof)?;
-    //     let challenge_size = self.interactive_proof.serialize_challenge(&challenge).len();
-    //     let response = self
-    //         .interactive_proof
-    //         .deserialize_response(&proof[challenge_size..])?;
-    //     let response_size = self.interactive_proof.serialize_response(&response).len();
+        // Serialize the compact proof string.
+        let mut proof = Vec::new();
+        challenge.serialize_into_narg(&mut proof);
+        serialize_messages_into(&response, &mut proof);
+        Ok(proof)
+    }
 
-    //     // Proof size check
-    //     if proof.len() != challenge_size + response_size {
-    //         return Err(Error::VerificationFailure);
-    //     }
+    /// Verifies a compact proof.
+    ///
+    /// Recomputes the commitment from the challenge and response, then verifies it.
+    ///
+    /// # Parameters
+    /// - `proof`: A compact serialized proof.
+    ///
+    /// # Returns
+    /// - `Ok(())` if the proof is valid.
+    /// - `Err(Error)` if deserialization or verification fails.
+    ///
+    /// # Errors
+    /// - Returns [`Error::VerificationFailure`] if:
+    ///   - Deserialization fails.
+    ///   - The recomputed commitment or response is invalid under the Sigma protocol.
+    pub fn verify_compact(&self, proof: &[u8]) -> Result<(), Error> {
+        // Deserialize challenge and response from compact proof
+        let mut cursor = proof;
+        let challenge = P::Challenge::deserialize_from_narg(&mut cursor)?;
+        let response_len = self.interactive_proof.response_len();
+        let response = deserialize_messages(response_len, &mut cursor)?;
 
-    //     // Assert correct proof size
-    //     let total_expected_len =
-    //         challenge_size + self.interactive_proof.serialize_response(&response).len();
-    //     if proof.len() != total_expected_len {
-    //         return Err(Error::VerificationFailure);
-    //     }
+        // Proof size check
+        if !cursor.is_empty() {
+            return Err(Error::VerificationFailure);
+        }
 
-    //     // Compute the commitments
-    //     let commitment = self
-    //         .interactive_proof
-    //         .simulate_commitment(&challenge, &response)?;
-    //     // Verify the proof
-    //     self.verify(&commitment, &challenge, &response)
-    // }
+        // Compute the commitments
+        let commitment = self
+            .interactive_proof
+            .simulate_commitment(&challenge, &response)?;
+        // Verify the proof
+        self.interactive_proof
+            .verifier(&commitment, &challenge, &response)
+    }
 }
 
 fn length_to_bytes(x: usize) -> [u8; 4] {
