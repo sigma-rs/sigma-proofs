@@ -74,7 +74,7 @@ pub mod composition;
 pub mod errors;
 pub mod group;
 pub mod linear_relation;
-pub mod prng;
+pub mod rng;
 pub mod traits;
 
 pub(crate) mod duplex_sponge;

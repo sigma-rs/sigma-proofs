@@ -29,7 +29,7 @@ use spongefish::{
 use subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
 
 use crate::errors::InvalidInstance;
-use crate::traits::Prng;
+use crate::traits::ScalarRng;
 use crate::{
     errors::Error,
     fiat_shamir::Nizk,
@@ -818,7 +818,7 @@ where
     fn prover_commit_simple(
         protocol: &CanonicalLinearRelation<G>,
         witness: &<CanonicalLinearRelation<G> as SigmaProtocol>::Witness,
-        rng: &mut impl Prng,
+        rng: &mut impl ScalarRng,
     ) -> Result<(ComposedCommitment<G>, ComposedProverState<G>), Error> {
         protocol.prover_commit(witness, rng).map(|(c, s)| {
             (
@@ -841,7 +841,7 @@ where
     fn prover_commit_and(
         protocols: &[ComposedRelation<G>],
         witnesses: &[ComposedWitness<G>],
-        rng: &mut impl Prng,
+        rng: &mut impl ScalarRng,
     ) -> Result<(ComposedCommitment<G>, ComposedProverState<G>), Error> {
         if protocols.len() != witnesses.len() {
             return Err(Error::InvalidInstanceWitnessPair);
@@ -890,7 +890,7 @@ where
     fn prover_commit_or(
         instances: &[ComposedRelation<G>],
         witnesses: &[ComposedWitness<G>],
-        rng: &mut impl Prng,
+        rng: &mut impl ScalarRng,
     ) -> Result<(ComposedCommitment<G>, ComposedProverState<G>), Error>
     where
         G: ConditionallySelectable,
@@ -1019,7 +1019,7 @@ where
         threshold: usize,
         instances: &[ComposedRelation<G>],
         witnesses: &[ComposedWitness<G>],
-        rng: &mut impl Prng,
+        rng: &mut impl ScalarRng,
     ) -> Result<(ComposedCommitment<G>, ComposedProverState<G>), Error>
     where
         G: ConditionallySelectable,
@@ -1197,7 +1197,7 @@ where
     fn prover_commit(
         &self,
         witness: &Self::Witness,
-        rng: &mut impl Prng,
+        rng: &mut impl ScalarRng,
     ) -> Result<(Vec<Self::Commitment>, Self::ProverState), Error> {
         let (commitment, state) = match (self, witness) {
             (ComposedRelation::Simple(p), ComposedWitness::Simple(w)) => {
@@ -1486,7 +1486,7 @@ where
         Ok(vec![commitment])
     }
 
-    fn simulate_response(&self, rng: &mut impl Prng) -> Vec<Self::Response> {
+    fn simulate_response(&self, rng: &mut impl ScalarRng) -> Vec<Self::Response> {
         let response = match self {
             ComposedRelation::Simple(p) => ComposedResponse::Simple(p.simulate_response(rng)),
             ComposedRelation::And(ps) => {
@@ -1535,7 +1535,7 @@ where
 
     fn simulate_transcript(
         &self,
-        rng: &mut impl Prng,
+        rng: &mut impl ScalarRng,
     ) -> Result<(Vec<Self::Commitment>, Self::Challenge, Vec<Self::Response>), Error> {
         match self {
             ComposedRelation::Simple(p) => {

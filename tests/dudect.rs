@@ -34,7 +34,7 @@ use serial_test::serial;
 use sigma_proofs::{
     composition::{ComposedRelation, ComposedWitness},
     linear_relation::{CanonicalLinearRelation, Sum},
-    traits::{Prng, SigmaProtocol, SigmaProtocolSimulator},
+    traits::{ScalarRng, SigmaProtocol, SigmaProtocolSimulator},
     LinearRelation, Nizk,
 };
 
@@ -102,7 +102,7 @@ fn baseline() {
 }
 
 fn wide_relation<const WIDTH: usize>(
-    rng: &mut impl Prng,
+    rng: &mut impl ScalarRng,
 ) -> (CanonicalLinearRelation<G>, Vec<Scalar>) {
     let mut rel = LinearRelation::<G>::new();
     let constraint: Sum<_> = (0..WIDTH)
@@ -169,7 +169,7 @@ where
 /// witnesses.
 struct FixedRng;
 
-impl Prng for FixedRng {
+impl ScalarRng for FixedRng {
     fn random_scalars<G: Group, const N: usize>(&mut self) -> [G::Scalar; N] {
         from_fn(|_| <G::Scalar as Field>::ONE)
     }

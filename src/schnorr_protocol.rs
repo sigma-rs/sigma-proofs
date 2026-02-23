@@ -6,7 +6,7 @@
 
 use crate::errors::{Error, Result};
 use crate::linear_relation::CanonicalLinearRelation;
-use crate::traits::{Prng, SigmaProtocol, SigmaProtocolSimulator, Transcript};
+use crate::traits::{ScalarRng, SigmaProtocol, SigmaProtocolSimulator, Transcript};
 use crate::{LinearRelation, Nizk};
 use alloc::vec::Vec;
 
@@ -42,7 +42,7 @@ where
     fn prover_commit(
         &self,
         witness: &Self::Witness,
-        rng: &mut impl Prng,
+        rng: &mut impl ScalarRng,
     ) -> Result<(Vec<Self::Commitment>, Self::ProverState)> {
         if witness.len() < self.num_scalars {
             return Err(Error::InvalidInstanceWitnessPair);
@@ -240,7 +240,7 @@ where
     ///
     /// # Returns
     /// - A commitment and response forming a valid proof for the given challenge.
-    fn simulate_response(&self, rng: &mut impl Prng) -> Vec<Self::Response> {
+    fn simulate_response(&self, rng: &mut impl ScalarRng) -> Vec<Self::Response> {
         rng.random_scalars_vec::<G>(self.num_scalars)
     }
 
@@ -251,7 +251,7 @@ where
     ///
     /// # Returns
     /// - A tuple `(commitment, challenge, response)` forming a valid proof.
-    fn simulate_transcript(&self, rng: &mut impl Prng) -> Result<Transcript<Self>> {
+    fn simulate_transcript(&self, rng: &mut impl ScalarRng) -> Result<Transcript<Self>> {
         let [challenge] = rng.random_scalars::<G, _>();
         let response = self.simulate_response(rng);
         let commitment = self.simulate_commitment(&challenge, &response)?;

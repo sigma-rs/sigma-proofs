@@ -7,7 +7,7 @@ use sha3::{
     Shake128,
 };
 
-use sigma_proofs::traits::Prng;
+use sigma_proofs::traits::ScalarRng;
 
 pub struct Shake128PRNG(<Shake128 as ExtendableOutput>::Reader);
 
@@ -40,12 +40,12 @@ impl RngCore for Shake128PRNG {
     }
 }
 
-pub struct TracingPRNG<R: Prng> {
+pub struct TracingPRNG<R: ScalarRng> {
     inner: R,
     store: Vec<Vec<u8>>,
 }
 
-impl<R: Prng> TracingPRNG<R> {
+impl<R: ScalarRng> TracingPRNG<R> {
     pub fn new(rng: R) -> Self {
         Self {
             inner: rng,
@@ -58,7 +58,7 @@ impl<R: Prng> TracingPRNG<R> {
     }
 }
 
-impl<R: Prng> Prng for TracingPRNG<R> {
+impl<R: ScalarRng> ScalarRng for TracingPRNG<R> {
     fn random_scalars<G: Group, const N: usize>(&mut self) -> [G::Scalar; N] {
         let scalars = self.inner.random_scalars::<G, N>();
         self.store
@@ -85,7 +85,7 @@ impl<I: Iterator<Item = Vec<u8>>> MockPRNG<I> {
     }
 }
 
-impl<I: Iterator<Item = Vec<u8>>> Prng for MockPRNG<I> {
+impl<I: Iterator<Item = Vec<u8>>> ScalarRng for MockPRNG<I> {
     fn random_scalars<G: Group, const N: usize>(&mut self) -> [G::Scalar; N] {
         from_fn(|_| self.next::<G>())
     }

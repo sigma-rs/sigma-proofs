@@ -2,10 +2,10 @@ use group::{ff::Field, prime::PrimeGroup, Group};
 
 use sigma_proofs::{
     linear_relation::{CanonicalLinearRelation, LinearRelation, Sum},
-    traits::Prng,
+    traits::ScalarRng,
 };
 
-pub(crate) fn random_elem<G: Group>(rng: &mut impl Prng) -> G {
+pub(crate) fn random_elem<G: Group>(rng: &mut impl ScalarRng) -> G {
     let [x] = rng.random_scalars::<G, _>();
     G::generator() * x
 }
@@ -14,7 +14,7 @@ type Return<G> = (CanonicalLinearRelation<G>, Vec<<G as Group>::Scalar>);
 
 /// LinearMap for knowledge of a discrete logarithm relative to a fixed basepoint.
 #[allow(non_snake_case)]
-pub fn discrete_logarithm<G: PrimeGroup>(rng: &mut impl Prng) -> Return<G> {
+pub fn discrete_logarithm<G: PrimeGroup>(rng: &mut impl ScalarRng) -> Return<G> {
     let [x] = rng.random_scalars::<G, _>();
     let mut relation = LinearRelation::new();
 
@@ -36,7 +36,7 @@ pub fn discrete_logarithm<G: PrimeGroup>(rng: &mut impl Prng) -> Return<G> {
 
 /// LinearMap for knowledge of a shifted discrete logarithm relative to a fixed basepoint.
 #[allow(non_snake_case)]
-pub fn shifted_dlog<G: PrimeGroup>(rng: &mut impl Prng) -> Return<G> {
+pub fn shifted_dlog<G: PrimeGroup>(rng: &mut impl ScalarRng) -> Return<G> {
     let [x] = rng.random_scalars::<G, _>();
     let mut relation = LinearRelation::new();
 
@@ -57,7 +57,7 @@ pub fn shifted_dlog<G: PrimeGroup>(rng: &mut impl Prng) -> Return<G> {
 
 /// LinearMap for knowledge of a discrete logarithm equality between two pairs.
 #[allow(non_snake_case)]
-pub fn dleq<G: PrimeGroup>(rng: &mut impl Prng) -> Return<G> {
+pub fn dleq<G: PrimeGroup>(rng: &mut impl ScalarRng) -> Return<G> {
     let [x] = rng.random_scalars::<G, _>();
     let H = random_elem(rng);
     let mut relation = LinearRelation::new();
@@ -83,7 +83,7 @@ pub fn dleq<G: PrimeGroup>(rng: &mut impl Prng) -> Return<G> {
 
 /// LinearMap for knowledge of a shifted dleq.
 #[allow(non_snake_case)]
-pub fn shifted_dleq<G: PrimeGroup>(rng: &mut impl Prng) -> Return<G> {
+pub fn shifted_dleq<G: PrimeGroup>(rng: &mut impl ScalarRng) -> Return<G> {
     let [x] = rng.random_scalars::<G, _>();
     let H = random_elem(rng);
     let mut relation = LinearRelation::new();
@@ -109,7 +109,7 @@ pub fn shifted_dleq<G: PrimeGroup>(rng: &mut impl Prng) -> Return<G> {
 
 /// LinearMap for knowledge of an opening to a Pedersen commitment.
 #[allow(non_snake_case)]
-pub fn pedersen_commitment<G: PrimeGroup>(rng: &mut impl Prng) -> Return<G> {
+pub fn pedersen_commitment<G: PrimeGroup>(rng: &mut impl ScalarRng) -> Return<G> {
     let [x, r] = rng.random_scalars::<G, _>();
     let H = random_elem(rng);
     let mut relation = LinearRelation::new();
@@ -131,7 +131,7 @@ pub fn pedersen_commitment<G: PrimeGroup>(rng: &mut impl Prng) -> Return<G> {
 }
 
 #[allow(non_snake_case)]
-pub fn twisted_pedersen_commitment<G: PrimeGroup>(rng: &mut impl Prng) -> Return<G> {
+pub fn twisted_pedersen_commitment<G: PrimeGroup>(rng: &mut impl ScalarRng) -> Return<G> {
     let [x, r] = rng.random_scalars::<G, _>();
     let H = random_elem(rng);
     let mut relation = LinearRelation::new();
@@ -155,7 +155,7 @@ pub fn twisted_pedersen_commitment<G: PrimeGroup>(rng: &mut impl Prng) -> Return
 /// Test that a Pedersen commitment is in the given range.
 #[allow(non_snake_case)]
 pub fn range_instance_generation<G: PrimeGroup>(
-    rng: &mut impl Prng,
+    rng: &mut impl ScalarRng,
     input: u64,
     range: std::ops::Range<u64>,
 ) -> Return<G> {
@@ -250,14 +250,14 @@ pub fn range_instance_generation<G: PrimeGroup>(
 
 /// Test that a Pedersen commitment is in `[0, bound)` for any `bound >= 0`.
 #[allow(non_snake_case)]
-pub fn test_range<G: PrimeGroup>(rng: &mut impl Prng) -> Return<G> {
+pub fn test_range<G: PrimeGroup>(rng: &mut impl ScalarRng) -> Return<G> {
     range_instance_generation(rng, 822, 0..1337)
 }
 
 /// LinearMap for knowledge of an opening for use in a BBS commitment.
 // BBS message length is 3
 #[allow(non_snake_case)]
-pub fn bbs_blind_commitment<G: PrimeGroup>(rng: &mut impl Prng) -> Return<G> {
+pub fn bbs_blind_commitment<G: PrimeGroup>(rng: &mut impl ScalarRng) -> Return<G> {
     let [Q_2, J_1, J_2, J_3] = [
         random_elem(rng),
         random_elem(rng),
@@ -304,7 +304,7 @@ pub fn bbs_blind_commitment<G: PrimeGroup>(rng: &mut impl Prng) -> Return<G> {
 
 /// LinearMap for the user's specific relation: A * 1 + gen__disj1_x_r * B
 #[allow(non_snake_case)]
-pub fn weird_linear_combination<G: PrimeGroup>(rng: &mut impl Prng) -> Return<G> {
+pub fn weird_linear_combination<G: PrimeGroup>(rng: &mut impl ScalarRng) -> Return<G> {
     let B = random_elem(rng);
     let [gen__disj1_x_r] = rng.random_scalars::<G, _>();
     let mut sigma__lr = LinearRelation::new();
@@ -331,7 +331,7 @@ pub fn weird_linear_combination<G: PrimeGroup>(rng: &mut impl Prng) -> Return<G>
 }
 
 #[allow(non_snake_case)]
-pub fn simple_subtractions<G: PrimeGroup>(rng: &mut impl Prng) -> Return<G> {
+pub fn simple_subtractions<G: PrimeGroup>(rng: &mut impl ScalarRng) -> Return<G> {
     let [x] = rng.random_scalars::<G, _>();
     let B = random_elem(rng);
     let X = B * (x - G::Scalar::from(1));
@@ -349,7 +349,7 @@ pub fn simple_subtractions<G: PrimeGroup>(rng: &mut impl Prng) -> Return<G> {
 }
 
 #[allow(non_snake_case)]
-pub fn subtractions_with_shift<G: PrimeGroup>(rng: &mut impl Prng) -> Return<G> {
+pub fn subtractions_with_shift<G: PrimeGroup>(rng: &mut impl ScalarRng) -> Return<G> {
     let B = G::generator();
     let [x] = rng.random_scalars::<G, _>();
     let X = B * (x - G::Scalar::from(2));
@@ -367,7 +367,7 @@ pub fn subtractions_with_shift<G: PrimeGroup>(rng: &mut impl Prng) -> Return<G> 
 }
 
 #[allow(non_snake_case)]
-pub fn cmz_wallet_spend_relation<G: PrimeGroup>(rng: &mut impl Prng) -> Return<G> {
+pub fn cmz_wallet_spend_relation<G: PrimeGroup>(rng: &mut impl ScalarRng) -> Return<G> {
     // Simulate the wallet spend relation from cmz
     let P_W = random_elem(rng);
     let A = random_elem(rng);
@@ -409,7 +409,7 @@ pub fn cmz_wallet_spend_relation<G: PrimeGroup>(rng: &mut impl Prng) -> Return<G
 }
 
 #[allow(non_snake_case)]
-pub fn nested_affine_relation<G: PrimeGroup>(rng: &mut impl Prng) -> Return<G> {
+pub fn nested_affine_relation<G: PrimeGroup>(rng: &mut impl ScalarRng) -> Return<G> {
     let mut instance = LinearRelation::<G>::new();
     let var_r = instance.allocate_scalar();
     let var_A = instance.allocate_element();
@@ -432,7 +432,7 @@ pub fn nested_affine_relation<G: PrimeGroup>(rng: &mut impl Prng) -> Return<G> {
 }
 
 #[allow(non_snake_case)]
-pub fn pedersen_commitment_equality<G: PrimeGroup>(rng: &mut impl Prng) -> Return<G> {
+pub fn pedersen_commitment_equality<G: PrimeGroup>(rng: &mut impl ScalarRng) -> Return<G> {
     let mut instance = LinearRelation::new();
 
     let [m, r1, r2] = instance.allocate_scalars();
@@ -451,7 +451,7 @@ pub fn pedersen_commitment_equality<G: PrimeGroup>(rng: &mut impl Prng) -> Retur
 }
 
 #[allow(non_snake_case)]
-pub fn elgamal_subtraction<G: PrimeGroup>(rng: &mut impl Prng) -> Return<G> {
+pub fn elgamal_subtraction<G: PrimeGroup>(rng: &mut impl ScalarRng) -> Return<G> {
     let mut instance = LinearRelation::new();
     let [dk, a, r] = instance.allocate_scalars();
     let [ek, C, D, H, G] = instance.allocate_elements();
