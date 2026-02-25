@@ -6,6 +6,9 @@ use sigma_proofs::{
 };
 
 pub(crate) fn random_elem<G: Group>(rng: &mut impl ScalarRng) -> G {
+    // Test helper only: this samples elements as x*G where x is known, so the discrete
+    // logarithm of returned elements is known. Do not use this outside tests; it is insecure
+    // for most concrete applications.
     let [x] = rng.random_scalars::<G, _>();
     G::generator() * x
 }
