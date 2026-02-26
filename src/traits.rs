@@ -13,7 +13,10 @@ use spongefish::{Codec, Decoding, Encoding, NargDeserialize, NargSerialize};
 ///
 /// This trait is implemented for all types implementing `rand_core::RngCore`.
 /// Passing any cryptographically-secure random number generator (CSRNG) is
-/// recommended for creating proofs.
+/// recommended for creating proofs for development,
+///
+/// For testing purposes and to reproduce deterministic test vectors,
+/// a PRNG can be used to implement this trait.
 pub trait ScalarRng {
     fn random_scalars<G: Group, const N: usize>(&mut self) -> [G::Scalar; N]
     where

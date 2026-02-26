@@ -36,10 +36,10 @@ where
     G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize,
     G::Scalar: Codec,
 {
-    let instance_generation_rng_seed = b"instance_witness_generation_seed";
-    let proof_chal_resp_seed = b"proving-method-challenge-response-format";
-    let proof_comm_resp_seed = b"proving-method-commitment-response-format";
-    let session_id = b"session_identifier";
+    const INSTANCE_GENERATION_RNG_SEED: &str = "instance_witness_generation_seed";
+    const PROOF_CHAL_RESP_SEED: &str = "proving-method-challenge-response-format";
+    const PROOF_COMM_RESP_SEED: &str = "proving-method-commitment-response-format";
+    const SESSION_ID: &str = "session-identifier";
 
     let instance_generators: Vec<(_, &'static dyn Fn(&mut _) -> _)> = vec![
         ("discrete_logarithm", &discrete_logarithm),
@@ -61,46 +61,42 @@ where
     let mut test_vectors = Vec::new();
 
     for (name, generator_fn) in instance_generators {
-        let instance_rng = &mut SeededScalarRng::from_seed(instance_generation_rng_seed);
+        let instance_seed = format!("{}/{}", INSTANCE_GENERATION_RNG_SEED, name).into_bytes();
+        let session_id = format!("{}/{}", SESSION_ID, name).into_bytes();
+
+        let instance_rng = &mut SeededScalarRng::from_seed(&instance_seed);
         let (statement, witness) = generator_fn(instance_rng);
-        let nizk = Nizk::<CanonicalLinearRelation<G>>::new(session_id, statement.clone());
+        let nizk = Nizk::<CanonicalLinearRelation<G>>::new(&session_id, statement.clone());
 
         let (randomness_chal_resp, proof_chal_resp) = {
-            let mut proof_chal_resp_rng =
-                TracingScalarRng::new(SeededScalarRng::from_seed(proof_chal_resp_seed));
-            let proof_chal_resp = nizk
-                .prove_compact(&witness, &mut proof_chal_resp_rng)
-                .unwrap();
-            let is_valid = nizk.verify_compact(&proof_chal_resp).is_ok();
-            assert!(is_valid);
-            let randomness_chal_resp = proof_chal_resp_rng.collect().into_iter().map(Hex).collect();
-
-            (randomness_chal_resp, Hex(proof_chal_resp))
+            let seed = format!("{}/{}", PROOF_CHAL_RESP_SEED, name).into_bytes();
+            let mut prng = TracingScalarRng::new(SeededScalarRng::from_seed(&seed));
+            let proof = nizk.prove_compact(&witness, &mut prng).unwrap();
+            let verification = nizk.verify_compact(&proof);
+            assert!(verification.is_ok());
+            let randomness = prng.collect().into_iter().map(Hex).collect();
+            (randomness, Hex(proof))
         };
 
         let (randomness_comm_resp, proof_comm_resp) = {
-            let mut proof_comm_resp_rng =
-                TracingScalarRng::new(SeededScalarRng::from_seed(proof_comm_resp_seed));
-            let proof_comm_resp = nizk
-                .prove_batchable(&witness, &mut proof_comm_resp_rng)
-                .unwrap();
-            let is_valid = nizk.verify_batchable(&proof_comm_resp).is_ok();
-            assert!(is_valid);
-            let randomness_comm_resp = proof_comm_resp_rng.collect().into_iter().map(Hex).collect();
-
-            (randomness_comm_resp, Hex(proof_comm_resp))
+            let seed = format!("{}/{}", PROOF_COMM_RESP_SEED, name).into_bytes();
+            let mut prng = TracingScalarRng::new(SeededScalarRng::from_seed(&seed));
+            let proof = nizk.prove_batchable(&witness, &mut prng).unwrap();
+            let verification = nizk.verify_batchable(&proof);
+            assert!(verification.is_ok());
+            let randomness = prng.collect().into_iter().map(Hex).collect();
+            (randomness, Hex(proof))
         };
 
         test_vectors.push(TestVector {
             protocol: name.into(),
             ciphersuite: ciphersuite.into(),
-            hash: "KeccakDuplexSponge".to_string(),
-            session_id: Hex(session_id.to_vec()),
+            hash: "KeccakDuplexSponge".into(),
+            session_id: Hex(session_id),
             statement: Hex(statement.label()),
             witness: witness
                 .into_iter()
-                .map(|w| w.encode().as_ref().to_vec())
-                .map(Hex)
+                .map(|w| Hex(w.encode().as_ref().to_vec()))
                 .collect(),
             randomness_chal_resp,
             proof_chal_resp,
