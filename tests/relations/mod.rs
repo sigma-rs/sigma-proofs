@@ -2,12 +2,12 @@ use group::{ff::Field, prime::PrimeGroup, Group};
 
 use sigma_proofs::{
     linear_relation::{CanonicalLinearRelation, LinearRelation, Sum},
-    traits::ScalarRng,
+    traits::CSRNG,
     MultiScalarMul,
 };
 use spongefish::Codec;
 
-pub(crate) fn random_elem<G: Group>(rng: &mut impl ScalarRng) -> G
+pub(crate) fn random_elem<G: Group>(rng: &mut impl CSRNG) -> G
 where
     G::Scalar: Codec,
 {
@@ -22,7 +22,7 @@ type Return<G> = (CanonicalLinearRelation<G>, Vec<<G as Group>::Scalar>);
 
 /// LinearMap for knowledge of a discrete logarithm relative to a fixed basepoint.
 #[allow(non_snake_case)]
-pub fn discrete_logarithm<G: PrimeGroup + MultiScalarMul>(rng: &mut impl ScalarRng) -> Return<G>
+pub fn discrete_logarithm<G: PrimeGroup + MultiScalarMul>(rng: &mut impl CSRNG) -> Return<G>
 where
     G::Scalar: Codec,
 {
@@ -47,7 +47,7 @@ where
 
 /// LinearMap for knowledge of a shifted discrete logarithm relative to a fixed basepoint.
 #[allow(non_snake_case)]
-pub fn shifted_dlog<G: PrimeGroup + MultiScalarMul>(rng: &mut impl ScalarRng) -> Return<G>
+pub fn shifted_dlog<G: PrimeGroup + MultiScalarMul>(rng: &mut impl CSRNG) -> Return<G>
 where
     G::Scalar: Codec,
 {
@@ -71,7 +71,7 @@ where
 
 /// LinearMap for knowledge of a discrete logarithm equality between two pairs.
 #[allow(non_snake_case)]
-pub fn dleq<G: PrimeGroup + MultiScalarMul>(rng: &mut impl ScalarRng) -> Return<G>
+pub fn dleq<G: PrimeGroup + MultiScalarMul>(rng: &mut impl CSRNG) -> Return<G>
 where
     G::Scalar: Codec,
 {
@@ -100,7 +100,7 @@ where
 
 /// LinearMap for knowledge of a shifted dleq.
 #[allow(non_snake_case)]
-pub fn shifted_dleq<G: PrimeGroup + MultiScalarMul>(rng: &mut impl ScalarRng) -> Return<G>
+pub fn shifted_dleq<G: PrimeGroup + MultiScalarMul>(rng: &mut impl CSRNG) -> Return<G>
 where
     G::Scalar: Codec,
 {
@@ -129,7 +129,7 @@ where
 
 /// LinearMap for knowledge of an opening to a Pedersen commitment.
 #[allow(non_snake_case)]
-pub fn pedersen_commitment<G: PrimeGroup + MultiScalarMul>(rng: &mut impl ScalarRng) -> Return<G>
+pub fn pedersen_commitment<G: PrimeGroup + MultiScalarMul>(rng: &mut impl CSRNG) -> Return<G>
 where
     G::Scalar: Codec,
 {
@@ -155,7 +155,7 @@ where
 
 #[allow(non_snake_case)]
 pub fn twisted_pedersen_commitment<G: PrimeGroup + MultiScalarMul>(
-    rng: &mut impl ScalarRng,
+    rng: &mut impl CSRNG,
 ) -> Return<G>
 where
     G::Scalar: Codec,
@@ -183,7 +183,7 @@ where
 /// Test that a Pedersen commitment is in the given range.
 #[allow(non_snake_case)]
 pub fn range_instance_generation<G: PrimeGroup + MultiScalarMul>(
-    rng: &mut impl ScalarRng,
+    rng: &mut impl CSRNG,
     input: u64,
     range: std::ops::Range<u64>,
 ) -> Return<G>
@@ -281,7 +281,7 @@ where
 
 /// Test that a Pedersen commitment is in `[0, bound)` for any `bound >= 0`.
 #[allow(non_snake_case)]
-pub fn test_range<G: PrimeGroup + MultiScalarMul>(rng: &mut impl ScalarRng) -> Return<G>
+pub fn test_range<G: PrimeGroup + MultiScalarMul>(rng: &mut impl CSRNG) -> Return<G>
 where
     G::Scalar: Codec,
 {
@@ -291,7 +291,7 @@ where
 /// LinearMap for knowledge of an opening for use in a BBS commitment.
 // BBS message length is 3
 #[allow(non_snake_case)]
-pub fn bbs_blind_commitment<G: PrimeGroup + MultiScalarMul>(rng: &mut impl ScalarRng) -> Return<G>
+pub fn bbs_blind_commitment<G: PrimeGroup + MultiScalarMul>(rng: &mut impl CSRNG) -> Return<G>
 where
     G::Scalar: Codec,
 {
@@ -342,7 +342,7 @@ where
 /// LinearMap for the user's specific relation: A * 1 + gen__disj1_x_r * B
 #[allow(non_snake_case)]
 pub fn weird_linear_combination<G: PrimeGroup + MultiScalarMul>(
-    rng: &mut impl ScalarRng,
+    rng: &mut impl CSRNG,
 ) -> Return<G>
 where
     G::Scalar: Codec,
@@ -373,7 +373,7 @@ where
 }
 
 #[allow(non_snake_case)]
-pub fn simple_subtractions<G: PrimeGroup + MultiScalarMul>(rng: &mut impl ScalarRng) -> Return<G>
+pub fn simple_subtractions<G: PrimeGroup + MultiScalarMul>(rng: &mut impl CSRNG) -> Return<G>
 where
     G::Scalar: Codec,
 {
@@ -395,7 +395,7 @@ where
 
 #[allow(non_snake_case)]
 pub fn subtractions_with_shift<G: PrimeGroup + MultiScalarMul>(
-    rng: &mut impl ScalarRng,
+    rng: &mut impl CSRNG,
 ) -> Return<G>
 where
     G::Scalar: Codec,
@@ -418,7 +418,7 @@ where
 
 #[allow(non_snake_case)]
 pub fn cmz_wallet_spend_relation<G: PrimeGroup + MultiScalarMul>(
-    rng: &mut impl ScalarRng,
+    rng: &mut impl CSRNG,
 ) -> Return<G>
 where
     G::Scalar: Codec,
@@ -465,7 +465,7 @@ where
 
 #[allow(non_snake_case)]
 pub fn nested_affine_relation<G: PrimeGroup + MultiScalarMul>(
-    rng: &mut impl ScalarRng,
+    rng: &mut impl CSRNG,
 ) -> Return<G>
 where
     G::Scalar: Codec,
@@ -493,7 +493,7 @@ where
 
 #[allow(non_snake_case)]
 pub fn pedersen_commitment_equality<G: PrimeGroup + MultiScalarMul>(
-    rng: &mut impl ScalarRng,
+    rng: &mut impl CSRNG,
 ) -> Return<G>
 where
     G::Scalar: Codec,
@@ -516,7 +516,7 @@ where
 }
 
 #[allow(non_snake_case)]
-pub fn elgamal_subtraction<G: PrimeGroup + MultiScalarMul>(rng: &mut impl ScalarRng) -> Return<G>
+pub fn elgamal_subtraction<G: PrimeGroup + MultiScalarMul>(rng: &mut impl CSRNG) -> Return<G>
 where
     G::Scalar: Codec,
 {

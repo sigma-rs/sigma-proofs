@@ -71,10 +71,10 @@ extern crate alloc;
 
 pub mod codec;
 pub mod composition;
+pub mod csrng;
 pub mod errors;
 pub mod group;
 pub mod linear_relation;
-pub mod rng;
 pub mod traits;
 
 pub(crate) mod duplex_sponge;
