@@ -125,7 +125,7 @@ impl<T> core::iter::Sum<T> for Sum<T> {
 /// The indices refer to external lists managed by the containing LinearMap.
 pub type LinearCombination<G> = Sum<Weighted<Term<G>, <G as group::Group>::Scalar>>;
 
-impl<G: PrimeGroup> LinearMap<G> {
+impl<G: PrimeGroup + MultiScalarMul<G::Scalar>> LinearMap<G> {
     fn map(&self, scalars: &[G::Scalar]) -> Result<Vec<G>, InvalidInstance> {
         self.linear_combinations
             .iter()
@@ -309,7 +309,10 @@ impl<G: PrimeGroup> LinearMap<G> {
     /// # Returns
     ///
     /// A vector of group elements, each being the result of evaluating one linear combination with the scalars.
-    pub fn evaluate(&self, scalars: &[G::Scalar]) -> Result<Vec<G>, Error> {
+    pub fn evaluate(&self, scalars: &[G::Scalar]) -> Result<Vec<G>, Error>
+    where
+        G: MultiScalarMul<G::Scalar>,
+    {
         self.linear_combinations
             .iter()
             .map(|lc| {
@@ -522,7 +525,10 @@ impl<G: PrimeGroup> LinearRelation<G> {
     ///
     /// Return `Ok` on success, and an error if unassigned elements prevent the image from being
     /// computed. Modifies the group elements assigned in the [LinearRelation].
-    pub fn compute_image(&mut self, scalars: &[G::Scalar]) -> Result<(), Error> {
+    pub fn compute_image(&mut self, scalars: &[G::Scalar]) -> Result<(), Error>
+    where
+        G: MultiScalarMul<G::Scalar>,
+    {
         if self.linear_map.num_constraints() != self.image.len() {
             // NOTE: This is a panic, rather than a returned error, because this can only happen if
             // this implementation has a bug.
@@ -555,7 +561,10 @@ impl<G: PrimeGroup> LinearRelation<G> {
     /// Construct a [CanonicalLinearRelation] from this generalized linear relation.
     ///
     /// The construction may fail if the linear relation is malformed, unsatisfiable, or trivial.
-    pub fn canonical(&self) -> Result<CanonicalLinearRelation<G>, InvalidInstance> {
+    pub fn canonical(&self) -> Result<CanonicalLinearRelation<G>, InvalidInstance>
+    where
+        G: MultiScalarMul<G::Scalar>,
+    {
         self.try_into()
     }
 }
