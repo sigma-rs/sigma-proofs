@@ -45,3 +45,28 @@ mod curve25519 {
         }
     }
 }
+
+#[cfg(feature = "bls12_381")]
+mod bls12_381 {
+    use super::MultiScalarMul;
+    use bls12_381::{G1Projective, G2Projective, Scalar};
+
+    impl MultiScalarMul<Scalar> for G1Projective {}
+    impl MultiScalarMul<Scalar> for G2Projective {}
+}
+
+#[cfg(feature = "k256")]
+mod k256 {
+    use super::MultiScalarMul;
+    use k256::{ProjectivePoint, Scalar};
+
+    impl MultiScalarMul<Scalar> for ProjectivePoint {}
+}
+
+#[cfg(feature = "p256")]
+mod p256 {
+    use super::MultiScalarMul;
+    use p256::{ProjectivePoint, Scalar};
+
+    impl MultiScalarMul<Scalar> for ProjectivePoint {}
+}
