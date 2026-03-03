@@ -32,11 +32,12 @@ std = [
     "spongefish/std",
 ]
 bls12_381 = ["spongefish/bls12_381"]
-curve25519-dalek = ["spongefish/curve25519-dalek"]
+curve25519-dalek = ["dep:curve25519-dalek", "spongefish/curve25519-dalek"]
 k256 = ["spongefish/k256"]
 
 [dependencies]
 ahash = { version = "0.8", default-features = false }
+curve25519-dalek = { version = "4.1.3", optional = true }
 ff = { version = "0.13", features = ["derive"] }
 group = "0.13.0"
 hashbrown = { version = "0.15", default-features = false }

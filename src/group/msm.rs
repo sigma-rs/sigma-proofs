@@ -49,3 +49,15 @@ pub trait MultiScalarMul<Scalar: Clone>: Clone + Mul<Scalar, Output = Self> + Su
             .sum()
     }
 }
+
+#[cfg(feature = "curve25519-dalek")]
+mod curve25519 {
+    use super::MultiScalarMul;
+    use curve25519_dalek::{traits::MultiscalarMul as _, RistrettoPoint, Scalar};
+
+    impl MultiScalarMul<Scalar> for RistrettoPoint {
+        fn msm(scalars: &[Scalar], bases: &[Self]) -> Self {
+            RistrettoPoint::multiscalar_mul(scalars, bases)
+        }
+    }
+}
