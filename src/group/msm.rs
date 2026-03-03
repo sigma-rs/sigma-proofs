@@ -29,10 +29,7 @@ const fn ln_without_floats(a: usize) -> usize {
 ///
 /// Implementations can override this with optimized algorithms for specific groups,
 /// while a default naive implementation is provided for all [`PrimeGroup`] types.
-pub trait MultiScalarMul: Clone + Mul<Self::Scalar, Output = Self> + Sum {
-    /// The scalar field type associated with the group.
-    type Scalar: Clone;
-
+pub trait MultiScalarMul<Scalar: Clone>: Clone + Mul<Scalar, Output = Self> + Sum {
     /// Computes the multi-scalar multiplication (MSM) over the provided scalars and points.
     ///
     /// # Parameters
@@ -45,7 +42,7 @@ pub trait MultiScalarMul: Clone + Mul<Self::Scalar, Output = Self> + Sum {
     /// # Panics
     ///
     /// Panics if `scalars.len() != bases.len()`.
-    fn msm(scalars: &[Self::Scalar], bases: &[Self]) -> Self {
+    fn msm(scalars: &[Scalar], bases: &[Self]) -> Self {
         assert_eq!(scalars.len(), bases.len());
         core::iter::zip(bases, scalars)
             .map(|(g, x)| g.clone() * x.clone())
