@@ -1,21 +1,5 @@
 use core::{iter::Sum, ops::Mul};
 
-/// The result of this function is only approximately `ln(a)`. This is inherited from Zexe and libsnark.
-#[inline]
-const fn ln_without_floats(a: usize) -> usize {
-    if a == 0 {
-        1
-    } else {
-        // log2(a) * ln(2), ensure minimum value of 1
-        let result = (usize::BITS - (a - 1).leading_zeros()) as usize * 69 / 100;
-        if result == 0 {
-            1
-        } else {
-            result
-        }
-    }
-}
-
 /// Trait for performing Multi-Scalar Multiplication (MSM).
 ///
 /// Runtime is guaranteed to be constant with respect to the scalars. No constant time guarantees
