@@ -1,13 +1,7 @@
-#[cfg(not(feature = "std"))]
-use ahash::RandomState;
 use alloc::format;
 use alloc::vec::Vec;
 use core::iter;
 use core::marker::PhantomData;
-#[cfg(not(feature = "std"))]
-use hashbrown::HashMap;
-#[cfg(feature = "std")]
-use std::collections::HashMap;
 
 use ff::Field;
 use group::prime::PrimeGroup;
@@ -42,14 +36,9 @@ pub struct CanonicalLinearRelation<G: PrimeGroup> {
 
 /// Private type alias used to simplify function signatures below.
 ///
-/// The cache is essentially a mapping (GroupVar, Scalar) => GroupVar, which maps the original
-/// weighted group vars to a new assignment, such that if a pair appears more than once, it will
-/// map to the same group variable in the canonical linear relation.
-#[cfg(feature = "std")]
-type WeightedGroupCache<G> = HashMap<GroupVar<G>, Vec<(<G as group::Group>::Scalar, GroupVar<G>)>>;
-#[cfg(not(feature = "std"))]
-type WeightedGroupCache<G> =
-    HashMap<GroupVar<G>, Vec<(<G as group::Group>::Scalar, GroupVar<G>)>, RandomState>;
+/// The cache maps each `GroupVar` index to a list of `(weight, canonical_group_var)` pairs.
+/// Using an index-addressed vector keeps lookup fast while preserving deterministic ordering.
+type WeightedGroupCache<G> = Vec<Vec<(<G as group::Group>::Scalar, GroupVar<G>)>>;
 
 impl<G: PrimeGroup> CanonicalLinearRelation<G> {
     /// Create a new empty canonical linear relation.
@@ -100,8 +89,12 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
         original_group_elements: &GroupMap<G>,
         weighted_group_cache: &mut WeightedGroupCache<G>,
     ) -> Result<GroupVar<G>, InvalidInstance> {
-        // Check if we already have this (weight, group_var) combination
-        let entry = weighted_group_cache.entry(group_var).or_default();
+        // Check if we already have this (weight, group_var) combination.
+        let index = group_var.index();
+        if weighted_group_cache.len() <= index {
+            weighted_group_cache.resize_with(index + 1, Vec::new);
+        }
+        let entry = &mut weighted_group_cache[index];
 
         // Find if we already have this weight for this group_var
         if let Some((_, existing_var)) = entry.iter().find(|(w, _)| w == weight) {
@@ -439,11 +432,8 @@ impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
         let mut canonical = CanonicalLinearRelation::new();
         canonical.num_scalars = relation.linear_map.num_scalars;
 
-        // Cache for deduplicating weighted group elements
-        #[cfg(feature = "std")]
-        let mut weighted_group_cache = HashMap::new();
-        #[cfg(not(feature = "std"))]
-        let mut weighted_group_cache = HashMap::with_hasher(RandomState::new());
+        // Cache for deduplicating weighted group elements.
+        let mut weighted_group_cache = Vec::new();
 
         // Process each constraint using the modular helper method
         for (lhs, rhs) in iter::zip(&relation.image, &relation.linear_map.linear_combinations) {
