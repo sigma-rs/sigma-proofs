@@ -66,9 +66,18 @@ mod bls12_381 {
 #[cfg(feature = "k256")]
 mod k256 {
     use super::MultiScalarMul;
-    use k256::{ProjectivePoint, Scalar};
+    use k256::{elliptic_curve::ops::LinearCombinationExt, ProjectivePoint, Scalar};
 
-    impl MultiScalarMul<Scalar> for ProjectivePoint {}
+    impl MultiScalarMul<Scalar> for ProjectivePoint {
+        fn msm(scalars: &[Scalar], bases: &[Self]) -> Self {
+            assert_eq!(scalars.len(), bases.len());
+            LinearCombinationExt::lincomb_ext(
+                core::iter::zip(bases.iter().copied(), scalars.iter().copied())
+                    .collect::<Vec<_>>()
+                    .as_slice(),
+            )
+        }
+    }
 }
 
 #[cfg(feature = "p256")]
@@ -76,5 +85,6 @@ mod p256 {
     use super::MultiScalarMul;
     use p256::{ProjectivePoint, Scalar};
 
+    // NOTE: As of 0.13.2 the p256 crate does not implement LinearCombinationExt on ProjectivePoint
     impl MultiScalarMul<Scalar> for ProjectivePoint {}
 }
