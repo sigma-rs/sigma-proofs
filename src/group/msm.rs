@@ -38,10 +38,18 @@ pub trait MultiScalarMul<Scalar: Clone>: Clone + Mul<Scalar, Output = Self> + Su
 mod curve25519 {
     use super::MultiScalarMul;
     use curve25519_dalek::{traits::MultiscalarMul as _, RistrettoPoint, Scalar};
+    use group::Group;
 
     impl MultiScalarMul<Scalar> for RistrettoPoint {
         fn msm(scalars: &[Scalar], bases: &[Self]) -> Self {
-            RistrettoPoint::multiscalar_mul(scalars, bases)
+            assert_eq!(scalars.len(), bases.len());
+            match scalars.len() {
+                // curve25519_dalek always computes powers the the identity point, even when the
+                // input length is zero. Special case 0 to avoid this work. Expect for 0, the
+                // curve25519_dalek MSM is at least as fast as the naive MSM.
+                0 => RistrettoPoint::identity(),
+                1.. => RistrettoPoint::multiscalar_mul(scalars, bases),
+            }
         }
     }
 }
