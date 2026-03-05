@@ -21,7 +21,7 @@ exclude = [".gitignore"]
 [features]
 # Include commonly used curved in default features.
 # Increases the default compile times, but makes the crate just-work for most users.
-default = ["std", "bls12_381", "curve25519-dalek", "k256"]
+default = ["std", "bls12_381", "curve25519-dalek", "k256", "p256"]
 std = [
     "thiserror",
     "rand",
