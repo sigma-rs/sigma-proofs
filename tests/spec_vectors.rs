@@ -2,7 +2,7 @@ use bls12_381::G1Projective;
 use group::{ff::PrimeField, prime::PrimeGroup};
 use spongefish::{Decoding, Encoding, NargDeserialize, NargSerialize};
 
-use sigma_proofs::{linear_relation::CanonicalLinearRelation, Nizk};
+use sigma_proofs::{linear_relation::CanonicalLinearRelation, MultiScalarMul, Nizk};
 
 mod spec;
 use spec::{rng::MockPRNG, vectors::TestVector};
@@ -16,7 +16,7 @@ fn test_spec_testvectors() {
 
 fn testvectors<G>(vectors_json: &str)
 where
-    G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize,
+    G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize + MultiScalarMul<G::Scalar>,
     G::Scalar: Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]>,
 {
     let test_vectors: Vec<TestVector> = serde_json::from_str(vectors_json)
