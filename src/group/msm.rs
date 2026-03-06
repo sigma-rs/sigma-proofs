@@ -35,7 +35,7 @@ pub trait MultiScalarMul: Group {
 #[cfg(feature = "curve25519-dalek")]
 mod curve25519 {
     use super::MultiScalarMul;
-    use curve25519_dalek::{traits::MultiscalarMul as _, RistrettoPoint, Scalar};
+    use curve25519_dalek::{traits::MultiscalarMul as _, EdwardsPoint, RistrettoPoint, Scalar};
     use group::Group;
 
     impl MultiScalarMul for RistrettoPoint {
@@ -45,8 +45,21 @@ mod curve25519 {
                 // curve25519_dalek always computes powers the the identity point, even when the
                 // input length is zero. Special case 0 to avoid this work. Expect for 0, the
                 // curve25519_dalek MSM is at least as fast as the naive MSM.
-                0 => RistrettoPoint::identity(),
-                1.. => RistrettoPoint::multiscalar_mul(scalars, bases),
+                0 => Self::identity(),
+                1.. => Self::multiscalar_mul(scalars, bases),
+            }
+        }
+    }
+
+    impl MultiScalarMul for EdwardsPoint {
+        fn msm(scalars: &[Scalar], bases: &[Self]) -> Self {
+            assert_eq!(scalars.len(), bases.len());
+            match scalars.len() {
+                // curve25519_dalek always computes powers the the identity point, even when the
+                // input length is zero. Special case 0 to avoid this work. Expect for 0, the
+                // curve25519_dalek MSM is at least as fast as the naive MSM.
+                0 => Self::identity(),
+                1.. => Self::multiscalar_mul(scalars, bases),
             }
         }
     }
