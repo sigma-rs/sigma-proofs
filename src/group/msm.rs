@@ -12,7 +12,7 @@ use group::Group;
 /// ```
 ///
 /// Implementations can override this with optimized algorithms for specific groups,
-/// while a default naive implementation is provided for all [`PrimeGroup`] types.
+/// while a default naive implementation is provided for all [`Group`] implementations.
 pub trait MultiScalarMul: Group {
     /// Computes the multi-scalar multiplication (MSM) over the provided scalars and points.
     ///
@@ -28,9 +28,7 @@ pub trait MultiScalarMul: Group {
     /// Panics if `scalars.len() != bases.len()`.
     fn msm(scalars: &[Self::Scalar], bases: &[Self]) -> Self {
         assert_eq!(scalars.len(), bases.len());
-        core::iter::zip(bases, scalars)
-            .map(|(g, x)| *g * *x)
-            .sum()
+        core::iter::zip(bases, scalars).map(|(g, x)| *g * *x).sum()
     }
 }
 
