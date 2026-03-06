@@ -21,7 +21,7 @@ jobs:
       run: cargo test --verbose --no-fail-fast
     - name: Run benchmark test
       # Run the msm benchmark, just to ensure it isn't broken.
-      run: cargo bench --bench msm -- --quick
+      run: cargo bench --bench msm -- --sample-count 1 --sample-size 1
 
   no-std-check:
     runs-on: ubuntu-latest
