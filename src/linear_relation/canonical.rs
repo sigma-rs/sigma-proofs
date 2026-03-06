@@ -414,9 +414,7 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
     }
 }
 
-impl<G: PrimeGroup + MultiScalarMul> TryFrom<LinearRelation<G>>
-    for CanonicalLinearRelation<G>
-{
+impl<G: PrimeGroup + MultiScalarMul> TryFrom<LinearRelation<G>> for CanonicalLinearRelation<G> {
     type Error = InvalidInstance;
 
     fn try_from(value: LinearRelation<G>) -> Result<Self, Self::Error> {
@@ -424,9 +422,7 @@ impl<G: PrimeGroup + MultiScalarMul> TryFrom<LinearRelation<G>>
     }
 }
 
-impl<G: PrimeGroup + MultiScalarMul> TryFrom<&LinearRelation<G>>
-    for CanonicalLinearRelation<G>
-{
+impl<G: PrimeGroup + MultiScalarMul> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
     type Error = InvalidInstance;
 
     fn try_from(relation: &LinearRelation<G>) -> Result<Self, Self::Error> {
