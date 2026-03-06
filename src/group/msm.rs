@@ -1,4 +1,4 @@
-use core::{iter::Sum, ops::Mul};
+use group::Group;
 
 /// Trait for performing Multi-Scalar Multiplication (MSM).
 ///
@@ -13,7 +13,7 @@ use core::{iter::Sum, ops::Mul};
 ///
 /// Implementations can override this with optimized algorithms for specific groups,
 /// while a default naive implementation is provided for all [`PrimeGroup`] types.
-pub trait MultiScalarMul<Scalar: Clone>: Clone + Mul<Scalar, Output = Self> + Sum {
+pub trait MultiScalarMul: Group {
     /// Computes the multi-scalar multiplication (MSM) over the provided scalars and points.
     ///
     /// # Parameters
@@ -26,10 +26,10 @@ pub trait MultiScalarMul<Scalar: Clone>: Clone + Mul<Scalar, Output = Self> + Su
     /// # Panics
     ///
     /// Panics if `scalars.len() != bases.len()`.
-    fn msm(scalars: &[Scalar], bases: &[Self]) -> Self {
+    fn msm(scalars: &[Self::Scalar], bases: &[Self]) -> Self {
         assert_eq!(scalars.len(), bases.len());
         core::iter::zip(bases, scalars)
-            .map(|(g, x)| g.clone() * x.clone())
+            .map(|(g, x)| *g * *x)
             .sum()
     }
 }
@@ -40,7 +40,7 @@ mod curve25519 {
     use curve25519_dalek::{traits::MultiscalarMul as _, RistrettoPoint, Scalar};
     use group::Group;
 
-    impl MultiScalarMul<Scalar> for RistrettoPoint {
+    impl MultiScalarMul for RistrettoPoint {
         fn msm(scalars: &[Scalar], bases: &[Self]) -> Self {
             assert_eq!(scalars.len(), bases.len());
             match scalars.len() {
@@ -57,10 +57,10 @@ mod curve25519 {
 #[cfg(feature = "bls12_381")]
 mod bls12_381 {
     use super::MultiScalarMul;
-    use bls12_381::{G1Projective, G2Projective, Scalar};
+    use bls12_381::{G1Projective, G2Projective};
 
-    impl MultiScalarMul<Scalar> for G1Projective {}
-    impl MultiScalarMul<Scalar> for G2Projective {}
+    impl MultiScalarMul for G1Projective {}
+    impl MultiScalarMul for G2Projective {}
 }
 
 #[cfg(feature = "k256")]
@@ -68,7 +68,7 @@ mod k256 {
     use super::MultiScalarMul;
     use k256::{elliptic_curve::ops::LinearCombinationExt, ProjectivePoint, Scalar};
 
-    impl MultiScalarMul<Scalar> for ProjectivePoint {
+    impl MultiScalarMul for ProjectivePoint {
         fn msm(scalars: &[Scalar], bases: &[Self]) -> Self {
             assert_eq!(scalars.len(), bases.len());
             LinearCombinationExt::lincomb_ext(
@@ -83,8 +83,8 @@ mod k256 {
 #[cfg(feature = "p256")]
 mod p256 {
     use super::MultiScalarMul;
-    use p256::{ProjectivePoint, Scalar};
+    use p256::ProjectivePoint;
 
     // NOTE: As of 0.13.2 the p256 crate does not implement LinearCombinationExt on ProjectivePoint
-    impl MultiScalarMul<Scalar> for ProjectivePoint {}
+    impl MultiScalarMul for ProjectivePoint {}
 }

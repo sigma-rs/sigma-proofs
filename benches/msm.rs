@@ -21,7 +21,7 @@ fn instance<G: Group>(n: usize) -> (Vec<G::Scalar>, Vec<G>) {
     )
 }
 
-fn bench_msm<G: Group + MultiScalarMul<G::Scalar>>(bencher: Bencher, n: usize) {
+fn bench_msm<G: Group + MultiScalarMul>(bencher: Bencher, n: usize) {
     let (scalars, bases) = instance(n);
     bencher
         .counter(n)

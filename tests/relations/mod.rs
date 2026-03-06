@@ -18,7 +18,7 @@ type Return<G> = (CanonicalLinearRelation<G>, Vec<<G as Group>::Scalar>);
 
 /// LinearMap for knowledge of a discrete logarithm relative to a fixed basepoint.
 #[allow(non_snake_case)]
-pub fn discrete_logarithm<G: PrimeGroup + MultiScalarMul<G::Scalar>>(
+pub fn discrete_logarithm<G: PrimeGroup + MultiScalarMul>(
     rng: &mut impl ScalarRng,
 ) -> Return<G> {
     let [x] = rng.random_scalars::<G, _>();
@@ -42,7 +42,7 @@ pub fn discrete_logarithm<G: PrimeGroup + MultiScalarMul<G::Scalar>>(
 
 /// LinearMap for knowledge of a shifted discrete logarithm relative to a fixed basepoint.
 #[allow(non_snake_case)]
-pub fn shifted_dlog<G: PrimeGroup + MultiScalarMul<G::Scalar>>(
+pub fn shifted_dlog<G: PrimeGroup + MultiScalarMul>(
     rng: &mut impl ScalarRng,
 ) -> Return<G> {
     let [x] = rng.random_scalars::<G, _>();
@@ -65,7 +65,7 @@ pub fn shifted_dlog<G: PrimeGroup + MultiScalarMul<G::Scalar>>(
 
 /// LinearMap for knowledge of a discrete logarithm equality between two pairs.
 #[allow(non_snake_case)]
-pub fn dleq<G: PrimeGroup + MultiScalarMul<G::Scalar>>(rng: &mut impl ScalarRng) -> Return<G> {
+pub fn dleq<G: PrimeGroup + MultiScalarMul>(rng: &mut impl ScalarRng) -> Return<G> {
     let [x] = rng.random_scalars::<G, _>();
     let H = random_elem(rng);
     let mut relation = LinearRelation::new();
@@ -91,7 +91,7 @@ pub fn dleq<G: PrimeGroup + MultiScalarMul<G::Scalar>>(rng: &mut impl ScalarRng)
 
 /// LinearMap for knowledge of a shifted dleq.
 #[allow(non_snake_case)]
-pub fn shifted_dleq<G: PrimeGroup + MultiScalarMul<G::Scalar>>(
+pub fn shifted_dleq<G: PrimeGroup + MultiScalarMul>(
     rng: &mut impl ScalarRng,
 ) -> Return<G> {
     let [x] = rng.random_scalars::<G, _>();
@@ -119,7 +119,7 @@ pub fn shifted_dleq<G: PrimeGroup + MultiScalarMul<G::Scalar>>(
 
 /// LinearMap for knowledge of an opening to a Pedersen commitment.
 #[allow(non_snake_case)]
-pub fn pedersen_commitment<G: PrimeGroup + MultiScalarMul<G::Scalar>>(
+pub fn pedersen_commitment<G: PrimeGroup + MultiScalarMul>(
     rng: &mut impl ScalarRng,
 ) -> Return<G> {
     let [x, r] = rng.random_scalars::<G, _>();
@@ -143,7 +143,7 @@ pub fn pedersen_commitment<G: PrimeGroup + MultiScalarMul<G::Scalar>>(
 }
 
 #[allow(non_snake_case)]
-pub fn twisted_pedersen_commitment<G: PrimeGroup + MultiScalarMul<G::Scalar>>(
+pub fn twisted_pedersen_commitment<G: PrimeGroup + MultiScalarMul>(
     rng: &mut impl ScalarRng,
 ) -> Return<G> {
     let [x, r] = rng.random_scalars::<G, _>();
@@ -168,7 +168,7 @@ pub fn twisted_pedersen_commitment<G: PrimeGroup + MultiScalarMul<G::Scalar>>(
 
 /// Test that a Pedersen commitment is in the given range.
 #[allow(non_snake_case)]
-pub fn range_instance_generation<G: PrimeGroup + MultiScalarMul<G::Scalar>>(
+pub fn range_instance_generation<G: PrimeGroup + MultiScalarMul>(
     rng: &mut impl ScalarRng,
     input: u64,
     range: std::ops::Range<u64>,
@@ -264,7 +264,7 @@ pub fn range_instance_generation<G: PrimeGroup + MultiScalarMul<G::Scalar>>(
 
 /// Test that a Pedersen commitment is in `[0, bound)` for any `bound >= 0`.
 #[allow(non_snake_case)]
-pub fn test_range<G: PrimeGroup + MultiScalarMul<G::Scalar>>(
+pub fn test_range<G: PrimeGroup + MultiScalarMul>(
     rng: &mut impl ScalarRng,
 ) -> Return<G> {
     range_instance_generation(rng, 822, 0..1337)
@@ -273,7 +273,7 @@ pub fn test_range<G: PrimeGroup + MultiScalarMul<G::Scalar>>(
 /// LinearMap for knowledge of an opening for use in a BBS commitment.
 // BBS message length is 3
 #[allow(non_snake_case)]
-pub fn bbs_blind_commitment<G: PrimeGroup + MultiScalarMul<G::Scalar>>(
+pub fn bbs_blind_commitment<G: PrimeGroup + MultiScalarMul>(
     rng: &mut impl ScalarRng,
 ) -> Return<G> {
     let [Q_2, J_1, J_2, J_3] = [
@@ -322,7 +322,7 @@ pub fn bbs_blind_commitment<G: PrimeGroup + MultiScalarMul<G::Scalar>>(
 
 /// LinearMap for the user's specific relation: A * 1 + gen__disj1_x_r * B
 #[allow(non_snake_case)]
-pub fn weird_linear_combination<G: PrimeGroup + MultiScalarMul<G::Scalar>>(
+pub fn weird_linear_combination<G: PrimeGroup + MultiScalarMul>(
     rng: &mut impl ScalarRng,
 ) -> Return<G> {
     let B = random_elem(rng);
@@ -351,7 +351,7 @@ pub fn weird_linear_combination<G: PrimeGroup + MultiScalarMul<G::Scalar>>(
 }
 
 #[allow(non_snake_case)]
-pub fn simple_subtractions<G: PrimeGroup + MultiScalarMul<G::Scalar>>(
+pub fn simple_subtractions<G: PrimeGroup + MultiScalarMul>(
     rng: &mut impl ScalarRng,
 ) -> Return<G> {
     let [x] = rng.random_scalars::<G, _>();
@@ -371,7 +371,7 @@ pub fn simple_subtractions<G: PrimeGroup + MultiScalarMul<G::Scalar>>(
 }
 
 #[allow(non_snake_case)]
-pub fn subtractions_with_shift<G: PrimeGroup + MultiScalarMul<G::Scalar>>(
+pub fn subtractions_with_shift<G: PrimeGroup + MultiScalarMul>(
     rng: &mut impl ScalarRng,
 ) -> Return<G> {
     let B = G::generator();
@@ -391,7 +391,7 @@ pub fn subtractions_with_shift<G: PrimeGroup + MultiScalarMul<G::Scalar>>(
 }
 
 #[allow(non_snake_case)]
-pub fn cmz_wallet_spend_relation<G: PrimeGroup + MultiScalarMul<G::Scalar>>(
+pub fn cmz_wallet_spend_relation<G: PrimeGroup + MultiScalarMul>(
     rng: &mut impl ScalarRng,
 ) -> Return<G> {
     // Simulate the wallet spend relation from cmz
@@ -435,7 +435,7 @@ pub fn cmz_wallet_spend_relation<G: PrimeGroup + MultiScalarMul<G::Scalar>>(
 }
 
 #[allow(non_snake_case)]
-pub fn nested_affine_relation<G: PrimeGroup + MultiScalarMul<G::Scalar>>(
+pub fn nested_affine_relation<G: PrimeGroup + MultiScalarMul>(
     rng: &mut impl ScalarRng,
 ) -> Return<G> {
     let mut instance = LinearRelation::<G>::new();
@@ -460,7 +460,7 @@ pub fn nested_affine_relation<G: PrimeGroup + MultiScalarMul<G::Scalar>>(
 }
 
 #[allow(non_snake_case)]
-pub fn pedersen_commitment_equality<G: PrimeGroup + MultiScalarMul<G::Scalar>>(
+pub fn pedersen_commitment_equality<G: PrimeGroup + MultiScalarMul>(
     rng: &mut impl ScalarRng,
 ) -> Return<G> {
     let mut instance = LinearRelation::new();
@@ -481,7 +481,7 @@ pub fn pedersen_commitment_equality<G: PrimeGroup + MultiScalarMul<G::Scalar>>(
 }
 
 #[allow(non_snake_case)]
-pub fn elgamal_subtraction<G: PrimeGroup + MultiScalarMul<G::Scalar>>(
+pub fn elgamal_subtraction<G: PrimeGroup + MultiScalarMul>(
     rng: &mut impl ScalarRng,
 ) -> Return<G> {
     let mut instance = LinearRelation::new();

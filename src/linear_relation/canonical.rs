@@ -66,7 +66,7 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
     /// If the vector of scalars if longer than the number of terms in each linear combinations, the extra terms are ignored.
     pub fn evaluate(&self, scalars: &[G::Scalar]) -> Vec<G>
     where
-        G: MultiScalarMul<G::Scalar>,
+        G: MultiScalarMul,
     {
         self.linear_combinations
             .iter()
@@ -414,7 +414,7 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
     }
 }
 
-impl<G: PrimeGroup + MultiScalarMul<G::Scalar>> TryFrom<LinearRelation<G>>
+impl<G: PrimeGroup + MultiScalarMul> TryFrom<LinearRelation<G>>
     for CanonicalLinearRelation<G>
 {
     type Error = InvalidInstance;
@@ -424,7 +424,7 @@ impl<G: PrimeGroup + MultiScalarMul<G::Scalar>> TryFrom<LinearRelation<G>>
     }
 }
 
-impl<G: PrimeGroup + MultiScalarMul<G::Scalar>> TryFrom<&LinearRelation<G>>
+impl<G: PrimeGroup + MultiScalarMul> TryFrom<&LinearRelation<G>>
     for CanonicalLinearRelation<G>
 {
     type Error = InvalidInstance;
@@ -489,7 +489,7 @@ impl<G: PrimeGroup + MultiScalarMul<G::Scalar>> TryFrom<&LinearRelation<G>>
     }
 }
 
-impl<G: PrimeGroup + ConstantTimeEq + MultiScalarMul<G::Scalar>> CanonicalLinearRelation<G> {
+impl<G: PrimeGroup + ConstantTimeEq + MultiScalarMul> CanonicalLinearRelation<G> {
     /// Tests is the witness is valid.
     ///
     /// Returns a [`Choice`] indicating if the witness is valid for the instance constructed.

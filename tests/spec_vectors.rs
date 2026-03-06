@@ -16,7 +16,7 @@ fn test_spec_testvectors() {
 
 fn testvectors<G>(vectors_json: &str)
 where
-    G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize + MultiScalarMul<G::Scalar>,
+    G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize + MultiScalarMul,
     G::Scalar: Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]>,
 {
     let test_vectors: Vec<TestVector> = serde_json::from_str(vectors_json)

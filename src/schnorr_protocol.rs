@@ -15,7 +15,7 @@ use spongefish::{Decoding, Encoding, NargDeserialize, NargSerialize};
 
 impl<G> SigmaProtocol for CanonicalLinearRelation<G>
 where
-    G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize + MultiScalarMul<G::Scalar>,
+    G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize + MultiScalarMul,
     G::Scalar: Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]>,
 {
     type Commitment = G;
@@ -137,7 +137,7 @@ where
 
 impl<G> CanonicalLinearRelation<G>
 where
-    G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize + MultiScalarMul<G::Scalar>,
+    G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize + MultiScalarMul,
     G::Scalar: Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]>,
 {
     /// Convert this LinearRelation into a non-interactive zero-knowledge protocol
@@ -178,7 +178,7 @@ where
 
 impl<G> LinearRelation<G>
 where
-    G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize + MultiScalarMul<G::Scalar>,
+    G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize + MultiScalarMul,
     G::Scalar: Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]>,
 {
     /// Convert this LinearRelation into a non-interactive zero-knowledge protocol
@@ -229,7 +229,7 @@ where
 }
 impl<G> SigmaProtocolSimulator for CanonicalLinearRelation<G>
 where
-    G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize + MultiScalarMul<G::Scalar>,
+    G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize + MultiScalarMul,
     G::Scalar: Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]>,
 {
     /// Simulates a valid transcript for a given challenge without a witness.
