@@ -8,7 +8,7 @@ use rand::thread_rng;
 use spongefish::{Codec, Encoding, NargDeserialize, NargSerialize};
 
 use sigma_proofs::errors::Error;
-use sigma_proofs::traits::{SigmaProtocol, SigmaProtocolSimulator, CSRNG};
+use sigma_proofs::traits::{Csrng, SigmaProtocol, SigmaProtocolSimulator};
 use sigma_proofs::{
     linear_relation::CanonicalLinearRelation, DuplexSpongeInterface, MultiScalarMul,
     ShakeDuplexSponge,
@@ -170,7 +170,7 @@ fn prove_batchable_poc<P>(
     ciphersuite: &str,
     session_identifier: &[u8],
     witness: &P::Witness,
-    rng: &mut impl CSRNG,
+    rng: &mut impl Csrng,
 ) -> Result<Vec<u8>, Error>
 where
     P: SigmaProtocol,
@@ -196,7 +196,7 @@ fn prove_compact_poc<P>(
     ciphersuite: &str,
     session_identifier: &[u8],
     witness: &P::Witness,
-    rng: &mut impl CSRNG,
+    rng: &mut impl Csrng,
 ) -> Result<Vec<u8>, Error>
 where
     P: SigmaProtocol,

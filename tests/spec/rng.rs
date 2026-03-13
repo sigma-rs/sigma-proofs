@@ -7,7 +7,7 @@ use sha3::{
     Shake128,
 };
 
-use sigma_proofs::traits::CSRNG;
+use sigma_proofs::traits::Csrng;
 use spongefish::{Codec, Encoding, NargDeserialize};
 
 pub struct SeededScalarRng(<Shake128 as ExtendableOutput>::Reader);
@@ -43,12 +43,12 @@ impl RngCore for SeededScalarRng {
     }
 }
 
-pub struct TracingScalarRng<R: CSRNG> {
+pub struct TracingScalarRng<R: Csrng> {
     inner: R,
     store: Vec<Vec<u8>>,
 }
 
-impl<R: CSRNG> TracingScalarRng<R> {
+impl<R: Csrng> TracingScalarRng<R> {
     pub fn new(rng: R) -> Self {
         Self {
             inner: rng,
@@ -61,7 +61,7 @@ impl<R: CSRNG> TracingScalarRng<R> {
     }
 }
 
-impl<R: CSRNG> CSRNG for TracingScalarRng<R> {
+impl<R: Csrng> Csrng for TracingScalarRng<R> {
     fn random_scalars<G: Group, const N: usize>(&mut self) -> [G::Scalar; N]
     where
         G::Scalar: Codec,
@@ -95,7 +95,7 @@ impl<I: Iterator<Item = Vec<u8>>> MockScalarRng<I> {
     }
 }
 
-impl<I: Iterator<Item = Vec<u8>>> CSRNG for MockScalarRng<I> {
+impl<I: Iterator<Item = Vec<u8>>> Csrng for MockScalarRng<I> {
     fn random_scalars<G: Group, const N: usize>(&mut self) -> [G::Scalar; N]
     where
         G::Scalar: Codec,

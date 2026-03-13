@@ -7,14 +7,14 @@ use core::{array::from_fn, iter::repeat_with};
 
 use group::{ff::Field, Group};
 
-use crate::traits::CSRNG;
+use crate::traits::Csrng;
 
 #[cfg(feature = "std")]
 use rand::Rng;
 #[cfg(not(feature = "std"))]
 use rand_core::RngCore as Rng;
 
-impl<R: Rng> CSRNG for R {
+impl<R: Rng> Csrng for R {
     fn random_scalars<G: Group, const N: usize>(&mut self) -> [G::Scalar; N] {
         from_fn(|_| G::Scalar::random(&mut *self))
     }

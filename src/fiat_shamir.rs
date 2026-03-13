@@ -15,9 +15,9 @@ use crate::alloc::string::ToString;
 use crate::duplex_sponge::keccak::KeccakDuplexSponge;
 use crate::duplex_sponge::DuplexSpongeInterface;
 use crate::errors::Error;
+use crate::traits::Csrng;
 use crate::traits::SigmaProtocol;
 use crate::traits::SigmaProtocolSimulator;
-use crate::traits::CSRNG;
 use alloc::vec::Vec;
 use ff::PrimeField;
 use num_bigint::BigUint;
@@ -82,7 +82,7 @@ where
     pub fn prove_batchable(
         &self,
         witness: &P::Witness,
-        rng: &mut impl CSRNG,
+        rng: &mut impl Csrng,
     ) -> Result<Vec<u8>, Error> {
         let protocol_id = self.interactive_proof.protocol_identifier();
         let instance_label = self.interactive_proof.instance_label();
@@ -153,7 +153,7 @@ where
     pub fn prove_compact(
         &self,
         witness: &P::Witness,
-        rng: &mut impl CSRNG,
+        rng: &mut impl Csrng,
     ) -> Result<Vec<u8>, Error> {
         let protocol_id = self.interactive_proof.protocol_identifier();
         let instance_label = self.interactive_proof.instance_label();

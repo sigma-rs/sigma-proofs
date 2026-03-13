@@ -17,7 +17,7 @@ use spongefish::{Codec, Decoding, Encoding, NargDeserialize, NargSerialize};
 ///
 /// For testing purposes and to reproduce deterministic test vectors,
 /// a PRNG can be used to implement this trait.
-pub trait CSRNG {
+pub trait Csrng {
     fn random_scalars<G: Group, const N: usize>(&mut self) -> [G::Scalar; N]
     where
         G::Scalar: Codec;
@@ -79,7 +79,7 @@ pub trait SigmaProtocol {
     fn prover_commit(
         &self,
         witness: &Self::Witness,
-        rng: &mut impl CSRNG,
+        rng: &mut impl Csrng,
     ) -> Result<(Vec<Self::Commitment>, Self::ProverState)>;
 
     /// Computes the prover's response to a challenge based on the prover state.
@@ -125,7 +125,7 @@ pub trait SigmaProtocolSimulator: SigmaProtocol {
     /// Generates a random response (e.g. for simulation or OR composition).
     ///
     /// Typically used to simulate a proof without a witness.
-    fn simulate_response(&self, rng: &mut impl CSRNG) -> Vec<Self::Response>;
+    fn simulate_response(&self, rng: &mut impl Csrng) -> Vec<Self::Response>;
 
     /// Simulates a commitment for which ('commitment', 'challenge', 'response') is a valid transcript.
     ///
@@ -138,5 +138,5 @@ pub trait SigmaProtocolSimulator: SigmaProtocol {
 
     /// Generates a full simulated proof transcript (commitment, challenge, response)
     /// without requiring knowledge of a witness.
-    fn simulate_transcript(&self, rng: &mut impl CSRNG) -> Result<Transcript<Self>>;
+    fn simulate_transcript(&self, rng: &mut impl Csrng) -> Result<Transcript<Self>>;
 }
