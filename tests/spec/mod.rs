@@ -3,7 +3,7 @@ use std::{fs, path::PathBuf};
 pub(crate) mod rng;
 pub(crate) mod vectors;
 
-const SPEC_VECTOR_DIR: &str = "../draft-irtf-cfrg-sigma-protocols/poc/vectors";
+const SPEC_VECTOR_DIR: &str = "tests/spec/testdata";
 
 pub(crate) fn vector_path(file_name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))

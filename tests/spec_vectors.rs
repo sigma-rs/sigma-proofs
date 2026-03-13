@@ -1,11 +1,8 @@
 use bls12_381::G1Projective as BLS12381_Group;
-use ff::PrimeField;
 use group::prime::PrimeGroup;
-use num_bigint::BigUint;
-use num_traits::Num;
 use p256::ProjectivePoint as P256_Group;
 use rand::thread_rng;
-use spongefish::{Codec, Encoding, NargDeserialize, NargSerialize};
+use spongefish::{Codec, Decoding, Encoding, NargDeserialize, NargSerialize};
 
 use sigma_proofs::errors::Error;
 use sigma_proofs::traits::{Csrng, SigmaProtocol, SigmaProtocolSimulator};
@@ -72,17 +69,11 @@ fn initialize_poc_sponge(
     sponge
 }
 
-fn derive_challenge<F: PrimeField>(sponge: &mut ShakeDuplexSponge) -> F {
-    let scalar_byte_length = (F::NUM_BITS as usize).div_ceil(8);
-    let uniform_bytes = sponge.squeeze(scalar_byte_length + 16);
-    let scalar = BigUint::from_bytes_be(&uniform_bytes);
-    let mut order_str = F::MODULUS;
-    if order_str.starts_with("0x") {
-        order_str = &order_str[2..];
-    }
-    let order = BigUint::from_str_radix(order_str, 16).unwrap();
-    let reduced = scalar % order;
-    F::from_str_vartime(&reduced.to_string()).unwrap()
+fn derive_challenge<F: Decoding<[u8]>>(sponge: &mut ShakeDuplexSponge) -> F {
+    let mut repr = F::Repr::default();
+    let uniform_bytes = sponge.squeeze(repr.as_mut().len());
+    repr.as_mut().copy_from_slice(&uniform_bytes);
+    F::decode(repr)
 }
 
 fn serialize_messages_into<T: NargSerialize>(messages: &[T], out: &mut Vec<u8>) {
@@ -113,7 +104,7 @@ fn verify_batchable_poc<P>(
 ) -> Result<(), Error>
 where
     P: SigmaProtocol,
-    P::Challenge: PartialEq + PrimeField,
+    P::Challenge: PartialEq + Decoding<[u8]>,
     P::Commitment: NargSerialize + NargDeserialize + Encoding,
     P::Response: NargSerialize + NargDeserialize + Encoding,
 {
@@ -140,7 +131,7 @@ fn verify_compact_poc<P>(
 ) -> Result<(), Error>
 where
     P: SigmaProtocol + SigmaProtocolSimulator,
-    P::Challenge: PartialEq + NargDeserialize + PrimeField,
+    P::Challenge: PartialEq + Decoding<[u8]> + NargDeserialize,
     P::Commitment: NargSerialize + NargDeserialize + Encoding,
     P::Response: NargSerialize + NargDeserialize + Encoding,
 {
@@ -174,7 +165,7 @@ fn prove_batchable_poc<P>(
 ) -> Result<Vec<u8>, Error>
 where
     P: SigmaProtocol,
-    P::Challenge: PartialEq + PrimeField,
+    P::Challenge: PartialEq + Decoding<[u8]>,
     P::Commitment: NargSerialize + NargDeserialize + Encoding,
     P::Response: NargSerialize + NargDeserialize + Encoding,
 {
@@ -200,7 +191,7 @@ fn prove_compact_poc<P>(
 ) -> Result<Vec<u8>, Error>
 where
     P: SigmaProtocol,
-    P::Challenge: PartialEq + PrimeField + NargSerialize,
+    P::Challenge: PartialEq + Decoding<[u8]> + NargSerialize,
     P::Commitment: NargSerialize + NargDeserialize + Encoding,
     P::Response: NargSerialize + NargDeserialize + Encoding,
 {
