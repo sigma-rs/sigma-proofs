@@ -30,6 +30,7 @@ use subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
 
 use crate::errors::InvalidInstance;
 use crate::traits::ScalarRng;
+use crate::MultiScalarMul;
 use crate::{
     errors::Error,
     fiat_shamir::Nizk,
@@ -77,7 +78,7 @@ impl<G: PrimeGroup> From<CanonicalLinearRelation<G>> for ComposedRelation<G> {
     }
 }
 
-impl<G: PrimeGroup> TryFrom<LinearRelation<G>> for ComposedRelation<G> {
+impl<G: PrimeGroup + MultiScalarMul> TryFrom<LinearRelation<G>> for ComposedRelation<G> {
     type Error = InvalidInstance;
 
     fn try_from(value: LinearRelation<G>) -> Result<Self, Self::Error> {
@@ -164,7 +165,8 @@ where
         + ConditionallySelectable
         + Encoding<[u8]>
         + NargSerialize
-        + NargDeserialize,
+        + NargDeserialize
+        + MultiScalarMul,
     G::Scalar:
         Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]> + ConditionallySelectable,
 {
@@ -187,7 +189,8 @@ where
         + ConditionallySelectable
         + Encoding<[u8]>
         + NargSerialize
-        + NargDeserialize,
+        + NargDeserialize
+        + MultiScalarMul,
     G::Scalar:
         Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]> + ConditionallySelectable;
 
@@ -199,7 +202,8 @@ where
         + ConditionallySelectable
         + Encoding<[u8]>
         + NargSerialize
-        + NargDeserialize,
+        + NargDeserialize
+        + MultiScalarMul,
     G::Scalar:
         Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]> + ConditionallySelectable,
 {
@@ -213,7 +217,12 @@ where
 #[derive(Clone)]
 pub enum ComposedResponse<G>
 where
-    G: PrimeGroup + ConditionallySelectable + Encoding<[u8]> + NargSerialize + NargDeserialize,
+    G: PrimeGroup
+        + ConditionallySelectable
+        + Encoding<[u8]>
+        + NargSerialize
+        + NargDeserialize
+        + MultiScalarMul,
     G::Scalar:
         Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]> + ConditionallySelectable,
 {
@@ -335,7 +344,12 @@ where
 
 impl<G> Encoding<[u8]> for ComposedResponse<G>
 where
-    G: PrimeGroup + ConditionallySelectable + Encoding<[u8]> + NargSerialize + NargDeserialize,
+    G: PrimeGroup
+        + ConditionallySelectable
+        + Encoding<[u8]>
+        + NargSerialize
+        + NargDeserialize
+        + MultiScalarMul,
     G::Scalar:
         Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]> + ConditionallySelectable,
 {
@@ -385,7 +399,12 @@ where
 
 impl<G> NargDeserialize for ComposedResponse<G>
 where
-    G: PrimeGroup + ConditionallySelectable + Encoding<[u8]> + NargSerialize + NargDeserialize,
+    G: PrimeGroup
+        + ConditionallySelectable
+        + Encoding<[u8]>
+        + NargSerialize
+        + NargDeserialize
+        + MultiScalarMul,
     G::Scalar:
         Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]> + ConditionallySelectable,
 {
@@ -445,7 +464,12 @@ where
 
 impl<G> ComposedResponse<G>
 where
-    G: PrimeGroup + ConditionallySelectable + Encoding<[u8]> + NargSerialize + NargDeserialize,
+    G: PrimeGroup
+        + ConditionallySelectable
+        + Encoding<[u8]>
+        + NargSerialize
+        + NargDeserialize
+        + MultiScalarMul,
     G::Scalar:
         Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]> + ConditionallySelectable,
 {
@@ -525,7 +549,7 @@ where
 #[derive(Clone)]
 pub enum ComposedWitness<G>
 where
-    G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize,
+    G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize + MultiScalarMul,
     G::Scalar: Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]>,
 {
     Simple(<CanonicalLinearRelation<G> as SigmaProtocol>::Witness),
@@ -536,7 +560,7 @@ where
 
 impl<G> ComposedWitness<G>
 where
-    G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize,
+    G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize + MultiScalarMul,
     G::Scalar: Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]>,
 {
     /// Create a [ComposedWitness] for an AND relation from the given list of witnesses.
@@ -557,7 +581,7 @@ where
 
 impl<G> From<<CanonicalLinearRelation<G> as SigmaProtocol>::Witness> for ComposedWitness<G>
 where
-    G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize,
+    G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize + MultiScalarMul,
     G::Scalar:
         Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]> + ConditionallySelectable,
 {
@@ -775,7 +799,8 @@ where
         + ConditionallySelectable
         + Encoding<[u8]>
         + NargSerialize
-        + NargDeserialize,
+        + NargDeserialize
+        + MultiScalarMul,
     G::Scalar:
         Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]> + ConditionallySelectable,
 {
@@ -1184,7 +1209,8 @@ where
         + ConditionallySelectable
         + Encoding<[u8]>
         + NargSerialize
-        + NargDeserialize,
+        + NargDeserialize
+        + MultiScalarMul,
     G::Scalar:
         Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]> + ConditionallySelectable,
 {
@@ -1417,7 +1443,8 @@ where
         + ConditionallySelectable
         + Encoding<[u8]>
         + NargSerialize
-        + NargDeserialize,
+        + NargDeserialize
+        + MultiScalarMul,
     G::Scalar:
         Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]> + ConditionallySelectable,
 {
@@ -1669,7 +1696,8 @@ where
         + ConditionallySelectable
         + Encoding<[u8]>
         + NargSerialize
-        + NargDeserialize,
+        + NargDeserialize
+        + MultiScalarMul,
     G::Scalar:
         Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]> + ConditionallySelectable,
 {
