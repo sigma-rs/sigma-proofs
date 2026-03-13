@@ -37,7 +37,6 @@ pub struct CanonicalLinearRelation<G: PrimeGroup> {
 /// Private type alias used to simplify function signatures below.
 ///
 /// The cache maps each `GroupVar` index to a list of `(weight, canonical_group_var)` pairs.
-/// Using an index-addressed vector keeps lookup fast while preserving deterministic ordering.
 type WeightedGroupCache<G> = Vec<Vec<(<G as group::Group>::Scalar, GroupVar<G>)>>;
 
 impl<G: PrimeGroup> CanonicalLinearRelation<G> {
