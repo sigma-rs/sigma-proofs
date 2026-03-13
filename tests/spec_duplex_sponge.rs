@@ -3,12 +3,14 @@ use serde::{Deserialize, Serialize};
 use sigma_proofs::{DuplexSpongeInterface, KeccakDuplexSponge, ShakeDuplexSponge};
 use std::collections::HashMap;
 
+mod spec;
+
 #[derive(Debug, Deserialize, Serialize)]
 struct TestVector {
     #[serde(rename = "Expected")]
     expected: String,
-    #[serde(rename = "HashFunction")]
-    hash_function: String,
+    #[serde(rename = "DuplexSponge")]
+    duplex_sponge: String,
     #[serde(rename = "Operations")]
     operations: Vec<Operation>,
     #[serde(rename = "IV")]
@@ -33,18 +35,18 @@ fn hex_decode(hex_str: &str) -> Vec<u8> {
 }
 
 fn load_test_vectors() -> HashMap<String, TestVector> {
-    let json_data = include_str!("./spec/testdata/duplexSpongeVectors.json");
-    serde_json::from_str(json_data).expect("Failed to parse test vectors JSON")
+    let json_data = spec::read_vector_file("duplexSpongeVectors.json");
+    serde_json::from_str(&json_data).expect("Failed to parse test vectors JSON")
 }
 
 fn run_test_vector(name: &str, test_vector: &TestVector) -> Result<(), Failed> {
     let iv_bytes = hex_decode(&test_vector.iv);
     let iv_array: [u8; 64] = iv_bytes.try_into().unwrap();
 
-    let mut sponge: Box<dyn DuplexSpongeInterface> = match test_vector.hash_function.as_str() {
+    let mut sponge: Box<dyn DuplexSpongeInterface> = match test_vector.duplex_sponge.as_str() {
         "Keccak-f[1600] overwrite mode" => Box::new(KeccakDuplexSponge::new(iv_array)),
         "SHAKE128" => Box::new(ShakeDuplexSponge::new(iv_array)),
-        _ => panic!("Unknown hash function: {}", test_vector.hash_function),
+        _ => panic!("Unknown duplex sponge: {}", test_vector.duplex_sponge),
     };
     let mut final_output = Vec::new();
 

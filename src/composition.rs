@@ -29,8 +29,8 @@ use spongefish::{
 use subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
 
 use crate::errors::InvalidInstance;
-use crate::MultiScalarMul;
 use crate::traits::CSRNG;
+use crate::MultiScalarMul;
 use crate::{
     errors::Error,
     fiat_shamir::Nizk,

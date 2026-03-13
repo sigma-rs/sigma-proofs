@@ -68,13 +68,12 @@ This library is under active development. While the API is stabilizing, there ar
 
 ## Test Vectors
 
-To generate test vectors run:
+The spec tests consume the authoritative JSON vectors from the sibling
+`draft-irtf-cfrg-sigma-protocols` checkout:
 
-```sh
-GENERATE_TEST_VECTORS=true cargo test --test create_test_vectors
-```
-
-The generated test vectors are stored at `./tests/spec/testdata`.
+- `../draft-irtf-cfrg-sigma-protocols/poc/vectors/duplexSpongeVectors.json`
+- `../draft-irtf-cfrg-sigma-protocols/poc/vectors/sigma-proofs_Shake128_BLS12381.json`
+- `../draft-irtf-cfrg-sigma-protocols/poc/vectors/sigma-proofs_Shake128_P256.json`
 
 ## Background
 

@@ -341,9 +341,7 @@ where
 
 /// LinearMap for the user's specific relation: A * 1 + gen__disj1_x_r * B
 #[allow(non_snake_case)]
-pub fn weird_linear_combination<G: PrimeGroup + MultiScalarMul>(
-    rng: &mut impl CSRNG,
-) -> Return<G>
+pub fn weird_linear_combination<G: PrimeGroup + MultiScalarMul>(rng: &mut impl CSRNG) -> Return<G>
 where
     G::Scalar: Codec,
 {
@@ -394,9 +392,7 @@ where
 }
 
 #[allow(non_snake_case)]
-pub fn subtractions_with_shift<G: PrimeGroup + MultiScalarMul>(
-    rng: &mut impl CSRNG,
-) -> Return<G>
+pub fn subtractions_with_shift<G: PrimeGroup + MultiScalarMul>(rng: &mut impl CSRNG) -> Return<G>
 where
     G::Scalar: Codec,
 {
@@ -417,9 +413,7 @@ where
 }
 
 #[allow(non_snake_case)]
-pub fn cmz_wallet_spend_relation<G: PrimeGroup + MultiScalarMul>(
-    rng: &mut impl CSRNG,
-) -> Return<G>
+pub fn cmz_wallet_spend_relation<G: PrimeGroup + MultiScalarMul>(rng: &mut impl CSRNG) -> Return<G>
 where
     G::Scalar: Codec,
 {
@@ -464,9 +458,7 @@ where
 }
 
 #[allow(non_snake_case)]
-pub fn nested_affine_relation<G: PrimeGroup + MultiScalarMul>(
-    rng: &mut impl CSRNG,
-) -> Return<G>
+pub fn nested_affine_relation<G: PrimeGroup + MultiScalarMul>(rng: &mut impl CSRNG) -> Return<G>
 where
     G::Scalar: Codec,
 {
