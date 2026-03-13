@@ -1,22 +1,15 @@
-use std::{fs, path::PathBuf};
-
 pub(crate) mod rng;
 pub(crate) mod vectors;
 
-const SPEC_VECTOR_DIR: &str = "tests/spec/testdata";
-
-pub(crate) fn vector_path(file_name: &str) -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join(SPEC_VECTOR_DIR)
-        .join(file_name)
-}
-
 pub(crate) fn read_vector_file(file_name: &str) -> String {
-    let path = vector_path(file_name);
-    fs::read_to_string(&path).unwrap_or_else(|err| {
-        panic!(
-            "failed to read external test vector file {}: {err}",
-            path.display()
-        )
-    })
+    match file_name {
+        "duplexSpongeVectors.json" => include_str!("testdata/duplexSpongeVectors.json").to_string(),
+        "sigma-proofs_Shake128_P256.json" => {
+            include_str!("testdata/sigma-proofs_Shake128_P256.json").to_string()
+        }
+        "sigma-proofs_Shake128_BLS12381.json" => {
+            include_str!("testdata/sigma-proofs_Shake128_BLS12381.json").to_string()
+        }
+        _ => panic!("unknown test vector file: {file_name}"),
+    }
 }
