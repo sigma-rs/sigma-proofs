@@ -3,7 +3,7 @@ use std::fs::File;
 use bls12_381::G1Projective as BLS12381_Group;
 use group::prime::PrimeGroup;
 use p256::ProjectivePoint as P256_Group;
-use sigma_proofs::{linear_relation::CanonicalLinearRelation, Nizk};
+use sigma_proofs::{linear_relation::CanonicalLinearRelation, MultiScalarMul, Nizk};
 use spongefish::{Codec, Encoding, NargDeserialize, NargSerialize};
 
 mod spec;
@@ -33,7 +33,7 @@ fn test_spec_create_testvectors() {
 
 fn create_testvectors<G>(ciphersuite: &str)
 where
-    G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize,
+    G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize + MultiScalarMul,
     G::Scalar: Codec,
 {
     const INSTANCE_GENERATION_RNG_SEED: &str = "instance_witness_generation_seed";
