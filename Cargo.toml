@@ -9,7 +9,7 @@ authors = [
     "Lénaïck Gouriou <lg@leanear.io>",
 ]
 edition = "2021"
-license = "BSD-2-Clause"
+license = "MIT OR Apache-2.0"
 readme = "README.md"
 repository = "https://github.com/sigma-rs/sigma-proofs"
 documentation = "https://docs.rs/sigma-proofs"
