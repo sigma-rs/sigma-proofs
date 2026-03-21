@@ -37,7 +37,10 @@ jobs:
     name: Clippy (${{ matrix.toolchain }}, ${{ matrix.features }})
     runs-on: ubuntu-latest
     strategy:
+<<<<<<< HEAD
       fail-fast: false
+=======
+>>>>>>> 8756ace (merge all checks on prs into a single workflow file)
       matrix:
         toolchain: [stable, nightly]
         features: [default, no-default, all]
