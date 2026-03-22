@@ -38,9 +38,13 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
 <<<<<<< HEAD
+<<<<<<< HEAD
       fail-fast: false
 =======
 >>>>>>> 8756ace (merge all checks on prs into a single workflow file)
+=======
+      fail-fast: false
+>>>>>>> e3b6f14 (set fail-fast to false for test matrix)
       matrix:
         toolchain: [stable, nightly]
         features: [default, no-default, all]
