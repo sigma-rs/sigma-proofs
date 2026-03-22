@@ -151,6 +151,7 @@ where
     ///
     /// # Example
     /// ```
+    /// # #[cfg(feature = "curve25519-dalek")] {
     /// # use sigma_proofs::{LinearRelation, Nizk};
     /// # use curve25519_dalek::RistrettoPoint as G;
     /// # use curve25519_dalek::scalar::Scalar;
@@ -170,6 +171,7 @@ where
     /// let nizk = relation.into_nizk(b"my-protocol-v1").unwrap();
     /// let proof = nizk.prove_batchable(&vec![x], &mut OsRng).unwrap();
     /// assert!(nizk.verify_batchable(&proof).is_ok());
+    /// # }
     /// ```
     pub fn into_nizk(self, session_identifier: &[u8]) -> Result<Nizk<CanonicalLinearRelation<G>>> {
         Ok(Nizk::new(session_identifier, self))
@@ -194,6 +196,7 @@ where
     ///
     /// # Example
     /// ```
+    /// # #[cfg(feature = "curve25519-dalek")] {
     /// # use sigma_proofs::{LinearRelation, Nizk};
     /// # use curve25519_dalek::RistrettoPoint as G;
     /// # use curve25519_dalek::scalar::Scalar;
@@ -213,6 +216,7 @@ where
     /// let nizk = relation.into_nizk(b"my-protocol-v1").unwrap();
     /// let proof = nizk.prove_batchable(&vec![x], &mut OsRng).unwrap();
     /// assert!(nizk.verify_batchable(&proof).is_ok());
+    /// # }
     /// ```
     pub fn into_nizk(
         self,
