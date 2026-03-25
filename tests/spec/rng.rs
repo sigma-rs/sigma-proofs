@@ -1,9 +1,10 @@
 use core::{array::from_fn, iter::repeat_with};
 
 use group::{ff::PrimeField, prime::PrimeGroup, Group};
+use sha3::digest::{ExtendableOutput, Update, XofReader};
 use spongefish::Decoding;
 
-use sigma_proofs::{traits::ScalarRng, DuplexSpongeInterface, ShakeDuplexSponge};
+use sigma_proofs::traits::ScalarRng;
 
 pub struct MockScalarRng<I: Iterator<Item = Vec<u8>>>(pub I);
 
@@ -48,15 +49,19 @@ where
 }
 
 struct TestDrng {
-    state: ShakeDuplexSponge,
+    state: sha3::Shake128,
     squeeze_offset: usize,
 }
 
 impl TestDrng {
     fn from_seed(seed_label: &[u8]) -> Self {
-        let mut state =
-            ShakeDuplexSponge::new(padded_identifier(b"sigma-proofs/TestDRNG/SHAKE128"));
-        state.absorb(&fixed_seed(seed_label));
+        let mut initial_block = [0u8; 168];
+        let domain = b"sigma-proofs/TestDRNG/SHAKE128";
+        initial_block[..domain.len()].copy_from_slice(domain);
+
+        let mut state = sha3::Shake128::default();
+        state.update(&initial_block);
+        state.update(&fixed_seed(seed_label));
         Self {
             state,
             squeeze_offset: 0,
@@ -77,7 +82,8 @@ impl TestDrng {
 
     fn squeeze(&mut self, length: usize) -> Vec<u8> {
         let end = self.squeeze_offset + length;
-        let full = self.state.squeeze(end);
+        let mut full = vec![0u8; end];
+        self.state.clone().finalize_xof().read(&mut full);
         let out = full[self.squeeze_offset..end].to_vec();
         self.squeeze_offset = end;
         out
@@ -88,10 +94,4 @@ fn fixed_seed(label: &[u8]) -> [u8; 32] {
     let mut seed = [0u8; 32];
     seed[..label.len()].copy_from_slice(label);
     seed
-}
-
-fn padded_identifier(identifier: &[u8]) -> [u8; 64] {
-    let mut padded = [0u8; 64];
-    padded[..identifier.len()].copy_from_slice(identifier);
-    padded
 }

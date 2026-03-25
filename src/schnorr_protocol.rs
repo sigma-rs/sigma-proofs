@@ -18,15 +18,26 @@ fn protocol_identifier_for_group<G>() -> [u8; 64] {
 
     #[cfg(feature = "p256")]
     if core::any::type_name::<G>() == core::any::type_name::<p256::ProjectivePoint>() {
-        return crate::codec::pad_identifier(b"sigma-proofs_Shake128_P256");
+        return pad_identifier(b"sigma-proofs_Shake128_P256");
     }
 
     #[cfg(feature = "bls12_381")]
     if core::any::type_name::<G>() == core::any::type_name::<bls12_381::G1Projective>() {
-        return crate::codec::pad_identifier(b"sigma-proofs_Shake128_BLS12381");
+        return pad_identifier(b"sigma-proofs_Shake128_BLS12381");
     }
 
-    crate::codec::pad_identifier(b"ietf sigma proof linear relation")
+    pad_identifier(b"ietf sigma proof linear relation")
+}
+
+fn pad_identifier(identifier: &[u8]) -> [u8; 64] {
+    assert!(
+        identifier.len() <= 64,
+        "identifier must fit within 64 bytes"
+    );
+
+    let mut padded = [0u8; 64];
+    padded[..identifier.len()].copy_from_slice(identifier);
+    padded
 }
 
 impl<G> SigmaProtocol for CanonicalLinearRelation<G>
@@ -155,7 +166,7 @@ where
     G::Scalar: Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]>,
 {
     /// Convert this LinearRelation into a non-interactive zero-knowledge protocol
-    /// using the ShakeCodec and a specified context/domain separator.
+    /// using the standard SHAKE128 Fiat-Shamir transcript and a specified session identifier.
     ///
     /// # Parameters
     /// - `context`: Domain separator bytes for the Fiat-Shamir transform

@@ -1702,10 +1702,10 @@ where
         Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]> + ConditionallySelectable,
 {
     /// Convert this Protocol into a non-interactive zero-knowledge proof
-    /// using the Shake128DuplexSponge codec and a specified session identifier.
+    /// using the standard SHAKE128 Fiat-Shamir transcript and a specified session identifier.
     ///
     /// This method provides a convenient way to create a NIZK from a Protocol
-    /// without exposing the specific codec type to the API caller.
+    /// without exposing the transcript internals to the API caller.
     ///
     /// # Parameters
     /// - `session_identifier`: Domain separator bytes for the Fiat-Shamir transform
