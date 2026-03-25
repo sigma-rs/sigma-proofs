@@ -1,0 +1,11 @@
+[workspace]
+changelog_update = false
+git_release_enable = true
+git_tag_enable = true
+git_tag_name = "v{{ version }}"
+pr_branch_prefix = "release-plz-"
+pr_labels = ["release"]
+release_always = false
+repo_url = "https://github.com/sigma-rs/sigma-proofs"
+semver_check = false
+
