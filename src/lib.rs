@@ -56,7 +56,6 @@
 //! - **[`linear_relation::LinearRelation`]**: Express mathematical relations over groups
 //! - **[`fiat_shamir::Nizk`]**: Convert interactive proofs to standalone proofs
 //! - **[`composition::ComposedRelation`]**: Combine multiple proofs together
-//! - **[`fiat_shamir::Nizk`]**: Fiat-Shamir transcript binding and proof serialization
 //!
 //! ---
 //!

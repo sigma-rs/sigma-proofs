@@ -166,7 +166,7 @@ where
     G::Scalar: Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]>,
 {
     /// Convert this LinearRelation into a non-interactive zero-knowledge protocol
-    /// using the standard SHAKE128 Fiat-Shamir transcript and a specified session identifier.
+    /// using the ShakeCodec and a specified context/domain separator.
     ///
     /// # Parameters
     /// - `context`: Domain separator bytes for the Fiat-Shamir transform

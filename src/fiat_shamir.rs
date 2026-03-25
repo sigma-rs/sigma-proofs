@@ -1,7 +1,7 @@
 //! Fiat-Shamir transformation for [`SigmaProtocol`]s.
 //!
 //! This module defines [`Nizk`], a generic non-interactive Sigma protocol wrapper,
-//! based on applying the Fiat-Shamir heuristic with Spongefish's transcript state.
+//! based on applying the Fiat-Shamir heuristic using a cryptographic sponge function.
 //!
 //! It transforms an interactive [`SigmaProtocol`] into a non-interactive one,
 //! by deriving challenges deterministically from previous protocol messages.
@@ -23,7 +23,8 @@ use spongefish::{
 /// A Fiat-Shamir transformation of a [`SigmaProtocol`] into a non-interactive proof.
 ///
 /// [`Nizk`] wraps an interactive Sigma protocol `P`
-/// using Spongefish's transcript state to derive verifier challenges.
+/// to produce non-interactive proofs by deriving verifier challenges from a
+/// cryptographic sponge state.
 ///
 /// # Type Parameters
 /// - `P`: the Sigma protocol implementation.
