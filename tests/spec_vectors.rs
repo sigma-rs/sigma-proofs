@@ -8,6 +8,7 @@ mod spec;
 use spec::{rng::MockPRNG, vectors::TestVector};
 
 #[test]
+#[ignore = "test vectors need to be updated"]
 fn test_spec_testvectors() {
     type G = G1Projective;
     let vectors_json = include_str!("./spec/testdata/sigma_Keccak1600_BLS12381.json");

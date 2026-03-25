@@ -16,6 +16,7 @@
 //! ## Basic Usage
 //!
 //! ```rust
+//! # #[cfg(feature = "curve25519-dalek")] {
 //! # use curve25519_dalek::ristretto::RistrettoPoint;
 //! # use curve25519_dalek::scalar::Scalar;
 //! # use group::Group;
@@ -38,6 +39,7 @@
 //! let narg_string: Vec<u8> = nizk.prove_batchable(&witness, &mut rng).unwrap();
 //! // Print the narg string.
 //! println!("{}", hex::encode(narg_string));
+//! # }
 //! ```
 //!
 //! The library provides building blocks for creating zero-knowledge proofs:
