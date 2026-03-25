@@ -1,4 +1,4 @@
-//  SPDX-License-Identifier: BSD-2-Clause
+//  SPDX-License-Identifier: Apache-2.0 OR MIT
 
 //! The pseudo-random generator used for sampling scalars.
 
