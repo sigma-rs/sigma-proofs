@@ -48,7 +48,6 @@ fn test_composition_example() {
     // Verify proofs
     assert!(nizk.verify_batchable(&proof_batchable_bytes).is_ok());
     assert!(nizk.verify_compact(&proof_compact_bytes).is_ok());
-
 }
 
 #[allow(non_snake_case)]
