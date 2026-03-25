@@ -56,7 +56,6 @@
 //! - **[`linear_relation::LinearRelation`]**: Express mathematical relations over groups
 //! - **[`fiat_shamir::Nizk`]**: Convert interactive proofs to standalone proofs
 //! - **[`composition::ComposedRelation`]**: Combine multiple proofs together
-//! - **[`codec`]**: Mapping from and to the hash function domain
 //!
 //! ---
 //!
@@ -71,7 +70,6 @@
 
 extern crate alloc;
 
-pub mod codec;
 pub mod composition;
 pub mod errors;
 pub mod group;
@@ -79,13 +77,9 @@ pub mod linear_relation;
 pub mod rng;
 pub mod traits;
 
-pub(crate) mod duplex_sponge;
 pub(crate) mod fiat_shamir;
 pub(crate) mod schnorr_protocol;
 
-pub use duplex_sponge::{
-    keccak::KeccakDuplexSponge, shake::ShakeDuplexSponge, DuplexSpongeInterface,
-};
 pub use fiat_shamir::Nizk;
 pub use group::msm::MultiScalarMul;
 pub use linear_relation::LinearRelation;
