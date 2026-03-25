@@ -51,8 +51,7 @@ p256 = { version = "0.13", default-features = false, features = ["arithmetic"], 
 rand = { version = "0.8.5", optional = true }
 rand_core = { version = "0.6", default-features = false }
 sha3 = { version = "0.10.8", default-features = false }
-# TODO: Publish the latest version of spongefish and change this back to a crates.io dependency.
-spongefish = { git = "https://github.com/arkworks-rs/spongefish", rev = "eab73f20a166b34ecbcf0fa5eeb2bd1be66bd1c5", features = ["derive"] }
+spongefish = { version = "0.4", features = ["derive"] }
 subtle = { version = "2.6.1", default-features = false }
 thiserror = { version = "1", optional = true }
 zerocopy = { version = "0.8", default-features = false }
@@ -75,7 +74,7 @@ serde_json = "1.0.140"
 serde_with = { version = "3.16.1", features = ["hex"] }
 serial_test = "3.3.1"
 sha2 = "0.10"
-spongefish = { git = "https://github.com/arkworks-rs/spongefish", rev = "eab73f20a166b34ecbcf0fa5eeb2bd1be66bd1c5", features = ["curve25519-dalek", "p256", "bls12_381", "derive", "keccak", "std"] }
+spongefish = { version = "0.4", features = ["curve25519-dalek", "p256", "bls12_381", "derive", "keccak", "std"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 core_affinity2 = "0.15.4"
