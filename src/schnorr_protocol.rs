@@ -14,6 +14,8 @@ use group::prime::PrimeGroup;
 use spongefish::{Decoding, Encoding, NargDeserialize, NargSerialize};
 
 fn protocol_identifier_for_group<G>() -> [u8; 64] {
+    let _ = core::marker::PhantomData::<G>;
+
     #[cfg(feature = "p256")]
     if core::any::type_name::<G>() == core::any::type_name::<p256::ProjectivePoint>() {
         return crate::codec::pad_identifier(b"sigma-proofs_Shake128_P256");
