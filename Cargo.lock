@@ -1659,7 +1659,7 @@ checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 
 [[package]]
 name = "sigma-proofs"
-version = "0.1.0-sigma"
+version = "0.2.0"
 dependencies = [
  "ahash",
  "anyhow",
@@ -1739,7 +1739,8 @@ dependencies = [
 [[package]]
 name = "spongefish"
 version = "0.3.0"
-source = "git+https://github.com/arkworks-rs/spongefish#4e64af9eec38817117d930b7d0640f92a2643010"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6e7841890e2045c703881a68484ead4e356bfd550def4217d8e55a0ee17ef177"
 dependencies = [
  "ark-ec",
  "ark-ff",
@@ -1761,7 +1762,8 @@ dependencies = [
 [[package]]
 name = "spongefish-derive"
 version = "0.3.0"
-source = "git+https://github.com/arkworks-rs/spongefish#4e64af9eec38817117d930b7d0640f92a2643010"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0ca5db80d39b370698cad504e2fdc297452c3e849d9da3b746268a88084e1889"
 dependencies = [
  "proc-macro2",
  "quote",

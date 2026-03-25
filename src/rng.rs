@@ -1,5 +1,3 @@
-//  SPDX-License-Identifier: BSD-2-Clause
-
 //! The pseudo-random generator used for sampling scalars.
 
 use alloc::vec::Vec;
