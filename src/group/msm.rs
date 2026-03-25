@@ -77,6 +77,7 @@ mod bls12_381 {
 #[cfg(feature = "k256")]
 mod k256 {
     use super::MultiScalarMul;
+    use alloc::vec::Vec;
     use k256::{elliptic_curve::ops::LinearCombinationExt, ProjectivePoint, Scalar};
 
     impl MultiScalarMul for ProjectivePoint {
