@@ -11,17 +11,14 @@
 //! This struct is generic over:
 //! - `P`: the underlying Sigma protocol ([`SigmaProtocol`] trait).
 
-use crate::duplex_sponge::keccak::KeccakDuplexSponge;
+use crate::duplex_sponge::shake::ShakeDuplexSponge;
 use crate::duplex_sponge::DuplexSpongeInterface;
 use crate::errors::Error;
 use crate::traits::ScalarRng;
 use crate::traits::SigmaProtocol;
 use crate::traits::SigmaProtocolSimulator;
-use alloc::{vec, vec::Vec};
-use ff::PrimeField;
-use num_bigint::BigUint;
-use num_traits::identities::One;
-use spongefish::{Encoding, NargDeserialize, NargSerialize};
+use alloc::vec::Vec;
+use spongefish::{Decoding, Encoding, NargDeserialize, NargSerialize};
 
 /// A Fiat-Shamir transformation of a [`SigmaProtocol`] into a non-interactive proof.
 ///
@@ -48,7 +45,7 @@ where
 impl<P> Nizk<P>
 where
     P: SigmaProtocol,
-    P::Challenge: PartialEq + PrimeField,
+    P::Challenge: PartialEq,
     P::Commitment: NargSerialize + NargDeserialize + Encoding,
     P::Response: NargSerialize + NargDeserialize + Encoding,
 {
@@ -134,7 +131,7 @@ where
 impl<P> Nizk<P>
 where
     P: SigmaProtocol + SigmaProtocolSimulator,
-    P::Challenge: PartialEq + NargDeserialize + NargSerialize + PrimeField,
+    P::Challenge: PartialEq + NargDeserialize + NargSerialize,
 {
     /// Generates a compact serialized proof.
     ///
@@ -225,46 +222,24 @@ where
     }
 }
 
-fn length_to_bytes(x: usize) -> [u8; 4] {
-    (x as u32).to_be_bytes()
-}
-
-fn absorb_len_prefixed(sponge: &mut KeccakDuplexSponge, data: &[u8]) {
-    sponge.absorb(&length_to_bytes(data.len()));
-    sponge.absorb(data);
-}
-
 fn initialize_sponge(
     protocol_id: [u8; 64],
     session_id: &[u8],
     instance_label: &[u8],
-) -> KeccakDuplexSponge {
-    let mut sponge = KeccakDuplexSponge::new(protocol_id);
-    absorb_len_prefixed(&mut sponge, session_id);
-    absorb_len_prefixed(&mut sponge, instance_label);
+) -> ShakeDuplexSponge {
+    let mut sponge = ShakeDuplexSponge::new(protocol_id);
+    sponge.absorb(&crate::codec::derive_session_id::<ShakeDuplexSponge>(
+        session_id,
+    ));
+    sponge.absorb(instance_label);
     sponge
 }
 
-fn field_cardinality<F: PrimeField>() -> BigUint {
-    let bytes = (F::ZERO - F::ONE).to_repr();
-    BigUint::from_bytes_le(bytes.as_ref()) + BigUint::one()
-}
-
-fn derive_challenge<F: PrimeField>(sponge: &mut KeccakDuplexSponge) -> F {
-    let scalar_byte_length = (F::NUM_BITS as usize).div_ceil(8);
-    let uniform_bytes = sponge.squeeze(scalar_byte_length + 16);
-    let scalar = BigUint::from_bytes_be(&uniform_bytes);
-    let reduced = scalar % field_cardinality::<F>();
-
-    let mut bytes = vec![0u8; scalar_byte_length];
-    let reduced_bytes = reduced.to_bytes_be();
-    let start = bytes.len().saturating_sub(reduced_bytes.len());
-    bytes[start..start + reduced_bytes.len()].copy_from_slice(&reduced_bytes);
-    bytes.reverse();
-
+fn derive_challenge<F: Decoding<[u8]>>(sponge: &mut ShakeDuplexSponge) -> F {
     let mut repr = F::Repr::default();
-    repr.as_mut().copy_from_slice(&bytes);
-    F::from_repr(repr).expect("challenge reduction should not fail")
+    let uniform_bytes = sponge.squeeze(repr.as_mut().len());
+    repr.as_mut().copy_from_slice(&uniform_bytes);
+    F::decode(repr)
 }
 
 fn serialize_messages_into<T: NargSerialize>(messages: &[T], out: &mut Vec<u8>) {

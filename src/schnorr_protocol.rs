@@ -9,9 +9,24 @@ use crate::linear_relation::CanonicalLinearRelation;
 use crate::traits::{ScalarRng, SigmaProtocol, SigmaProtocolSimulator, Transcript};
 use crate::{LinearRelation, MultiScalarMul, Nizk};
 use alloc::vec::Vec;
+use core::any::type_name;
 
 use group::prime::PrimeGroup;
 use spongefish::{Decoding, Encoding, NargDeserialize, NargSerialize};
+
+fn protocol_identifier_for_group<G>() -> [u8; 64] {
+    #[cfg(feature = "p256")]
+    if type_name::<G>() == type_name::<p256::ProjectivePoint>() {
+        return crate::codec::pad_identifier(b"sigma-proofs_Shake128_P256");
+    }
+
+    #[cfg(feature = "bls12_381")]
+    if type_name::<G>() == type_name::<bls12_381::G1Projective>() {
+        return crate::codec::pad_identifier(b"sigma-proofs_Shake128_BLS12381");
+    }
+
+    crate::codec::pad_identifier(b"ietf sigma proof linear relation")
+}
 
 impl<G> SigmaProtocol for CanonicalLinearRelation<G>
 where
@@ -129,9 +144,7 @@ where
     }
 
     fn protocol_identifier(&self) -> [u8; 64] {
-        let mut id = [0u8; 64];
-        id[..32].clone_from_slice(b"ietf sigma proof linear relation");
-        id
+        protocol_identifier_for_group::<G>()
     }
 }
 

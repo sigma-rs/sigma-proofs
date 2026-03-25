@@ -2,11 +2,8 @@
 
 use crate::duplex_sponge::DuplexSpongeInterface;
 use crate::duplex_sponge::{keccak::KeccakDuplexSponge, shake::ShakeDuplexSponge};
-use alloc::vec;
-use ff::PrimeField;
 use group::prime::PrimeGroup;
-use num_bigint::BigUint;
-use num_traits::identities::One;
+use spongefish::Decoding;
 
 /// A trait defining the behavior of a domain-separated codec hashing, which is typically used for [`crate::traits::SigmaProtocol`]s.
 ///
@@ -36,11 +33,6 @@ pub trait Codec {
     fn verifier_challenge(&mut self) -> Self::Challenge;
 }
 
-fn cardinal<F: PrimeField>() -> BigUint {
-    let bytes = (F::ZERO - F::ONE).to_repr();
-    BigUint::from_bytes_le(bytes.as_ref()) + BigUint::one()
-}
-
 /// A byte-level Schnorr codec that works with any duplex sponge.
 ///
 /// This codec is generic over both the group `G` and the hash function `H`.
@@ -55,10 +47,24 @@ where
     _marker: core::marker::PhantomData<G>,
 }
 
-const WORD_SIZE: usize = 4;
+pub(crate) fn pad_identifier(identifier: &[u8]) -> [u8; 64] {
+    assert!(
+        identifier.len() <= 64,
+        "identifier must fit within 64 bytes"
+    );
 
-fn length_to_bytes(x: usize) -> [u8; WORD_SIZE] {
-    (x as u32).to_be_bytes()
+    let mut padded = [0u8; 64];
+    padded[..identifier.len()].copy_from_slice(identifier);
+    padded
+}
+
+pub(crate) fn derive_session_id<H: DuplexSpongeInterface>(session: &[u8]) -> [u8; 64] {
+    let mut session_state = H::new(pad_identifier(b"fiat-shamir/session-id"));
+    session_state.absorb(session);
+
+    let mut session_id = [0u8; 64];
+    session_id[32..].copy_from_slice(&session_state.squeeze(32));
+    session_id
 }
 
 /// Compute the initialization vector (IV) for a protocol instance.
@@ -70,11 +76,8 @@ pub fn compute_iv<H: DuplexSpongeInterface>(
     session_id: &[u8],
     instance_label: &[u8],
 ) -> [u8; 64] {
-    let mut tmp = H::new([0u8; 64]);
-    tmp.absorb(protocol_id);
-    tmp.absorb(&length_to_bytes(session_id.len()));
-    tmp.absorb(session_id);
-    tmp.absorb(&length_to_bytes(instance_label.len()));
+    let mut tmp = H::new(*protocol_id);
+    tmp.absorb(&derive_session_id::<H>(session_id));
     tmp.absorb(instance_label);
     tmp.squeeze(64).try_into().unwrap()
 }
@@ -83,14 +86,13 @@ impl<G, H> Codec for ByteSchnorrCodec<G, H>
 where
     G: PrimeGroup,
     H: DuplexSpongeInterface,
+    G::Scalar: Decoding<[u8]>,
 {
     type Challenge = G::Scalar;
 
     fn new(protocol_id: &[u8; 64], session_id: &[u8], instance_label: &[u8]) -> Self {
         let mut hasher = H::new(*protocol_id);
-        hasher.absorb(&length_to_bytes(session_id.len()));
-        hasher.absorb(session_id);
-        hasher.absorb(&length_to_bytes(instance_label.len()));
+        hasher.absorb(&derive_session_id::<H>(session_id));
         hasher.absorb(instance_label);
         Self {
             hasher,
@@ -103,28 +105,14 @@ where
     }
 
     fn verifier_challenge(&mut self) -> Self::Challenge {
-        #[allow(clippy::manual_div_ceil)]
-        let scalar_byte_length = (G::Scalar::NUM_BITS as usize + 7) / 8;
-
-        let uniform_bytes = self.hasher.squeeze(scalar_byte_length + 16);
-        let scalar = BigUint::from_bytes_be(&uniform_bytes);
-        let reduced = scalar % cardinal::<G::Scalar>();
-
-        let mut bytes = vec![0u8; scalar_byte_length];
-        let reduced_bytes = reduced.to_bytes_be();
-        let start = bytes.len() - reduced_bytes.len();
-        bytes[start..].copy_from_slice(&reduced_bytes);
-        bytes.reverse();
-
-        let mut repr = <G::Scalar as PrimeField>::Repr::default();
-        repr.as_mut().copy_from_slice(&bytes);
-
-        <G::Scalar as PrimeField>::from_repr(repr).expect("Error")
+        let mut repr = <G::Scalar as Decoding<[u8]>>::Repr::default();
+        let uniform_bytes = self.hasher.squeeze(repr.as_mut().len());
+        repr.as_mut().copy_from_slice(&uniform_bytes);
+        G::Scalar::decode(repr)
     }
 }
 
 /// Type alias for a Keccak-based ByteSchnorrCodec.
-/// This is the codec used for matching test vectors from Sage.
 pub type KeccakByteSchnorrCodec<G> = ByteSchnorrCodec<G, KeccakDuplexSponge>;
 
 /// Type alias for a SHAKE-based ByteSchnorrCodec.
