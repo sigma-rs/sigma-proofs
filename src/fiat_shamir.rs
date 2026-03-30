@@ -82,15 +82,13 @@ where
         let mut transcript =
             initialize_prover_state(protocol_id, &self.session_id, instance_label.as_ref());
         let (commitment, ip_state) = self.interactive_proof.prover_commit(witness, rng)?;
-        let commitment_bytes = serialize_messages(&commitment);
-        transcript.public_message(commitment_bytes.as_slice());
+        transcript.prover_messages(&commitment);
         let challenge = transcript.verifier_message::<P::Challenge>();
         let response = self
             .interactive_proof
             .prover_response(ip_state, &challenge)?;
-        let mut proof = commitment_bytes;
-        serialize_messages_into(&response, &mut proof);
-        Ok(proof)
+        transcript.prover_messages(&response);
+        Ok(transcript.narg_string().to_vec())
     }
 
     /// Verifies a batchable non-interactive proof.
