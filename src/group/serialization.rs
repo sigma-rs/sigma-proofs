@@ -1,27 +1,35 @@
 //! Serialization and deserialization utilities for group elements and scalars.
 //!
-//! This module provides functions to convert group elements and scalars to and from
-//! byte representations using canonical encodings.
+//! This module is retained only as a backward-compatible shim for callers that
+//! still import `sigma_proofs::serialization::*`.
+//!
+//! For new code, prefer `spongefish::Encoding` /
+//! `spongefish::NargSerialize` / `spongefish::NargDeserialize` for proof and
+//! transcript bytes. Only use direct `GroupEncoding::to_bytes` /
+//! `GroupEncoding::from_bytes` loops when you need fixed-width group-byte labels
+//! outside the transcript path.
 
 use alloc::vec::Vec;
 use ff::PrimeField;
 use group::prime::PrimeGroup;
 
-/// Get the serialized length of a group element in bytes.
+/// Legacy helper for the serialized length of a group element in bytes.
 ///
-/// # Returns
-/// The number of bytes required to serialize a group element.
+/// Prefer `G::Repr::default().as_ref().len()` directly.
+#[deprecated(
+    note = "Use `G::Repr::default().as_ref().len()` directly. For transcript data, migrate to `spongefish::{Encoding, NargSerialize, NargDeserialize}`; for fixed-width labels, use direct `GroupEncoding` loops."
+)]
 pub fn group_elt_serialized_len<G: PrimeGroup>() -> usize {
     G::Repr::default().as_ref().len()
 }
 
-/// Serialize a slice of group elements into a byte vector.
+/// Legacy helper for serializing a slice of group elements into a byte vector.
 ///
-/// # Parameters
-/// - `elements`: A slice of group elements to serialize.
-///
-/// # Returns
-/// - A `Vec<u8>` containing the concatenated canonical compressed byte representations.
+/// Prefer `spongefish::NargSerialize` for transcript bytes, or direct
+/// `GroupEncoding::to_bytes` loops for fixed-width labels.
+#[deprecated(
+    note = "Use `spongefish::NargSerialize` for transcript bytes. If you need fixed-width label bytes instead, loop over `GroupEncoding::to_bytes` directly."
+)]
 pub fn serialize_elements<'a, G: PrimeGroup>(elements: impl IntoIterator<Item = &'a G>) -> Vec<u8> {
     let mut bytes = Vec::new();
     for element in elements {
@@ -30,17 +38,15 @@ pub fn serialize_elements<'a, G: PrimeGroup>(elements: impl IntoIterator<Item = 
     bytes
 }
 
-/// Deserialize a byte slice into a vector of group elements.
+/// Legacy helper for deserializing a byte slice into a vector of group elements.
 ///
-/// # Parameters
-/// - `data`: A byte slice containing the serialized representations of group elements.
-/// - `count`: The number of elements to deserialize.
-///
-/// # Returns
-/// - `Some(Vec<G>)`: The deserialized group elements if all are valid.
-/// - `None`: If the byte slice length is incorrect or any element is invalid.
+/// Prefer `spongefish::NargDeserialize` for transcript bytes, or direct
+/// `GroupEncoding::from_bytes` loops for fixed-width labels.
+#[deprecated(
+    note = "Use `spongefish::NargDeserialize` for transcript bytes. If you need fixed-width label bytes instead, loop over `GroupEncoding::from_bytes` directly."
+)]
 pub fn deserialize_elements<G: PrimeGroup>(data: &[u8], count: usize) -> Option<Vec<G>> {
-    let element_len = group_elt_serialized_len::<G>();
+    let element_len = G::Repr::default().as_ref().len();
     let expected_len = count * element_len;
 
     if data.len() < expected_len {
@@ -63,16 +69,12 @@ pub fn deserialize_elements<G: PrimeGroup>(data: &[u8], count: usize) -> Option<
     Some(elements)
 }
 
-/// Serialize a slice of scalar field elements into a byte vector.
+/// Legacy helper for serializing a slice of scalar field elements into a byte vector.
 ///
-/// This method internally relies on the underlying group serialization function,
-/// and is meant to match the Internet Draft for point compression.
-///
-/// # Parameters
-/// - `scalars`: A slice of scalar field elements to serialize.
-///
-/// # Returns
-/// - A `Vec<u8>` containing the scalar bytes in big-endian order.
+/// Prefer `spongefish::Encoding` / `spongefish::NargSerialize`.
+#[deprecated(
+    note = "Use `spongefish::Encoding`, `spongefish::NargSerialize`, or `spongefish::NargDeserialize` for transcript semantics instead of this helper."
+)]
 pub fn serialize_scalars<G: PrimeGroup>(scalars: &[G::Scalar]) -> Vec<u8> {
     let mut bytes = Vec::new();
     for scalar in scalars {
@@ -83,15 +85,12 @@ pub fn serialize_scalars<G: PrimeGroup>(scalars: &[G::Scalar]) -> Vec<u8> {
     bytes
 }
 
-/// Deserialize a byte slice into a vector of scalar field elements.
+/// Legacy helper for deserializing a byte slice into a vector of scalar field elements.
 ///
-/// # Parameters
-/// - `data`: A byte slice containing the serialized scalars in little-endian order.
-/// - `count`: The number of scalars to deserialize.
-///
-/// # Returns
-/// - `Some(Vec<G::Scalar>)`: The deserialized scalars if all are valid.
-/// - `None`: If the byte slice length is incorrect or any scalar is invalid.
+/// Prefer `spongefish::NargDeserialize`.
+#[deprecated(
+    note = "Use `spongefish::Encoding`, `spongefish::NargSerialize`, or `spongefish::NargDeserialize` for transcript semantics instead of this helper."
+)]
 pub fn deserialize_scalars<G: PrimeGroup>(data: &[u8], count: usize) -> Option<Vec<G::Scalar>> {
     #[allow(clippy::manual_div_ceil)]
     let scalar_len = (G::Scalar::NUM_BITS as usize + 7) / 8;

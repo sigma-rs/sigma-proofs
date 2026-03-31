@@ -84,5 +84,8 @@ pub use fiat_shamir::Nizk;
 pub use group::msm::MultiScalarMul;
 pub use linear_relation::LinearRelation;
 
-#[deprecated = "Use sigma_proofs::group::serialization instead"]
+#[deprecated(
+    note = "Use `spongefish::{Encoding, NargSerialize, NargDeserialize}` for proof and transcript bytes. Only use direct `GroupEncoding` loops for fixed-width group-byte labels."
+)]
+#[allow(deprecated)]
 pub use group::serialization;
