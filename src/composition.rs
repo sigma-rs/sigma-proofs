@@ -1308,7 +1308,10 @@ where
                 ComposedCommitment::Or(commitments),
                 ComposedResponse::Or(challenges, responses),
             ) => {
-                if ps.len() != commitments.len() || commitments.len() != responses.len() {
+                if ps.len() != commitments.len()
+                    || commitments.len() != responses.len()
+                    || challenges.len() != ps.len() - 1
+                {
                     return Err(Error::InvalidInstanceWitnessPair);
                 }
                 let last_challenge = *challenge - challenges.iter().sum::<G::Scalar>();
