@@ -19,7 +19,6 @@
 
 mod relations;
 
-use core::{array::from_fn, iter::repeat_with};
 use std::{
     hint::black_box,
     sync::LazyLock,
@@ -27,9 +26,12 @@ use std::{
 };
 
 use curve25519_dalek::{RistrettoPoint as G, Scalar};
-use group::{ff::Field, Group};
 
 use rand_chacha::{rand_core::SeedableRng, ChaCha12Rng};
+use rand_core::{
+    impls::{next_u32_via_fill, next_u64_via_fill},
+    CryptoRng, CryptoRngCore, Error, RngCore,
+};
 use serial_test::serial;
 use sigma_proofs::{
     composition::{ComposedRelation, ComposedWitness},
@@ -102,7 +104,7 @@ fn baseline() {
 }
 
 fn wide_relation<const WIDTH: usize>(
-    rng: &mut impl ScalarRng,
+    rng: &mut impl CryptoRngCore,
 ) -> (CanonicalLinearRelation<G>, Vec<Scalar>) {
     let mut rel = LinearRelation::<G>::new();
     let constraint: Sum<_> = (0..WIDTH)
@@ -110,7 +112,7 @@ fn wide_relation<const WIDTH: usize>(
         .sum();
     let _ = rel.allocate_eq(constraint);
 
-    let wit = rng.random_scalars::<G, WIDTH>();
+    let wit = G::random_scalars::<WIDTH>(rng);
     rel.compute_image(&wit).unwrap();
     (rel.try_into().unwrap(), wit.to_vec())
 }
@@ -169,13 +171,26 @@ where
 /// witnesses.
 struct FixedRng;
 
-impl ScalarRng for FixedRng {
-    fn random_scalars<G: Group, const N: usize>(&mut self) -> [G::Scalar; N] {
-        from_fn(|_| <G::Scalar as Field>::ONE)
+impl CryptoRng for FixedRng {}
+
+impl RngCore for FixedRng {
+    fn next_u32(&mut self) -> u32 {
+        next_u32_via_fill(self)
     }
 
-    fn random_scalars_vec<G: Group>(&mut self, n: usize) -> Vec<G::Scalar> {
-        repeat_with(|| <G::Scalar as Field>::ONE).take(n).collect()
+    fn next_u64(&mut self) -> u64 {
+        next_u64_via_fill(self)
+    }
+
+    fn fill_bytes(&mut self, dest: &mut [u8]) {
+        // Always returns ONE assuming the dest is interpreted as a big-endian number.
+        dest.fill(0);
+        dest[dest.len() - 1] = 0x01;
+    }
+
+    fn try_fill_bytes(&mut self, dst: &mut [u8]) -> Result<(), Error> {
+        self.fill_bytes(dst);
+        Ok(())
     }
 }
 

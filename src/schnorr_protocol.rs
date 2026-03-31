@@ -12,6 +12,7 @@ use alloc::vec::Vec;
 use itertools::Itertools;
 
 use group::prime::PrimeGroup;
+use rand_core::CryptoRngCore;
 use spongefish::{Decoding, Encoding, NargDeserialize, NargSerialize};
 
 fn protocol_identifier_for_group<G>() -> [u8; 64] {
@@ -69,13 +70,13 @@ where
     fn prover_commit(
         &self,
         witness: &Self::Witness,
-        rng: &mut impl ScalarRng,
+        rng: &mut impl CryptoRngCore,
     ) -> Result<(Vec<Self::Commitment>, Self::ProverState)> {
         if witness.len() != self.num_scalars {
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
-        let nonces = rng.random_scalars_vec::<G>(self.num_scalars);
+        let nonces = G::random_scalars_vec(rng, self.num_scalars);
         let commitment = self.evaluate(&nonces);
         let prover_state = (nonces.to_vec(), witness.to_vec());
         Ok((commitment, prover_state))
@@ -272,8 +273,8 @@ where
     ///
     /// # Returns
     /// - A commitment and response forming a valid proof for the given challenge.
-    fn simulate_response(&self, rng: &mut impl ScalarRng) -> Vec<Self::Response> {
-        rng.random_scalars_vec::<G>(self.num_scalars)
+    fn simulate_response(&self, rng: &mut impl CryptoRngCore) -> Vec<Self::Response> {
+        G::random_scalars_vec(rng, self.num_scalars)
     }
 
     /// Simulates a full proof transcript using a randomly generated challenge.
@@ -283,8 +284,8 @@ where
     ///
     /// # Returns
     /// - A tuple `(commitment, challenge, response)` forming a valid proof.
-    fn simulate_transcript(&self, rng: &mut impl ScalarRng) -> Result<Transcript<Self>> {
-        let [challenge] = rng.random_scalars::<G, _>();
+    fn simulate_transcript(&self, rng: &mut impl CryptoRngCore) -> Result<Transcript<Self>> {
+        let [challenge] = G::random_scalars(rng);
         let response = self.simulate_response(rng);
         let commitment = self.simulate_commitment(&challenge, &response)?;
         Ok((commitment, challenge, response))
