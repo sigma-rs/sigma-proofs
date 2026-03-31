@@ -119,6 +119,7 @@ pub fn deserialize_scalars<G: PrimeGroup>(data: &[u8], count: usize) -> Option<V
 }
 
 #[cfg(test)]
+#[expect(deprecated)]
 mod tests {
     use super::*;
     use bls12_381::G1Projective as G;

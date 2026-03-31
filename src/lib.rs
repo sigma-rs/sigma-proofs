@@ -87,5 +87,4 @@ pub use linear_relation::LinearRelation;
 #[deprecated(
     note = "Use `spongefish::{Encoding, NargSerialize, NargDeserialize}` for proof and transcript bytes. Only use direct `GroupEncoding` loops for fixed-width group-byte labels."
 )]
-#[allow(deprecated)]
 pub use group::serialization;
