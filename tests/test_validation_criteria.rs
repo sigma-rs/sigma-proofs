@@ -5,8 +5,8 @@
 
 #[cfg(test)]
 mod instance_validation {
-    use bls12_381::{G1Projective as G, Scalar};
-    use ff::Field;
+    use curve25519_dalek::ristretto::RistrettoPoint as G;
+    use curve25519_dalek::scalar::Scalar;
     use group::Group;
     use sigma_proofs::{
         errors::Error,
@@ -52,7 +52,7 @@ mod instance_validation {
         // 0 = 0*B
         let mut relation = LinearRelation::<G>::new();
         let [var_B] = relation.allocate_elements();
-        let var_X = relation.allocate_eq(var_B * Scalar::from(0));
+        let var_X = relation.allocate_eq(var_B * Scalar::from(0u64));
         relation.set_element(var_B, G::generator());
         relation.set_element(var_X, G::identity());
         let result = CanonicalLinearRelation::try_from(&relation);
@@ -63,7 +63,7 @@ mod instance_validation {
         let mut relation = LinearRelation::<G>::new();
         let [var_x] = relation.allocate_scalars();
         let [var_C] = relation.allocate_elements();
-        let var_X = relation.allocate_eq(var_C * var_x * Scalar::from(0));
+        let var_X = relation.allocate_eq(var_C * var_x * Scalar::from(0u64));
         relation.set_element(var_C, G::generator());
         relation.set_element(var_X, G::identity());
         let result = CanonicalLinearRelation::try_from(&relation);
@@ -106,8 +106,8 @@ mod instance_validation {
         let var_img_1 = relation.allocate_eq(var_x * var_g + var_h);
         relation.allocate_eq(var_x * var_h + var_g);
         relation.set_element(var_g, G::generator());
-        relation.set_element(var_h, G::generator() * Scalar::from(2));
-        relation.set_element(var_img_1, G::generator() * Scalar::from(3));
+        relation.set_element(var_h, G::generator() * Scalar::from(2u64));
+        relation.set_element(var_img_1, G::generator() * Scalar::from(3u64));
         assert!(relation.canonical().is_err());
     }
 
@@ -122,7 +122,7 @@ mod instance_validation {
 
         let mut relation = LinearRelation::<G>::new();
         let var_B = relation.allocate_element();
-        let var_C = relation.allocate_eq(var_B * Scalar::from(1));
+        let var_C = relation.allocate_eq(var_B * Scalar::from(1u64));
         relation.set_elements([(var_B, G::generator()), (var_C, G::generator())]);
         assert!(CanonicalLinearRelation::try_from(&relation).is_ok());
     }
@@ -132,12 +132,12 @@ mod instance_validation {
     fn test_statement_without_witness() {
         let rng = &mut rand::thread_rng();
 
-        let pub_scalar = Scalar::from(42);
+        let pub_scalar = Scalar::from(42u64);
         let A = G::generator();
-        let B = G::generator() * Scalar::from(42);
-        let C = B * pub_scalar + A * Scalar::from(3);
+        let B = G::generator() * Scalar::from(42u64);
+        let C = B * pub_scalar + A * Scalar::from(3u64);
 
-        let X = G::generator() * Scalar::from(4);
+        let X = G::generator() * Scalar::from(4u64);
 
         // The following relation is trivially invalid.
         // That is, we know that no witness will ever satisfy it.
@@ -156,7 +156,7 @@ mod instance_validation {
         // X != B * pub_scalar + A * 3
         let mut linear_relation = LinearRelation::<G>::new();
         let [B_var, A_var] = linear_relation.allocate_elements();
-        let X_var = linear_relation.allocate_eq(B_var * pub_scalar + A_var * Scalar::from(3));
+        let X_var = linear_relation.allocate_eq(B_var * pub_scalar + A_var * Scalar::from(3u64));
         linear_relation.set_elements([(B_var, B), (A_var, A), (X_var, X)]);
         assert!(matches!(
             nizk.verify_batchable(&nizk.prove_batchable(&vec![], rng).unwrap())
@@ -175,7 +175,7 @@ mod instance_validation {
         // C = B * pub_scalar + A * 3
         let mut linear_relation = LinearRelation::<G>::new();
         let [B_var, A_var] = linear_relation.allocate_elements();
-        let C_var = linear_relation.allocate_eq(B_var * pub_scalar + A_var * Scalar::from(3));
+        let C_var = linear_relation.allocate_eq(B_var * pub_scalar + A_var * Scalar::from(3u64));
         linear_relation.set_elements([(B_var, B), (A_var, A), (C_var, C)]);
         assert!(linear_relation.canonical().is_ok());
 
@@ -186,7 +186,7 @@ mod instance_validation {
         let x_var = linear_relation.allocate_scalar();
         let [B_var, A_var] = linear_relation.allocate_elements();
         let X_var = linear_relation
-            .allocate_eq(B_var * x_var + B_var * pub_scalar + A_var * Scalar::from(3));
+            .allocate_eq(B_var * x_var + B_var * pub_scalar + A_var * Scalar::from(3u64));
         linear_relation.set_elements([(B_var, B), (A_var, A), (X_var, X)]);
         assert!(linear_relation.canonical().is_ok());
     }
@@ -225,8 +225,9 @@ mod instance_validation {
 
 #[cfg(test)]
 mod proof_validation {
-    use bls12_381::{G1Projective as G, Scalar};
-    use ff::Field;
+    use curve25519_dalek::ristretto::RistrettoPoint as G;
+    use curve25519_dalek::scalar::Scalar;
+    use group::Group;
     use rand::RngCore;
     use sigma_proofs::composition::{ComposedRelation, ComposedWitness};
     use sigma_proofs::linear_relation::{CanonicalLinearRelation, LinearRelation};

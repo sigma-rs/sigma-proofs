@@ -93,7 +93,7 @@ required-features = ["bls12_381", "std"]
 
 [[test]]
 name = "test_validation_criteria"
-required-features = ["bls12_381", "std"]
+required-features = ["curve25519-dalek", "std"]
 
 [[test]]
 name = "spec_vectors"
