@@ -278,7 +278,7 @@ fn serialize_messages<T: NargSerialize>(messages: &[T]) -> Vec<u8> {
 }
 
 fn deserialize_messages<T: NargDeserialize>(len: usize, buf: &mut &[u8]) -> Result<Vec<T>, Error> {
-    let mut out = Vec::with_capacity(len);
+    let mut out = Vec::new();
     for _ in 0..len {
         out.push(T::deserialize_from_narg(buf).map_err(|_| Error::VerificationFailure)?);
     }
