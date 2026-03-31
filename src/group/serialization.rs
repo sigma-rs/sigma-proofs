@@ -43,7 +43,7 @@ pub fn deserialize_elements<G: PrimeGroup>(data: &[u8], count: usize) -> Option<
     let element_len = group_elt_serialized_len::<G>();
     let expected_len = count * element_len;
 
-    if data.len() < expected_len {
+    if data.len() != expected_len {
         return None;
     }
 
@@ -97,7 +97,7 @@ pub fn deserialize_scalars<G: PrimeGroup>(data: &[u8], count: usize) -> Option<V
     let scalar_len = (G::Scalar::NUM_BITS as usize + 7) / 8;
     let expected_len = count * scalar_len;
 
-    if data.len() < expected_len {
+    if data.len() != expected_len {
         return None;
     }
 
@@ -117,4 +117,24 @@ pub fn deserialize_scalars<G: PrimeGroup>(data: &[u8], count: usize) -> Option<V
     }
 
     Some(scalars)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bls12_381::G1Projective as G;
+    use ff::Field;
+    use group::Group;
+
+    #[test]
+    fn rejects_trailing_bytes() {
+        let element = G::generator();
+        let mut elements = serialize_elements::<G>([&element]);
+        elements.push(0);
+        assert!(deserialize_elements::<G>(&elements, 1).is_none());
+        let scalar = <G as Group>::Scalar::ONE;
+        let mut scalars = serialize_scalars::<G>(&[scalar]);
+        scalars.push(0);
+        assert!(deserialize_scalars::<G>(&scalars, 1).is_none());
+    }
 }
