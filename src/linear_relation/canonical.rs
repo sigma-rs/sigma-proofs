@@ -2,6 +2,7 @@ use alloc::format;
 use alloc::vec::Vec;
 use core::iter;
 use core::marker::PhantomData;
+use itertools::Itertools;
 
 use ff::Field;
 use group::prime::PrimeGroup;
@@ -495,7 +496,7 @@ impl<G: PrimeGroup + ConstantTimeEq + MultiScalarMul> CanonicalLinearRelation<G>
     pub fn is_witness_valid(&self, witness: &[G::Scalar]) -> Choice {
         let got = self.evaluate(witness);
         self.image_elements()
-            .zip(got)
+            .zip_eq(got)
             .fold(Choice::from(1), |acc, (lhs, rhs)| acc & lhs.ct_eq(&rhs))
     }
 }

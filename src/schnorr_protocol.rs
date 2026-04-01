@@ -9,6 +9,7 @@ use crate::linear_relation::CanonicalLinearRelation;
 use crate::traits::{ScalarRng, SigmaProtocol, SigmaProtocolSimulator, Transcript};
 use crate::{LinearRelation, MultiScalarMul, Nizk};
 use alloc::vec::Vec;
+use itertools::Itertools;
 
 use group::prime::PrimeGroup;
 use spongefish::{Decoding, Encoding, NargDeserialize, NargSerialize};
@@ -101,7 +102,7 @@ where
 
         let responses = nonces
             .into_iter()
-            .zip(witness)
+            .zip_eq(witness)
             .map(|(r, w)| r + w * challenge)
             .collect();
         Ok(responses)
@@ -134,7 +135,7 @@ where
 
         let lhs = self.evaluate(response);
         let mut rhs = Vec::new();
-        for (img, g) in self.image_elements().zip(commitment) {
+        for (img, g) in self.image_elements().zip_eq(commitment) {
             rhs.push(img * challenge + g);
         }
         if lhs == rhs {
@@ -310,7 +311,7 @@ where
         let response_image = self.evaluate(response);
         let commitment = response_image
             .iter()
-            .zip(self.image_elements())
+            .zip_eq(self.image_elements())
             .map(|(res, img)| *res - img * challenge)
             .collect::<Vec<_>>();
         Ok(commitment)

@@ -22,6 +22,7 @@
 use alloc::{vec, vec::Vec};
 use ff::{Field, PrimeField};
 use group::prime::PrimeGroup;
+use itertools::Itertools;
 use sha3::{Digest, Sha3_256};
 use spongefish::{
     Decoding, Encoding, NargDeserialize, NargSerialize, VerificationError, VerificationResult,
@@ -111,29 +112,25 @@ where
     pub fn conditional_select(a: &Self, b: &Self, choice: Choice) -> Self {
         match (a, b) {
             (ComposedCommitment::Simple(a_elements), ComposedCommitment::Simple(b_elements)) => {
-                // Both vectors must have the same length for this to work
-                debug_assert_eq!(a_elements.len(), b_elements.len());
                 let selected: Vec<G> = a_elements
                     .iter()
-                    .zip(b_elements.iter())
+                    .zip_eq(b_elements.iter())
                     .map(|(a, b)| G::conditional_select(a, b, choice))
                     .collect();
                 ComposedCommitment::Simple(selected)
             }
             (ComposedCommitment::And(a_commitments), ComposedCommitment::And(b_commitments)) => {
-                debug_assert_eq!(a_commitments.len(), b_commitments.len());
                 let selected: Vec<ComposedCommitment<G>> = a_commitments
                     .iter()
-                    .zip(b_commitments.iter())
+                    .zip_eq(b_commitments.iter())
                     .map(|(a, b)| ComposedCommitment::conditional_select(a, b, choice))
                     .collect();
                 ComposedCommitment::And(selected)
             }
             (ComposedCommitment::Or(a_commitments), ComposedCommitment::Or(b_commitments)) => {
-                debug_assert_eq!(a_commitments.len(), b_commitments.len());
                 let selected: Vec<ComposedCommitment<G>> = a_commitments
                     .iter()
-                    .zip(b_commitments.iter())
+                    .zip_eq(b_commitments.iter())
                     .map(|(a, b)| ComposedCommitment::conditional_select(a, b, choice))
                     .collect();
                 ComposedCommitment::Or(selected)
@@ -142,10 +139,9 @@ where
                 ComposedCommitment::Threshold(a_commitments),
                 ComposedCommitment::Threshold(b_commitments),
             ) => {
-                debug_assert_eq!(a_commitments.len(), b_commitments.len());
                 let selected: Vec<ComposedCommitment<G>> = a_commitments
                     .iter()
-                    .zip(b_commitments.iter())
+                    .zip_eq(b_commitments.iter())
                     .map(|(a, b)| ComposedCommitment::conditional_select(a, b, choice))
                     .collect();
                 ComposedCommitment::Threshold(selected)
@@ -478,20 +474,17 @@ where
     pub fn conditional_select(a: &Self, b: &Self, choice: Choice) -> Self {
         match (a, b) {
             (ComposedResponse::Simple(a_scalars), ComposedResponse::Simple(b_scalars)) => {
-                // Both vectors must have the same length for this to work
-                debug_assert_eq!(a_scalars.len(), b_scalars.len());
                 let selected: Vec<G::Scalar> = a_scalars
                     .iter()
-                    .zip(b_scalars.iter())
+                    .zip_eq(b_scalars.iter())
                     .map(|(a, b)| G::Scalar::conditional_select(a, b, choice))
                     .collect();
                 ComposedResponse::Simple(selected)
             }
             (ComposedResponse::And(a_responses), ComposedResponse::And(b_responses)) => {
-                debug_assert_eq!(a_responses.len(), b_responses.len());
                 let selected: Vec<ComposedResponse<G>> = a_responses
                     .iter()
-                    .zip(b_responses.iter())
+                    .zip_eq(b_responses.iter())
                     .map(|(a, b)| ComposedResponse::conditional_select(a, b, choice))
                     .collect();
                 ComposedResponse::And(selected)
@@ -500,18 +493,15 @@ where
                 ComposedResponse::Or(a_challenges, a_responses),
                 ComposedResponse::Or(b_challenges, b_responses),
             ) => {
-                debug_assert_eq!(a_challenges.len(), b_challenges.len());
-                debug_assert_eq!(a_responses.len(), b_responses.len());
-
                 let selected_challenges: Vec<ComposedChallenge<G>> = a_challenges
                     .iter()
-                    .zip(b_challenges.iter())
+                    .zip_eq(b_challenges.iter())
                     .map(|(a, b)| G::Scalar::conditional_select(a, b, choice))
                     .collect();
 
                 let selected_responses: Vec<ComposedResponse<G>> = a_responses
                     .iter()
-                    .zip(b_responses.iter())
+                    .zip_eq(b_responses.iter())
                     .map(|(a, b)| ComposedResponse::conditional_select(a, b, choice))
                     .collect();
 
@@ -521,18 +511,15 @@ where
                 ComposedResponse::Threshold(a_challenges, a_responses),
                 ComposedResponse::Threshold(b_challenges, b_responses),
             ) => {
-                debug_assert_eq!(a_challenges.len(), b_challenges.len());
-                debug_assert_eq!(a_responses.len(), b_responses.len());
-
                 let selected_challenges: Vec<ComposedChallenge<G>> = a_challenges
                     .iter()
-                    .zip(b_challenges.iter())
+                    .zip_eq(b_challenges.iter())
                     .map(|(a, b)| G::Scalar::conditional_select(a, b, choice))
                     .collect();
 
                 let selected_responses: Vec<ComposedResponse<G>> = a_responses
                     .iter()
-                    .zip(b_responses.iter())
+                    .zip_eq(b_responses.iter())
                     .map(|(a, b)| ComposedResponse::conditional_select(a, b, choice))
                     .collect();
 
@@ -628,7 +615,7 @@ fn interpolate_polynomial<F: Field>(points: &[Evaluation<F>]) -> Result<Vec<F>, 
             return Err(Error::InvalidInstanceWitnessPair);
         }
         let scale = point_i.y * denom_inv.unwrap_or(F::ZERO);
-        for (coeff, basis_coeff) in coeffs.iter_mut().zip(basis.iter()) {
+        for (coeff, basis_coeff) in coeffs.iter_mut().zip_eq(basis.iter()) {
             *coeff += *basis_coeff * scale;
         }
     }
@@ -811,13 +798,13 @@ where
             }
             (ComposedRelation::And(instances), ComposedWitness::And(witnesses)) => instances
                 .iter()
-                .zip(witnesses)
+                .zip_eq(witnesses)
                 .fold(Choice::from(1), |bit, (instance, witness)| {
                     bit & instance.is_witness_valid(witness)
                 }),
             (ComposedRelation::Or(instances), ComposedWitness::Or(witnesses)) => instances
                 .iter()
-                .zip(witnesses)
+                .zip_eq(witnesses)
                 .fold(Choice::from(0), |bit, (instance, witness)| {
                     bit | instance.is_witness_valid(witness)
                 }),
@@ -829,7 +816,7 @@ where
                     return Choice::from(0);
                 }
                 let mut count = 0usize;
-                for (instance, witness) in instances.iter().zip(witnesses) {
+                for (instance, witness) in instances.iter().zip_eq(witnesses) {
                     if instance.is_witness_valid(witness).unwrap_u8() == 1 {
                         count += 1;
                     }
@@ -875,7 +862,7 @@ where
         let mut commitments = Vec::with_capacity(protocols.len());
         let mut prover_states = Vec::with_capacity(protocols.len());
 
-        for (p, w) in protocols.iter().zip(witnesses.iter()) {
+        for (p, w) in protocols.iter().zip_eq(witnesses.iter()) {
             let (mut c, s) = p.prover_commit(w, rng)?;
             let commitment = c.pop().ok_or(Error::InvalidInstanceWitnessPair)?;
             if !c.is_empty() {
@@ -902,7 +889,7 @@ where
 
         let responses: Result<Vec<_>, _> = instances
             .iter()
-            .zip(prover_state)
+            .zip_eq(prover_state)
             .map(|(p, s)| {
                 let mut res = p.prover_response(s, challenge)?;
                 res.pop().ok_or(Error::InvalidInstanceWitnessPair)
@@ -1014,7 +1001,7 @@ where
                 simulated_challenge,
                 simulated_response,
             ),
-        ) in instances.iter().zip(prover_state)
+        ) in instances.iter().zip_eq(prover_state)
         {
             let challenge_i = G::Scalar::conditional_select(
                 &simulated_challenge,
@@ -1056,7 +1043,7 @@ where
 
         let valid_witnesses = instances
             .iter()
-            .zip(witnesses.iter())
+            .zip_eq(witnesses.iter())
             .map(|(x, w)| x.is_witness_valid(w))
             .collect::<Vec<Choice>>();
 
@@ -1069,7 +1056,7 @@ where
         let mut remaining_seeds = (degree - invalid_count) as u32;
         let mut commitments = Vec::with_capacity(instances.len());
         let mut prover_states = Vec::with_capacity(instances.len());
-        for (i, (instance, witness)) in instances.iter().zip(witnesses.iter()).enumerate() {
+        for (i, (instance, witness)) in instances.iter().zip_eq(witnesses.iter()).enumerate() {
             let (mut commitment_vec, prover_state) = instance.prover_commit(witness, rng)?;
             let commitment = commitment_vec
                 .pop()
@@ -1170,7 +1157,7 @@ where
 
         let mut responses = Vec::with_capacity(instances.len());
 
-        for (i, (instance, prover_state)) in instances.iter().zip(prover_states).enumerate() {
+        for (i, (instance, prover_state)) in instances.iter().zip_eq(prover_states).enumerate() {
             let poly_challenge = expanded_challenges[i];
             let challenge = G::Scalar::conditional_select(
                 &poly_challenge,
@@ -1293,8 +1280,8 @@ where
                     return Err(Error::InvalidInstanceWitnessPair);
                 }
                 ps.iter()
-                    .zip(commitments)
-                    .zip(responses)
+                    .zip_eq(commitments)
+                    .zip_eq(responses)
                     .try_for_each(|((p, c), r)| {
                         p.verifier(
                             core::slice::from_ref(c),
@@ -1316,9 +1303,9 @@ where
                 }
                 let last_challenge = *challenge - challenges.iter().sum::<G::Scalar>();
                 ps.iter()
-                    .zip(commitments)
-                    .zip(challenges.iter().chain(&Some(last_challenge)))
-                    .zip(responses)
+                    .zip_eq(commitments)
+                    .zip_eq(challenges.iter().chain(&Some(last_challenge)))
+                    .zip_eq(responses)
                     .try_for_each(|(((p, commitment), challenge), response)| {
                         p.verifier(
                             core::slice::from_ref(commitment),
@@ -1349,9 +1336,9 @@ where
                 )?;
 
                 ps.iter()
-                    .zip(commitments)
-                    .zip(full_challenges.iter())
-                    .zip(responses)
+                    .zip_eq(commitments)
+                    .zip_eq(full_challenges.iter())
+                    .zip_eq(responses)
                     .try_for_each(|(((p, commitment), challenge), response)| {
                         p.verifier(
                             core::slice::from_ref(commitment),
@@ -1462,9 +1449,12 @@ where
                 ComposedCommitment::Simple(p.simulate_commitment(challenge, r)?)
             }
             (ComposedRelation::And(ps), ComposedResponse::And(rs)) => {
+                if ps.len() != rs.len() {
+                    return Err(Error::InvalidInstanceWitnessPair);
+                }
                 let commitments = ps
                     .iter()
-                    .zip(rs)
+                    .zip_eq(rs)
                     .map(|(p, r)| {
                         p.simulate_commitment(challenge, core::slice::from_ref(r))
                             .and_then(|mut c| c.pop().ok_or(Error::InvalidInstanceWitnessPair))
@@ -1473,11 +1463,14 @@ where
                 ComposedCommitment::And(commitments)
             }
             (ComposedRelation::Or(ps), ComposedResponse::Or(challenges, rs)) => {
+                if ps.is_empty() || rs.len() != ps.len() || challenges.len() + 1 != ps.len() {
+                    return Err(Error::InvalidInstanceWitnessPair);
+                }
                 let last_challenge = *challenge - challenges.iter().sum::<G::Scalar>();
                 let commitments = ps
                     .iter()
-                    .zip(challenges.iter().chain(&Some(last_challenge)))
-                    .zip(rs)
+                    .zip_eq(challenges.iter().chain(&Some(last_challenge)))
+                    .zip_eq(rs)
                     .map(|((p, ch), r)| {
                         p.simulate_commitment(ch, core::slice::from_ref(r))
                             .and_then(|mut c| c.pop().ok_or(Error::InvalidInstanceWitnessPair))
@@ -1501,8 +1494,8 @@ where
                 )?;
                 let commitments = ps
                     .iter()
-                    .zip(full_challenges.iter())
-                    .zip(rs)
+                    .zip_eq(full_challenges.iter())
+                    .zip_eq(rs)
                     .map(|((p, ch), r)| {
                         p.simulate_commitment(ch, core::slice::from_ref(r))
                             .and_then(|mut c| c.pop().ok_or(Error::InvalidInstanceWitnessPair))
@@ -1666,8 +1659,8 @@ where
                 )?;
                 let commitments = ps
                     .iter()
-                    .zip(full_challenges.iter())
-                    .zip(responses.iter())
+                    .zip_eq(full_challenges.iter())
+                    .zip_eq(responses.iter())
                     .map(|((p, ch), r)| {
                         p.simulate_commitment(ch, core::slice::from_ref(r))
                             .and_then(|mut c| {
