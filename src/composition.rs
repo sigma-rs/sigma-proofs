@@ -796,18 +796,28 @@ where
             (ComposedRelation::Simple(instance), ComposedWitness::Simple(witness)) => {
                 instance.is_witness_valid(witness)
             }
-            (ComposedRelation::And(instances), ComposedWitness::And(witnesses)) => instances
-                .iter()
-                .zip_eq(witnesses)
-                .fold(Choice::from(1), |bit, (instance, witness)| {
-                    bit & instance.is_witness_valid(witness)
-                }),
-            (ComposedRelation::Or(instances), ComposedWitness::Or(witnesses)) => instances
-                .iter()
-                .zip_eq(witnesses)
-                .fold(Choice::from(0), |bit, (instance, witness)| {
-                    bit | instance.is_witness_valid(witness)
-                }),
+            (ComposedRelation::And(instances), ComposedWitness::And(witnesses)) => {
+                if instances.len() != witnesses.len() {
+                    return Choice::from(0);
+                }
+                instances
+                    .iter()
+                    .zip_eq(witnesses)
+                    .fold(Choice::from(1), |bit, (instance, witness)| {
+                        bit & instance.is_witness_valid(witness)
+                    })
+            }
+            (ComposedRelation::Or(instances), ComposedWitness::Or(witnesses)) => {
+                if instances.len() != witnesses.len() {
+                    return Choice::from(0);
+                }
+                instances
+                    .iter()
+                    .zip_eq(witnesses)
+                    .fold(Choice::from(0), |bit, (instance, witness)| {
+                        bit | instance.is_witness_valid(witness)
+                    })
+            }
             (
                 ComposedRelation::Threshold(threshold, instances),
                 ComposedWitness::Threshold(witnesses),
