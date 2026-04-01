@@ -65,14 +65,13 @@ where
     ///
     /// # Errors
     ///
-    /// -[`Error::InvalidInstanceWitnessPair`] if the witness vector length is less than the number of scalar variables.
-    /// If the witness vector is larger, extra variables are ignored.
+    /// -[`Error::InvalidInstanceWitnessPair`] if the witness vector length is not equal to the number of scalar variables.
     fn prover_commit(
         &self,
         witness: &Self::Witness,
         rng: &mut impl ScalarRng,
     ) -> Result<(Vec<Self::Commitment>, Self::ProverState)> {
-        if witness.len() < self.num_scalars {
+        if witness.len() != self.num_scalars {
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
@@ -99,6 +98,9 @@ where
         challenge: &Self::Challenge,
     ) -> Result<Vec<Self::Response>> {
         let (nonces, witness) = prover_state;
+        if witness.len() != self.num_scalars || nonces.len() != self.num_scalars {
+            return Err(Error::InvalidInstanceWitnessPair);
+        }
 
         let responses = nonces
             .into_iter()

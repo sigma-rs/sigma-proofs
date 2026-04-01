@@ -978,6 +978,10 @@ where
         let mut result_challenges = Vec::with_capacity(instances.len());
         let mut result_responses = Vec::with_capacity(instances.len());
 
+        if instances.len() != prover_state.len() {
+            return Err(Error::InvalidInstanceWitnessPair);
+        }
+
         let mut witness_challenge = *challenge;
         for ComposedOrProverStateEntry(
             valid_witness,
