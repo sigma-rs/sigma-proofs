@@ -3,10 +3,10 @@ name: Verify Test Vectors
 on:
   push:
     paths:
-      - 'src/tests/spec/vectors/*.json'
+      - 'tests/spec/testdata/sigma-proofs_*.json'
   pull_request:
     paths:
-      - 'src/tests/spec/vectors/*.json'
+      - 'tests/spec/testdata/sigma-proofs_*.json'
   workflow_dispatch:
   schedule:
     - cron: '0 0 * * 0'
@@ -17,7 +17,14 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - run: |
-          curl -sL https://raw.githubusercontent.com/mmaker/draft-irtf-cfrg-sigma-protocols/main/poc/vectors/duplexSpongeVectors.json -o /tmp/duplexSpongeVectors.json
-          [ "$(sha256sum src/tests/spec/vectors/duplexSpongeVectors.json | cut -d' ' -f1)" = "$(sha256sum /tmp/duplexSpongeVectors.json | cut -d' ' -f1)" ] || exit 1
-          curl -sL https://raw.githubusercontent.com/mmaker/draft-irtf-cfrg-sigma-protocols/main/poc/vectors/testSigmaProtocols.json -o /tmp/testSigmaProtocols.json
-          [ "$(sha256sum src/tests/spec/vectors/testSigmaProtocols.json | cut -d' ' -f1)" = "$(sha256sum /tmp/testSigmaProtocols.json | cut -d' ' -f1)" ] || exit 1
+          set -euo pipefail
+          vector_dir="tests/spec/testdata"
+          upstream_base="https://raw.githubusercontent.com/mmaker/draft-irtf-cfrg-sigma-protocols/main/poc/vectors"
+
+          for vector in \
+            sigma-proofs_Shake128_BLS12381.json \
+            sigma-proofs_Shake128_P256.json
+          do
+            curl -sL "$upstream_base/$vector" -o "/tmp/$vector"
+            [ "$(sha256sum "$vector_dir/$vector" | cut -d' ' -f1)" = "$(sha256sum "/tmp/$vector" | cut -d' ' -f1)" ] || exit 1
+          done
