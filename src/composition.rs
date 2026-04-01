@@ -1486,7 +1486,10 @@ where
                 ComposedRelation::Threshold(threshold, ps),
                 ComposedResponse::Threshold(challenges, rs),
             ) => {
-                if rs.len() != ps.len() || challenges.len() != ps.len() - threshold {
+                if rs.len() != ps.len()
+                    || ps.len() < *threshold
+                    || challenges.len() != ps.len() - threshold
+                {
                     return Err(Error::InvalidInstanceWitnessPair);
                 }
 
