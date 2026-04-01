@@ -10,7 +10,6 @@ use subtle::{Choice, ConstantTimeEq};
 use super::{GroupMap, GroupVar, LinearCombination, LinearRelation, ScalarTerm, ScalarVar};
 use crate::errors::{Error, InvalidInstance};
 use crate::group::msm::MultiScalarMul;
-use crate::serialization::serialize_elements;
 
 /// A [`LinearRelation`] in canonical form, compatible with the IETF spec.
 ///
@@ -233,12 +232,13 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
         }
 
         // Dump the group elements.
-        let group_reprs = serialize_elements(
-            self.group_elements
-                .iter()
-                .map(|(_, elem)| elem.expect("expected group variable to be assigned")),
-        );
-        out.extend_from_slice(&group_reprs);
+        for (_, elem) in self.group_elements.iter() {
+            out.extend_from_slice(
+                elem.expect("expected group variable to be assigned")
+                    .to_bytes()
+                    .as_ref(),
+            );
+        }
 
         out
     }
@@ -260,7 +260,6 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
     /// ```
     pub fn from_label(data: &[u8]) -> Result<Self, Error> {
         use crate::errors::InvalidInstance;
-        use crate::group::serialization::group_elt_serialized_len;
 
         let mut offset = 0;
 
@@ -341,7 +340,7 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
 
         // Calculate expected number of group elements
         let num_group_elements = (max_group_index + 1) as usize;
-        let group_element_size = group_elt_serialized_len::<G>();
+        let group_element_size = G::Repr::default().as_ref().len();
         let expected_remaining = num_group_elements * group_element_size;
 
         if data.len() - offset != expected_remaining {
