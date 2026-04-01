@@ -1,6 +1,6 @@
 [package]
 name = "sigma-proofs"
-version = "0.2.2"
+version = "0.3.0"
 authors = [
     "Nugzari Uzoevi <nougzarm@icloud.com>",
     "Michele Orrù <m@orru.net>",
