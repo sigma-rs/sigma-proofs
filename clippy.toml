@@ -1,0 +1,3 @@
+disallowed-methods = [
+    { path = "core::iter::Iterator::zip", reason = "use itertools::zip_eq instead to catch length mismatches" },
+]
