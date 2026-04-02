@@ -307,7 +307,7 @@ where
         match tag_bytes[0] {
             TAG_SIMPLE => {
                 let len = read_u32(buf)? as usize;
-                let mut elems = Vec::with_capacity(len);
+                let mut elems = Vec::new();
                 for _ in 0..len {
                     elems.push(G::deserialize_from_narg(buf)?);
                 }
@@ -315,7 +315,7 @@ where
             }
             TAG_AND => {
                 let len = read_u32(buf)? as usize;
-                let mut entries = Vec::with_capacity(len);
+                let mut entries = Vec::new();
                 for _ in 0..len {
                     entries.push(ComposedCommitment::deserialize_from_narg(buf)?);
                 }
@@ -323,7 +323,7 @@ where
             }
             TAG_OR => {
                 let len = read_u32(buf)? as usize;
-                let mut entries = Vec::with_capacity(len);
+                let mut entries = Vec::new();
                 for _ in 0..len {
                     entries.push(ComposedCommitment::deserialize_from_narg(buf)?);
                 }
@@ -331,7 +331,7 @@ where
             }
             TAG_THRESHOLD => {
                 let len = read_u32(buf)? as usize;
-                let mut entries = Vec::with_capacity(len);
+                let mut entries = Vec::new();
                 for _ in 0..len {
                     entries.push(ComposedCommitment::deserialize_from_narg(buf)?);
                 }
@@ -417,7 +417,7 @@ where
         match tag_bytes[0] {
             TAG_SIMPLE => {
                 let len = read_u32(buf)? as usize;
-                let mut elems = Vec::with_capacity(len);
+                let mut elems = Vec::new();
                 for _ in 0..len {
                     elems.push(G::Scalar::deserialize_from_narg(buf)?);
                 }
@@ -425,7 +425,7 @@ where
             }
             TAG_AND => {
                 let len = read_u32(buf)? as usize;
-                let mut entries = Vec::with_capacity(len);
+                let mut entries = Vec::new();
                 for _ in 0..len {
                     entries.push(ComposedResponse::deserialize_from_narg(buf)?);
                 }
@@ -433,12 +433,12 @@ where
             }
             TAG_OR => {
                 let ch_len = read_u32(buf)? as usize;
-                let mut challenges = Vec::with_capacity(ch_len);
+                let mut challenges = Vec::new();
                 for _ in 0..ch_len {
                     challenges.push(G::Scalar::deserialize_from_narg(buf)?);
                 }
                 let resp_len = read_u32(buf)? as usize;
-                let mut responses = Vec::with_capacity(resp_len);
+                let mut responses = Vec::new();
                 for _ in 0..resp_len {
                     responses.push(ComposedResponse::deserialize_from_narg(buf)?);
                 }
@@ -446,12 +446,12 @@ where
             }
             TAG_THRESHOLD => {
                 let ch_len = read_u32(buf)? as usize;
-                let mut challenges = Vec::with_capacity(ch_len);
+                let mut challenges = Vec::new();
                 for _ in 0..ch_len {
                     challenges.push(G::Scalar::deserialize_from_narg(buf)?);
                 }
                 let resp_len = read_u32(buf)? as usize;
-                let mut responses = Vec::with_capacity(resp_len);
+                let mut responses = Vec::new();
                 for _ in 0..resp_len {
                     responses.push(ComposedResponse::deserialize_from_narg(buf)?);
                 }
@@ -1308,7 +1308,10 @@ where
                 ComposedCommitment::Or(commitments),
                 ComposedResponse::Or(challenges, responses),
             ) => {
-                if ps.len() != commitments.len() || commitments.len() != responses.len() {
+                if ps.len() != commitments.len()
+                    || commitments.len() != responses.len()
+                    || challenges.len() != ps.len() - 1
+                {
                     return Err(Error::InvalidInstanceWitnessPair);
                 }
                 let last_challenge = *challenge - challenges.iter().sum::<G::Scalar>();
@@ -1507,7 +1510,7 @@ where
                     .collect::<Result<Vec<_>, _>>()?;
                 ComposedCommitment::Threshold(commitments)
             }
-            _ => unreachable!(),
+            _ => return Err(Error::InvalidInstanceWitnessPair),
         };
 
         Ok(vec![commitment])

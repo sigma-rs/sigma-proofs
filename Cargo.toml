@@ -1,6 +1,6 @@
 [package]
 name = "sigma-proofs"
-version = "0.1.0-sigma"
+version = "0.3.0"
 authors = [
     "Nugzari Uzoevi <nougzarm@icloud.com>",
     "Michele Orrù <m@orru.net>",
@@ -54,9 +54,7 @@ p256 = { version = "0.13", default-features = false, features = ["arithmetic", "
 rand = { version = "0.8.5", optional = true }
 rand_core = { version = "0.6", default-features = false }
 sha3 = { version = "0.10.8", default-features = false }
-# TODO: Publish the latest version of spongefish and change this to a crates.io dependency.
-# This crate cannot be published while its still using a git dependency.
-spongefish = { git = "https://github.com/arkworks-rs/spongefish", features = ["derive"] }
+spongefish = { version = "0.5", features = ["derive"] }
 subtle = { version = "2.6.1", default-features = false }
 thiserror = { version = "1", optional = true }
 zerocopy = { version = "0.8", default-features = false }
@@ -79,18 +77,47 @@ serde_json = "1.0.140"
 serde_with = { version = "3.16.1", features = ["hex"] }
 serial_test = "3.3.1"
 sha2 = "0.10"
-spongefish = { git = "https://github.com/arkworks-rs/spongefish", features = ["curve25519-dalek", "p256", "bls12_381", "derive", "keccak", "std"] }
+spongefish = { version = "0.5", features = ["curve25519-dalek", "p256", "bls12_381", "derive", "keccak", "std"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 core_affinity2 = "0.15.4"
 
+[[test]]
+name = "dudect"
+required-features = ["curve25519-dalek", "std"]
+
+[[test]]
+name = "test_composition"
+required-features = ["curve25519-dalek", "std"]
+
+[[test]]
+name = "test_relations"
+required-features = ["bls12_381", "std"]
+
+[[test]]
+name = "instance_validation"
+required-features = ["curve25519-dalek", "std"]
+
+[[test]]
+name = "verifier_rejection"
+required-features = ["curve25519-dalek", "std"]
+
+[[test]]
+name = "spec_vectors"
+required-features = ["bls12_381", "std"]
+
 [[example]]
 name = "schnorr"
-required-features = ["curve25519-dalek"]
+required-features = ["curve25519-dalek", "std"]
+
+[[example]]
+name = "simple_composition"
+required-features = ["curve25519-dalek", "std"]
 
 [[bench]]
 name = "msm"
 harness = false
+required-features = ["std"]
 
 [profile.dev]
 # Makes tests run much faster at the cost of slightly longer builds and worse debug info.

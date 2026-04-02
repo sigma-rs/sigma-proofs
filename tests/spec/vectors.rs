@@ -8,11 +8,18 @@ pub struct Hex(#[serde_as(as = "hex::Hex")] pub Vec<u8>);
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct TestVector {
-    pub protocol: String,
+    #[serde(rename = "Relation")]
+    pub relation: String,
+    #[serde(rename = "Ciphersuite")]
     pub ciphersuite: String,
+    #[serde(rename = "SessionId")]
     pub session_id: Hex,
+    #[serde(rename = "Statement")]
     pub statement: Hex,
-    pub witness: Vec<Hex>,
-    pub randomness: Vec<Hex>,
-    pub proof_batchable: Hex,
+    #[serde(rename = "Witness")]
+    pub witness: Hex,
+    #[serde(rename = "Proof")]
+    pub proof: Hex,
+    #[serde(rename = "Batchable Proof")]
+    pub batchable_proof: Hex,
 }

@@ -4,9 +4,6 @@ use digest::{Digest, ExtendableOutput, Output, XofReader};
 /// Implementation of multi-scalar multiplication (MSM) over scalars and points.
 pub mod msm;
 
-/// Implementation of batch serialization functions for scalars and points.
-pub mod serialization;
-
 pub trait FromUniformBytes: Sized {
     type Bytes: AsRef<[u8]> + AsMut<[u8]> + Zeroable;
 

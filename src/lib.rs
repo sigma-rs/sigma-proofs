@@ -16,6 +16,7 @@
 //! ## Basic Usage
 //!
 //! ```rust
+//! # #[cfg(feature = "curve25519-dalek")] {
 //! # use curve25519_dalek::ristretto::RistrettoPoint;
 //! # use curve25519_dalek::scalar::Scalar;
 //! # use group::Group;
@@ -38,6 +39,7 @@
 //! let narg_string: Vec<u8> = nizk.prove_batchable(&witness, &mut rng).unwrap();
 //! // Print the narg string.
 //! println!("{}", hex::encode(narg_string));
+//! # }
 //! ```
 //!
 //! The library provides building blocks for creating zero-knowledge proofs:
@@ -54,7 +56,6 @@
 //! - **[`linear_relation::LinearRelation`]**: Express mathematical relations over groups
 //! - **[`fiat_shamir::Nizk`]**: Convert interactive proofs to standalone proofs
 //! - **[`composition::ComposedRelation`]**: Combine multiple proofs together
-//! - **[`codec`]**: Mapping from and to the hash function domain
 //!
 //! ---
 //!
@@ -69,7 +70,6 @@
 
 extern crate alloc;
 
-pub mod codec;
 pub mod composition;
 pub mod errors;
 pub mod group;
@@ -77,16 +77,9 @@ pub mod linear_relation;
 pub mod rng;
 pub mod traits;
 
-pub(crate) mod duplex_sponge;
 pub(crate) mod fiat_shamir;
 pub(crate) mod schnorr_protocol;
 
-pub use duplex_sponge::{
-    keccak::KeccakDuplexSponge, shake::ShakeDuplexSponge, DuplexSpongeInterface,
-};
 pub use fiat_shamir::Nizk;
 pub use group::msm::MultiScalarMul;
 pub use linear_relation::LinearRelation;
-
-#[deprecated = "Use sigma_proofs::group::serialization instead"]
-pub use group::serialization;
