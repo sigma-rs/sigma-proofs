@@ -1510,7 +1510,7 @@ where
                     .collect::<Result<Vec<_>, _>>()?;
                 ComposedCommitment::Threshold(commitments)
             }
-            _ => unreachable!(),
+            _ => return Err(Error::InvalidInstanceWitnessPair),
         };
 
         Ok(vec![commitment])
