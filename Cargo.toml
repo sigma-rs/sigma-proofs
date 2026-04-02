@@ -92,8 +92,12 @@ name = "test_relations"
 required-features = ["bls12_381", "std"]
 
 [[test]]
-name = "test_validation_criteria"
-required-features = ["bls12_381", "std"]
+name = "instance_validation"
+required-features = ["curve25519-dalek", "std"]
+
+[[test]]
+name = "verifier_rejection"
+required-features = ["curve25519-dalek", "std"]
 
 [[test]]
 name = "spec_vectors"

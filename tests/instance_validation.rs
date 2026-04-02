@@ -1,0 +1,224 @@
+//! Instance validation tests for sigma protocols.
+//!
+//! This module tests that malformed or invalid instances are rejected
+//! at construction time (before any proof is attempted).
+
+#[cfg(test)]
+mod instance_validation {
+    use curve25519_dalek::ristretto::RistrettoPoint as G;
+    use curve25519_dalek::scalar::Scalar;
+    use group::Group;
+    use sigma_proofs::{
+        errors::Error,
+        linear_relation::{CanonicalLinearRelation, LinearRelation},
+    };
+
+    #[test]
+    fn test_unassigned_group_vars() {
+        // Create a linear relation with unassigned group variables
+        let mut relation = LinearRelation::<G>::new();
+
+        // Allocate scalars and elements
+        let [var_x] = relation.allocate_scalars();
+        let [var_g, var_x_g] = relation.allocate_elements();
+
+        // Set only one element, leaving var_g unassigned
+        let x_val = G::generator() * Scalar::from(42u64);
+        relation.set_element(var_x_g, x_val);
+
+        // Add equation: X = x * G (but G is not set)
+        relation.append_equation(var_x_g, var_x * var_g);
+
+        // Try to convert to canonical form - should fail
+        let result = CanonicalLinearRelation::try_from(&relation);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    #[allow(non_snake_case)]
+    fn test_zero_image() {
+        // Create a linear relation with zero elements in the image
+        // 0 = x * G (which is invalid)
+        let mut relation = LinearRelation::<G>::new();
+        let [var_x] = relation.allocate_scalars();
+        let [var_G] = relation.allocate_elements();
+        let var_X = relation.allocate_eq(var_G * var_x);
+        relation.set_element(var_G, G::generator());
+        relation.set_element(var_X, G::identity());
+        let result = CanonicalLinearRelation::try_from(&relation);
+        assert!(result.is_err());
+
+        // Create a trivially valid linear relation with zero elements in the image
+        // 0 = 0*B
+        let mut relation = LinearRelation::<G>::new();
+        let [var_B] = relation.allocate_elements();
+        let var_X = relation.allocate_eq(var_B * Scalar::from(0u64));
+        relation.set_element(var_B, G::generator());
+        relation.set_element(var_X, G::identity());
+        let result = CanonicalLinearRelation::try_from(&relation);
+        assert!(result.is_ok());
+
+        // Create a valid linear relation with zero elements in the image
+        // 0 = 0*x*C
+        let mut relation = LinearRelation::<G>::new();
+        let [var_x] = relation.allocate_scalars();
+        let [var_C] = relation.allocate_elements();
+        let var_X = relation.allocate_eq(var_C * var_x * Scalar::from(0u64));
+        relation.set_element(var_C, G::generator());
+        relation.set_element(var_X, G::identity());
+        let result = CanonicalLinearRelation::try_from(&relation);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    #[allow(non_snake_case)]
+    pub fn test_degenerate_equation() {
+        // This relation should fail for two reasons:
+        // 1. because var_B is not assigned
+        let mut relation = LinearRelation::<G>::new();
+        let x = relation.allocate_scalar();
+        let var_B = relation.allocate_element();
+        let var_X = relation.allocate_eq((x + (-Scalar::ONE)) * var_B + (-var_B));
+        relation.set_element(var_X, G::identity());
+        assert!(CanonicalLinearRelation::try_from(&relation).is_err());
+
+        // 2. because var_X is not assigned
+        let mut relation = LinearRelation::<G>::new();
+        let x = relation.allocate_scalar();
+        let var_B = relation.allocate_element();
+        let _var_X = relation.allocate_eq((x + (-Scalar::ONE)) * var_B + (-var_B));
+        relation.set_element(var_B, G::generator());
+        assert!(CanonicalLinearRelation::try_from(&relation).is_err());
+    }
+
+    #[test]
+    fn test_inconsistent_equation_count() {
+        // Create a relation with mismatched equations and image elements
+        let mut relation = LinearRelation::<G>::new();
+        let [var_x] = relation.allocate_scalars();
+        let [var_g, var_h] = relation.allocate_elements();
+        relation.set_elements([
+            (var_g, G::generator()),
+            (var_h, G::generator() * Scalar::from(2u64)),
+        ]);
+
+        // Add two equations but only one image element
+        let var_img_1 = relation.allocate_eq(var_x * var_g + var_h);
+        relation.allocate_eq(var_x * var_h + var_g);
+        relation.set_element(var_g, G::generator());
+        relation.set_element(var_h, G::generator() * Scalar::from(2u64));
+        relation.set_element(var_img_1, G::generator() * Scalar::from(3u64));
+        assert!(relation.canonical().is_err());
+    }
+
+    #[test]
+    #[allow(non_snake_case)]
+    fn test_empty_string() {
+        let rng = &mut rand::thread_rng();
+        let relation = LinearRelation::<G>::new();
+        let nizk = relation.into_nizk(b"test_session").unwrap();
+        let narg_string = nizk.prove_batchable(&vec![], rng).unwrap();
+        assert!(narg_string.is_empty());
+
+        let mut relation = LinearRelation::<G>::new();
+        let var_B = relation.allocate_element();
+        let var_C = relation.allocate_eq(var_B * Scalar::from(1u64));
+        relation.set_elements([(var_B, G::generator()), (var_C, G::generator())]);
+        assert!(CanonicalLinearRelation::try_from(&relation).is_ok());
+    }
+
+    #[test]
+    #[allow(non_snake_case)]
+    fn test_statement_without_witness() {
+        let rng = &mut rand::thread_rng();
+
+        let pub_scalar = Scalar::from(42u64);
+        let A = G::generator();
+        let B = G::generator() * Scalar::from(42u64);
+        let C = B * pub_scalar + A * Scalar::from(3u64);
+
+        let X = G::generator() * Scalar::from(4u64);
+
+        // The following relation is trivially invalid.
+        // That is, we know that no witness will ever satisfy it.
+        let mut linear_relation = LinearRelation::<G>::new();
+        let B_var = linear_relation.allocate_element();
+        let C_var = linear_relation.allocate_eq(B_var);
+        linear_relation.set_elements([(B_var, B), (C_var, C)]);
+        let nizk = linear_relation.into_nizk(b"test_session").unwrap();
+        assert!(matches!(
+            nizk.verify_batchable(&nizk.prove_batchable(&vec![], rng).unwrap())
+                .unwrap_err(),
+            Error::VerificationFailure
+        ));
+
+        // Also in this case, we know that no witness will ever satisfy the relation.
+        // X != B * pub_scalar + A * 3
+        let mut linear_relation = LinearRelation::<G>::new();
+        let [B_var, A_var] = linear_relation.allocate_elements();
+        let X_var = linear_relation.allocate_eq(B_var * pub_scalar + A_var * Scalar::from(3u64));
+        linear_relation.set_elements([(B_var, B), (A_var, A), (X_var, X)]);
+        assert!(matches!(
+            nizk.verify_batchable(&nizk.prove_batchable(&vec![], rng).unwrap())
+                .unwrap_err(),
+            Error::VerificationFailure
+        ));
+
+        // The following relation is valid and should pass.
+        let mut linear_relation = LinearRelation::<G>::new();
+        let B_var = linear_relation.allocate_element();
+        let C_var = linear_relation.allocate_eq(B_var);
+        linear_relation.set_elements([(B_var, B), (C_var, B)]);
+        assert!(linear_relation.canonical().is_ok());
+
+        // The following relation is valid and should pass.
+        // C = B * pub_scalar + A * 3
+        let mut linear_relation = LinearRelation::<G>::new();
+        let [B_var, A_var] = linear_relation.allocate_elements();
+        let C_var = linear_relation.allocate_eq(B_var * pub_scalar + A_var * Scalar::from(3u64));
+        linear_relation.set_elements([(B_var, B), (A_var, A), (C_var, C)]);
+        assert!(linear_relation.canonical().is_ok());
+
+        // The following relation is for
+        // X = B * x + B * pub_scalar + A * 3
+        // and should be considered a valid instance.
+        let mut linear_relation = LinearRelation::<G>::new();
+        let x_var = linear_relation.allocate_scalar();
+        let [B_var, A_var] = linear_relation.allocate_elements();
+        let X_var = linear_relation
+            .allocate_eq(B_var * x_var + B_var * pub_scalar + A_var * Scalar::from(3u64));
+        linear_relation.set_elements([(B_var, B), (A_var, A), (X_var, X)]);
+        assert!(linear_relation.canonical().is_ok());
+    }
+
+    #[test]
+    #[allow(non_snake_case)]
+    fn test_statement_with_trivial_image() {
+        let mut rng = rand::thread_rng();
+        let mut linear_relation = LinearRelation::new();
+
+        let [x_var, y_var] = linear_relation.allocate_scalars();
+        let [Z_var, A_var, B_var, C_var] = linear_relation.allocate_elements();
+        linear_relation.append_equation(Z_var, x_var * A_var + y_var * B_var + C_var);
+
+        let [x, y] = [Scalar::random(&mut rng), Scalar::random(&mut rng)];
+        let Z = G::identity();
+        let A = G::random(&mut rng);
+        let B = G::generator();
+        let C = -x * A - y * B;
+
+        // The equation 0 = x*A + y*B + C
+        // Has a non-trivial solution.
+        linear_relation.set_elements([(Z_var, Z), (A_var, A), (B_var, B), (C_var, C)]);
+        assert!(linear_relation.canonical().is_ok());
+
+        // Adding more non-trivial statements does not affect the validity of the relation.
+        let F_var = linear_relation.allocate_element();
+        let f_var = linear_relation.allocate_scalar();
+        linear_relation.append_equation(F_var, f_var * A_var);
+        let f = Scalar::random(&mut rng);
+        let F = A * f;
+        linear_relation.set_elements([(F_var, F), (A_var, A)]);
+        assert!(linear_relation.canonical().is_ok());
+    }
+}
