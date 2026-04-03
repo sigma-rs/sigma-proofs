@@ -1756,6 +1756,7 @@ dependencies = [
  "hashbrown 0.15.5",
  "hex",
  "hex-literal",
+ "itertools 0.14.0",
  "json",
  "k256",
  "keccak 0.1.6",
