@@ -11,7 +11,8 @@ use spongefish::{Decoding, Encoding, NargDeserialize, NargSerialize};
 
 /// An automatic trait helper for sampling scalars from an RNG.
 ///
-/// This trait is implemented for all types implementing `rand_core::RngCore`.
+/// This trait is implemented for all types implementing
+/// `rand_core::RngCore + rand_core::CryptoRng`.
 /// Passing any cryptographically-secure random number generator (CSRNG) is
 /// recommended for creating proofs.
 pub trait ScalarRng {

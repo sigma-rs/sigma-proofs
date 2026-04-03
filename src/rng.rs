@@ -4,15 +4,11 @@ use alloc::vec::Vec;
 use core::{array::from_fn, iter::repeat_with};
 
 use group::{ff::Field, Group};
+use rand_core::{CryptoRng, RngCore};
 
 use crate::traits::ScalarRng;
 
-#[cfg(feature = "std")]
-use rand::Rng;
-#[cfg(not(feature = "std"))]
-use rand_core::RngCore as Rng;
-
-impl<R: Rng> ScalarRng for R {
+impl<R: RngCore + CryptoRng> ScalarRng for R {
     fn random_scalars<G: Group, const N: usize>(&mut self) -> [G::Scalar; N] {
         from_fn(|_| G::Scalar::random(&mut *self))
     }
