@@ -11,6 +11,7 @@ pub trait FromUniformBytes: Sized {
 }
 
 pub trait FromHash: FromUniformBytes {
+    // TODO: Provide an example of using this with XofFixedWrapper
     fn from_digest<D>(digest: D) -> Self
     where
         D: Digest,
@@ -33,6 +34,7 @@ pub trait FromHash: FromUniformBytes {
         Self::from_uniform_bytes(&bytes)
     }
 
+    // TODO: Can I maybe get rid of this one if I use the XofFixedWrapper?
     fn from_hash_xof<D>(input: impl AsRef<[u8]>) -> Self
     where
         D: ExtendableOutput + Default,
@@ -97,5 +99,39 @@ mod p256 {
             let [b0, b1] = bytemuck::cast_ref(bytes);
             to_curve_nonuniform(b0) + to_curve_nonuniform(b1)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use digest::consts::U64;
+
+    use crate::group::FromHash;
+
+    #[test]
+    fn usage_sha2() {
+        use curve25519_dalek::RistrettoPoint;
+        use sha2::{Digest as _, Sha512};
+
+        let _: RistrettoPoint = FromHash::from_hash::<Sha512>(b"hello");
+        let _: RistrettoPoint = FromHash::from_digest(Sha512::new().chain_update(b"hello"));
+    }
+
+    #[test]
+    fn usage_sha3() {
+        use curve25519_dalek::RistrettoPoint;
+        use digest::{Digest as _, ExtendableOutput as _, Update as _, XofFixedWrapper};
+        use sha3::Shake128;
+
+        let _: RistrettoPoint = FromHash::from_hash_xof::<Shake128>(b"hello");
+        let _: RistrettoPoint =
+            FromHash::from_xof(&mut Shake128::default().chain(b"hello").finalize_xof());
+
+        // TODO: It should be possible to fully determine the U64 parameter from the others. See if
+        // you can make this work.
+        let _: RistrettoPoint = FromHash::from_hash::<XofFixedWrapper<Shake128, U64>>(b"hello");
+        let _: RistrettoPoint =
+            FromHash::from_digest(XofFixedWrapper::<Shake128, U64>::new().chain_update(b"hello"));
     }
 }
