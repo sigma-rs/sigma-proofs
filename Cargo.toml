@@ -39,6 +39,7 @@ p256 = ["dep:p256", "spongefish/p256"]
 [dependencies]
 ahash = { version = "0.8", default-features = false }
 bls12_381 = { version = "0.8.0", default-features = false, features = ["groups"], optional = true }
+# NOTE: min_const_generics feature ensures that the Zeroable trait is implemented for all [u8; _].
 bytemuck = { version = "1.25.0", features = ["min_const_generics"] }
 curve25519-dalek = { version = "4.1.3", default-features = false, features = ["alloc", "group"], optional = true }
 digest = "0.10.7"
