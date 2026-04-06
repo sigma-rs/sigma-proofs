@@ -1,5 +1,5 @@
 use bytemuck::Zeroable;
-use digest::{array::AssocArraySize, Digest, ExtendableOutput, Output, XofReader};
+use digest::{Digest, ExtendableOutput, Output, XofReader};
 
 /// Implementation of multi-scalar multiplication (MSM) over scalars and points.
 pub mod msm;
@@ -10,11 +10,11 @@ pub trait FromUniformBytes: Sized {
     fn from_uniform_bytes(bytes: &Self::Bytes) -> Self;
 }
 
-pub trait FromHash: FromUniformBytes<Bytes: AssocArraySize> {
+pub trait FromHash: FromUniformBytes {
     // TODO: Provide an example of using this with XofFixedWrapper
     fn from_digest<D>(digest: D) -> Self
     where
-        D: Digest<OutputSize = <Self::Bytes as AssocArraySize>::Size>,
+        D: Digest,
         // NOTE: This bound is mildly odd in that Output<D> is a fully constrained type.
         Output<D>: AsRef<Self::Bytes>,
     {
@@ -23,7 +23,7 @@ pub trait FromHash: FromUniformBytes<Bytes: AssocArraySize> {
 
     fn from_hash<D>(input: impl AsRef<[u8]>) -> Self
     where
-        D: Digest<OutputSize = <Self::Bytes as AssocArraySize>::Size>,
+        D: Digest,
         Output<D>: AsRef<Self::Bytes>,
     {
         Self::from_digest(D::new().chain_update(input))
@@ -116,7 +116,7 @@ mod p256 {
 mod tests {
 
     #[allow(unused)]
-    use digest::consts::U64;
+    use digest::consts::{U64, U96};
 
     use crate::group::{FromHash, FromXof};
 
@@ -140,13 +140,13 @@ mod tests {
         let _ = RistrettoPoint::from_xof(&mut Shake128::default().chain(b"hello").finalize_xof());
 
         // NOTE: RistrettoPoint has directly implemented methods called from_hash and from_digest.
-        let _: RistrettoPoint = FromHash::from_hash::<XofFixedWrapper<Shake128, _>>(b"hello");
+        let _: RistrettoPoint = FromHash::from_hash::<XofFixedWrapper<Shake128, U64>>(b"hello");
         let _: RistrettoPoint =
-            FromHash::from_digest(XofFixedWrapper::<Shake128, _>::new().chain_update(b"hello"));
+            FromHash::from_digest(XofFixedWrapper::<Shake128, U64>::new().chain_update(b"hello"));
 
-        let _ = p256::ProjectivePoint::from_hash::<XofFixedWrapper<Shake128, _>>(b"hello");
+        let _ = p256::ProjectivePoint::from_hash::<XofFixedWrapper<Shake128, U96>>(b"hello");
         let _ = p256::ProjectivePoint::from_digest(
-            XofFixedWrapper::<Shake128, _>::new().chain_update(b"hello"),
+            XofFixedWrapper::<Shake128, U96>::new().chain_update(b"hello"),
         );
     }
 }
