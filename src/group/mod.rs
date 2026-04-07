@@ -10,12 +10,11 @@ pub trait FromUniformBytes: Sized {
     fn from_uniform_bytes(bytes: &Self::Bytes) -> Self;
 }
 
-pub trait FromHash: FromUniformBytes {
+pub trait FromDigest: FromUniformBytes {
     // TODO: Provide an example of using this with XofFixedWrapper
     fn from_digest<D>(digest: D) -> Self
     where
         D: Digest,
-        // NOTE: This bound is mildly odd in that Output<D> is a fully constrained type.
         Output<D>: AsRef<Self::Bytes>,
     {
         Self::from_uniform_bytes(digest.finalize().as_ref())
@@ -37,7 +36,6 @@ pub trait FromXof: FromUniformBytes {
         Self::from_uniform_bytes(&bytes)
     }
 
-    // TODO: This method is slightly redundant with from_hash in the current implementation.
     fn from_hash_xof<D>(input: impl AsRef<[u8]>) -> Self
     where
         D: ExtendableOutput + Default,
@@ -52,7 +50,7 @@ pub trait FromXof: FromUniformBytes {
 mod curve25519 {
     use curve25519_dalek::RistrettoPoint;
 
-    use super::{FromHash, FromUniformBytes, FromXof};
+    use super::{FromDigest, FromUniformBytes, FromXof};
 
     impl FromUniformBytes for RistrettoPoint {
         type Bytes = [u8; 64];
@@ -62,7 +60,7 @@ mod curve25519 {
         }
     }
 
-    impl FromHash for RistrettoPoint {}
+    impl FromDigest for RistrettoPoint {}
     impl FromXof for RistrettoPoint {}
 }
 
@@ -71,7 +69,7 @@ mod k256 {
     use elliptic_curve::hash2curve::{FromOkm, MapToCurve};
     use k256::{FieldElement, ProjectivePoint};
 
-    use super::{FromHash, FromUniformBytes, FromXof};
+    use super::{FromDigest, FromUniformBytes, FromXof};
 
     impl FromUniformBytes for ProjectivePoint {
         type Bytes = [u8; 96];
@@ -85,7 +83,7 @@ mod k256 {
         }
     }
 
-    impl FromHash for ProjectivePoint {}
+    impl FromDigest for ProjectivePoint {}
     impl FromXof for ProjectivePoint {}
 }
 
@@ -94,7 +92,7 @@ mod p256 {
     use elliptic_curve::hash2curve::{FromOkm, MapToCurve};
     use p256::{FieldElement, ProjectivePoint};
 
-    use super::{FromHash, FromUniformBytes, FromXof};
+    use super::{FromDigest, FromUniformBytes, FromXof};
 
     impl FromUniformBytes for ProjectivePoint {
         type Bytes = [u8; 96];
@@ -108,7 +106,7 @@ mod p256 {
         }
     }
 
-    impl FromHash for ProjectivePoint {}
+    impl FromDigest for ProjectivePoint {}
     impl FromXof for ProjectivePoint {}
 }
 
@@ -118,16 +116,17 @@ mod tests {
     #[allow(unused)]
     use digest::consts::{U64, U96};
 
-    use crate::group::{FromHash, FromXof};
+    use crate::group::{FromDigest, FromXof};
 
     #[test]
     fn usage_sha2() {
         use curve25519_dalek::RistrettoPoint;
-        use sha2::{Digest as _, Sha512};
+        #[allow(unused)]
+        use sha2::{Digest as _, Sha256, Sha512};
 
         // NOTE: RistrettoPoint has directly implemented methods called from_hash and from_digest.
-        let _: RistrettoPoint = FromHash::from_hash::<Sha512>(b"hello");
-        let _: RistrettoPoint = FromHash::from_digest(Sha512::new().chain_update(b"hello"));
+        let _: RistrettoPoint = FromDigest::from_hash::<Sha512>(b"hello");
+        let _: RistrettoPoint = FromDigest::from_digest(Sha512::new().chain_update(b"hello"));
     }
 
     #[test]
@@ -140,9 +139,9 @@ mod tests {
         let _ = RistrettoPoint::from_xof(&mut Shake128::default().chain(b"hello").finalize_xof());
 
         // NOTE: RistrettoPoint has directly implemented methods called from_hash and from_digest.
-        let _: RistrettoPoint = FromHash::from_hash::<XofFixedWrapper<Shake128, U64>>(b"hello");
+        let _: RistrettoPoint = FromDigest::from_hash::<XofFixedWrapper<Shake128, U64>>(b"hello");
         let _: RistrettoPoint =
-            FromHash::from_digest(XofFixedWrapper::<Shake128, U64>::new().chain_update(b"hello"));
+            FromDigest::from_digest(XofFixedWrapper::<Shake128, U64>::new().chain_update(b"hello"));
 
         let _ = p256::ProjectivePoint::from_hash::<XofFixedWrapper<Shake128, U96>>(b"hello");
         let _ = p256::ProjectivePoint::from_digest(
