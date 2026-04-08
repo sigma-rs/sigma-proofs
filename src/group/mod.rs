@@ -15,70 +15,111 @@ pub trait FromUniformBytes: Sized {
     fn from_uniform_bytes(bytes: &Self::Bytes) -> Self;
 }
 
-// NOTE: This implementation is similar to expand_message_xmd, with modifications to make it
-// infallible for any sized domain separator and output length.
 /// Generates a uniformly random byte array of length `N` from a domain separator and message.
 ///
-/// This function satisfies the requirements of RFC9380 section 5.3.4, but does not implement any
-/// standardized routine. It should not be used where standards compliance is required.
-fn expand_message<D: Digest + BlockSizeUser, N: ArraySize>(
+/// This is an implementation of expand_message_xmd from RFC9380.
+///
+/// <!-- TODO: Add panic conditions -->
+fn expand_message_xmd<D: Digest + BlockSizeUser, N: ArraySize>(
     domain_separator: &[u8],
     message: &[u8],
 ) -> Array<u8, N> {
-    // Encode usize lengths as big-endian u64 values.
-    // This is infallible under the assumption that a slice cannot exceed u64::MAX in length.
-    fn encode_len(buffer: &[u8]) -> [u8; 8] {
-        u64::try_from(buffer.len()).unwrap().to_be_bytes()
-    }
-
-    // Compress the message and domain separator into a single output digest.
+    // Compress the message and domain separator into the digest state.
     let message_digest = D::new()
         // Prefix with a block of zeroes and the block length, as discussed in RFC9380 Section 10.6
         .chain_update(Array::<u8, D::BlockSize>::default())
         // Add in the message.
         // NOTE: The length is not included here.
-        .chain_update(message)
+        .chain_update(message);
+
+    expand_message_digest_xmd(domain_separator, message_digest)
+}
+
+/// Generates a uniformly random byte array of length `N` from a domain separator and digest.
+///
+/// When the message is padded with a block of zeroes, this is an implementation of
+/// expand_message_xmd from RFC9380.
+///
+/// <!-- TODO: Add panic conditions -->
+fn expand_message_digest_xmd<D: Digest, N: ArraySize>(
+    domain_separator: &[u8],
+    message_digest: D,
+) -> Array<u8, N> {
+    // Check the invariants required by expand_message_xmd to ensure counters will not overflow.
+    assert!(
+        domain_separator.len() <= u8::MAX as usize,
+        "expand_message_xmd requires the domain separator to be at most 255 bytes"
+    );
+    // NOTE: These two asserts depend only on constants.
+    assert!(
+        N::USIZE <= u16::MAX as usize,
+        "expand_message_xmd requires the output length to be at most 65535 bytes"
+    );
+    assert!(
+        N::USIZE / <D::OutputSize as Unsigned>::USIZE <= u8::MAX as usize,
+        "expand_message_xmd requires the output length to be at most 255 times the digest length"
+    );
+
+    let digest_0 = message_digest
         // Add the requested output length.
-        .chain_update(N::U64.to_be_bytes())
+        .chain_update(N::U16.to_be_bytes())
         // Add a zero index to mark this as the 0-index digest.
-        .chain_update(0u64.to_be_bytes())
+        .chain_update([0u8])
         // Add the domain separator and length.
         .chain_update(domain_separator)
-        .chain_update(encode_len(domain_separator))
+        .chain_update(u8::try_from(domain_separator.len()).unwrap().to_be_bytes())
         .finalize();
 
     // Expand the message to fill the output array.
     let mut output = Array::<u8, N>::default();
-    for (i, output_chunk) in output
+    let mut output_chunks = output
         .chunks_mut(<D::OutputSize as Unsigned>::USIZE)
-        .enumerate()
-    {
-        let chunk_digest = D::new()
+        .enumerate();
+
+    // Write the message digest to the first chunk.
+    output_chunks.next().map(|(_, chunk_0)| {
+        chunk_0.copy_from_slice(&digest_0[..chunk_0.len()]);
+    });
+
+    // Using a counter and chaining to previous chunks, fill the rest of the buffer.
+    let mut prev_digest: Option<Output<D>> = None;
+    for (i, output_chunk_i) in output_chunks {
+        // XOR the message digest with the previous digest, except on the first iteration.
+        // NOTE: RFC9380 includes this to bolster defense against nonideal hash behavior.
+        let mut mixed_digest = digest_0.clone();
+        if let Some(prev_digest) = prev_digest {
+            // NOTE: This assert can be checked at compile time.
+            // TODO: Is there any way to turn this into a compile-time assert, given that the size
+            // of the arrays is determined by a generic parameter.
+            assert_eq!(mixed_digest.len(), prev_digest.len());
+            for (a, b) in core::iter::zip(mixed_digest.iter_mut(), prev_digest.iter()) {
+                *a ^= b;
+            }
+        }
+
+        let chunk_i = D::new()
             // Add the fixed-length message digest.
-            // NOTE: The message digest (b0) is not XORd with the previous chunk. This is included
-            // in expand_message_xmd to mitigate potential nonideal behavior of D.
-            .chain_update(&message_digest)
+            .chain_update(&mixed_digest)
             // Add the index, starting from one.
-            .chain_update((i as u64 + 1).to_be_bytes())
+            .chain_update(u8::try_from(i).unwrap().to_be_bytes())
             // Ass the domain separator and length.
             .chain_update(domain_separator)
-            .chain_update(encode_len(domain_separator))
+            .chain_update(u8::try_from(domain_separator.len()).unwrap().to_be_bytes())
             .finalize();
 
         // Copy the digest into the output chunk.
         // NOTE: This will copy the entire digest except on the last iteration.
-        output_chunk.copy_from_slice(&chunk_digest[..output_chunk.len()]);
+        output_chunk_i.copy_from_slice(&chunk_i[..output_chunk_i.len()]);
+
+        prev_digest = Some(chunk_i);
     }
 
     output
 }
 
-pub trait FromDigest<D: Digest>: FromUniformBytes {
+pub trait FromDigest<D: Digest + BlockSizeUser>: FromUniformBytes {
     // TODO: Provide an example of using this with XofFixedWrapper
-    fn from_digest(digest: D) -> Self
-    where
-        Output<D>: AsRef<Self::Bytes>,
-    {
+    fn from_digest(digest: D) -> Self {
         Self::from_uniform_bytes(digest.finalize().as_ref())
     }
 
