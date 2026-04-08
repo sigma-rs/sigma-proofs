@@ -60,9 +60,23 @@ pub fn expand_message_digest_xmd<D: Digest, N: ArraySize>(
     domain_separator: &[u8],
     message_digest: D,
 ) -> Array<u8, N> {
+    // If the domain_separator is longer than 255 bytes, compress it per RFC9380 Section 5.3.3.
+    let compressed_dst;
+    let dst = if domain_separator.len() <= u8::MAX as usize {
+        domain_separator
+    } else {
+        compressed_dst = D::new()
+            .chain_update(b"H2C-OVERSIZE-DST-")
+            .chain_update(domain_separator)
+            .finalize();
+        &compressed_dst
+    };
+
     // Check the invariants required by expand_message_xmd to ensure counters will not overflow.
+    // NOTE: dst length check under the unlikely condition that the digest output is > 255 bytes.
+    // TODO: Update the assert message.
     assert!(
-        domain_separator.len() <= u8::MAX as usize,
+        dst.len() <= u8::MAX as usize,
         "expand_message_xmd requires the domain separator to be at most 255 bytes"
     );
     // NOTE: These two asserts depend only on constants.
@@ -81,8 +95,8 @@ pub fn expand_message_digest_xmd<D: Digest, N: ArraySize>(
         // Add a zero index to mark this as the 0-index digest.
         .chain_update([0u8])
         // Add the domain separator and length.
-        .chain_update(domain_separator)
-        .chain_update(u8::try_from(domain_separator.len()).unwrap().to_be_bytes())
+        .chain_update(dst)
+        .chain_update(u8::try_from(dst.len()).unwrap().to_be_bytes())
         .finalize();
 
     // Expand the message to fill the output array with b_1 || ... || b_ell.
@@ -111,8 +125,8 @@ pub fn expand_message_digest_xmd<D: Digest, N: ArraySize>(
             // Add the index, starting from one.
             .chain_update(u8::try_from(i + 1).unwrap().to_be_bytes())
             // Add the domain separator and length.
-            .chain_update(domain_separator)
-            .chain_update(u8::try_from(domain_separator.len()).unwrap().to_be_bytes())
+            .chain_update(dst)
+            .chain_update(u8::try_from(dst.len()).unwrap().to_be_bytes())
             .finalize();
 
         // Copy the digest into the output chunk.
@@ -131,6 +145,7 @@ where
     Self::Bytes: AssocArraySize + From<Array<u8, <Self::Bytes as AssocArraySize>::Size>>,
 {
     // TODO: Provide an example of using this with XofFixedWrapper
+    // TODO: Add the domain_separator to this interface.
     fn from_digest(digest: D) -> Self {
         let uniform_bytes = expand_message_digest_xmd(b"".as_slice(), digest).into();
         Self::from_uniform_bytes(&uniform_bytes)
@@ -346,6 +361,136 @@ mod tests {
                     "ebd0df635cd1f208e2038e760c4994984ce73f0d55ea9f22af83ba4734569d4b"
                     "c95e18350f740c07eef653cbb9f87910d833751825f0ebefa1abe5420bb52be1"
                     "4cf489b37fe1a72f7de2d10be453b2c9d9eb20c7e3f6edc5a60629178d9478df"
+                ),
+            );
+        }
+    }
+
+    // RFC9380 Appendix K.2: expand_message_xmd(SHA-256) with long DST (>255 bytes)
+    mod expand_message_xmd_sha256_long_dst {
+        use digest::consts::{U128, U32};
+        use hex_literal::hex;
+        use sha2::Sha256;
+
+        use crate::group::expand_message_xmd;
+
+        const DST: &[u8] = b"QUUX-V01-CS02-with-expander-SHA256-128-long-DST-1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111";
+
+        #[test]
+        fn empty_msg_32b() {
+            let result = expand_message_xmd::<Sha256, U32>(DST, b"");
+            assert_eq!(
+                result.as_slice(),
+                hex!("e8dc0c8b686b7ef2074086fbdd2f30e3f8bfbd3bdf177f73f04b97ce618a3ed3")
+            );
+        }
+
+        #[test]
+        fn abc_32b() {
+            let result = expand_message_xmd::<Sha256, U32>(DST, b"abc");
+            assert_eq!(
+                result.as_slice(),
+                hex!("52dbf4f36cf560fca57dedec2ad924ee9c266341d8f3d6afe5171733b16bbb12")
+            );
+        }
+
+        #[test]
+        fn abcdef0123456789_32b() {
+            let result = expand_message_xmd::<Sha256, U32>(DST, b"abcdef0123456789");
+            assert_eq!(
+                result.as_slice(),
+                hex!("35387dcf22618f3728e6c686490f8b431f76550b0b2c61cbc1ce7001536f4521")
+            );
+        }
+
+        #[test]
+        fn q128_32b() {
+            let msg = b"q128_qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq";
+            let result = expand_message_xmd::<Sha256, U32>(DST, msg);
+            assert_eq!(
+                result.as_slice(),
+                hex!("01b637612bb18e840028be900a833a74414140dde0c4754c198532c3a0ba42bc")
+            );
+        }
+
+        #[test]
+        fn a512_32b() {
+            let msg = b"a512_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+            let result = expand_message_xmd::<Sha256, U32>(DST, msg);
+            assert_eq!(
+                result.as_slice(),
+                hex!("20cce7033cabc5460743180be6fa8aac5a103f56d481cf369a8accc0c374431b")
+            );
+        }
+
+        #[test]
+        fn empty_msg_128b() {
+            let result = expand_message_xmd::<Sha256, U128>(DST, b"");
+            assert_eq!(
+                result.as_slice(),
+                hex!(
+                    "14604d85432c68b757e485c8894db3117992fc57e0e136f71ad987f789a0abc2"
+                    "87c47876978e2388a02af86b1e8d1342e5ce4f7aaa07a87321e691f6fba7e007"
+                    "2eecc1218aebb89fb14a0662322d5edbd873f0eb35260145cd4e64f748c5dfe6"
+                    "0567e126604bcab1a3ee2dc0778102ae8a5cfd1429ebc0fa6bf1a53c36f55dfc"
+                ),
+            );
+        }
+
+        #[test]
+        fn abc_128b() {
+            let result = expand_message_xmd::<Sha256, U128>(DST, b"abc");
+            assert_eq!(
+                result.as_slice(),
+                hex!(
+                    "1a30a5e36fbdb87077552b9d18b9f0aee16e80181d5b951d0471d55b66684914"
+                    "aef87dbb3626eaabf5ded8cd0686567e503853e5c84c259ba0efc37f71c839da"
+                    "2129fe81afdaec7fbdc0ccd4c794727a17c0d20ff0ea55e1389d6982d1241cb8"
+                    "d165762dbc39fb0cee4474d2cbbd468a835ae5b2f20e4f959f56ab24cd6fe267"
+                ),
+            );
+        }
+
+        #[test]
+        fn abcdef0123456789_128b() {
+            let result = expand_message_xmd::<Sha256, U128>(DST, b"abcdef0123456789");
+            assert_eq!(
+                result.as_slice(),
+                hex!(
+                    "d2ecef3635d2397f34a9f86438d772db19ffe9924e28a1caf6f1c8f15603d402"
+                    "8f40891044e5c7e39ebb9b31339979ff33a4249206f67d4a1e7c765410bcd249"
+                    "ad78d407e303675918f20f26ce6d7027ed3774512ef5b00d816e51bfcc96c353"
+                    "9601fa48ef1c07e494bdc37054ba96ecb9dbd666417e3de289d4f424f502a982"
+                ),
+            );
+        }
+
+        #[test]
+        fn q128_128b() {
+            let msg = b"q128_qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq";
+            let result = expand_message_xmd::<Sha256, U128>(DST, msg);
+            assert_eq!(
+                result.as_slice(),
+                hex!(
+                    "ed6e8c036df90111410431431a232d41a32c86e296c05d426e5f44e75b9a50d3"
+                    "35b2412bc6c91e0a6dc131de09c43110d9180d0a70f0d6289cb4e43b05f7ee5e"
+                    "9b3f42a1fad0f31bac6a625b3b5c50e3a83316783b649e5ecc9d3b1d9471cb50"
+                    "24b7ccf40d41d1751a04ca0356548bc6e703fca02ab521b505e8e45600508d32"
+                ),
+            );
+        }
+
+        #[test]
+        fn a512_128b() {
+            let msg = b"a512_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+            let result = expand_message_xmd::<Sha256, U128>(DST, msg);
+            assert_eq!(
+                result.as_slice(),
+                hex!(
+                    "78b53f2413f3c688f07732c10e5ced29a17c6a16f717179ffbe38d92d6c9ec29"
+                    "6502eb9889af83a1928cd162e845b0d3c5424e83280fed3d10cffb2f8431f14e"
+                    "7a23f4c68819d40617589e4c41169d0b56e0e3535be1fd71fbb08bb70c5b5ffe"
+                    "d953d6c14bf7618b35fc1f4c4b30538236b4b08c9fbf90462447a8ada60be495"
                 ),
             );
         }
