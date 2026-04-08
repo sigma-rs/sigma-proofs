@@ -260,6 +260,97 @@ mod tests {
 
     use crate::group::{FromDigest, FromXof};
 
+    mod expand_message_xmd_sha256 {
+        use digest::consts::{U32, U128};
+        use hex_literal::hex;
+        use sha2::Sha256;
+
+        use crate::group::expand_message_xmd;
+
+        const DST: &[u8] = b"QUUX-V01-CS02-with-expander-SHA256-128";
+
+        // RFC9380 Appendix K.1 test vectors for expand_message_xmd(SHA-256)
+
+        #[test]
+        fn empty_msg_32b() {
+            let result = expand_message_xmd::<Sha256, U32>(DST, b"");
+            assert_eq!(
+                result.as_slice(),
+                hex!("68a985b87eb6b46952128911f2a4412bbc302a9d759667f87f7a21d803f07235")
+            );
+        }
+
+        #[test]
+        fn abc_32b() {
+            let result = expand_message_xmd::<Sha256, U32>(DST, b"abc");
+            assert_eq!(
+                result.as_slice(),
+                hex!("d8ccab23b5985ccea865c6c97b6e5b8350e794e603b4b97902f53a8a0d605615")
+            );
+        }
+
+        #[test]
+        fn abcdef0123456789_32b() {
+            let result = expand_message_xmd::<Sha256, U32>(DST, b"abcdef0123456789");
+            assert_eq!(
+                result.as_slice(),
+                hex!("eff31487c770a893cfb36f912fbfcbff40d5661771ca4b2cb4eafe524333f5c1")
+            );
+        }
+
+        #[test]
+        fn q128_32b() {
+            let msg = b"q128_qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq";
+            let result = expand_message_xmd::<Sha256, U32>(DST, msg);
+            assert_eq!(
+                result.as_slice(),
+                hex!("b23a1d2b4d97b2ef7785562a7e8bac7eed54ed6e97e29aa51bfe3f12ddad1ff9")
+            );
+        }
+
+        #[test]
+        fn empty_msg_128b() {
+            let result = expand_message_xmd::<Sha256, U128>(DST, b"");
+            assert_eq!(
+                result.as_slice(),
+                hex!(
+                    "af84c27ccfd45d41914fdff5df25293e221afc53d8ad2ac06d5e3e29485dadbe"
+                    "e0d121587713a3e0dd4d5e69e93eb7cd4f5df4cd103e188cf60cb02edc3edf18"
+                    "eda8576c412b18ffb658e3dd6ec849469b979d444cf7b26911a08e63cf31f9dc"
+                    "c541708d3491184472c2c29bb749d4286b004ceb5ee6b9a7fa5b646c993f0ced"
+                ),
+            );
+        }
+
+        #[test]
+        fn abc_128b() {
+            let result = expand_message_xmd::<Sha256, U128>(DST, b"abc");
+            assert_eq!(
+                result.as_slice(),
+                hex!(
+                    "abba86a6129e366fc877aab32fc4ffc70120d8996c88aee2fe4b32d6c7b6437a"
+                    "647e6c3163d40b76a73cf6a5674ef1d890f95b664ee0afa5359a5c4e07985635"
+                    "bbecbac65d747d3d2da7ec2b8221b17b0ca9dc8a1ac1c07ea6a1e60583e2cb00"
+                    "058e77b7b72a298425cd1b941ad4ec65e8afc50303a22c0f99b0509b4c895f40"
+                ),
+            );
+        }
+
+        #[test]
+        fn abcdef0123456789_128b() {
+            let result = expand_message_xmd::<Sha256, U128>(DST, b"abcdef0123456789");
+            assert_eq!(
+                result.as_slice(),
+                hex!(
+                    "ef904a29bffc4cf9ee82832451c946ac3c8f8058ae97d8d629831a74c6572bd9"
+                    "ebd0df635cd1f208e2038e760c4994984ce73f0d55ea9f22af83ba4734569d4b"
+                    "c95e18350f740c07eef653cbb9f87910d833751825f0ebefa1abe5420bb52be1"
+                    "4cf489b37fe1a72f7de2d10be453b2c9d9eb20c7e3f6edc5a60629178d9478df"
+                ),
+            );
+        }
+    }
+
     #[test]
     fn usage_sha2() {
         use curve25519_dalek::RistrettoPoint;
