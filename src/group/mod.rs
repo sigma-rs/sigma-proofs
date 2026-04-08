@@ -1,5 +1,10 @@
 use bytemuck::Zeroable;
-use digest::{Digest, ExtendableOutput, Output, XofReader};
+use digest::{
+    array::{Array, ArraySize},
+    common::BlockSizeUser,
+    typenum::Unsigned,
+    Digest, ExtendableOutput, Output, XofReader,
+};
 
 /// Implementation of multi-scalar multiplication (MSM) over scalars and points.
 pub mod msm;
@@ -10,21 +15,74 @@ pub trait FromUniformBytes: Sized {
     fn from_uniform_bytes(bytes: &Self::Bytes) -> Self;
 }
 
-pub trait FromDigest: FromUniformBytes {
+// NOTE: This implementation is similar to expand_message_xmd, with modifications to make it
+// infallible for any sized domain separator and output length.
+/// Generates a uniformly random byte array of length `N` from a domain separator and message.
+///
+/// This function satisfies the requirements of RFC9380 section 5.3.4, but does not implement any
+/// standardized routine. It should not be used where standards compliance is required.
+fn expand_message<D: Digest + BlockSizeUser, N: ArraySize>(
+    domain_separator: &[u8],
+    message: &[u8],
+) -> Array<u8, N> {
+    // Encode usize lengths as big-endian u64 values.
+    // This is infallible under the assumption that a slice cannot exceed u64::MAX in length.
+    fn encode_len(buffer: &[u8]) -> [u8; 8] {
+        u64::try_from(buffer.len()).unwrap().to_be_bytes()
+    }
+
+    // Compress the message and domain separator into a single output digest.
+    let message_digest = D::new()
+        // Prefix with a block of zeroes and the block length, as discussed in RFC9380 Section 10.6
+        .chain_update(Array::<u8, D::BlockSize>::default())
+        // Add in the message.
+        // NOTE: The length is not included here.
+        .chain_update(message)
+        // Add the requested output length.
+        .chain_update(N::U64.to_be_bytes())
+        // Add a zero index to mark this as the 0-index digest.
+        .chain_update(0u64.to_be_bytes())
+        // Add the domain separator and length.
+        .chain_update(domain_separator)
+        .chain_update(encode_len(domain_separator))
+        .finalize();
+
+    // Expand the message to fill the output array.
+    let mut output = Array::<u8, N>::default();
+    for (i, output_chunk) in output
+        .chunks_mut(<D::OutputSize as Unsigned>::USIZE)
+        .enumerate()
+    {
+        let chunk_digest = D::new()
+            // Add the fixed-length message digest.
+            // NOTE: The message digest (b0) is not XORd with the previous chunk. This is included
+            // in expand_message_xmd to mitigate potential nonideal behavior of D.
+            .chain_update(&message_digest)
+            // Add the index, starting from one.
+            .chain_update((i as u64 + 1).to_be_bytes())
+            // Ass the domain separator and length.
+            .chain_update(domain_separator)
+            .chain_update(encode_len(domain_separator))
+            .finalize();
+
+        // Copy the digest into the output chunk.
+        // NOTE: This will copy the entire digest except on the last iteration.
+        output_chunk.copy_from_slice(&chunk_digest[..output_chunk.len()]);
+    }
+
+    output
+}
+
+pub trait FromDigest<D: Digest>: FromUniformBytes {
     // TODO: Provide an example of using this with XofFixedWrapper
-    fn from_digest<D>(digest: D) -> Self
+    fn from_digest(digest: D) -> Self
     where
-        D: Digest,
         Output<D>: AsRef<Self::Bytes>,
     {
         Self::from_uniform_bytes(digest.finalize().as_ref())
     }
 
-    fn from_hash<D>(input: impl AsRef<[u8]>) -> Self
-    where
-        D: Digest,
-        Output<D>: AsRef<Self::Bytes>,
-    {
+    fn from_hash(input: impl AsRef<[u8]>) -> Self {
         Self::from_digest(D::new().chain_update(input))
     }
 }
