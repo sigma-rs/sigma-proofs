@@ -156,6 +156,28 @@ where
     }
 }
 
+pub trait DigestInto<T>: Sized + Digest + BlockSizeUser
+where
+    T: FromDigest<Self>,
+    T::Bytes: AssocArraySize + From<Array<u8, <T::Bytes as AssocArraySize>::Size>>,
+{
+    fn digest_into(self) -> T {
+        T::from_digest(self)
+    }
+
+    fn hash_into(input: impl AsRef<[u8]>) -> T {
+        T::from_hash(input)
+    }
+}
+
+impl<D, T> DigestInto<T> for D
+where
+    D: Sized + Digest + BlockSizeUser,
+    T: FromDigest<Self>,
+    T::Bytes: AssocArraySize + From<Array<u8, <T::Bytes as AssocArraySize>::Size>>,
+{
+}
+
 pub trait FromXof: FromUniformBytes {
     fn from_xof<X: XofReader>(xof: &mut X) -> Self {
         let mut bytes = Self::Bytes::zeroed();
@@ -273,10 +295,10 @@ mod tests {
     #[allow(unused)]
     use digest::consts::{U64, U96};
 
-    use crate::group::{FromDigest, FromXof};
+    use crate::group::{DigestInto, FromDigest, FromXof};
 
     mod expand_message_xmd_sha256 {
-        use digest::consts::{U32, U128};
+        use digest::consts::{U128, U32};
         use hex_literal::hex;
         use sha2::Sha256;
 
@@ -498,7 +520,7 @@ mod tests {
 
     // RFC9380 Appendix K.1 continued: remaining test vectors
     mod expand_message_xmd_sha256_continued {
-        use digest::consts::{U32, U128};
+        use digest::consts::{U128, U32};
         use hex_literal::hex;
         use sha2::Sha256;
 
@@ -549,7 +571,7 @@ mod tests {
 
     // RFC9380 Appendix K.3: expand_message_xmd(SHA-512)
     mod expand_message_xmd_sha512 {
-        use digest::consts::{U32, U128};
+        use digest::consts::{U128, U32};
         use hex_literal::hex;
         use sha2::Sha512;
 
@@ -677,6 +699,7 @@ mod tests {
         }
     }
 
+    // TODO: Move these usage examples into docs.
     #[test]
     fn usage_sha2() {
         use curve25519_dalek::RistrettoPoint;
@@ -702,9 +725,7 @@ mod tests {
         let _: RistrettoPoint =
             FromDigest::from_digest(XofFixedWrapper::<Shake128, U64>::new().chain_update(b"hello"));
 
-        // TODO: This syntax suffers from an awkwardness with having the generic param on the
-        // trait. Figure out the best way to address this.
-        //let _ = p256::ProjectivePoint::from_hash(b"hello");
+        let _: p256::ProjectivePoint = XofFixedWrapper::<Shake128, U96>::hash_into(b"hello");
         let _ = p256::ProjectivePoint::from_digest(
             XofFixedWrapper::<Shake128, U96>::new().chain_update(b"hello"),
         );
