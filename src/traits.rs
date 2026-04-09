@@ -104,6 +104,22 @@ pub trait SigmaProtocol {
     fn instance_label(&self) -> impl AsRef<[u8]>;
 }
 
+/// A refinement of [`SigmaProtocol`] for protocols whose identifier is purely type-level.
+///
+/// Most concrete protocols (`CanonicalLinearRelation`, etc.) have a `protocol_identifier` that
+/// depends only on the generic group type `G`, not on the instance data. For those, this trait
+/// exposes the same identifier as an associated function (no `&self`), which is required to wire
+/// the protocol into systems that need a static domain separator (e.g. Argus's `InteractiveArgument`).
+///
+/// `ComposedRelation` deliberately does **not** implement this trait because its identifier is
+/// derived at runtime by hashing the sub-protocol identifiers.
+pub trait StaticSigmaProtocol: SigmaProtocol {
+    /// Returns the protocol's 64-byte identifier without requiring an instance.
+    ///
+    /// This must return the same value as `self.protocol_identifier()` for all instances.
+    fn static_protocol_id() -> [u8; 64];
+}
+
 /// A trait defining the behavior of a Sigma protocol for which simulation of transcripts is necessary.
 ///
 /// Every Sigma protocol can be simulated, but in practice, this is primarily used
