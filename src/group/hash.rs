@@ -9,7 +9,7 @@ use digest::{
 ///
 /// ```rust
 /// use sha2::Sha256;
-/// use sigma_proofs::group::zero_pad;
+/// use sigma_proofs::group::hash::zero_pad;
 ///
 /// let zeroes = zero_pad::<Sha256>();
 /// assert!(zeroes.iter().all(|b| *b == 0));
