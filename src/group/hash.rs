@@ -1,4 +1,25 @@
+use core::marker::PhantomData;
+
 use digest::{array::Array, common::BlockSizeUser, typenum::Unsigned, Digest, Output};
+
+pub trait ExpandMessage: Sized {
+    fn expand_message<const N: usize>(domain_separator: &[u8], message: &[u8]) -> [u8; N];
+
+    fn expand_message_digest<const N: usize>(self, domain_separator: &[u8]) -> [u8; N];
+}
+
+#[derive(Copy, Clone, Default)]
+pub struct ExpandMsgXmd<D>(pub D);
+
+impl<D: Digest + BlockSizeUser> ExpandMessage for ExpandMsgXmd<D> {
+    fn expand_message<const N: usize>(domain_separator: &[u8], message: &[u8]) -> [u8; N] {
+        crate::group::hash::expand_message_xmd::<D, N>(domain_separator, message)
+    }
+
+    fn expand_message_digest<const N: usize>(self, domain_separator: &[u8]) -> [u8; N] {
+        crate::group::hash::expand_message_digest_xmd::<D, N>(domain_separator, self.0)
+    }
+}
 
 // TODO: Try to remove hybrid_array::Array from this function signature?
 /// Create a block of zeroes to use as padding as per RFC9380.
@@ -12,6 +33,31 @@ use digest::{array::Array, common::BlockSizeUser, typenum::Unsigned, Digest, Out
 /// ```
 pub fn zero_pad<D: BlockSizeUser>() -> Array<u8, D::BlockSize> {
     Array::default()
+}
+
+/// `CheckExpandMsgXmdParams` implements compile-time checks to ensure the given generic parameters
+/// will result in an infallible call to [expand_message_xmd].
+struct CheckExpandMsgXmdParams<D: Digest, const N: usize>(PhantomData<D>);
+
+impl<const N: usize, D: Digest> CheckExpandMsgXmdParams<D, N> {
+    /// Access to this associated constant will cause a compilation error if the given generic
+    /// parameters are invalid. This enables compile time assertion over the generic parameters.
+    const VALID: () = {
+        assert!(
+            N <= u16::MAX as usize,
+            "expand_message_xmd requires the output length to be at most 65535 bytes"
+        );
+        assert!(
+            N.div_ceil(<D::OutputSize as Unsigned>::USIZE) <= u8::MAX as usize,
+            "expand_message_xmd requires the output length to be at most 255 times the digest length"
+        );
+        // NOTE: This ensures that domain separators of all lengths can be used, applying
+        // compression as needed.
+        assert!(
+            <D::OutputSize as Unsigned>::USIZE < u8::MAX as usize,
+            "expand_message_xm requires the digest output size to be at most 255 bytes",
+        )
+    };
 }
 
 /// Generates a uniformly random byte array of length `N` from a domain separator and message.
@@ -44,6 +90,10 @@ pub fn expand_message_digest_xmd<D: Digest, const N: usize>(
     domain_separator: &[u8],
     message_digest: D,
 ) -> [u8; N] {
+    // Ensure the generic parameters are valid. This is a compile time check.
+    #[allow(path_statements)]
+    CheckExpandMsgXmdParams::<D, N>::VALID;
+
     // If the domain_separator is longer than 255 bytes, compress it per RFC9380 Section 5.3.3.
     let compressed_dst;
     let dst = if domain_separator.len() <= u8::MAX as usize {
@@ -55,23 +105,6 @@ pub fn expand_message_digest_xmd<D: Digest, const N: usize>(
             .finalize();
         &compressed_dst
     };
-
-    // Check the invariants required by expand_message_xmd to ensure counters will not overflow.
-    // NOTE: dst length check under the unlikely condition that the digest output is > 255 bytes.
-    // TODO: Update the assert message.
-    assert!(
-        dst.len() <= u8::MAX as usize,
-        "expand_message_xmd requires the domain separator to be at most 255 bytes"
-    );
-    // NOTE: These two asserts depend only on constants.
-    assert!(
-        N <= u16::MAX as usize,
-        "expand_message_xmd requires the output length to be at most 65535 bytes"
-    );
-    assert!(
-        N.div_ceil(<D::OutputSize as Unsigned>::USIZE) <= u8::MAX as usize,
-        "expand_message_xmd requires the output length to be at most 255 times the digest length"
-    );
 
     let digest_0 = message_digest
         // Add the requested output length.

@@ -1,4 +1,6 @@
 use bytemuck::Zeroable;
+
+use crate::group::hash::ExpandMessage;
 /// Implementation of multi-scalar multiplication (MSM) over scalars and points.
 pub mod msm;
 
@@ -13,15 +15,15 @@ pub trait FromUniformBytes: Sized {
 }
 
 // TODO: Is there any reason _not_ to use impl AsRef<[u8]> instead of &[u8]?
-pub trait FromDigest<D>: FromUniformBytes {
-    fn from_digest(domain: impl AsRef<[u8]>, digest: D) -> Self;
+pub trait FromHash<H: ExpandMessage>: FromUniformBytes {
+    fn from_digest(domain: impl AsRef<[u8]>, digest: H) -> Self;
 
     fn from_hash(domain: impl AsRef<[u8]>, input: impl AsRef<[u8]>) -> Self;
 }
 
-pub trait DigestInto<T>: Sized
+pub trait DigestInto<T>: Sized + ExpandMessage
 where
-    T: FromDigest<Self>,
+    T: FromHash<Self>,
 {
     fn digest_into(self, domain: impl AsRef<[u8]>) -> T {
         T::from_digest(domain, self)
@@ -32,10 +34,10 @@ where
     }
 }
 
-impl<D, T> DigestInto<T> for D
+impl<H, T> DigestInto<T> for H
 where
-    D: Sized,
-    T: FromDigest<D>,
+    H: Sized + ExpandMessage,
+    T: FromHash<H>,
 {
 }
 
@@ -46,23 +48,24 @@ where
 /// that `<Self as UniformBytes>::Bytes` is a byte array (i.e. is some `[u8; _]`).
 macro_rules! impl_from_digest {
     ($type:ty) => {
-        impl<D> $crate::group::FromDigest<D> for $type
+        impl<H> $crate::group::FromHash<H> for $type
         where
-            D: ::digest::Digest + ::digest::common::BlockSizeUser,
+            H: $crate::group::ExpandMessage,
         {
-            fn from_digest(domain: impl AsRef<[u8]>, digest: D) -> Self {
-                let uniform_bytes =
-                    $crate::group::hash::expand_message_digest_xmd(domain.as_ref(), digest);
+            fn from_digest(domain: impl AsRef<[u8]>, digest: H) -> Self {
+                let uniform_bytes = <H as $crate::group::ExpandMessage>::expand_message_digest(
+                    digest,
+                    domain.as_ref(),
+                );
                 <Self as $crate::group::FromUniformBytes>::from_uniform_bytes(&uniform_bytes)
             }
 
             fn from_hash(domain: impl AsRef<[u8]>, input: impl AsRef<[u8]>) -> Self {
-                <Self as $crate::group::FromDigest<D>>::from_digest(
-                    domain,
-                    <D as ::digest::Digest>::new()
-                        .chain_update($crate::group::hash::zero_pad::<D>())
-                        .chain_update(input),
-                )
+                let uniform_bytes = <H as $crate::group::ExpandMessage>::expand_message(
+                    domain.as_ref(),
+                    input.as_ref(),
+                );
+                <Self as $crate::group::FromUniformBytes>::from_uniform_bytes(&uniform_bytes)
             }
         }
     };
@@ -135,21 +138,21 @@ mod tests {
 
     use digest::consts::{U64, U96};
 
-    use crate::group::{DigestInto, FromDigest};
+    use crate::group::{hash::ExpandMsgXmd, DigestInto, FromHash};
 
     // TODO: Move these usage examples into docs.
     #[test]
     fn usage_sha2() {
         use curve25519_dalek::RistrettoPoint;
         #[allow(unused)]
-        use sha2::{Digest as _, Sha256, Sha512};
+        use sha2::{Digest as _, Sha256};
 
         // NOTE: RistrettoPoint has directly implemented methods called from_hash and from_digest.
         let _: RistrettoPoint =
-            FromDigest::<Sha512>::from_hash(b"sigma_proofs::group::tests", b"hello");
-        let _: RistrettoPoint = FromDigest::from_digest(
+            FromHash::<ExpandMsgXmd<Sha256>>::from_hash(b"sigma_proofs::group::tests", b"hello");
+        let _: RistrettoPoint = FromHash::from_digest(
             b"sigma_proofs::group::tests",
-            Sha512::new().chain_update(b"hello"),
+            ExpandMsgXmd(Sha256::new().chain_update(b"hello")),
         );
     }
 
@@ -165,20 +168,22 @@ mod tests {
         */
 
         // NOTE: RistrettoPoint has directly implemented methods called from_hash and from_digest.
-        let _: RistrettoPoint = FromDigest::<XofFixedWrapper<Shake128, U64>>::from_hash(
+        let _: RistrettoPoint = FromHash::<ExpandMsgXmd<XofFixedWrapper<Shake128, U64>>>::from_hash(
             b"sigma_proofs::group::tests",
             b"hello",
         );
-        let _: RistrettoPoint = FromDigest::from_digest(
+        let _: RistrettoPoint = FromHash::from_digest(
             b"sigma_proofs::group::tests",
-            XofFixedWrapper::<Shake128, U64>::new().chain_update(b"hello"),
+            ExpandMsgXmd(XofFixedWrapper::<Shake128, U64>::new().chain_update(b"hello")),
         );
 
-        let _: p256::ProjectivePoint =
-            XofFixedWrapper::<Shake128, U96>::hash_into(b"sigma_proofs::group::tests", b"hello");
+        let _: p256::ProjectivePoint = ExpandMsgXmd::<XofFixedWrapper<Shake128, U96>>::hash_into(
+            b"sigma_proofs::group::tests",
+            b"hello",
+        );
         let _ = p256::ProjectivePoint::from_digest(
             b"sigma_proofs::group::tests",
-            XofFixedWrapper::<Shake128, U96>::new().chain_update(b"hello"),
+            ExpandMsgXmd(XofFixedWrapper::<Shake128, U96>::new().chain_update(b"hello")),
         );
     }
 }
