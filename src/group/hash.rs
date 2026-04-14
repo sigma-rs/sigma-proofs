@@ -14,6 +14,9 @@ pub fn zero_pad<D: BlockSizeUser>() -> Array<u8, D::BlockSize> {
     Array::default()
 }
 
+// TODO: Refactor this to provide a version of this function that takes in an "out" &mut [u8], and
+// uses the length of the slice as the output length.
+
 /// Generates a uniformly random byte array of length `N` from a domain separator and message.
 ///
 /// This is an implementation of expand_message_xmd from RFC9380.

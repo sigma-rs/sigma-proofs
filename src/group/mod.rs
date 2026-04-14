@@ -1,10 +1,4 @@
 use bytemuck::Zeroable;
-use digest::{
-    array::{Array, AssocArraySize},
-    common::BlockSizeUser,
-    Digest,
-};
-
 /// Implementation of multi-scalar multiplication (MSM) over scalars and points.
 pub mod msm;
 
@@ -18,31 +12,45 @@ pub trait FromUniformBytes: Sized {
     fn from_uniform_bytes(bytes: &Self::Bytes) -> Self;
 }
 
-pub trait FromDigest<D>: FromUniformBytes
-where
-    D: Digest + BlockSizeUser,
-    Self::Bytes: AssocArraySize + From<Array<u8, <Self::Bytes as AssocArraySize>::Size>>,
-{
-    // TODO: Provide an example of using this with XofFixedWrapper
-    // TODO: Add the domain_separator to this interface.
-    fn from_digest(digest: D) -> Self {
-        let uniform_bytes = hash::expand_message_digest_xmd(b"".as_slice(), digest).into();
-        Self::from_uniform_bytes(&uniform_bytes)
-    }
+// TODO: Provide an example of using this with XofFixedWrapper
+// TODO: Add the domain_separator to this interface.
+pub trait FromDigest<D>: FromUniformBytes {
+    fn from_digest(digest: D) -> Self;
 
-    fn from_hash(input: impl AsRef<[u8]>) -> Self {
-        Self::from_digest(
-            D::new()
-                .chain_update(hash::zero_pad::<D>())
-                .chain_update(input),
-        )
-    }
+    fn from_hash(input: impl AsRef<[u8]>) -> Self;
 }
 
-pub trait DigestInto<T>: Sized + Digest + BlockSizeUser
+/// Generates a default [`FromDigest`] impl for a group element type that implements
+/// [`FromUniformBytes`], using [`expand_message_digest_xmd`][hash::expand_message_digest_xmd].
+///
+/// Provides a blanket implementation for all digest types `D: Digest + BlockSizeUser`, and assumes
+/// that `<Self as UniformBytes>::Bytes` is a byte array (i.e. is some `[u8; _]`).
+macro_rules! impl_from_digest {
+    ($type:ty) => {
+        impl<D> $crate::group::FromDigest<D> for $type
+        where
+            D: ::digest::Digest + ::digest::common::BlockSizeUser,
+        {
+            fn from_digest(digest: D) -> Self {
+                let uniform_bytes =
+                    $crate::group::hash::expand_message_digest_xmd(b"".as_slice(), digest);
+                <Self as $crate::group::FromUniformBytes>::from_uniform_bytes(&uniform_bytes)
+            }
+
+            fn from_hash(input: impl AsRef<[u8]>) -> Self {
+                <Self as $crate::group::FromDigest<D>>::from_digest(
+                    <D as ::digest::Digest>::new()
+                        .chain_update($crate::group::hash::zero_pad::<D>())
+                        .chain_update(input),
+                )
+            }
+        }
+    };
+}
+
+pub trait DigestInto<T>: Sized
 where
     T: FromDigest<Self>,
-    T::Bytes: AssocArraySize + From<Array<u8, <T::Bytes as AssocArraySize>::Size>>,
 {
     fn digest_into(self) -> T {
         T::from_digest(self)
@@ -55,22 +63,16 @@ where
 
 impl<D, T> DigestInto<T> for D
 where
-    D: Sized + Digest + BlockSizeUser,
-    T: FromDigest<Self>,
-    T::Bytes: AssocArraySize + From<Array<u8, <T::Bytes as AssocArraySize>::Size>>,
+    D: Sized,
+    T: FromDigest<D>,
 {
 }
 
 #[cfg(feature = "curve25519-dalek")]
 mod curve25519 {
     use curve25519_dalek::RistrettoPoint;
-    use digest::{
-        array::{Array, AssocArraySize},
-        common::BlockSizeUser,
-        Digest,
-    };
 
-    use super::{FromDigest, FromUniformBytes};
+    use super::FromUniformBytes;
 
     impl FromUniformBytes for RistrettoPoint {
         type Bytes = [u8; 64];
@@ -80,25 +82,15 @@ mod curve25519 {
         }
     }
 
-    impl<D> FromDigest<D> for RistrettoPoint
-    where
-        D: Digest + BlockSizeUser,
-        Self::Bytes: AssocArraySize + From<Array<u8, <Self::Bytes as AssocArraySize>::Size>>,
-    {
-    }
+    impl_from_digest!(RistrettoPoint);
 }
 
 #[cfg(feature = "k256")]
 mod k256 {
-    use digest::{
-        array::{Array, AssocArraySize},
-        common::BlockSizeUser,
-        Digest,
-    };
     use elliptic_curve::hash2curve::{FromOkm, MapToCurve};
     use k256::{FieldElement, ProjectivePoint};
 
-    use super::{FromDigest, FromUniformBytes};
+    use super::FromUniformBytes;
 
     impl FromUniformBytes for ProjectivePoint {
         type Bytes = [u8; 96];
@@ -112,25 +104,15 @@ mod k256 {
         }
     }
 
-    impl<D> FromDigest<D> for ProjectivePoint
-    where
-        D: Digest + BlockSizeUser,
-        Self::Bytes: AssocArraySize + From<Array<u8, <Self::Bytes as AssocArraySize>::Size>>,
-    {
-    }
+    impl_from_digest!(ProjectivePoint);
 }
 
 #[cfg(feature = "p256")]
 mod p256 {
-    use digest::{
-        array::{Array, AssocArraySize},
-        common::BlockSizeUser,
-        Digest,
-    };
     use elliptic_curve::hash2curve::{FromOkm, MapToCurve};
     use p256::{FieldElement, ProjectivePoint};
 
-    use super::{FromDigest, FromUniformBytes};
+    use super::FromUniformBytes;
 
     impl FromUniformBytes for ProjectivePoint {
         type Bytes = [u8; 96];
@@ -144,12 +126,7 @@ mod p256 {
         }
     }
 
-    impl<D> FromDigest<D> for ProjectivePoint
-    where
-        D: Digest + BlockSizeUser,
-        Self::Bytes: AssocArraySize + From<Array<u8, <Self::Bytes as AssocArraySize>::Size>>,
-    {
-    }
+    impl_from_digest!(ProjectivePoint);
 }
 
 #[cfg(test)]
