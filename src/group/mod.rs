@@ -13,23 +13,23 @@ pub trait FromUniformBytes: Sized {
 }
 
 // TODO: Provide an example of using this with XofFixedWrapper
-// TODO: Add the domain_separator to this interface.
+// TODO: Is there any reason _not_ to use impl AsRef<[u8]> instead of &[u8]?
 pub trait FromDigest<D>: FromUniformBytes {
-    fn from_digest(digest: D) -> Self;
+    fn from_digest(domain: impl AsRef<[u8]>, digest: D) -> Self;
 
-    fn from_hash(input: impl AsRef<[u8]>) -> Self;
+    fn from_hash(domain: impl AsRef<[u8]>, input: impl AsRef<[u8]>) -> Self;
 }
 
 pub trait DigestInto<T>: Sized
 where
     T: FromDigest<Self>,
 {
-    fn digest_into(self) -> T {
-        T::from_digest(self)
+    fn digest_into(self, domain: impl AsRef<[u8]>) -> T {
+        T::from_digest(domain, self)
     }
 
-    fn hash_into(input: impl AsRef<[u8]>) -> T {
-        T::from_hash(input)
+    fn hash_into(domain: impl AsRef<[u8]>, input: impl AsRef<[u8]>) -> T {
+        T::from_hash(domain, input)
     }
 }
 
@@ -51,14 +51,15 @@ macro_rules! impl_from_digest {
         where
             D: ::digest::Digest + ::digest::common::BlockSizeUser,
         {
-            fn from_digest(digest: D) -> Self {
+            fn from_digest(domain: impl AsRef<[u8]>, digest: D) -> Self {
                 let uniform_bytes =
-                    $crate::group::hash::expand_message_digest_xmd(b"".as_slice(), digest);
+                    $crate::group::hash::expand_message_digest_xmd(domain.as_ref(), digest);
                 <Self as $crate::group::FromUniformBytes>::from_uniform_bytes(&uniform_bytes)
             }
 
-            fn from_hash(input: impl AsRef<[u8]>) -> Self {
+            fn from_hash(domain: impl AsRef<[u8]>, input: impl AsRef<[u8]>) -> Self {
                 <Self as $crate::group::FromDigest<D>>::from_digest(
+                    domain,
                     <D as ::digest::Digest>::new()
                         .chain_update($crate::group::hash::zero_pad::<D>())
                         .chain_update(input),
@@ -145,8 +146,12 @@ mod tests {
         use sha2::{Digest as _, Sha256, Sha512};
 
         // NOTE: RistrettoPoint has directly implemented methods called from_hash and from_digest.
-        let _: RistrettoPoint = FromDigest::<Sha512>::from_hash(b"hello");
-        let _: RistrettoPoint = FromDigest::from_digest(Sha512::new().chain_update(b"hello"));
+        let _: RistrettoPoint =
+            FromDigest::<Sha512>::from_hash(b"sigma_proofs::group::tests", b"hello");
+        let _: RistrettoPoint = FromDigest::from_digest(
+            b"sigma_proofs::group::tests",
+            Sha512::new().chain_update(b"hello"),
+        );
     }
 
     #[test]
@@ -161,12 +166,19 @@ mod tests {
         */
 
         // NOTE: RistrettoPoint has directly implemented methods called from_hash and from_digest.
-        let _: RistrettoPoint = FromDigest::<XofFixedWrapper<Shake128, U64>>::from_hash(b"hello");
-        let _: RistrettoPoint =
-            FromDigest::from_digest(XofFixedWrapper::<Shake128, U64>::new().chain_update(b"hello"));
+        let _: RistrettoPoint = FromDigest::<XofFixedWrapper<Shake128, U64>>::from_hash(
+            b"sigma_proofs::group::tests",
+            b"hello",
+        );
+        let _: RistrettoPoint = FromDigest::from_digest(
+            b"sigma_proofs::group::tests",
+            XofFixedWrapper::<Shake128, U64>::new().chain_update(b"hello"),
+        );
 
-        let _: p256::ProjectivePoint = XofFixedWrapper::<Shake128, U96>::hash_into(b"hello");
+        let _: p256::ProjectivePoint =
+            XofFixedWrapper::<Shake128, U96>::hash_into(b"sigma_proofs::group::tests", b"hello");
         let _ = p256::ProjectivePoint::from_digest(
+            b"sigma_proofs::group::tests",
             XofFixedWrapper::<Shake128, U96>::new().chain_update(b"hello"),
         );
     }
