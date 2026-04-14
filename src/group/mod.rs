@@ -12,7 +12,6 @@ pub trait FromUniformBytes: Sized {
     fn from_uniform_bytes(bytes: &Self::Bytes) -> Self;
 }
 
-// TODO: Provide an example of using this with XofFixedWrapper
 // TODO: Is there any reason _not_ to use impl AsRef<[u8]> instead of &[u8]?
 pub trait FromDigest<D>: FromUniformBytes {
     fn from_digest(domain: impl AsRef<[u8]>, digest: D) -> Self;
