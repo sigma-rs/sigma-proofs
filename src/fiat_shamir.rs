@@ -221,16 +221,24 @@ where
     }
 }
 
+/// Must match Argus `dsfs` `SpongeInfo` for [`spongefish::StdHash`] so `Nizk` and `sigma_bridge`
+/// share the same Fiat–Shamir domain tag.
+const DSFS_STDHASH_SPONGE_INFO: &[u8] = b"dsfs/v2/shake128-r168c32";
+
 fn initialize_prover_state(
     protocol_id: [u8; 64],
     session_id: &[u8],
     instance_label: &[u8],
 ) -> ProverState {
     let instance_label = instance_label.to_vec();
-    DomainSeparator::new(protocol_id)
-        .session(derive_session_id(session_id))
-        .instance(&instance_label)
-        .std_prover()
+    let session = derive_session_id(session_id);
+    DomainSeparator::derive(
+        protocol_id.as_ref(),
+        DSFS_STDHASH_SPONGE_INFO,
+        session.as_ref(),
+    )
+    .instance(&instance_label)
+    .std_prover()
 }
 
 fn initialize_verifier_state<'a>(
@@ -240,10 +248,14 @@ fn initialize_verifier_state<'a>(
     narg_string: &'a [u8],
 ) -> VerifierState<'a> {
     let instance_label = instance_label.to_vec();
-    DomainSeparator::new(protocol_id)
-        .session(derive_session_id(session_id))
-        .instance(&instance_label)
-        .std_verifier(narg_string)
+    let session = derive_session_id(session_id);
+    DomainSeparator::derive(
+        protocol_id.as_ref(),
+        DSFS_STDHASH_SPONGE_INFO,
+        session.as_ref(),
+    )
+    .instance(&instance_label)
+    .std_verifier(narg_string)
 }
 
 fn derive_session_id(session_id: &[u8]) -> [u8; 64] {

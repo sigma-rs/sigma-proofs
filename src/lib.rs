@@ -83,3 +83,4 @@ pub(crate) mod schnorr_protocol;
 pub use fiat_shamir::Nizk;
 pub use group::msm::MultiScalarMul;
 pub use linear_relation::LinearRelation;
+pub use traits::StaticSigmaProtocol;

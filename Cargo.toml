@@ -50,7 +50,7 @@ num-traits = { version = "0.2.19", default-features = false, features = ["libm"]
 p256 = { version = "0.13", default-features = false, features = ["arithmetic"], optional = true }
 rand_core = { version = "0.6", default-features = false }
 sha3 = { version = "0.10.8", default-features = false }
-spongefish = { version = "0.5", features = ["derive"] }
+spongefish = { version = "0.7.0", features = ["derive", "sha2"] }
 subtle = { version = "2.6.1", default-features = false }
 thiserror = { version = "1", optional = true }
 zerocopy = { version = "0.8", default-features = false }
@@ -74,7 +74,7 @@ serde_json = "1.0.140"
 serde_with = { version = "3.16.1", features = ["hex"] }
 serial_test = "3.3.1"
 sha2 = "0.10"
-spongefish = { version = "0.5", features = ["curve25519-dalek", "p256", "bls12_381", "derive", "keccak", "std"] }
+spongefish = { version = "0.7.0", features = ["curve25519-dalek", "p256", "bls12_381", "derive", "keccak", "std", "sha2"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 core_affinity2 = "0.15.4"
@@ -119,3 +119,7 @@ required-features = ["std"]
 [profile.dev]
 # Makes tests run much faster at the cost of slightly longer builds and worse debug info.
 opt-level = 1
+
+# Local spongefish fork (Option A `DomainSeparator::derive`); matches Argus `[patch.crates-io]`.
+[patch.crates-io]
+spongefish = { path = "../spongefish/spongefish" }
