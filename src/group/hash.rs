@@ -2,7 +2,7 @@ use core::marker::PhantomData;
 
 use digest::{
     array::Array, common::BlockSizeUser, typenum::Unsigned, Digest, ExtendableOutput, Output,
-    Update, XofReader,
+    XofReader,
 };
 
 pub trait ExpandMessage: Sized {
@@ -26,7 +26,7 @@ impl<D: Digest + BlockSizeUser> ExpandMessage for ExpandMsgXmd<D> {
 
 impl<X> ExpandMessage for X
 where
-    X: ExtendableOutput + Update + Default,
+    X: ExtendableOutput + Default,
 {
     fn expand_message<const N: usize>(domain_separator: &[u8], message: &[u8]) -> [u8; N] {
         crate::group::hash::expand_message_xof::<X, N>(domain_separator, message)
@@ -190,12 +190,9 @@ impl<const N: usize> CheckExpandMsgXofParams<N> {
 /// Generates a uniformly random byte array of length `N` from a domain separator and message.
 ///
 /// This is an implementation of expand_message_xof from RFC9380.
-pub fn expand_message_xof<X, const N: usize>(
-    domain_separator: &[u8],
-    message: &[u8],
-) -> [u8; N]
+pub fn expand_message_xof<X, const N: usize>(domain_separator: &[u8], message: &[u8]) -> [u8; N]
 where
-    X: ExtendableOutput + Update + Default,
+    X: ExtendableOutput + Default,
 {
     let mut xof = X::default();
     xof.update(message);
@@ -206,12 +203,9 @@ where
 /// state into which the message has already been absorbed.
 ///
 /// This is an implementation of expand_message_xof from RFC9380.
-pub fn expand_message_digest_xof<X, const N: usize>(
-    domain_separator: &[u8],
-    mut xof: X,
-) -> [u8; N]
+pub fn expand_message_digest_xof<X, const N: usize>(domain_separator: &[u8], mut xof: X) -> [u8; N]
 where
-    X: ExtendableOutput + Update + Default,
+    X: ExtendableOutput + Default,
 {
     #[allow(path_statements)]
     CheckExpandMsgXofParams::<N>::VALID;
