@@ -14,9 +14,6 @@ pub fn zero_pad<D: BlockSizeUser>() -> Array<u8, D::BlockSize> {
     Array::default()
 }
 
-// TODO: Refactor this to provide a version of this function that takes in an "out" &mut [u8], and
-// uses the length of the slice as the output length.
-
 /// Generates a uniformly random byte array of length `N` from a domain separator and message.
 ///
 /// This is an implementation of expand_message_xmd from RFC9380.
@@ -37,22 +34,6 @@ pub fn expand_message_xmd<D: Digest + BlockSizeUser, const N: usize>(
     expand_message_digest_xmd::<D, N>(domain_separator, message_digest)
 }
 
-pub fn expand_message_xmd_into<D: Digest + BlockSizeUser>(
-    domain_separator: &[u8],
-    message: &[u8],
-    out: &mut [u8],
-) {
-    // Compress the message and domain separator into the digest state.
-    let message_digest = D::new()
-        // Prefix with a block of zeroes and the block length, as discussed in RFC9380 Section 10.6
-        .chain_update(zero_pad::<D>())
-        // Add in the message.
-        // NOTE: The length is not included here.
-        .chain_update(message);
-
-    expand_message_digest_xmd_into(domain_separator, message_digest, out)
-}
-
 /// Generates a uniformly random byte array of length `N` from a domain separator and digest.
 ///
 /// When the message is padded with a block of zeroes, this is an implementation of
@@ -63,16 +44,6 @@ pub fn expand_message_digest_xmd<D: Digest, const N: usize>(
     domain_separator: &[u8],
     message_digest: D,
 ) -> [u8; N] {
-    let mut out = [0u8; N];
-    expand_message_digest_xmd_into(domain_separator, message_digest, &mut out);
-    out
-}
-
-pub fn expand_message_digest_xmd_into<D: Digest>(
-    domain_separator: &[u8],
-    message_digest: D,
-    out: &mut [u8],
-) {
     // If the domain_separator is longer than 255 bytes, compress it per RFC9380 Section 5.3.3.
     let compressed_dst;
     let dst = if domain_separator.len() <= u8::MAX as usize {
@@ -94,17 +65,17 @@ pub fn expand_message_digest_xmd_into<D: Digest>(
     );
     // NOTE: These two asserts depend only on constants.
     assert!(
-        out.len() <= u16::MAX as usize,
+        N <= u16::MAX as usize,
         "expand_message_xmd requires the output length to be at most 65535 bytes"
     );
     assert!(
-        out.len().div_ceil(<D::OutputSize as Unsigned>::USIZE) <= u8::MAX as usize,
+        N.div_ceil(<D::OutputSize as Unsigned>::USIZE) <= u8::MAX as usize,
         "expand_message_xmd requires the output length to be at most 255 times the digest length"
     );
 
     let digest_0 = message_digest
         // Add the requested output length.
-        .chain_update((out.len() as u16).to_be_bytes())
+        .chain_update((N as u16).to_be_bytes())
         // Add a zero index to mark this as the 0-index digest.
         .chain_update([0u8])
         // Add the domain separator and length.
@@ -113,7 +84,8 @@ pub fn expand_message_digest_xmd_into<D: Digest>(
         .finalize();
 
     // Expand the message to fill the output array with b_1 || ... || b_ell.
-    let output_chunks = out.chunks_mut(<D::OutputSize as Unsigned>::USIZE);
+    let mut output = [0u8; N];
+    let output_chunks = output.chunks_mut(<D::OutputSize as Unsigned>::USIZE);
 
     // Using a counter and chaining to previous digests, fill the output buffer.
     let mut prev_digest: Option<Output<D>> = None;
@@ -147,6 +119,8 @@ pub fn expand_message_digest_xmd_into<D: Digest>(
 
         prev_digest = Some(b_i);
     }
+
+    output
 }
 
 #[cfg(test)]
