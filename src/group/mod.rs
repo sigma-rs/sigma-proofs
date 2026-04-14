@@ -159,7 +159,7 @@ mod tests {
     #[test]
     fn usage_sha3() {
         use curve25519_dalek::RistrettoPoint;
-        use digest::{Digest as _, ExtendableOutput as _, Update as _, XofFixedWrapper};
+        use digest::{Digest as _, ExtendableOutput as _, Update as _};
         use sha3::Shake128;
 
         /*
@@ -168,22 +168,17 @@ mod tests {
         */
 
         // NOTE: RistrettoPoint has directly implemented methods called from_hash and from_digest.
-        let _: RistrettoPoint = FromHash::<ExpandMsgXmd<XofFixedWrapper<Shake128, U64>>>::from_hash(
-            b"sigma_proofs::group::tests",
-            b"hello",
-        );
+        let _: RistrettoPoint =
+            FromHash::<Shake128>::from_hash(b"sigma_proofs::group::tests", b"hello");
         let _: RistrettoPoint = FromHash::from_digest(
             b"sigma_proofs::group::tests",
-            ExpandMsgXmd(XofFixedWrapper::<Shake128, U64>::new().chain_update(b"hello")),
+            Shake128::default().chain(b"hello"),
         );
 
-        let _: p256::ProjectivePoint = ExpandMsgXmd::<XofFixedWrapper<Shake128, U96>>::hash_into(
-            b"sigma_proofs::group::tests",
-            b"hello",
-        );
+        let _: p256::ProjectivePoint = Shake128::hash_into(b"sigma_proofs::group::tests", b"hello");
         let _ = p256::ProjectivePoint::from_digest(
             b"sigma_proofs::group::tests",
-            ExpandMsgXmd(XofFixedWrapper::<Shake128, U96>::new().chain_update(b"hello")),
+            Shake128::default().chain(b"hello"),
         );
     }
 }
