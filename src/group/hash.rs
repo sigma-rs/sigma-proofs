@@ -635,4 +635,262 @@ mod tests {
             );
         }
     }
+
+    // RFC9380 Appendix K.4 test vectors for expand_message_xof(SHAKE128)
+    mod expand_message_xof_shake128 {
+        use hex_literal::hex;
+        use sha3::Shake128;
+
+        use crate::group::hash::expand_message_xof;
+
+        const DST: &[u8] = b"QUUX-V01-CS02-with-expander-SHAKE128";
+
+        #[test]
+        fn empty_msg_32b() {
+            let result = expand_message_xof::<Shake128, 32>(DST, b"");
+            assert_eq!(
+                result.as_slice(),
+                hex!("86518c9cd86581486e9485aa74ab35ba150d1c75c88e26b7043e44e2acd735a2")
+            );
+        }
+
+        #[test]
+        fn abc_32b() {
+            let result = expand_message_xof::<Shake128, 32>(DST, b"abc");
+            assert_eq!(
+                result.as_slice(),
+                hex!("8696af52a4d862417c0763556073f47bc9b9ba43c99b505305cb1ec04a9ab468")
+            );
+        }
+
+        #[test]
+        fn abcdef0123456789_32b() {
+            let result = expand_message_xof::<Shake128, 32>(DST, b"abcdef0123456789");
+            assert_eq!(
+                result.as_slice(),
+                hex!("912c58deac4821c3509dbefa094df54b34b8f5d01a191d1d3108a2c89077acca")
+            );
+        }
+
+        #[test]
+        fn q128_32b() {
+            let msg = b"q128_qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq";
+            let result = expand_message_xof::<Shake128, 32>(DST, msg);
+            assert_eq!(
+                result.as_slice(),
+                hex!("1adbcc448aef2a0cebc71dac9f756b22e51839d348e031e63b33ebb50faeaf3f")
+            );
+        }
+
+        #[test]
+        fn a512_32b() {
+            let msg = b"a512_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+            let result = expand_message_xof::<Shake128, 32>(DST, msg);
+            assert_eq!(
+                result.as_slice(),
+                hex!("df3447cc5f3e9a77da10f819218ddf31342c310778e0e4ef72bbaecee786a4fe")
+            );
+        }
+
+        #[test]
+        fn empty_msg_128b() {
+            let result = expand_message_xof::<Shake128, 128>(DST, b"");
+            assert_eq!(
+                result.as_slice(),
+                hex!(
+                    "7314ff1a155a2fb99a0171dc71b89ab6e3b2b7d59e38e64419b8b6294d03ffee"
+                    "42491f11370261f436220ef787f8f76f5b26bdcd850071920ce023f3ac468477"
+                    "44f4612b8714db8f5db83205b2e625d95afd7d7b4d3094d3bdde815f52850bb4"
+                    "1ead9822e08f22cf41d615a303b0d9dde73263c049a7b9898208003a739a2e57"
+                ),
+            );
+        }
+
+        #[test]
+        fn abc_128b() {
+            let result = expand_message_xof::<Shake128, 128>(DST, b"abc");
+            assert_eq!(
+                result.as_slice(),
+                hex!(
+                    "c952f0c8e529ca8824acc6a4cab0e782fc3648c563ddb00da7399f2ae35654f4"
+                    "860ec671db2356ba7baa55a34a9d7f79197b60ddae6e64768a37d699a7832349"
+                    "6db3878c8d64d909d0f8a7de4927dcab0d3dbbc26cb20a49eceb0530b431cdf4"
+                    "7bc8c0fa3e0d88f53b318b6739fbed7d7634974f1b5c386d6230c76260d5337a"
+                ),
+            );
+        }
+
+        #[test]
+        fn abcdef0123456789_128b() {
+            let result = expand_message_xof::<Shake128, 128>(DST, b"abcdef0123456789");
+            assert_eq!(
+                result.as_slice(),
+                hex!(
+                    "19b65ee7afec6ac06a144f2d6134f08eeec185f1a890fe34e68f0e377b7d0312"
+                    "883c048d9b8a1d6ecc3b541cb4987c26f45e0c82691ea299b5e6889bbfe58915"
+                    "3016d8131717ba26f07c3c14ffbef1f3eff9752e5b6183f43871a78219a75e70"
+                    "00fbac6a7072e2b83c790a3a5aecd9d14be79f9fd4fb180960a3772e08680495"
+                ),
+            );
+        }
+
+        #[test]
+        fn q128_128b() {
+            let msg = b"q128_qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq";
+            let result = expand_message_xof::<Shake128, 128>(DST, msg);
+            assert_eq!(
+                result.as_slice(),
+                hex!(
+                    "ca1b56861482b16eae0f4a26212112362fcc2d76dcc80c93c4182ed66c5113fe"
+                    "41733ed68be2942a3487394317f3379856f4822a611735e50528a60e7ade8ec8"
+                    "c71670fec6661e2c59a09ed36386513221688b35dc47e3c3111ee8c67ff49579"
+                    "089d661caa29db1ef10eb6eace575bf3dc9806e7c4016bd50f3c0e2a6481ee6d"
+                ),
+            );
+        }
+
+        #[test]
+        fn a512_128b() {
+            let msg = b"a512_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+            let result = expand_message_xof::<Shake128, 128>(DST, msg);
+            assert_eq!(
+                result.as_slice(),
+                hex!(
+                    "9d763a5ce58f65c91531b4100c7266d479a5d9777ba761693d052acd37d149e7"
+                    "ac91c796a10b919cd74a591a1e38719fb91b7203e2af31eac3bff7ead2c195af"
+                    "7d88b8bc0a8adf3d1e90ab9bed6ddc2b7f655dd86c730bdeaea884e737410971"
+                    "42c92f0e3fc1811b699ba593c7fbd81da288a29d423df831652e3a01a9374999"
+                ),
+            );
+        }
+    }
+
+    // RFC9380 Appendix K.5 test vectors for expand_message_xof(SHAKE128) with long DST
+    mod expand_message_xof_shake128_long_dst {
+        use hex_literal::hex;
+        use sha3::Shake128;
+
+        use crate::group::hash::expand_message_xof;
+
+        const DST: &[u8] = b"QUUX-V01-CS02-with-expander-SHAKE128-long-DST-111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111";
+
+        #[test]
+        fn empty_msg_32b() {
+            let result = expand_message_xof::<Shake128, 32>(DST, b"");
+            assert_eq!(
+                result.as_slice(),
+                hex!("827c6216330a122352312bccc0c8d6e7a146c5257a776dbd9ad9d75cd880fc53")
+            );
+        }
+
+        #[test]
+        fn abc_32b() {
+            let result = expand_message_xof::<Shake128, 32>(DST, b"abc");
+            assert_eq!(
+                result.as_slice(),
+                hex!("690c8d82c7213b4282c6cb41c00e31ea1d3e2005f93ad19bbf6da40f15790c5c")
+            );
+        }
+
+        #[test]
+        fn abcdef0123456789_32b() {
+            let result = expand_message_xof::<Shake128, 32>(DST, b"abcdef0123456789");
+            assert_eq!(
+                result.as_slice(),
+                hex!("979e3a15064afbbcf99f62cc09fa9c85028afcf3f825eb0711894dcfc2f57057")
+            );
+        }
+
+        #[test]
+        fn q128_32b() {
+            let msg = b"q128_qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq";
+            let result = expand_message_xof::<Shake128, 32>(DST, msg);
+            assert_eq!(
+                result.as_slice(),
+                hex!("c5a9220962d9edc212c063f4f65b609755a1ed96e62f9db5d1fd6adb5a8dc52b")
+            );
+        }
+
+        #[test]
+        fn a512_32b() {
+            let msg = b"a512_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+            let result = expand_message_xof::<Shake128, 32>(DST, msg);
+            assert_eq!(
+                result.as_slice(),
+                hex!("f7b96a5901af5d78ce1d071d9c383cac66a1dfadb508300ec6aeaea0d62d5d62")
+            );
+        }
+
+        #[test]
+        fn empty_msg_128b() {
+            let result = expand_message_xof::<Shake128, 128>(DST, b"");
+            assert_eq!(
+                result.as_slice(),
+                hex!(
+                    "3890dbab00a2830be398524b71c2713bbef5f4884ac2e6f070b092effdb19208"
+                    "c7df943dc5dcbaee3094a78c267ef276632ee2c8ea0c05363c94b6348500fae4"
+                    "208345dd3475fe0c834c2beac7fa7bc181692fb728c0a53d809fc8111495222c"
+                    "e0f38468b11becb15b32060218e285c57a60162c2c8bb5b6bded13973cd41819"
+                ),
+            );
+        }
+
+        #[test]
+        fn abc_128b() {
+            let result = expand_message_xof::<Shake128, 128>(DST, b"abc");
+            assert_eq!(
+                result.as_slice(),
+                hex!(
+                    "41b7ffa7a301b5c1441495ebb9774e2a53dbbf4e54b9a1af6a20fd41eafd69ef"
+                    "7b9418599c5545b1ee422f363642b01d4a53449313f68da3e49dddb9cd25b974"
+                    "65170537d45dcbdf92391b5bdff344db4bd06311a05bca7dcd360b6caec849c2"
+                    "99133e5c9194f4e15e3e23cfaab4003fab776f6ac0bfae9144c6e2e1c62e7d57"
+                ),
+            );
+        }
+
+        #[test]
+        fn abcdef0123456789_128b() {
+            let result = expand_message_xof::<Shake128, 128>(DST, b"abcdef0123456789");
+            assert_eq!(
+                result.as_slice(),
+                hex!(
+                    "55317e4a21318472cd2290c3082957e1242241d9e0d04f47026f034016431314"
+                    "01071f01aa03038b2783e795bdfa8a3541c194ad5de7cb9c225133e24af6c86e"
+                    "748deb52e560569bd54ef4dac03465111a3a44b0ea490fb36777ff8ea9f1a8a3"
+                    "e8e0de3cf0880b4b2f8dd37d3a85a8b82375aee4fa0e909f9763319b55778e71"
+                ),
+            );
+        }
+
+        #[test]
+        fn q128_128b() {
+            let msg = b"q128_qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq";
+            let result = expand_message_xof::<Shake128, 128>(DST, msg);
+            assert_eq!(
+                result.as_slice(),
+                hex!(
+                    "19fdd2639f082e31c77717ac9bb032a22ff0958382b2dbb39020cdc78f0da433"
+                    "05414806abf9a561cb2d0067eb2f7bc544482f75623438ed4b4e39dd9e6e2909"
+                    "dd858bd8f1d57cd0fce2d3150d90aa67b4498bdf2df98c0100dd1a173436ba5d"
+                    "0df6be1defb0b2ce55ccd2f4fc05eb7cb2c019c35d5398b85adc676da4238bc7"
+                ),
+            );
+        }
+
+        #[test]
+        fn a512_128b() {
+            let msg = b"a512_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+            let result = expand_message_xof::<Shake128, 128>(DST, msg);
+            assert_eq!(
+                result.as_slice(),
+                hex!(
+                    "945373f0b3431a103333ba6a0a34f1efab2702efde41754c4cb1d5216d5b0a92"
+                    "a67458d968562bde7fa6310a83f53dda1383680a276a283438d58ceebfa7ab7b"
+                    "a72499d4a3eddc860595f63c93b1c5e823ea41fc490d938398a26db28f618576"
+                    "98553e93f0574eb8c5017bfed6249491f9976aaa8d23d9485339cc85ca329308"
+                ),
+            );
+        }
+    }
 }
