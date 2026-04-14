@@ -19,15 +19,15 @@ fn protocol_identifier_for_group<G>() -> [u8; 64] {
 
     #[cfg(feature = "p256")]
     if core::any::type_name::<G>() == core::any::type_name::<p256::ProjectivePoint>() {
-        return pad_identifier(b"sigma-proofs_Shake128_P256");
+        return pad_identifier(b"sigma-proofs/linear-relation/P256");
     }
 
     #[cfg(feature = "bls12_381")]
     if core::any::type_name::<G>() == core::any::type_name::<bls12_381::G1Projective>() {
-        return pad_identifier(b"sigma-proofs_Shake128_BLS12381");
+        return pad_identifier(b"sigma-proofs/linear-relation/BLS12381");
     }
 
-    pad_identifier(b"ietf sigma proof linear relation")
+    pad_identifier(b"sigma-proofs/linear-relation")
 }
 
 fn pad_identifier(identifier: &[u8]) -> [u8; 64] {
