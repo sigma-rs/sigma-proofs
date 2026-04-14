@@ -1,10 +1,6 @@
-use digest::{
-    array::{Array, ArraySize},
-    common::BlockSizeUser,
-    typenum::Unsigned,
-    Digest, Output,
-};
+use digest::{array::Array, common::BlockSizeUser, typenum::Unsigned, Digest, Output};
 
+// TODO: Try to remove hybrid_array::Array from this function signature?
 /// Create a block of zeroes to use as padding as per RFC9380.
 ///
 /// ```rust
@@ -23,10 +19,10 @@ pub fn zero_pad<D: BlockSizeUser>() -> Array<u8, D::BlockSize> {
 /// This is an implementation of expand_message_xmd from RFC9380.
 ///
 /// <!-- TODO: Add panic conditions -->
-pub fn expand_message_xmd<D: Digest + BlockSizeUser, N: ArraySize>(
+pub fn expand_message_xmd<D: Digest + BlockSizeUser, const N: usize>(
     domain_separator: &[u8],
     message: &[u8],
-) -> Array<u8, N> {
+) -> [u8; N] {
     // Compress the message and domain separator into the digest state.
     let message_digest = D::new()
         // Prefix with a block of zeroes and the block length, as discussed in RFC9380 Section 10.6
@@ -44,10 +40,10 @@ pub fn expand_message_xmd<D: Digest + BlockSizeUser, N: ArraySize>(
 /// expand_message_xmd from RFC9380.
 ///
 /// <!-- TODO: Add panic conditions -->
-pub fn expand_message_digest_xmd<D: Digest, N: ArraySize>(
+pub fn expand_message_digest_xmd<D: Digest, const N: usize>(
     domain_separator: &[u8],
     message_digest: D,
-) -> Array<u8, N> {
+) -> [u8; N] {
     // If the domain_separator is longer than 255 bytes, compress it per RFC9380 Section 5.3.3.
     let compressed_dst;
     let dst = if domain_separator.len() <= u8::MAX as usize {
@@ -69,17 +65,17 @@ pub fn expand_message_digest_xmd<D: Digest, N: ArraySize>(
     );
     // NOTE: These two asserts depend only on constants.
     assert!(
-        N::USIZE <= u16::MAX as usize,
+        N <= u16::MAX as usize,
         "expand_message_xmd requires the output length to be at most 65535 bytes"
     );
     assert!(
-        N::USIZE.div_ceil(<D::OutputSize as Unsigned>::USIZE) <= u8::MAX as usize,
+        N.div_ceil(<D::OutputSize as Unsigned>::USIZE) <= u8::MAX as usize,
         "expand_message_xmd requires the output length to be at most 255 times the digest length"
     );
 
     let digest_0 = message_digest
         // Add the requested output length.
-        .chain_update(N::U16.to_be_bytes())
+        .chain_update((N as u16).to_be_bytes())
         // Add a zero index to mark this as the 0-index digest.
         .chain_update([0u8])
         // Add the domain separator and length.
@@ -88,7 +84,7 @@ pub fn expand_message_digest_xmd<D: Digest, N: ArraySize>(
         .finalize();
 
     // Expand the message to fill the output array with b_1 || ... || b_ell.
-    let mut output = Array::<u8, N>::default();
+    let mut output = [0u8; N];
     let output_chunks = output.chunks_mut(<D::OutputSize as Unsigned>::USIZE);
 
     // Using a counter and chaining to previous digests, fill the output buffer.
@@ -130,7 +126,6 @@ pub fn expand_message_digest_xmd<D: Digest, N: ArraySize>(
 #[cfg(test)]
 mod tests {
     mod expand_message_xmd_sha256 {
-        use digest::consts::{U128, U32};
         use hex_literal::hex;
         use sha2::Sha256;
 
@@ -142,7 +137,7 @@ mod tests {
 
         #[test]
         fn empty_msg_32b() {
-            let result = expand_message_xmd::<Sha256, U32>(DST, b"");
+            let result = expand_message_xmd::<Sha256, 32>(DST, b"");
             assert_eq!(
                 result.as_slice(),
                 hex!("68a985b87eb6b46952128911f2a4412bbc302a9d759667f87f7a21d803f07235")
@@ -151,7 +146,7 @@ mod tests {
 
         #[test]
         fn abc_32b() {
-            let result = expand_message_xmd::<Sha256, U32>(DST, b"abc");
+            let result = expand_message_xmd::<Sha256, 32>(DST, b"abc");
             assert_eq!(
                 result.as_slice(),
                 hex!("d8ccab23b5985ccea865c6c97b6e5b8350e794e603b4b97902f53a8a0d605615")
@@ -160,7 +155,7 @@ mod tests {
 
         #[test]
         fn abcdef0123456789_32b() {
-            let result = expand_message_xmd::<Sha256, U32>(DST, b"abcdef0123456789");
+            let result = expand_message_xmd::<Sha256, 32>(DST, b"abcdef0123456789");
             assert_eq!(
                 result.as_slice(),
                 hex!("eff31487c770a893cfb36f912fbfcbff40d5661771ca4b2cb4eafe524333f5c1")
@@ -170,7 +165,7 @@ mod tests {
         #[test]
         fn q128_32b() {
             let msg = b"q128_qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq";
-            let result = expand_message_xmd::<Sha256, U32>(DST, msg);
+            let result = expand_message_xmd::<Sha256, 32>(DST, msg);
             assert_eq!(
                 result.as_slice(),
                 hex!("b23a1d2b4d97b2ef7785562a7e8bac7eed54ed6e97e29aa51bfe3f12ddad1ff9")
@@ -179,7 +174,7 @@ mod tests {
 
         #[test]
         fn empty_msg_128b() {
-            let result = expand_message_xmd::<Sha256, U128>(DST, b"");
+            let result = expand_message_xmd::<Sha256, 128>(DST, b"");
             assert_eq!(
                 result.as_slice(),
                 hex!(
@@ -193,7 +188,7 @@ mod tests {
 
         #[test]
         fn abc_128b() {
-            let result = expand_message_xmd::<Sha256, U128>(DST, b"abc");
+            let result = expand_message_xmd::<Sha256, 128>(DST, b"abc");
             assert_eq!(
                 result.as_slice(),
                 hex!(
@@ -207,7 +202,7 @@ mod tests {
 
         #[test]
         fn abcdef0123456789_128b() {
-            let result = expand_message_xmd::<Sha256, U128>(DST, b"abcdef0123456789");
+            let result = expand_message_xmd::<Sha256, 128>(DST, b"abcdef0123456789");
             assert_eq!(
                 result.as_slice(),
                 hex!(
@@ -222,7 +217,6 @@ mod tests {
 
     // RFC9380 Appendix K.2: expand_message_xmd(SHA-256) with long DST (>255 bytes)
     mod expand_message_xmd_sha256_long_dst {
-        use digest::consts::{U128, U32};
         use hex_literal::hex;
         use sha2::Sha256;
 
@@ -232,7 +226,7 @@ mod tests {
 
         #[test]
         fn empty_msg_32b() {
-            let result = expand_message_xmd::<Sha256, U32>(DST, b"");
+            let result = expand_message_xmd::<Sha256, 32>(DST, b"");
             assert_eq!(
                 result.as_slice(),
                 hex!("e8dc0c8b686b7ef2074086fbdd2f30e3f8bfbd3bdf177f73f04b97ce618a3ed3")
@@ -241,7 +235,7 @@ mod tests {
 
         #[test]
         fn abc_32b() {
-            let result = expand_message_xmd::<Sha256, U32>(DST, b"abc");
+            let result = expand_message_xmd::<Sha256, 32>(DST, b"abc");
             assert_eq!(
                 result.as_slice(),
                 hex!("52dbf4f36cf560fca57dedec2ad924ee9c266341d8f3d6afe5171733b16bbb12")
@@ -250,7 +244,7 @@ mod tests {
 
         #[test]
         fn abcdef0123456789_32b() {
-            let result = expand_message_xmd::<Sha256, U32>(DST, b"abcdef0123456789");
+            let result = expand_message_xmd::<Sha256, 32>(DST, b"abcdef0123456789");
             assert_eq!(
                 result.as_slice(),
                 hex!("35387dcf22618f3728e6c686490f8b431f76550b0b2c61cbc1ce7001536f4521")
@@ -260,7 +254,7 @@ mod tests {
         #[test]
         fn q128_32b() {
             let msg = b"q128_qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq";
-            let result = expand_message_xmd::<Sha256, U32>(DST, msg);
+            let result = expand_message_xmd::<Sha256, 32>(DST, msg);
             assert_eq!(
                 result.as_slice(),
                 hex!("01b637612bb18e840028be900a833a74414140dde0c4754c198532c3a0ba42bc")
@@ -270,7 +264,7 @@ mod tests {
         #[test]
         fn a512_32b() {
             let msg = b"a512_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-            let result = expand_message_xmd::<Sha256, U32>(DST, msg);
+            let result = expand_message_xmd::<Sha256, 32>(DST, msg);
             assert_eq!(
                 result.as_slice(),
                 hex!("20cce7033cabc5460743180be6fa8aac5a103f56d481cf369a8accc0c374431b")
@@ -279,7 +273,7 @@ mod tests {
 
         #[test]
         fn empty_msg_128b() {
-            let result = expand_message_xmd::<Sha256, U128>(DST, b"");
+            let result = expand_message_xmd::<Sha256, 128>(DST, b"");
             assert_eq!(
                 result.as_slice(),
                 hex!(
@@ -293,7 +287,7 @@ mod tests {
 
         #[test]
         fn abc_128b() {
-            let result = expand_message_xmd::<Sha256, U128>(DST, b"abc");
+            let result = expand_message_xmd::<Sha256, 128>(DST, b"abc");
             assert_eq!(
                 result.as_slice(),
                 hex!(
@@ -307,7 +301,7 @@ mod tests {
 
         #[test]
         fn abcdef0123456789_128b() {
-            let result = expand_message_xmd::<Sha256, U128>(DST, b"abcdef0123456789");
+            let result = expand_message_xmd::<Sha256, 128>(DST, b"abcdef0123456789");
             assert_eq!(
                 result.as_slice(),
                 hex!(
@@ -322,7 +316,7 @@ mod tests {
         #[test]
         fn q128_128b() {
             let msg = b"q128_qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq";
-            let result = expand_message_xmd::<Sha256, U128>(DST, msg);
+            let result = expand_message_xmd::<Sha256, 128>(DST, msg);
             assert_eq!(
                 result.as_slice(),
                 hex!(
@@ -337,7 +331,7 @@ mod tests {
         #[test]
         fn a512_128b() {
             let msg = b"a512_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-            let result = expand_message_xmd::<Sha256, U128>(DST, msg);
+            let result = expand_message_xmd::<Sha256, 128>(DST, msg);
             assert_eq!(
                 result.as_slice(),
                 hex!(
@@ -352,7 +346,6 @@ mod tests {
 
     // RFC9380 Appendix K.1 continued: remaining test vectors
     mod expand_message_xmd_sha256_continued {
-        use digest::consts::{U128, U32};
         use hex_literal::hex;
         use sha2::Sha256;
 
@@ -363,7 +356,7 @@ mod tests {
         #[test]
         fn a512_32b() {
             let msg = b"a512_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-            let result = expand_message_xmd::<Sha256, U32>(DST, msg);
+            let result = expand_message_xmd::<Sha256, 32>(DST, msg);
             assert_eq!(
                 result.as_slice(),
                 hex!("4623227bcc01293b8c130bf771da8c298dede7383243dc0993d2d94823958c4c")
@@ -373,7 +366,7 @@ mod tests {
         #[test]
         fn q128_128b() {
             let msg = b"q128_qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq";
-            let result = expand_message_xmd::<Sha256, U128>(DST, msg);
+            let result = expand_message_xmd::<Sha256, 128>(DST, msg);
             assert_eq!(
                 result.as_slice(),
                 hex!(
@@ -388,7 +381,7 @@ mod tests {
         #[test]
         fn a512_128b() {
             let msg = b"a512_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-            let result = expand_message_xmd::<Sha256, U128>(DST, msg);
+            let result = expand_message_xmd::<Sha256, 128>(DST, msg);
             assert_eq!(
                 result.as_slice(),
                 hex!(
@@ -403,7 +396,6 @@ mod tests {
 
     // RFC9380 Appendix K.3: expand_message_xmd(SHA-512)
     mod expand_message_xmd_sha512 {
-        use digest::consts::{U128, U32};
         use hex_literal::hex;
         use sha2::Sha512;
 
@@ -413,7 +405,7 @@ mod tests {
 
         #[test]
         fn empty_msg_32b() {
-            let result = expand_message_xmd::<Sha512, U32>(DST, b"");
+            let result = expand_message_xmd::<Sha512, 32>(DST, b"");
             assert_eq!(
                 result.as_slice(),
                 hex!("6b9a7312411d92f921c6f68ca0b6380730a1a4d982c507211a90964c394179ba")
@@ -422,7 +414,7 @@ mod tests {
 
         #[test]
         fn abc_32b() {
-            let result = expand_message_xmd::<Sha512, U32>(DST, b"abc");
+            let result = expand_message_xmd::<Sha512, 32>(DST, b"abc");
             assert_eq!(
                 result.as_slice(),
                 hex!("0da749f12fbe5483eb066a5f595055679b976e93abe9be6f0f6318bce7aca8dc")
@@ -431,7 +423,7 @@ mod tests {
 
         #[test]
         fn abcdef0123456789_32b() {
-            let result = expand_message_xmd::<Sha512, U32>(DST, b"abcdef0123456789");
+            let result = expand_message_xmd::<Sha512, 32>(DST, b"abcdef0123456789");
             assert_eq!(
                 result.as_slice(),
                 hex!("087e45a86e2939ee8b91100af1583c4938e0f5fc6c9db4b107b83346bc967f58")
@@ -441,7 +433,7 @@ mod tests {
         #[test]
         fn q128_32b() {
             let msg = b"q128_qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq";
-            let result = expand_message_xmd::<Sha512, U32>(DST, msg);
+            let result = expand_message_xmd::<Sha512, 32>(DST, msg);
             assert_eq!(
                 result.as_slice(),
                 hex!("7336234ee9983902440f6bc35b348352013becd88938d2afec44311caf8356b3")
@@ -451,7 +443,7 @@ mod tests {
         #[test]
         fn a512_32b() {
             let msg = b"a512_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-            let result = expand_message_xmd::<Sha512, U32>(DST, msg);
+            let result = expand_message_xmd::<Sha512, 32>(DST, msg);
             assert_eq!(
                 result.as_slice(),
                 hex!("57b5f7e766d5be68a6bfe1768e3c2b7f1228b3e4b3134956dd73a59b954c66f4")
@@ -460,7 +452,7 @@ mod tests {
 
         #[test]
         fn empty_msg_128b() {
-            let result = expand_message_xmd::<Sha512, U128>(DST, b"");
+            let result = expand_message_xmd::<Sha512, 128>(DST, b"");
             assert_eq!(
                 result.as_slice(),
                 hex!(
@@ -474,7 +466,7 @@ mod tests {
 
         #[test]
         fn abc_128b() {
-            let result = expand_message_xmd::<Sha512, U128>(DST, b"abc");
+            let result = expand_message_xmd::<Sha512, 128>(DST, b"abc");
             assert_eq!(
                 result.as_slice(),
                 hex!(
@@ -488,7 +480,7 @@ mod tests {
 
         #[test]
         fn abcdef0123456789_128b() {
-            let result = expand_message_xmd::<Sha512, U128>(DST, b"abcdef0123456789");
+            let result = expand_message_xmd::<Sha512, 128>(DST, b"abcdef0123456789");
             assert_eq!(
                 result.as_slice(),
                 hex!(
@@ -503,7 +495,7 @@ mod tests {
         #[test]
         fn q128_128b() {
             let msg = b"q128_qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq";
-            let result = expand_message_xmd::<Sha512, U128>(DST, msg);
+            let result = expand_message_xmd::<Sha512, 128>(DST, msg);
             assert_eq!(
                 result.as_slice(),
                 hex!(
@@ -518,7 +510,7 @@ mod tests {
         #[test]
         fn a512_128b() {
             let msg = b"a512_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-            let result = expand_message_xmd::<Sha512, U128>(DST, msg);
+            let result = expand_message_xmd::<Sha512, 128>(DST, msg);
             assert_eq!(
                 result.as_slice(),
                 hex!(
