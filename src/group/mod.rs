@@ -20,6 +20,26 @@ pub trait FromDigest<D>: FromUniformBytes {
     fn from_hash(input: impl AsRef<[u8]>) -> Self;
 }
 
+pub trait DigestInto<T>: Sized
+where
+    T: FromDigest<Self>,
+{
+    fn digest_into(self) -> T {
+        T::from_digest(self)
+    }
+
+    fn hash_into(input: impl AsRef<[u8]>) -> T {
+        T::from_hash(input)
+    }
+}
+
+impl<D, T> DigestInto<T> for D
+where
+    D: Sized,
+    T: FromDigest<D>,
+{
+}
+
 /// Generates a default [`FromDigest`] impl for a group element type that implements
 /// [`FromUniformBytes`], using [`expand_message_digest_xmd`][hash::expand_message_digest_xmd].
 ///
@@ -46,26 +66,6 @@ macro_rules! impl_from_digest {
             }
         }
     };
-}
-
-pub trait DigestInto<T>: Sized
-where
-    T: FromDigest<Self>,
-{
-    fn digest_into(self) -> T {
-        T::from_digest(self)
-    }
-
-    fn hash_into(input: impl AsRef<[u8]>) -> T {
-        T::from_hash(input)
-    }
-}
-
-impl<D, T> DigestInto<T> for D
-where
-    D: Sized,
-    T: FromDigest<D>,
-{
 }
 
 #[cfg(feature = "curve25519-dalek")]
