@@ -1,6 +1,9 @@
 use core::marker::PhantomData;
 
-use digest::{array::Array, common::BlockSizeUser, typenum::Unsigned, Digest, Output};
+use digest::{
+    array::Array, common::BlockSizeUser, typenum::Unsigned, Digest, ExtendableOutput, Output,
+    Update, XofReader,
+};
 
 pub trait ExpandMessage: Sized {
     fn expand_message<const N: usize>(domain_separator: &[u8], message: &[u8]) -> [u8; N];
@@ -18,6 +21,19 @@ impl<D: Digest + BlockSizeUser> ExpandMessage for ExpandMsgXmd<D> {
 
     fn expand_message_digest<const N: usize>(self, domain_separator: &[u8]) -> [u8; N] {
         crate::group::hash::expand_message_digest_xmd::<D, N>(domain_separator, self.0)
+    }
+}
+
+impl<X> ExpandMessage for X
+where
+    X: ExtendableOutput + Update + Default,
+{
+    fn expand_message<const N: usize>(domain_separator: &[u8], message: &[u8]) -> [u8; N] {
+        crate::group::hash::expand_message_xof::<X, N>(domain_separator, message)
+    }
+
+    fn expand_message_digest<const N: usize>(self, domain_separator: &[u8]) -> [u8; N] {
+        crate::group::hash::expand_message_digest_xof::<X, N>(domain_separator, self)
     }
 }
 
@@ -153,6 +169,76 @@ pub fn expand_message_digest_xmd<D: Digest, const N: usize>(
         prev_digest = Some(b_i);
     }
 
+    output
+}
+
+/// `CheckExpandMsgXofParams` implements compile-time checks to ensure the given generic parameters
+/// will result in an infallible call to [expand_message_xof].
+struct CheckExpandMsgXofParams<const N: usize>;
+
+impl<const N: usize> CheckExpandMsgXofParams<N> {
+    /// Access to this associated constant will cause a compilation error if the given generic
+    /// parameters are invalid. This enables compile time assertion over the generic parameters.
+    const VALID: () = {
+        assert!(
+            N <= u16::MAX as usize,
+            "expand_message_xof requires the output length to be at most 65535 bytes"
+        );
+    };
+}
+
+/// Generates a uniformly random byte array of length `N` from a domain separator and message.
+///
+/// This is an implementation of expand_message_xof from RFC9380.
+pub fn expand_message_xof<X, const N: usize>(
+    domain_separator: &[u8],
+    message: &[u8],
+) -> [u8; N]
+where
+    X: ExtendableOutput + Update + Default,
+{
+    let mut xof = X::default();
+    xof.update(message);
+    expand_message_digest_xof::<X, N>(domain_separator, xof)
+}
+
+/// Generates a uniformly random byte array of length `N` from a domain separator and an XOF
+/// state into which the message has already been absorbed.
+///
+/// This is an implementation of expand_message_xof from RFC9380.
+pub fn expand_message_digest_xof<X, const N: usize>(
+    domain_separator: &[u8],
+    mut xof: X,
+) -> [u8; N]
+where
+    X: ExtendableOutput + Update + Default,
+{
+    #[allow(path_statements)]
+    CheckExpandMsgXofParams::<N>::VALID;
+
+    // If the domain separator is longer than 255 bytes, compress it per RFC9380 Section 5.3.3.
+    // NOTE: 32 bytes corresponds to a security level of k=128 (e.g. SHAKE128). Higher-security
+    // XOFs (e.g. SHAKE256, k=256) call for max(ceil(2k/8), 32) = 64 bytes.
+    let compressed_dst;
+    let dst = if domain_separator.len() <= u8::MAX as usize {
+        domain_separator
+    } else {
+        let mut hasher = X::default();
+        hasher.update(b"H2C-OVERSIZE-DST-");
+        hasher.update(domain_separator);
+        let mut buf = [0u8; 32];
+        hasher.finalize_xof().read(&mut buf);
+        compressed_dst = buf;
+        &compressed_dst
+    };
+
+    // Finish the msg_prime construction by absorbing I2OSP(N, 2) || DST || I2OSP(len(DST), 1).
+    xof.update(&(N as u16).to_be_bytes());
+    xof.update(dst);
+    xof.update(&[u8::try_from(dst.len()).unwrap()]);
+
+    let mut output = [0u8; N];
+    xof.finalize_xof().read(&mut output);
     output
 }
 
