@@ -2,7 +2,7 @@ use core::marker::PhantomData;
 
 use digest::{
     array::Array, common::BlockSizeUser, typenum::Unsigned, CollisionResistance, Digest,
-    ExtendableOutput, Output, XofReader,
+    ExtendableOutput, Output, Update, XofReader,
 };
 
 /// Maps a message and domain separation tag to a pseudorandom byte array.
@@ -21,19 +21,46 @@ pub trait ExpandMessage: Sized {
     fn expand_message_digest<const N: usize>(self, domain_separator: &[u8]) -> [u8; N];
 }
 
-// TODO: Hide the inner value, and add an `fn extract` to the impl that hashes in the zero padding.
-// This should allow us to hide the zero_pad function from the public scope.
 /// Adapter that routes a fixed-output digest to [`ExpandMessage`] via `expand_message_xmd`.
-#[derive(Copy, Clone, Default)]
-pub struct ExpandMsgXmd<D>(pub D);
+///
+/// The inner digest always has the RFC 9380 zero-block prefix absorbed: construct via
+/// [`Default`] or [`extract`](Self::extract), then feed additional input through
+/// [`digest::Update`].
+#[derive(Clone)]
+pub struct ExpandMsgXmd<D: Digest + BlockSizeUser> {
+    inner: D,
+}
+
+impl<D: Digest + BlockSizeUser> Default for ExpandMsgXmd<D> {
+    fn default() -> Self {
+        Self {
+            inner: D::new().chain_update(zero_pad::<D>()),
+        }
+    }
+}
+
+impl<D: Digest + BlockSizeUser> ExpandMsgXmd<D> {
+    /// Start an [`ExpandMsgXmd`] with `input` absorbed after the zero-block prefix.
+    pub fn extract(input: &[u8]) -> Self {
+        let mut this = Self::default();
+        Update::update(&mut this, input);
+        this
+    }
+}
+
+impl<D: Digest + BlockSizeUser> Update for ExpandMsgXmd<D> {
+    fn update(&mut self, data: &[u8]) {
+        Digest::update(&mut self.inner, data);
+    }
+}
 
 impl<D: Digest + BlockSizeUser> ExpandMessage for ExpandMsgXmd<D> {
     fn expand_message<const N: usize>(domain_separator: &[u8], message: &[u8]) -> [u8; N] {
-        crate::group::hash::expand_message_xmd::<D, N>(domain_separator, message)
+        Self::extract(message).expand_message_digest(domain_separator)
     }
 
     fn expand_message_digest<const N: usize>(self, domain_separator: &[u8]) -> [u8; N] {
-        crate::group::hash::expand_message_digest_xmd::<D, N>(domain_separator, self.0)
+        crate::group::hash::expand_message_digest_xmd::<D, N>(domain_separator, self.inner)
     }
 }
 
@@ -51,15 +78,7 @@ where
 }
 
 /// Returns a block of zeroes for use as padding per RFC 9380 Section 5.3.1.
-///
-/// ```rust
-/// use sha2::Sha256;
-/// use sigma_proofs::group::hash::zero_pad;
-///
-/// let zeroes = zero_pad::<Sha256>();
-/// assert!(zeroes.iter().all(|b| *b == 0));
-/// ```
-pub fn zero_pad<D: BlockSizeUser>() -> Array<u8, D::BlockSize> {
+fn zero_pad<D: BlockSizeUser>() -> Array<u8, D::BlockSize> {
     Array::default()
 }
 
@@ -102,15 +121,7 @@ pub fn expand_message_xmd<D: Digest + BlockSizeUser, const N: usize>(
     domain_separator: &[u8],
     message: &[u8],
 ) -> [u8; N] {
-    // Compress the message and domain separator into the digest state.
-    let message_digest = D::new()
-        // Prefix with a block of zeroes and the block length, as discussed in RFC9380 Section 10.6
-        .chain_update(zero_pad::<D>())
-        // Add in the message.
-        // NOTE: The length is not included here.
-        .chain_update(message);
-
-    expand_message_digest_xmd::<D, N>(domain_separator, message_digest)
+    ExpandMsgXmd::<D>::extract(message).expand_message_digest(domain_separator)
 }
 
 /// Expands a digest state (with message already absorbed) into a pseudorandom `[u8; N]`
@@ -281,6 +292,16 @@ where
 
 #[cfg(test)]
 mod tests {
+    use sha2::Sha256;
+
+    use crate::group::hash::zero_pad;
+
+    #[test]
+    fn zero_pad_is_all_zero() {
+        let zeroes = zero_pad::<Sha256>();
+        assert!(zeroes.iter().all(|b| *b == 0));
+    }
+
     mod expand_message_xmd_sha256 {
         use hex_literal::hex;
         use sha2::Sha256;
