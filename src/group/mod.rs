@@ -98,7 +98,7 @@ where
 ///
 /// The generated impl is blanket over [ExpandMessage].
 /// Assumes `<Self as FromUniformBytes>::Bytes` is a byte array (some `[u8; _]`).
-macro_rules! impl_from_digest {
+macro_rules! impl_from_hash {
     ($type:ty) => {
         impl<H> $crate::group::FromHash<H> for $type
         where
@@ -177,5 +177,5 @@ mod p256 {
         }
     }
 
-    impl_from_digest!(ProjectivePoint);
+    impl_from_hash!(ProjectivePoint);
 }
