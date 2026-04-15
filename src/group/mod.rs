@@ -8,25 +8,78 @@ pub mod msm;
 /// Implementation of hashing utilities from RFC9380.
 pub mod hash;
 
+/// Map a fixed number of uniform bytes into the target group, ensuring a uniform distribution.
+///
+/// Group elements generated from pseudo-random bytes using this method will have no known discrete
+/// log with respect to other members of the group.
 pub trait FromUniformBytes: Sized {
+    /// Byte array type used as the input to [FromUniformBytes::from_uniform_bytes]. In most cases,
+    /// this should be `[u8; N]` where `N` is the number of bytes for a uniform map to the group.
     type Bytes: AsRef<[u8]> + AsMut<[u8]> + Zeroable;
 
+    /// Map a fixed number of uniform bytes into the target group, ensuring a uniform distribution.
     fn from_uniform_bytes(bytes: &Self::Bytes) -> Self;
 }
 
 // TODO: Is there any reason _not_ to use impl AsRef<[u8]> instead of &[u8]?
+/// # Examples
+///
+/// Hashing with SHA-256 (via [`ExpandMsgXmd`](hash::ExpandMsgXmd)):
+///
+/// ```
+/// use curve25519_dalek::RistrettoPoint;
+/// use sha2::Sha256;
+/// use sigma_proofs::group::{FromHash, hash::ExpandMsgXmd};
+///
+/// let _: RistrettoPoint = FromHash::<ExpandMsgXmd<Sha256>>::from_hash(b"FromHash::doctest", b"msg");
+/// ```
+///
+/// Hashing with SHAKE128:
+///
+/// ```
+/// use sha3::Shake128;
+/// use sigma_proofs::group::FromHash;
+///
+/// let _: p256::ProjectivePoint = FromHash::<Shake128>::from_hash(b"FromHash::doctest", b"msg");
+/// ```
+///
+/// Using incremental hashing:
+///
+/// ```
+/// use sha3::Shake128;
+/// use sigma_proofs::group::FromHash;
+///
+/// let mut hasher = Shake128::default();
+/// hasher.update(b"part of my message");
+/// hasher.update(b"the other part of my message");
+/// let _: p256::ProjectivePoint = FromHash::<Shake128>::from_digest(b"FromHash::doctest", hasher);
+/// ```
 pub trait FromHash<H: ExpandMessage>: FromUniformBytes {
-    fn from_digest(domain: impl AsRef<[u8]>, digest: H) -> Self;
+    fn from_hasher(domain: impl AsRef<[u8]>, hasher: H) -> Self;
 
     fn from_hash(domain: impl AsRef<[u8]>, input: impl AsRef<[u8]>) -> Self;
 }
 
+/// # Examples
+///
+/// ```
+/// use digest::Update as _;
+/// use sha3::Shake128;
+/// use sigma_proofs::group::DigestInto;
+///
+/// // Hash bytes directly.
+/// let _: curve25519_dalek::RistrettoPoint = Shake128::hash_into(b"domain", b"msg");
+///
+/// // Or drive the XOF manually and hand off the state.
+/// let _: curve25519_dalek::RistrettoPoint =
+///     Shake128::default().chain(b"msg").digest_into(b"domain");
+/// ```
 pub trait DigestInto<T>: Sized + ExpandMessage
 where
     T: FromHash<Self>,
 {
     fn digest_into(self, domain: impl AsRef<[u8]>) -> T {
-        T::from_digest(domain, self)
+        T::from_hasher(domain, self)
     }
 
     fn hash_into(domain: impl AsRef<[u8]>, input: impl AsRef<[u8]>) -> T {
@@ -41,20 +94,19 @@ where
 {
 }
 
-/// Generates a default [`FromDigest`] impl for a group element type that implements
-/// [`FromUniformBytes`], using [`expand_message_digest_xmd`][hash::expand_message_digest_xmd].
+/// Generates a default [`FromHash`] impl for a type that implements [`FromUniformBytes`].
 ///
-/// Provides a blanket implementation for all digest types `D: Digest + BlockSizeUser`, and assumes
-/// that `<Self as UniformBytes>::Bytes` is a byte array (i.e. is some `[u8; _]`).
+/// The generated impl is blanket over [ExpandMessage].
+/// Assumes `<Self as FromUniformBytes>::Bytes` is a byte array (some `[u8; _]`).
 macro_rules! impl_from_digest {
     ($type:ty) => {
         impl<H> $crate::group::FromHash<H> for $type
         where
             H: $crate::group::ExpandMessage,
         {
-            fn from_digest(domain: impl AsRef<[u8]>, digest: H) -> Self {
+            fn from_hasher(domain: impl AsRef<[u8]>, hasher: H) -> Self {
                 let uniform_bytes = <H as $crate::group::ExpandMessage>::expand_message_digest(
-                    digest,
+                    hasher,
                     domain.as_ref(),
                 );
                 <Self as $crate::group::FromUniformBytes>::from_uniform_bytes(&uniform_bytes)
@@ -130,55 +182,4 @@ mod p256 {
     }
 
     impl_from_digest!(ProjectivePoint);
-}
-
-#[cfg(test)]
-mod tests {
-    #![allow(unused)] // TODO: Remove this
-
-    use digest::consts::{U64, U96};
-
-    use crate::group::{hash::ExpandMsgXmd, DigestInto, FromHash};
-
-    // TODO: Move these usage examples into docs.
-    #[test]
-    fn usage_sha2() {
-        use curve25519_dalek::RistrettoPoint;
-        #[allow(unused)]
-        use sha2::{Digest as _, Sha256};
-
-        // NOTE: RistrettoPoint has directly implemented methods called from_hash and from_digest.
-        let _: RistrettoPoint =
-            FromHash::<ExpandMsgXmd<Sha256>>::from_hash(b"sigma_proofs::group::tests", b"hello");
-        let _: RistrettoPoint = FromHash::from_digest(
-            b"sigma_proofs::group::tests",
-            ExpandMsgXmd(Sha256::new().chain_update(b"hello")),
-        );
-    }
-
-    #[test]
-    fn usage_sha3() {
-        use curve25519_dalek::RistrettoPoint;
-        use digest::{Digest as _, ExtendableOutput as _, Update as _};
-        use sha3::Shake128;
-
-        /*
-        let _ = RistrettoPoint::from_hash_xof::<Shake128>(b"hello");
-        let _ = RistrettoPoint::from_xof(&mut Shake128::default().chain(b"hello").finalize_xof());
-        */
-
-        // NOTE: RistrettoPoint has directly implemented methods called from_hash and from_digest.
-        let _: RistrettoPoint =
-            FromHash::<Shake128>::from_hash(b"sigma_proofs::group::tests", b"hello");
-        let _: RistrettoPoint = FromHash::from_digest(
-            b"sigma_proofs::group::tests",
-            Shake128::default().chain(b"hello"),
-        );
-
-        let _: p256::ProjectivePoint = Shake128::hash_into(b"sigma_proofs::group::tests", b"hello");
-        let _ = p256::ProjectivePoint::from_digest(
-            b"sigma_proofs::group::tests",
-            Shake128::default().chain(b"hello"),
-        );
-    }
 }

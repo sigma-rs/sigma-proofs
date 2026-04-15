@@ -213,9 +213,15 @@ impl<X: CollisionResistance, const N: usize> CheckExpandMsgXofParams<X, N> {
     };
 }
 
-/// Generates a uniformly random byte array of length `N` from a domain separator and message.
+/// Expands `message` into a pseudorandom `[u8; N]` under `domain_separator`.
 ///
-/// This is an implementation of expand_message_xof from RFC9380.
+/// This is `expand_message_xof` from [RFC 9380 Section 5.3.2][rfc9380-5.3.2].
+///
+/// The generic parameters must satisfy the following bounds, rejected at compile time:
+/// - `N <= u16::MAX`,
+/// - `max(2 * X::CollisionResistance, 32) < 255`.
+///
+/// [rfc9380-5.3.2]: https://www.rfc-editor.org/rfc/rfc9380#section-5.3.2
 pub fn expand_message_xof<X, const N: usize>(domain_separator: &[u8], message: &[u8]) -> [u8; N]
 where
     X: ExtendableOutput + Default + CollisionResistance,
@@ -225,10 +231,15 @@ where
     expand_message_digest_xof::<X, N>(domain_separator, xof)
 }
 
-/// Generates a uniformly random byte array of length `N` from a domain separator and an XOF
-/// state into which the message has already been absorbed.
+/// Expands an XOF state (with message already absorbed) into a pseudorandom `[u8; N]`
+/// under `domain_separator`.
 ///
-/// This is an implementation of expand_message_xof from RFC9380.
+/// This is `expand_message_xof` from [RFC 9380 Section 5.3.2][rfc9380-5.3.2].
+///
+/// Generic parameter bounds are the same as [`expand_message_xof`] and are rejected at
+/// compile time.
+///
+/// [rfc9380-5.3.2]: https://www.rfc-editor.org/rfc/rfc9380#section-5.3.2
 pub fn expand_message_digest_xof<X, const N: usize>(domain_separator: &[u8], mut xof: X) -> [u8; N]
 where
     X: ExtendableOutput + Default + CollisionResistance,
