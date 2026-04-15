@@ -136,7 +136,7 @@ pub fn expand_message_digest_xmd<D: Digest, const N: usize>(
 
     let digest_0 = message_digest
         // Add the requested output length.
-        .chain_update((N as u16).to_be_bytes())
+        .chain_update(u16::try_from(N).unwrap().to_be_bytes())
         // Add a zero index to mark this as the 0-index digest.
         .chain_update([0u8])
         // Add the domain separator and length.
@@ -253,7 +253,7 @@ where
     };
 
     // Finish the msg_prime construction by absorbing I2OSP(N, 2) || DST || I2OSP(len(DST), 1).
-    xof.update(&(N as u16).to_be_bytes());
+    xof.update(&u16::try_from(N).unwrap().to_be_bytes());
     xof.update(dst);
     xof.update(&[u8::try_from(dst.len()).unwrap()]);
 
