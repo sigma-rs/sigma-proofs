@@ -21,6 +21,8 @@ pub trait ExpandMessage: Sized {
     fn expand_message_digest<const N: usize>(self, domain_separator: &[u8]) -> [u8; N];
 }
 
+// TODO: Hide the inner value, and add an `fn extract` to the impl that hashes in the zero padding.
+// This should allow us to hide the zero_pad function from the public scope.
 /// Adapter that routes a fixed-output digest to [`ExpandMessage`] via `expand_message_xmd`.
 #[derive(Copy, Clone, Default)]
 pub struct ExpandMsgXmd<D>(pub D);
@@ -48,8 +50,7 @@ where
     }
 }
 
-// TODO: Try to remove hybrid_array::Array from this function signature?
-/// Create a block of zeroes to use as padding as per RFC9380.
+/// Returns a block of zeroes for use as padding per RFC 9380 Section 5.3.1.
 ///
 /// ```rust
 /// use sha2::Sha256;
