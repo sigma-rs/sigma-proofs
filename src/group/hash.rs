@@ -88,11 +88,16 @@ impl<const N: usize, D: Digest> CheckExpandMsgXmdParams<D, N> {
     };
 }
 
-/// Generates a uniformly random byte array of length `N` from a domain separator and message.
+/// Expands `message` into a pseudorandom `[u8; N]` under `domain_separator`.
 ///
-/// This is an implementation of expand_message_xmd from RFC9380.
+/// This is `expand_message_xmd` from [RFC 9380 Section 5.3.1][rfc9380-5.3.1].
 ///
-/// <!-- TODO: Add panic conditions -->
+/// The generic parameters must satisfy the following bounds, rejected at compile time:
+/// - `N <= u16::MAX`,
+/// - `ceil(N / D::OutputSize) <= 255`,
+/// - `D::OutputSize < 255`.
+///
+/// [rfc9380-5.3.1]: https://www.rfc-editor.org/rfc/rfc9380#section-5.3.1
 pub fn expand_message_xmd<D: Digest + BlockSizeUser, const N: usize>(
     domain_separator: &[u8],
     message: &[u8],
