@@ -32,27 +32,25 @@ pub trait FromUniformBytes: Sized {
 ///
 /// # Implementer requirements
 ///
-/// implementations must be indistinguishable from a random oracle mapping the domain and message
-/// into the group, This implies:
+/// Implementations must be indistinguishable from a random oracle mapping the domain and message
+/// into the group. This implies:
 ///
 /// - **Uniform distribution.** Outputs are statistically close to uniform over the group.
 /// - **Unknown discrete log.** Outputs have no known discrete log with other group elements.
 /// - **Domain separation.** Distinct `domain` values yield statistically independent outputs.
 /// - **Determinism.** The `(domain, input)` pair fully determines the output.
 ///
-/// The [`impl_from_hash`] macro may be used to implement this trait.
+/// The [`impl_from_hash`](crate::impl_from_hash) macro may be used to implement this trait.
 ///
 /// # Example
 ///
 /// ```
 /// use curve25519_dalek::RistrettoPoint;
 /// use sha3::Shake128;
-/// use sigma_proofs::group::{FromHash};
+/// use sigma_proofs::group::FromHash;
 ///
 /// let a: RistrettoPoint = FromHash::<Shake128>::from_hash(b"FromHash::docs", b"msg");
 /// ```
-///
-/// [rfc9380-3.1]: https://www.rfc-editor.org/rfc/rfc9380#section-3.1
 pub trait FromHash<H: ExpandMessage>: FromUniformBytes {
     /// Hash a hasher state with `input` already absorbed into a group element under `domain`.
     ///
@@ -152,7 +150,7 @@ where
     /// use sha3::Shake128;
     /// use sigma_proofs::group::HashInto;
     ///
-    /// let _: RistrettoPoint = Shake128::hash_into(b"HashInto::doctest", b"msg");
+    /// let _: RistrettoPoint = Shake128::hash_into(b"HashInto::hash_into::docs", b"msg");
     /// ```
     fn hash_into(domain: &[u8], input: &[u8]) -> T {
         T::from_hash(domain, input)
@@ -166,10 +164,12 @@ where
 {
 }
 
-/// Generates a default [`FromHash`] impl for a type that implements [`FromUniformBytes`].
+/// Generates a default [`FromHash`](crate::group::FromHash) impl for a type that implements
+/// [`FromUniformBytes`](crate::group::FromUniformBytes).
 ///
-/// The generated impl is blanket over [ExpandMessage].
+/// The generated impl is blanket over [`ExpandMessage`](crate::group::hash::ExpandMessage).
 /// Assumes `<Self as FromUniformBytes>::Bytes` is a byte array (some `[u8; _]`).
+#[macro_export]
 macro_rules! impl_from_hash {
     ($type:ty) => {
         impl<H> $crate::group::FromHash<H> for $type
