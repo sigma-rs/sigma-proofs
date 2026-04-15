@@ -821,6 +821,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "hash2group"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "curve25519-dalek",
+ "digest 0.11.2",
+ "elliptic-curve",
+ "hex-literal",
+ "k256",
+ "p256",
+ "sha2 0.11.0",
+ "sha3",
+]
+
+[[package]]
 name = "hashbrown"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1747,9 +1762,7 @@ dependencies = [
  "bytemuck",
  "core_affinity2",
  "curve25519-dalek",
- "digest 0.11.2",
  "divan",
- "elliptic-curve",
  "ff",
  "group",
  "hashbrown 0.15.5",

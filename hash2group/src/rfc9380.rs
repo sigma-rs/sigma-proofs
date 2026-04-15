@@ -1,3 +1,9 @@
+//! [`ExpandMessage`] implementations from RFC 9380 over the [`digest`] crate.
+//!
+//! Provides [`expand_message_xmd`] for fixed-output digests and [`expand_message_xof`]
+//! for extendable-output functions, plus the [`ExpandMsgXmd`] adapter that lets a
+//! fixed-output digest implement [`ExpandMessage`].
+
 use core::marker::PhantomData;
 
 use digest::{
@@ -5,21 +11,7 @@ use digest::{
     ExtendableOutput, Output, Update, XofReader,
 };
 
-/// Maps a message and domain separation tag to a pseudorandom byte array.
-///
-/// Output is independent for each combination of domain separator, message, and length.
-///
-/// Implementations of this trait are RFC 9380 `expand_message` variants and must satisfy
-/// the properties in [RFC 9380 Section 5.3.4][rfc9380-5.3.4].
-///
-/// [rfc9380-5.3.4]: https://www.rfc-editor.org/rfc/rfc9380#section-5.3.4
-pub trait ExpandMessage: Sized {
-    /// Expand `message` into a pseudorandom `[u8; N]` under `domain_separator`.
-    fn expand_message<const N: usize>(domain_separator: &[u8], message: &[u8]) -> [u8; N];
-
-    /// Expand the message already absorbed into `self` into a pseudorandom `[u8; N]`.
-    fn expand_message_digest<const N: usize>(self, domain_separator: &[u8]) -> [u8; N];
-}
+use crate::ExpandMessage;
 
 /// Adapter that routes a fixed-output digest to [`ExpandMessage`] via `expand_message_xmd`.
 ///
@@ -60,7 +52,7 @@ impl<D: Digest + BlockSizeUser> ExpandMessage for ExpandMsgXmd<D> {
     }
 
     fn expand_message_digest<const N: usize>(self, domain_separator: &[u8]) -> [u8; N] {
-        crate::group::hash::expand_message_digest_xmd::<D, N>(domain_separator, self.inner)
+        expand_message_digest_xmd::<D, N>(domain_separator, self.inner)
     }
 }
 
@@ -69,11 +61,11 @@ where
     X: ExtendableOutput + Default + CollisionResistance,
 {
     fn expand_message<const N: usize>(domain_separator: &[u8], message: &[u8]) -> [u8; N] {
-        crate::group::hash::expand_message_xof::<X, N>(domain_separator, message)
+        expand_message_xof::<X, N>(domain_separator, message)
     }
 
     fn expand_message_digest<const N: usize>(self, domain_separator: &[u8]) -> [u8; N] {
-        crate::group::hash::expand_message_digest_xof::<X, N>(domain_separator, self)
+        expand_message_digest_xof::<X, N>(domain_separator, self)
     }
 }
 
@@ -294,7 +286,7 @@ where
 mod tests {
     use sha2::Sha256;
 
-    use crate::group::hash::zero_pad;
+    use super::zero_pad;
 
     #[test]
     fn zero_pad_is_all_zero() {
@@ -306,7 +298,7 @@ mod tests {
         use hex_literal::hex;
         use sha2::Sha256;
 
-        use crate::group::hash::expand_message_xmd;
+        use crate::rfc9380::expand_message_xmd;
 
         const DST: &[u8] = b"QUUX-V01-CS02-with-expander-SHA256-128";
 
@@ -397,7 +389,7 @@ mod tests {
         use hex_literal::hex;
         use sha2::Sha256;
 
-        use crate::group::hash::expand_message_xmd;
+        use crate::rfc9380::expand_message_xmd;
 
         const DST: &[u8] = b"QUUX-V01-CS02-with-expander-SHA256-128-long-DST-1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111";
 
@@ -526,7 +518,7 @@ mod tests {
         use hex_literal::hex;
         use sha2::Sha256;
 
-        use crate::group::hash::expand_message_xmd;
+        use crate::rfc9380::expand_message_xmd;
 
         const DST: &[u8] = b"QUUX-V01-CS02-with-expander-SHA256-128";
 
@@ -576,7 +568,7 @@ mod tests {
         use hex_literal::hex;
         use sha2::Sha512;
 
-        use crate::group::hash::expand_message_xmd;
+        use crate::rfc9380::expand_message_xmd;
 
         const DST: &[u8] = b"QUUX-V01-CS02-with-expander-SHA512-256";
 
@@ -705,7 +697,7 @@ mod tests {
         use hex_literal::hex;
         use sha3::Shake128;
 
-        use crate::group::hash::expand_message_xof;
+        use crate::rfc9380::expand_message_xof;
 
         const DST: &[u8] = b"QUUX-V01-CS02-with-expander-SHAKE128";
 
@@ -834,7 +826,7 @@ mod tests {
         use hex_literal::hex;
         use sha3::Shake128;
 
-        use crate::group::hash::expand_message_xof;
+        use crate::rfc9380::expand_message_xof;
 
         const DST: &[u8] = b"QUUX-V01-CS02-with-expander-SHAKE128-long-DST-111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111";
 
@@ -963,7 +955,7 @@ mod tests {
         use hex_literal::hex;
         use sha3::Shake256;
 
-        use crate::group::hash::expand_message_xof;
+        use crate::rfc9380::expand_message_xof;
 
         const DST: &[u8] = b"QUUX-V01-CS02-with-expander-SHAKE256";
 
