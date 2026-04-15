@@ -29,15 +29,7 @@ default = ["std", "bls12_381", "curve25519-dalek", "k256", "p256"]
 # Kept as a no-op for backward compatibility with downstream crates that enabled
 # the former optional rand dependency feature.
 rand = []
-std = [
-    "thiserror",
-    "rand",
-    "num-bigint/std",
-    "num-traits/std",
-    "sha3/std",
-    "rand_core/std",
-    "spongefish/std",
-]
+std = ["thiserror", "rand", "sha3/std", "rand_core/std", "spongefish/std"]
 bls12_381 = ["dep:bls12_381", "spongefish/bls12_381"]
 curve25519-dalek = ["dep:curve25519-dalek", "spongefish/curve25519-dalek"]
 k256 = ["dep:k256", "spongefish/k256"]
@@ -46,23 +38,24 @@ p256 = ["dep:p256", "spongefish/p256"]
 [dependencies]
 bls12_381 = { version = "0.8.0", default-features = false, features = ["groups"], optional = true }
 curve25519-dalek = { version = "4.1.3", default-features = false, features = ["alloc", "group"], optional = true }
-ff = { version = "0.13", features = ["derive"] }
+ff = { version = "0.13", default-features = false, features = ["std"] }
 group = "0.13.0"
 itertools = { version = "0.14", default-features = false }
 k256 = { version = "0.13.4", default-features = false, features = ["arithmetic", "alloc"], optional = true }
 p256 = { version = "0.13", default-features = false, features = ["arithmetic"], optional = true }
 rand_core = { version = "0.6", default-features = false }
 sha3 = { version = "0.10.8", default-features = false }
-spongefish = { version = "0.6", features = ["derive"] }
+spongefish = { version = "0.6" }
 subtle = { version = "2.6.1", default-features = false }
 thiserror = { version = "2", optional = true }
 
 [dev-dependencies]
 anyhow = "1.0.100"
-bls12_381 = "0.8.0"
-curve25519-dalek = { version = "4", default-features = false, features = ["serde", "rand_core", "alloc", "digest", "precomputed-tables", "group"] }
+bls12_381 = { version = "0.8.0", default-features = false, features = ["groups"] }
+curve25519-dalek = { version = "4", default-features = false, features = ["rand_core", "alloc", "precomputed-tables", "group"] }
 divan = "0.1.21"
 hex = "0.4"
+hex-literal = "1.0"
 k256 = { version = "0.13", features = ["arithmetic"] }
 p256 = { version = "0.13", features = ["arithmetic"] }
 rand = "0.8.5"
@@ -71,7 +64,7 @@ serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
 serde_with = { version = "3.16.1", features = ["hex"] }
 serial_test = "3.3.1"
-spongefish = { version = "0.6", features = ["curve25519-dalek", "p256", "bls12_381", "derive", "keccak", "std"] }
+spongefish = { version = "0.6", features = ["curve25519-dalek", "p256", "bls12_381", "std"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 core_affinity2 = "0.15.4"
