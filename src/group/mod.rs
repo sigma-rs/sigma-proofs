@@ -21,67 +21,139 @@ pub trait FromUniformBytes: Sized {
     fn from_uniform_bytes(bytes: &Self::Bytes) -> Self;
 }
 
-/// # Examples
+// TODO: Ensure that provided implementations actually meet these requirements. Ideally, we should
+// be able to make our provided implementation over standardized curves pass the test vectors from
+// RFC9380.
+/// Hash a byte string into a group element under a domain separation tag.
 ///
-/// Hashing with SHA-256 (via [`ExpandMsgXmd`](hash::ExpandMsgXmd)):
+/// An implementation defines, for one group, a family of hash functions parameterized by the
+/// [`ExpandMessage`] variant `H`. Each `(H, domain)` pair is a distinct hash function whose
+/// output is indistinguishable from a random oracle returning elements of the group.
+///
+/// # Implementer requirements
+///
+/// implementations must be indistinguishable from a random oracle mapping the domain and message
+/// into the group, This implies:
+///
+/// - **Uniform distribution.** Outputs are statistically close to uniform over the group.
+/// - **Unknown discrete log.** Outputs have no known discrete log with other group elements.
+/// - **Domain separation.** Distinct `domain` values yield statistically independent outputs.
+/// - **Determinism.** The `(domain, input)` pair fully determines the output.
+///
+/// The [`impl_from_hash`] macro may be used to implement this trait.
+///
+/// # Example
 ///
 /// ```
 /// use curve25519_dalek::RistrettoPoint;
-/// use sha2::Sha256;
-/// use sigma_proofs::group::{FromHash, hash::ExpandMsgXmd};
-///
-/// let _: RistrettoPoint = FromHash::<ExpandMsgXmd<Sha256>>::from_hash(b"FromHash::doctest", b"msg");
-/// ```
-///
-/// Hashing with SHAKE128:
-///
-/// ```
 /// use sha3::Shake128;
-/// use sigma_proofs::group::FromHash;
+/// use sigma_proofs::group::{FromHash};
 ///
-/// let _: p256::ProjectivePoint = FromHash::<Shake128>::from_hash(b"FromHash::doctest", b"msg");
+/// let a: RistrettoPoint = FromHash::<Shake128>::from_hash(b"FromHash::docs", b"msg");
 /// ```
 ///
-/// Using incremental hashing:
-///
-/// ```
-/// use digest::Update as _;
-/// use sha3::Shake128;
-/// use sigma_proofs::group::FromHash;
-///
-/// let mut hasher = Shake128::default();
-/// hasher.update(b"part of my message");
-/// hasher.update(b"the other part of my message");
-/// let _: p256::ProjectivePoint = FromHash::<Shake128>::from_hasher(b"FromHash::doctest", hasher);
-/// ```
+/// [rfc9380-3.1]: https://www.rfc-editor.org/rfc/rfc9380#section-3.1
 pub trait FromHash<H: ExpandMessage>: FromUniformBytes {
+    /// Hash a hasher state with `input` already absorbed into a group element under `domain`.
+    ///
+    /// Use this when the message is built incrementally or is not available as a single contiguous
+    /// slice. Calling [`from_hasher`](FromHash::from_hasher) with an `H` that has absorbed the
+    /// concatenated `input` returns the same point as [`from_hash(domain, input)`](FromHash::from_hash).
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use digest::Update as _;
+    /// use sha3::Shake128;
+    /// use sigma_proofs::group::FromHash;
+    ///
+    /// let mut hasher = Shake128::default();
+    /// hasher.update(b"part of my message");
+    /// hasher.update(b"the other part of my message");
+    /// let _: p256::ProjectivePoint =
+    ///     FromHash::<Shake128>::from_hasher(b"FromHash::from_hasher::docs", hasher);
+    /// ```
     fn from_hasher(domain: &[u8], hasher: H) -> Self;
 
+    /// Hash `input` into a group element under `domain`.
+    ///
+    /// # Examples
+    ///
+    /// Hashing with SHA-256 via [`ExpandMsgXmd`](hash::ExpandMsgXmd):
+    ///
+    /// ```
+    /// use curve25519_dalek::RistrettoPoint;
+    /// use sha2::Sha256;
+    /// use sigma_proofs::group::{FromHash, hash::ExpandMsgXmd};
+    ///
+    /// let _: RistrettoPoint =
+    ///     FromHash::<ExpandMsgXmd<Sha256>>::from_hash(b"FromHash::from_hash::docs::sha256", b"msg");
+    /// ```
+    ///
+    /// Hashing with SHAKE128 (uses the `expand_message_xof` algorithm):
+    ///
+    /// ```
+    /// use sha3::Shake128;
+    /// use sigma_proofs::group::FromHash;
+    ///
+    /// let _: p256::ProjectivePoint =
+    ///     FromHash::<Shake128>::from_hash(b"FromHash::from_hash::docs::shake128", b"msg");
+    /// ```
     fn from_hash(domain: &[u8], input: &[u8]) -> Self;
 }
 
-/// # Examples
+/// Hash a byte string into a group element under a domain separation tag.
+///
+/// Complimenting [`FromHash`], this method is implemented on the hasher rather than the group.
+/// See [`FromHash`] for more information and implementation properties.
+///
+/// # Example
 ///
 /// ```
-/// use digest::Update as _;
+/// use curve25519_dalek::RistrettoPoint;
 /// use sha3::Shake128;
 /// use sigma_proofs::group::HashInto;
 ///
-/// // Hash bytes directly.
-/// let _: curve25519_dalek::RistrettoPoint = Shake128::hash_into(b"domain", b"msg");
-///
-/// // Or drive the XOF manually and hand off the state.
-/// let _: curve25519_dalek::RistrettoPoint =
-///     Shake128::default().chain(b"msg").hasher_into(b"domain");
+/// let a: RistrettoPoint = Shake128::hash_into(b"HashInto::docs", b"msg");
 /// ```
 pub trait HashInto<T>: Sized + ExpandMessage
 where
     T: FromHash<Self>,
 {
+    /// Finalize the hasher state into the group under `domain`.
+    ///
+    /// See [`FromHash::from_hasher`].
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use curve25519_dalek::RistrettoPoint;
+    /// use digest::Update as _;
+    /// use sha3::Shake128;
+    /// use sigma_proofs::group::HashInto;
+    ///
+    /// let a: RistrettoPoint = Shake128::default()
+    ///     .chain(b"msg")
+    ///     .hasher_into(b"HashInto::hasher_into::docs");
+    /// ```
+    // TODO: hasher_into is not my favorite name for a method ever
     fn hasher_into(self, domain: &[u8]) -> T {
         T::from_hasher(domain, self)
     }
 
+    /// Hash `input` into `T` under `domain`.
+    ///
+    /// See [`FromHash::from_hash`].
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use curve25519_dalek::RistrettoPoint;
+    /// use sha3::Shake128;
+    /// use sigma_proofs::group::HashInto;
+    ///
+    /// let _: RistrettoPoint = Shake128::hash_into(b"HashInto::doctest", b"msg");
+    /// ```
     fn hash_into(domain: &[u8], input: &[u8]) -> T {
         T::from_hash(domain, input)
     }
@@ -133,7 +205,7 @@ mod curve25519 {
         }
     }
 
-    impl_from_digest!(RistrettoPoint);
+    impl_from_hash!(RistrettoPoint);
 }
 
 #[cfg(feature = "k256")]
@@ -155,7 +227,7 @@ mod k256 {
         }
     }
 
-    impl_from_digest!(ProjectivePoint);
+    impl_from_hash!(ProjectivePoint);
 }
 
 #[cfg(feature = "p256")]
