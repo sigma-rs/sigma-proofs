@@ -5,12 +5,23 @@ use digest::{
     ExtendableOutput, Output, XofReader,
 };
 
+/// Maps a message and domain separation tag to a pseudorandom byte array.
+///
+/// Output is independent for each combination of domain separator, message, and length.
+///
+/// Implementations of this trait are RFC 9380 `expand_message` variants and must satisfy
+/// the properties in [RFC 9380 Section 5.3.4][rfc9380-5.3.4].
+///
+/// [rfc9380-5.3.4]: https://www.rfc-editor.org/rfc/rfc9380#section-5.3.4
 pub trait ExpandMessage: Sized {
+    /// Expand `message` into a pseudorandom `[u8; N]` under `domain_separator`.
     fn expand_message<const N: usize>(domain_separator: &[u8], message: &[u8]) -> [u8; N];
 
+    /// Expand the message already absorbed into `self` into a pseudorandom `[u8; N]`.
     fn expand_message_digest<const N: usize>(self, domain_separator: &[u8]) -> [u8; N];
 }
 
+/// Adapter that routes a fixed-output digest to [`ExpandMessage`] via `expand_message_xmd`.
 #[derive(Copy, Clone, Default)]
 pub struct ExpandMsgXmd<D>(pub D);
 
