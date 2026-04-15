@@ -65,20 +65,20 @@ pub trait FromHash<H: ExpandMessage>: FromUniformBytes {
 /// ```
 /// use digest::Update as _;
 /// use sha3::Shake128;
-/// use sigma_proofs::group::DigestInto;
+/// use sigma_proofs::group::HashInto;
 ///
 /// // Hash bytes directly.
 /// let _: curve25519_dalek::RistrettoPoint = Shake128::hash_into(b"domain", b"msg");
 ///
 /// // Or drive the XOF manually and hand off the state.
 /// let _: curve25519_dalek::RistrettoPoint =
-///     Shake128::default().chain(b"msg").digest_into(b"domain");
+///     Shake128::default().chain(b"msg").hasher_into(b"domain");
 /// ```
-pub trait DigestInto<T>: Sized + ExpandMessage
+pub trait HashInto<T>: Sized + ExpandMessage
 where
     T: FromHash<Self>,
 {
-    fn digest_into(self, domain: &[u8]) -> T {
+    fn hasher_into(self, domain: &[u8]) -> T {
         T::from_hasher(domain, self)
     }
 
@@ -87,7 +87,7 @@ where
     }
 }
 
-impl<H, T> DigestInto<T> for H
+impl<H, T> HashInto<T> for H
 where
     H: Sized + ExpandMessage,
     T: FromHash<H>,
