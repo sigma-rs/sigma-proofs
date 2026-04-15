@@ -21,7 +21,6 @@ pub trait FromUniformBytes: Sized {
     fn from_uniform_bytes(bytes: &Self::Bytes) -> Self;
 }
 
-// TODO: Is there any reason _not_ to use impl AsRef<[u8]> instead of &[u8]?
 /// # Examples
 ///
 /// Hashing with SHA-256 (via [`ExpandMsgXmd`](hash::ExpandMsgXmd)):
@@ -46,18 +45,19 @@ pub trait FromUniformBytes: Sized {
 /// Using incremental hashing:
 ///
 /// ```
+/// use digest::Update as _;
 /// use sha3::Shake128;
 /// use sigma_proofs::group::FromHash;
 ///
 /// let mut hasher = Shake128::default();
 /// hasher.update(b"part of my message");
 /// hasher.update(b"the other part of my message");
-/// let _: p256::ProjectivePoint = FromHash::<Shake128>::from_digest(b"FromHash::doctest", hasher);
+/// let _: p256::ProjectivePoint = FromHash::<Shake128>::from_hasher(b"FromHash::doctest", hasher);
 /// ```
 pub trait FromHash<H: ExpandMessage>: FromUniformBytes {
-    fn from_hasher(domain: impl AsRef<[u8]>, hasher: H) -> Self;
+    fn from_hasher(domain: &[u8], hasher: H) -> Self;
 
-    fn from_hash(domain: impl AsRef<[u8]>, input: impl AsRef<[u8]>) -> Self;
+    fn from_hash(domain: &[u8], input: &[u8]) -> Self;
 }
 
 /// # Examples
@@ -78,11 +78,11 @@ pub trait DigestInto<T>: Sized + ExpandMessage
 where
     T: FromHash<Self>,
 {
-    fn digest_into(self, domain: impl AsRef<[u8]>) -> T {
+    fn digest_into(self, domain: &[u8]) -> T {
         T::from_hasher(domain, self)
     }
 
-    fn hash_into(domain: impl AsRef<[u8]>, input: impl AsRef<[u8]>) -> T {
+    fn hash_into(domain: &[u8], input: &[u8]) -> T {
         T::from_hash(domain, input)
     }
 }
@@ -104,19 +104,15 @@ macro_rules! impl_from_digest {
         where
             H: $crate::group::ExpandMessage,
         {
-            fn from_hasher(domain: impl AsRef<[u8]>, hasher: H) -> Self {
-                let uniform_bytes = <H as $crate::group::ExpandMessage>::expand_message_digest(
-                    hasher,
-                    domain.as_ref(),
-                );
+            fn from_hasher(domain: &[u8], hasher: H) -> Self {
+                let uniform_bytes =
+                    <H as $crate::group::ExpandMessage>::expand_message_digest(hasher, domain);
                 <Self as $crate::group::FromUniformBytes>::from_uniform_bytes(&uniform_bytes)
             }
 
-            fn from_hash(domain: impl AsRef<[u8]>, input: impl AsRef<[u8]>) -> Self {
-                let uniform_bytes = <H as $crate::group::ExpandMessage>::expand_message(
-                    domain.as_ref(),
-                    input.as_ref(),
-                );
+            fn from_hash(domain: &[u8], input: &[u8]) -> Self {
+                let uniform_bytes =
+                    <H as $crate::group::ExpandMessage>::expand_message(domain, input);
                 <Self as $crate::group::FromUniformBytes>::from_uniform_bytes(&uniform_bytes)
             }
         }
