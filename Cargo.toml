@@ -44,7 +44,6 @@ sha3 = { version = "0.11.0", default-features = false }
 default = ["std", "bls12_381", "curve25519-dalek", "k256", "p256"]
 std = [
     "thiserror",
-    "rand",
     "num-bigint/std",
     "num-traits/std",
     "rand_core/std",
@@ -63,12 +62,12 @@ curve25519-dalek = { workspace = true, features = ["alloc", "group"], optional =
 ff = { version = "0.13", features = ["derive"] }
 group = "0.13.0"
 hashbrown = { version = "0.15", default-features = false }
+itertools = { version = "0.14", default-features = false }
 k256 = { workspace = true, features = ["arithmetic", "alloc", "expose-field"], optional = true }
 keccak = { version = "0.1.5", default-features = false }
 num-bigint = { version = "0.4.6", default-features = false }
 num-traits = { version = "0.2.19", default-features = false, features = ["libm"] }
 p256 = { workspace = true, features = ["arithmetic", "expose-field"], optional = true }
-rand = { version = "0.8.5", optional = true }
 rand_core = { version = "0.6", default-features = false }
 sha3 = { workspace = true }
 spongefish = { version = "0.5", features = ["derive"] }
@@ -88,6 +87,7 @@ json = "0.12.4"
 k256 = { workspace = true, features = ["arithmetic"] }
 libtest-mimic = "0.8.1"
 p256 = { workspace = true, features = ["arithmetic"] }
+rand = "0.8.5"
 rand_chacha = { version = "0.3.1" }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"

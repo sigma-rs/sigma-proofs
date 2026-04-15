@@ -310,6 +310,7 @@ mod stats {
     // option. This file may not be copied, modified, or distributed
     // except according to those terms.
 
+    use itertools::Itertools;
     use std::{cmp, fmt::Display};
 
     #[derive(Copy, Clone, Debug, Default, PartialEq)]
@@ -424,7 +425,7 @@ mod stats {
             update_test_right(&mut tests[0], right_sample);
         }
 
-        for (test, &pct) in tests.iter_mut().skip(1).zip(percentiles.iter()) {
+        for (test, &pct) in tests.iter_mut().skip(1).zip_eq(percentiles.iter()) {
             let left_cropped = left_samples.iter().filter(|&&x| x < pct);
             let right_cropped = right_samples.iter().filter(|&&x| x < pct);
 
