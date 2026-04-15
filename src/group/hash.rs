@@ -108,12 +108,16 @@ pub fn expand_message_xmd<D: Digest + BlockSizeUser, const N: usize>(
     expand_message_digest_xmd::<D, N>(domain_separator, message_digest)
 }
 
-/// Generates a uniformly random byte array of length `N` from a domain separator and digest.
+/// Expands a digest state (with message already absorbed) into a pseudorandom `[u8; N]`
+/// under `domain_separator`.
 ///
-/// When the message is padded with a block of zeroes, this is an implementation of
-/// expand_message_xmd from RFC9380.
+/// When the caller prefixed the message with a block of zeroes, this is `expand_message_xmd`
+/// from [RFC 9380 Section 5.3.1][rfc9380-5.3.1].
 ///
-/// <!-- TODO: Add panic conditions -->
+/// Generic parameter bounds are the same as [`expand_message_xmd`] and are rejected at
+/// compile time.
+///
+/// [rfc9380-5.3.1]: https://www.rfc-editor.org/rfc/rfc9380#section-5.3.1
 pub fn expand_message_digest_xmd<D: Digest, const N: usize>(
     domain_separator: &[u8],
     message_digest: D,
@@ -155,9 +159,6 @@ pub fn expand_message_digest_xmd<D: Digest, const N: usize>(
         // NOTE: RFC9380 includes this to bolster defense against nonideal hash behavior.
         let mut mixed_digest = digest_0.clone();
         if let Some(prev_digest) = &prev_digest {
-            // NOTE: This assert can be checked at compile time.
-            // TODO: Is there any way to turn this into a compile-time assert, given that the size
-            // of the arrays is determined by a generic parameter.
             assert_eq!(mixed_digest.len(), prev_digest.len());
             for (a, b) in core::iter::zip(mixed_digest.iter_mut(), prev_digest.iter()) {
                 *a ^= b;
