@@ -1829,9 +1829,9 @@ dependencies = [
 
 [[package]]
 name = "spongefish"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c137968452759f3451f43914d137bf9284778af1bd48acd7e604e21744589ff3"
+checksum = "5f82924716031eebb72693d98853073ce97b1124ac892395302413d5000d20fd"
 dependencies = [
  "ark-ec",
  "ark-ff",
@@ -1852,9 +1852,9 @@ dependencies = [
 
 [[package]]
 name = "spongefish-derive"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "67d57909d17e1d11ed41deed097240ff27bf22ccd892fb9dd523fbf9cbfd717f"
+checksum = "c158bcec8bf9307ffb05e3860e94cdc89b5d916fdedbe2cec89049672e234c23"
 dependencies = [
  "proc-macro2",
  "quote",
