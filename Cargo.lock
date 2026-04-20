@@ -1765,7 +1765,7 @@ dependencies = [
  "itertools 0.14.0",
  "json",
  "k256",
- "keccak 0.1.6",
+ "keccak 0.2.0",
  "libtest-mimic",
  "num-bigint 0.4.6",
  "num-traits",
