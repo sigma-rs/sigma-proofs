@@ -20,6 +20,7 @@ exclude = [".gitignore"]
 
 [package.metadata.docs.rs]
 all-features = true
+cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
 
 [features]
 # Include commonly used curved in default features.
@@ -109,10 +110,12 @@ required-features = ["bls12_381", "std"]
 [[example]]
 name = "schnorr"
 required-features = ["curve25519-dalek", "std"]
+doc-scrape-examples = true
 
 [[example]]
 name = "simple_composition"
 required-features = ["curve25519-dalek", "std"]
+doc-scrape-examples = true
 
 [[bench]]
 name = "msm"
