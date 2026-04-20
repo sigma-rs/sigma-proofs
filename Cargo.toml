@@ -18,6 +18,9 @@ keywords = ["cryptography", "zero-knowledge", "NIZK", "sigma-protocols"]
 description = "A toolkit for auto-generated implementations of Σ-protocols"
 exclude = [".gitignore"]
 
+[package.metadata.docs.rs]
+all-features = true
+
 [features]
 # Include commonly used curved in default features.
 # Increases the default compile times, but makes the crate just-work for most users.
