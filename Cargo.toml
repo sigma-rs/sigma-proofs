@@ -62,7 +62,7 @@ bls12_381 = "0.8.0"
 curve25519-dalek = { version = "4", default-features = false, features = ["serde", "rand_core", "alloc", "digest", "precomputed-tables", "group"] }
 divan = "0.1.21"
 hex = "0.4"
-hex-literal = "0.4"
+hex-literal = "1.0"
 json = "0.12.4"
 k256 = { version = "0.13", features = ["arithmetic"] }
 libtest-mimic = "0.8.1"
