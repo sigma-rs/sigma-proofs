@@ -836,6 +836,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "841d1cc9bed7f9236f321df977030373f4a4163ae1a7dbfe1a51a2c1a51d9100"
 
 [[package]]
+name = "hashbrown"
+version = "0.17.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4f467dd6dccf739c208452f8014c75c18bb8301b050ad1cfb27153803edb0f51"
+
+[[package]]
 name = "heck"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1753,13 +1759,13 @@ dependencies = [
  "divan",
  "ff",
  "group",
- "hashbrown 0.15.5",
+ "hashbrown 0.17.0",
  "hex",
  "hex-literal",
  "itertools 0.14.0",
  "json",
  "k256",
- "keccak 0.1.6",
+ "keccak 0.2.0",
  "libtest-mimic",
  "num-bigint 0.4.6",
  "num-traits",
@@ -1771,7 +1777,7 @@ dependencies = [
  "serde_json",
  "serde_with",
  "serial_test",
- "sha2 0.10.9",
+ "sha2 0.11.0",
  "sha3 0.10.8",
  "spongefish",
  "subtle",
@@ -2205,18 +2211,18 @@ dependencies = [
 
 [[package]]
 name = "zerocopy"
-version = "0.8.47"
+version = "0.8.48"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "efbb2a062be311f2ba113ce66f697a4dc589f85e78a4aea276200804cea0ed87"
+checksum = "eed437bf9d6692032087e337407a86f04cd8d6a16a37199ed57949d415bd68e9"
 dependencies = [
  "zerocopy-derive",
 ]
 
 [[package]]
 name = "zerocopy-derive"
-version = "0.8.47"
+version = "0.8.48"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e8bc7269b54418e7aeeef514aa68f8690b8c0489a06b0136e5f57c4c5ccab89"
+checksum = "70e3cd084b1788766f53af483dd21f93881ff30d7320490ec3ef7526d203bad4"
 dependencies = [
  "proc-macro2",
  "quote",

@@ -45,10 +45,10 @@ bls12_381 = { version = "0.8.0", default-features = false, features = ["groups"]
 curve25519-dalek = { version = "4.1.3", default-features = false, features = ["alloc", "group"], optional = true }
 ff = { version = "0.13", features = ["derive"] }
 group = "0.13.0"
-hashbrown = { version = "0.15", default-features = false }
+hashbrown = { version = "0.17", default-features = false }
 itertools = { version = "0.14", default-features = false }
 k256 = { version = "0.13.4", default-features = false, features = ["arithmetic", "alloc"], optional = true }
-keccak = { version = "0.1.5", default-features = false }
+keccak = { version = "0.2.0", default-features = false }
 num-bigint = { version = "0.4.6", default-features = false }
 num-traits = { version = "0.2.19", default-features = false, features = ["libm"] }
 p256 = { version = "0.13", default-features = false, features = ["arithmetic"], optional = true }
@@ -77,7 +77,7 @@ serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
 serde_with = { version = "3.16.1", features = ["hex"] }
 serial_test = "3.3.1"
-sha2 = "0.10"
+sha2 = "0.11"
 spongefish = { version = "0.5", features = ["curve25519-dalek", "p256", "bls12_381", "derive", "keccak", "std"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
