@@ -63,6 +63,7 @@
 //! groups, protocols depending on sigma protocols, and other proof systems.
 
 #![cfg_attr(not(feature = "std"), no_std)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![allow(non_snake_case)]
 #![doc(html_logo_url = "https://mmaker.github.io/sigma-rs/")]
 #![deny(unused_variables)]
