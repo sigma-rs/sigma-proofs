@@ -310,12 +310,25 @@ where
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
-        let response_image = self.evaluate(response);
-        let commitment = response_image
-            .iter()
-            .zip_eq(self.image_elements())
-            .map(|(res, img)| *res - img * challenge)
-            .collect::<Vec<_>>();
+        // Evaluate the constraint linear combinations using the response scalars.
+        // NOTE: This does not use CanonicalLinearRelation::evaluate because we also want to
+        // include the multiplication of the response image by the challenge in the same MSM.
+        let commitment = itertools::zip_eq(&self.linear_combinations, self.image_elements())
+            .map(|(constraint, img)| {
+                let scalars = constraint
+                    .iter()
+                    .map(|(scalar_var, _)| response[scalar_var.index()])
+                    .chain(core::iter::once(-*challenge))
+                    .collect::<Vec<_>>();
+                let bases = constraint
+                    .iter()
+                    .map(|(_, group_var)| self.group_elements.get(*group_var).unwrap())
+                    .chain(core::iter::once(img))
+                    .collect::<Vec<_>>();
+                MultiScalarMul::msm(&scalars, &bases)
+            })
+            .collect();
+
         Ok(commitment)
     }
 }
