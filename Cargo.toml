@@ -1,6 +1,6 @@
 [package]
 name = "sigma-proofs"
-version = "0.3.0"
+version = "0.3.1"
 authors = [
     "Nugzari Uzoevi <nougzarm@icloud.com>",
     "Michele Orrù <m@orru.net>",
@@ -26,8 +26,12 @@ cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
 # Include commonly used curved in default features.
 # Increases the default compile times, but makes the crate just-work for most users.
 default = ["std", "bls12_381", "curve25519-dalek", "k256", "p256"]
+# Kept as a no-op for backward compatibility with downstream crates that enabled
+# the former optional rand dependency feature.
+rand = []
 std = [
     "thiserror",
+    "rand",
     "num-bigint/std",
     "num-traits/std",
     "sha3/std",
@@ -54,9 +58,9 @@ num-traits = { version = "0.2.19", default-features = false, features = ["libm"]
 p256 = { version = "0.13", default-features = false, features = ["arithmetic"], optional = true }
 rand_core = { version = "0.6", default-features = false }
 sha3 = { version = "0.10.8", default-features = false }
-spongefish = { version = "0.5", features = ["derive"] }
+spongefish = { version = "0.6", features = ["derive"] }
 subtle = { version = "2.6.1", default-features = false }
-thiserror = { version = "1", optional = true }
+thiserror = { version = "2", optional = true }
 zerocopy = { version = "0.8", default-features = false }
 zeroize = { version = "1.8.1", default-features = false, features = ["alloc"] }
 
@@ -66,7 +70,7 @@ bls12_381 = "0.8.0"
 curve25519-dalek = { version = "4", default-features = false, features = ["serde", "rand_core", "alloc", "digest", "precomputed-tables", "group"] }
 divan = "0.1.21"
 hex = "0.4"
-hex-literal = "0.4"
+hex-literal = "1.0"
 json = "0.12.4"
 k256 = { version = "0.13", features = ["arithmetic"] }
 libtest-mimic = "0.8.1"
@@ -78,7 +82,7 @@ serde_json = "1.0.140"
 serde_with = { version = "3.16.1", features = ["hex"] }
 serial_test = "3.3.1"
 sha2 = "0.11"
-spongefish = { version = "0.5", features = ["curve25519-dalek", "p256", "bls12_381", "derive", "keccak", "std"] }
+spongefish = { version = "0.6", features = ["curve25519-dalek", "p256", "bls12_381", "derive", "keccak", "std"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 core_affinity2 = "0.15.4"
