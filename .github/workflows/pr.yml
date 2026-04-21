@@ -92,6 +92,8 @@ jobs:
       - name: Build
         run: cargo build --target wasm32-wasip1 --verbose
       - name: Test
+        env:
+          WASMTIME_BACKTRACE_DETAILS: "1"
         run: cargo test --target wasm32-wasip1 --verbose --no-fail-fast
 
   bench:
