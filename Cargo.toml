@@ -18,6 +18,10 @@ keywords = ["cryptography", "zero-knowledge", "NIZK", "sigma-protocols"]
 description = "A toolkit for auto-generated implementations of Σ-protocols"
 exclude = [".gitignore"]
 
+[package.metadata.docs.rs]
+all-features = true
+cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
+
 [features]
 # Include commonly used curved in default features.
 # Increases the default compile times, but makes the crate just-work for most users.
@@ -110,10 +114,12 @@ required-features = ["bls12_381", "std"]
 [[example]]
 name = "schnorr"
 required-features = ["curve25519-dalek", "std"]
+doc-scrape-examples = true
 
 [[example]]
 name = "simple_composition"
 required-features = ["curve25519-dalek", "std"]
+doc-scrape-examples = true
 
 [[bench]]
 name = "msm"
