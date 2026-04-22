@@ -8,9 +8,27 @@ use crate::{
     traits::{SigmaProtocol, SigmaProtocolSimulator},
 };
 
+trait MyConditionallySelectable {
+    fn conditional_select(a: &Self, b: &Self, choice: Choice) -> Self;
+}
+
+// TODO: This currently prevents nesting Or more than one level deep.
+impl<T> MyConditionallySelectable for Vec<T>
+where
+    T: ConditionallySelectable,
+{
+    fn conditional_select(a: &Self, b: &Self, choice: Choice) -> Self {
+        assert_eq!(a.len(), b.len());
+        a.iter()
+            .zip(b.iter())
+            .map(|(a, b)| T::conditional_select(a, b, choice))
+            .collect()
+    }
+}
+
 // TODO: Should this perhaps be based around a tuple or (hybrid) array instead?
 #[derive(Clone)]
-pub struct Or<R>(Vec<R>);
+pub struct Or<R>(pub Vec<R>);
 
 // TODO: If we move the valid flag out of this struct, then we may be able to ensure the only-one
 // constraint without as much trouble.
@@ -24,8 +42,8 @@ pub struct OrProverState<R: SigmaProtocol> {
 impl<R> SigmaProtocol for Or<R>
 where
     R: SigmaProtocol + SigmaProtocolSimulator,
-    R::Commitment: ConditionallySelectable,
-    R::Response: ConditionallySelectable,
+    R::Commitment: MyConditionallySelectable,
+    R::Response: MyConditionallySelectable,
     R::Challenge: PrimeField,
 {
     type Commitment = Vec<R::Commitment>;
@@ -222,4 +240,9 @@ where
         }
         bytes
     }
+}
+
+impl LinearRelation<>
+
+impl Or<LinearRelation> {
 }

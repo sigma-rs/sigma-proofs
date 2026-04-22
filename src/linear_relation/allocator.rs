@@ -1,4 +1,5 @@
-use core::{array, iter::zip, marker::PhantomData};
+use core::{array, cell::RefCell, iter::zip, marker::PhantomData};
+use std::rc::Rc;
 
 use group::{Group, prime::PrimeGroup};
 
@@ -107,6 +108,27 @@ pub trait Allocator {
     }
 
     fn get_element(&self, var: GroupVar<Self::G>) -> Result<Self::G, UnassignedGroupVarError>;
+}
+
+/// Implementation of [Allocator] for a
+impl<A: Allocator> Allocator for Rc<RefCell<A>> {
+    type G = A::G;
+
+    fn allocate_scalar(&mut self) -> ScalarVar<Self::G> {
+        self.borrow_mut().allocate_scalar()
+    }
+
+    fn allocate_element(&mut self) -> GroupVar<Self::G> {
+        self.borrow_mut().allocate_element()
+    }
+
+    fn assign_element(&mut self, var: GroupVar<Self::G>, element: Self::G) {
+        self.borrow_mut().assign_element(var, element)
+    }
+
+    fn get_element(&self, var: GroupVar<Self::G>) -> Result<Self::G, UnassignedGroupVarError> {
+        self.borrow().get_element(var)
+    }
 }
 
 pub trait Allocate {
@@ -245,6 +267,7 @@ impl<G: Group> ScalarMap<G> {
     }
 }
 
+/*
 #[non_exhaustive]
 pub struct StructuredRelation<G: PrimeGroup, Vars> {
     pub vars: Vars,
@@ -260,3 +283,4 @@ impl<G: PrimeGroup, Vars: Allocate<G = G>> StructuredRelation<G, Vars> {
         }
     }
 }
+*/

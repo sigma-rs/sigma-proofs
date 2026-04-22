@@ -171,7 +171,7 @@ where
         match (a, b) {
             (ComposedCommitment::Simple(a_elements), ComposedCommitment::Simple(b_elements)) => {
                 // Both vectors must have the same length for this to work
-                debug_assert_eq!(a_elements.len(), b_elements.len());
+                assert_eq!(a_elements.len(), b_elements.len());
                 let selected: Vec<G> = a_elements
                     .iter()
                     .zip(b_elements.iter())
@@ -180,7 +180,7 @@ where
                 ComposedCommitment::Simple(selected)
             }
             (ComposedCommitment::And(a_commitments), ComposedCommitment::And(b_commitments)) => {
-                debug_assert_eq!(a_commitments.len(), b_commitments.len());
+                assert_eq!(a_commitments.len(), b_commitments.len());
                 let selected: Vec<ComposedCommitment<G>> = a_commitments
                     .iter()
                     .zip(b_commitments.iter())
@@ -189,7 +189,7 @@ where
                 ComposedCommitment::And(selected)
             }
             (ComposedCommitment::Or(a_commitments), ComposedCommitment::Or(b_commitments)) => {
-                debug_assert_eq!(a_commitments.len(), b_commitments.len());
+                assert_eq!(a_commitments.len(), b_commitments.len());
                 let selected: Vec<ComposedCommitment<G>> = a_commitments
                     .iter()
                     .zip(b_commitments.iter())
@@ -201,7 +201,7 @@ where
                 ComposedCommitment::Threshold(a_commitments),
                 ComposedCommitment::Threshold(b_commitments),
             ) => {
-                debug_assert_eq!(a_commitments.len(), b_commitments.len());
+                assert_eq!(a_commitments.len(), b_commitments.len());
                 let selected: Vec<ComposedCommitment<G>> = a_commitments
                     .iter()
                     .zip(b_commitments.iter())
@@ -256,7 +256,7 @@ impl<G: PrimeGroup> ComposedResponse<G> {
         match (a, b) {
             (ComposedResponse::Simple(a_scalars), ComposedResponse::Simple(b_scalars)) => {
                 // Both vectors must have the same length for this to work
-                debug_assert_eq!(a_scalars.len(), b_scalars.len());
+                assert_eq!(a_scalars.len(), b_scalars.len());
                 let selected: Vec<G::Scalar> = a_scalars
                     .iter()
                     .zip(b_scalars.iter())
@@ -265,7 +265,7 @@ impl<G: PrimeGroup> ComposedResponse<G> {
                 ComposedResponse::Simple(selected)
             }
             (ComposedResponse::And(a_responses), ComposedResponse::And(b_responses)) => {
-                debug_assert_eq!(a_responses.len(), b_responses.len());
+                assert_eq!(a_responses.len(), b_responses.len());
                 let selected: Vec<ComposedResponse<G>> = a_responses
                     .iter()
                     .zip(b_responses.iter())
@@ -277,9 +277,9 @@ impl<G: PrimeGroup> ComposedResponse<G> {
                 ComposedResponse::Or(a_challenges, a_responses),
                 ComposedResponse::Or(b_challenges, b_responses),
             ) => {
-                // TODO: Why is this a debug_assert_eq rather than assert_eq?
-                debug_assert_eq!(a_challenges.len(), b_challenges.len());
-                debug_assert_eq!(a_responses.len(), b_responses.len());
+                // TODO: Why was this a debug_assert_eq rather than assert_eq?
+                assert_eq!(a_challenges.len(), b_challenges.len());
+                assert_eq!(a_responses.len(), b_responses.len());
 
                 let selected_challenges: Vec<ComposedChallenge<G>> = a_challenges
                     .iter()
@@ -299,8 +299,8 @@ impl<G: PrimeGroup> ComposedResponse<G> {
                 ComposedResponse::Threshold(a_challenges, a_responses),
                 ComposedResponse::Threshold(b_challenges, b_responses),
             ) => {
-                debug_assert_eq!(a_challenges.len(), b_challenges.len());
-                debug_assert_eq!(a_responses.len(), b_responses.len());
+                assert_eq!(a_challenges.len(), b_challenges.len());
+                assert_eq!(a_responses.len(), b_responses.len());
 
                 let selected_challenges: Vec<ComposedChallenge<G>> = a_challenges
                     .iter()
