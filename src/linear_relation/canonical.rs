@@ -425,6 +425,7 @@ struct CanonicalLinearRelationBuilder<G: PrimeGroup> {
     weighted_group_cache: WeightedGroupCache<G>,
 }
 
+// TODO: Compare this implementation to the one in origin/main
 impl<G: PrimeGroup> CanonicalLinearRelationBuilder<G> {
     /// Get or create a GroupVar for a weighted group element, with deduplication
     fn get_or_create_weighted_group_var<A: Allocator<G = G>>(
