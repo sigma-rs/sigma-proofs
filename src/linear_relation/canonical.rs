@@ -1,13 +1,8 @@
-#[cfg(not(feature = "std"))]
-use ahash::RandomState;
 use alloc::format;
 use alloc::vec::Vec;
 use core::iter;
 use core::marker::PhantomData;
-#[cfg(not(feature = "std"))]
-use hashbrown::{HashMap, HashSet};
-#[cfg(feature = "std")]
-use std::collections::{HashMap, HashSet};
+use itertools::Itertools;
 
 use ff::Field;
 use group::prime::PrimeGroup;
@@ -17,9 +12,8 @@ use super::{
     GroupMap, GroupVar, LinearCombination, LinearRelation, ScalarAssignments, ScalarTerm, ScalarVar,
 };
 use crate::errors::{Error, InvalidInstance};
-use crate::group::msm::VariableMultiScalarMul;
+use crate::group::msm::MultiScalarMul;
 use crate::linear_relation::Allocator;
-use crate::serialization::serialize_elements;
 
 /// A [`LinearRelation`] in canonical form, compatible with the IETF spec.
 ///
@@ -70,7 +64,10 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
     /// Panics if the number of scalars given is less than the number of scalar variables in this
     /// linear relation.
     /// If the vector of scalars if longer than the number of terms in each linear combinations, the extra terms are ignored.
-    pub fn evaluate(&self, scalars: impl ScalarAssignments<G>) -> Vec<G> {
+    pub fn evaluate(&self, scalars: impl ScalarAssignments<G>) -> Vec<G>
+    where
+        G: MultiScalarMul,
+    {
         self.linear_combinations
             .iter()
             .map(|lc| {
@@ -134,12 +131,13 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
         }
 
         // Dump the group elements.
-        let group_reprs = serialize_elements(
-            self.group_elements
-                .iter()
-                .map(|(_, elem)| elem.expect("expected group variable to be assigned")),
-        );
-        out.extend_from_slice(&group_reprs);
+        for (_, elem) in self.group_elements.iter() {
+            out.extend_from_slice(
+                elem.expect("expected group variable to be assigned")
+                    .to_bytes()
+                    .as_ref(),
+            );
+        }
 
         out
     }
@@ -161,7 +159,6 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
     /// ```
     pub fn from_label(data: &[u8]) -> Result<Self, Error> {
         use crate::errors::InvalidInstance;
-        use crate::group::serialization::group_elt_serialized_len;
 
         let mut offset = 0;
 
@@ -242,7 +239,7 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
 
         // Calculate expected number of group elements
         let num_group_elements = (max_group_index + 1) as usize;
-        let group_element_size = group_elt_serialized_len::<G>();
+        let group_element_size = G::Repr::default().as_ref().len();
         let expected_remaining = num_group_elements * group_element_size;
 
         if data.len() - offset != expected_remaining {
@@ -316,7 +313,7 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
     }
 }
 
-impl<G: PrimeGroup, A: Allocator<G = G>> TryFrom<LinearRelation<G, A>>
+impl<G: PrimeGroup + MultiScalarMul, A: Allocator<G = G>> TryFrom<LinearRelation<G, A>>
     for CanonicalLinearRelation<G>
 {
     type Error = InvalidInstance;
@@ -326,7 +323,7 @@ impl<G: PrimeGroup, A: Allocator<G = G>> TryFrom<LinearRelation<G, A>>
     }
 }
 
-impl<G: PrimeGroup, A: Allocator<G = G>> TryFrom<&LinearRelation<G, A>>
+impl<G: PrimeGroup + MultiScalarMul, A: Allocator<G = G>> TryFrom<&LinearRelation<G, A>>
     for CanonicalLinearRelation<G>
 {
     type Error = InvalidInstance;
@@ -386,7 +383,7 @@ impl<G: PrimeGroup, A: Allocator<G = G>> TryFrom<&LinearRelation<G, A>>
     }
 }
 
-impl<G: PrimeGroup + ConstantTimeEq> CanonicalLinearRelation<G> {
+impl<G: PrimeGroup + ConstantTimeEq + MultiScalarMul> CanonicalLinearRelation<G> {
     /// Tests is the witness is valid.
     ///
     /// Returns a [`Choice`] indicating if the witness is valid for the instance constructed.
@@ -398,7 +395,7 @@ impl<G: PrimeGroup + ConstantTimeEq> CanonicalLinearRelation<G> {
     pub fn is_witness_valid(&self, witness: impl ScalarAssignments<G>) -> Choice {
         let got = self.evaluate(witness);
         self.image_elements()
-            .zip(got)
+            .zip_eq(got)
             .fold(Choice::from(1), |acc, (lhs, rhs)| acc & lhs.ct_eq(&rhs))
     }
 }
@@ -408,11 +405,7 @@ impl<G: PrimeGroup + ConstantTimeEq> CanonicalLinearRelation<G> {
 /// The cache is essentially a mapping (GroupVar, Scalar) => GroupVar, which maps the original
 /// weighted group vars to a new assignment, such that if a pair appears more than once, it will
 /// map to the same group variable in the canonical linear relation.
-#[cfg(feature = "std")]
-type WeightedGroupCache<G> = HashMap<GroupVar<G>, Vec<(<G as group::Group>::Scalar, GroupVar<G>)>>;
-#[cfg(not(feature = "std"))]
-type WeightedGroupCache<G> =
-    HashMap<GroupVar<G>, Vec<(<G as group::Group>::Scalar, GroupVar<G>)>, RandomState>;
+type WeightedGroupCache<G> = Vec<Vec<(<G as group::Group>::Scalar, GroupVar<G>)>>;
 
 #[derive(Debug)]
 struct CanonicalLinearRelationBuilder<G: PrimeGroup> {

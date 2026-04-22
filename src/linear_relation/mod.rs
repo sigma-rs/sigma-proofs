@@ -7,7 +7,6 @@
 //! - [`LinearCombination`]: a sparse representation of scalar multiplication relations.
 //! - [`LinearMap`]: a collection of linear combinations acting on group elements.
 //! - [`LinearRelation`]: a higher-level structure managing linear maps and their associated images.
-
 /// Implementations of conversion operations such as From and FromIterator for var and term types.
 mod convert;
 /// Implementations of core ops for the linear combination types.
@@ -24,6 +23,7 @@ pub use collections::{GroupMap, ScalarAssignments, ScalarMap};
 mod allocator;
 pub use allocator::{Allocator, Heap};
 
+use alloc::format;
 use alloc::vec::Vec;
 use collections::{UnassignedGroupVarError, UnassignedScalarVarError};
 use core::iter;
@@ -32,10 +32,11 @@ use core::marker::PhantomData;
 use ff::Field;
 use group::prime::PrimeGroup;
 
-use crate::Nizk;
 use crate::codec::Shake128DuplexSponge;
 use crate::errors::{Error, InvalidInstance};
-use crate::group::msm::VariableMultiScalarMul;
+use crate::errors::{Error, InvalidInstance};
+use crate::group::msm::MultiScalarMul;
+use crate::Nizk;
 
 /// A wrapper representing an reference for a scalar variable.
 ///
@@ -242,7 +243,10 @@ impl<G: PrimeGroup, A: Allocator<G = G>> LinearRelation<G, A> {
     ///
     /// Return `Ok` on success, and an error if unassigned elements prevent the image from being
     /// computed. Modifies the group elements assigned in the [LinearRelation].
-    pub fn compute_image(&mut self, scalars: impl ScalarAssignments<G>) -> Result<(), Error> {
+    pub fn compute_image(&mut self, scalars: impl ScalarAssignments<G>) -> Result<(), Error>
+    where
+        G: MultiScalarMul,
+    {
         if self.linear_combinations.len() != self.image.len() {
             // NOTE: This is a panic, rather than a returned error, because this can only happen if
             // this implementation has a bug.
@@ -302,48 +306,13 @@ impl<G: PrimeGroup, A: Allocator<G = G>> LinearRelation<G, A> {
             .collect()
     }
 
-    /// Convert this LinearRelation into a non-interactive zero-knowledge protocol
-    /// using the ShakeCodec and a specified context/domain separator.
-    ///
-    /// # Parameters
-    /// - `context`: Domain separator bytes for the Fiat-Shamir transform
-    ///
-    /// # Returns
-    /// A `Nizk` instance ready for proving and verification
-    ///
-    /// # Example
-    /// ```
-    /// # use sigma_proofs::{LinearRelation, Nizk};
-    /// # use curve25519_dalek::RistrettoPoint as G;
-    /// # use curve25519_dalek::scalar::Scalar;
-    /// # use rand::rngs::OsRng;
-    /// # use group::Group;
-    ///
-    /// let mut relation = LinearRelation::<G>::new();
-    /// let x_var = relation.allocate_scalar();
-    /// let g_var = relation.allocate_element();
-    /// let p_var = relation.allocate_eq(x_var * g_var);
-    ///
-    /// relation.set_element(g_var, G::generator());
-    /// let x = Scalar::random(&mut OsRng);
-    /// relation.compute_image([(x_var, x)]).unwrap();
-    ///
-    /// // Convert to NIZK with custom context
-    /// let nizk = relation.into_nizk(b"my-protocol-v1").unwrap();
-    /// let proof = nizk.prove_batchable([(x_var, x)], &mut OsRng).unwrap();
-    /// assert!(nizk.verify_batchable(&proof).is_ok());
-    /// ```
-    pub fn into_nizk(
-        self,
-        session_identifier: &[u8],
-    ) -> Result<Nizk<CanonicalLinearRelation<G>, Shake128DuplexSponge<G>>, InvalidInstance> {
-        Ok(Nizk::new(session_identifier, self.try_into()?))
-    }
-
     /// Construct a [CanonicalLinearRelation] from this generalized linear relation.
     ///
     /// The construction may fail if the linear relation is malformed, unsatisfiable, or trivial.
-    pub fn canonical(&self) -> Result<CanonicalLinearRelation<G>, InvalidInstance> {
+    pub fn canonical(&self) -> Result<CanonicalLinearRelation<G>, InvalidInstance>
+    where
+        G: MultiScalarMul,
+    {
         self.try_into()
     }
 }

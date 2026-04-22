@@ -1,12 +1,12 @@
 use core::{array, cell::RefCell, iter::zip, marker::PhantomData};
 use std::rc::Rc;
 
-use group::{Group, prime::PrimeGroup};
+use group::{prime::PrimeGroup, Group};
 
 use crate::{
-    LinearRelation,
     errors::UnassignedGroupVarError,
     linear_relation::{GroupMap, GroupVar, ScalarMap, ScalarVar},
+    LinearRelation,
 };
 
 pub trait Allocator {

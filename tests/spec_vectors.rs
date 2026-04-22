@@ -1,160 +1,91 @@
-use bls12_381::G1Projective as G;
-use hex::FromHex;
-use json::JsonValue;
-use std::collections::HashMap;
+use bls12_381::G1Projective as Bls12381G1;
+use group::prime::PrimeGroup;
+use p256::ProjectivePoint as P256ProjectivePoint;
+use spongefish::{Decoding, Encoding, NargDeserialize, NargSerialize};
 
-use sigma_proofs::codec::KeccakByteSchnorrCodec;
-use sigma_proofs::linear_relation::CanonicalLinearRelation;
-use sigma_proofs::Nizk;
+use sigma_proofs::{linear_relation::CanonicalLinearRelation, MultiScalarMul, Nizk};
 
 mod spec;
-use spec::{custom_schnorr_protocol::DeterministicSchnorrProof, rng::TestDRNG};
+use spec::{rng::proof_generation_rng, vectors::TestVector};
 
-type SchnorrNizk = Nizk<DeterministicSchnorrProof<G>, KeccakByteSchnorrCodec<G>>;
-
-#[derive(Debug)]
-struct TestVector {
-    ciphersuite: String,
-    session_id: Vec<u8>,
-    statement: Vec<u8>,
-    witness: Vec<u8>,
-    proof: Vec<u8>,
+#[test]
+fn test_spec_vectors_p256() {
+    testvectors::<P256ProjectivePoint>(include_str!(
+        "./spec/testdata/sigma-proofs_Shake128_P256.json"
+    ));
 }
 
-#[allow(clippy::type_complexity)]
-#[allow(non_snake_case)]
 #[test]
-fn test_spec_testvectors() {
-    let proof_generation_rng_seed = b"proof_generation_seed";
-    let vectors = extract_vectors_new().unwrap();
+fn test_spec_vectors_bls12381() {
+    testvectors::<Bls12381G1>(include_str!(
+        "./spec/testdata/sigma-proofs_Shake128_BLS12381.json"
+    ));
+}
 
-    // Define supported ciphersuites
-    let mut supported_ciphersuites = HashMap::new();
-    supported_ciphersuites.insert(
-        "sigma/OWKeccak1600+Bls12381".to_string(),
-        "BLS12-381 with Keccak-based sponge",
-    );
+fn decode_scalars<G>(bytes: &[u8]) -> Vec<G::Scalar>
+where
+    G: PrimeGroup,
+    G::Scalar: NargDeserialize,
+{
+    let mut cursor = bytes;
+    let mut scalars = Vec::new();
+    while !cursor.is_empty() {
+        scalars.push(
+            G::Scalar::deserialize_from_narg(&mut cursor).expect("failed to deserialize scalar"),
+        );
+    }
+    scalars
+}
 
-    // Order of test names to match JSON vector order
-    let test_names = [
-        "bbs_blind_commitment_computation",
-        "discrete_logarithm",
-        "dleq",
-        "pedersen_commitment",
-        "pedersen_commitment_dleq",
-    ];
+fn testvectors<G>(vectors_json: &str)
+where
+    G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize + MultiScalarMul,
+    G::Scalar: Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]>,
+{
+    let test_vectors: Vec<TestVector> = serde_json::from_str(vectors_json)
+        .map_err(|e| format!("JSON parsing error: {e}"))
+        .unwrap();
 
-    for test_name in test_names.iter() {
-        let vector = &vectors[*test_name];
+    for vector in test_vectors {
+        let test_name = vector.relation;
+        let parsed_instance = CanonicalLinearRelation::<G>::from_label(&vector.statement.0)
+            .expect("failed to parse statement");
 
-        // Verify the ciphersuite is supported
-        assert!(
-            supported_ciphersuites.contains_key(&vector.ciphersuite),
-            "Unsupported ciphersuite '{}' in test vector {test_name}",
-            vector.ciphersuite
+        let witness = decode_scalars::<G>(&vector.witness.0);
+        assert_eq!(
+            witness.len(),
+            parsed_instance.num_scalars,
+            "witness length doesn't match instance scalars",
         );
 
-        // Parse the statement from the test vector
-        let parsed_instance = CanonicalLinearRelation::<G>::from_label(&vector.statement)
-            .expect("Failed to parse statement");
-
-        // Decode the witness from the test vector
-        let witness = sigma_proofs::group::serialization::deserialize_scalars::<G>(
-            &vector.witness,
-            parsed_instance.num_scalars,
-        )
-        .expect("Failed to deserialize witness");
-
-        // Verify the parsed instance can be re-serialized to the same label
         assert_eq!(
             parsed_instance.label(),
-            vector.statement,
+            vector.statement.0,
             "parsed statement doesn't match original for {test_name}"
         );
 
-        // Create NIZK with the session_id from the test vector
-        let protocol = DeterministicSchnorrProof::from(parsed_instance.clone());
-        let nizk = SchnorrNizk::new(&vector.session_id, protocol);
+        let nizk = Nizk::new(&vector.session_id.0, parsed_instance);
 
-        // Verify that the computed IV matches the test vector IV
-        // Ensure the provided test vector proof verifies.
         assert!(
-            nizk.verify_batchable(&vector.proof).is_ok(),
-            "Fiat-Shamir Schnorr proof from vectors did not verify for {test_name}"
+            nizk.verify_batchable(&vector.batchable_proof.0).is_ok(),
+            "batchable proof from vectors did not verify for {test_name}"
+        );
+        assert!(
+            nizk.verify_compact(&vector.proof.0).is_ok(),
+            "compact proof from vectors did not verify for {test_name}"
         );
 
-        // Generate proof with the proof generation RNG
-        let mut proof_rng = TestDRNG::new(proof_generation_rng_seed);
-        let proof_bytes = nizk.prove_batchable(&witness, &mut proof_rng).unwrap();
-
-        // Verify the proof matches
+        let mut proof_rng = proof_generation_rng::<G>(2 * witness.len());
+        let batchable_proof = nizk.prove_batchable(&witness, &mut proof_rng).unwrap();
         assert_eq!(
-            proof_bytes, vector.proof,
-            "proof bytes for test vector {test_name} do not match"
+            batchable_proof, vector.batchable_proof.0,
+            "batchable proof bytes do not match for {test_name}"
         );
 
-        // Verify the proof is valid
-        let verified = nizk.verify_batchable(&proof_bytes).is_ok();
-        assert!(
-            verified,
-            "Fiat-Shamir Schnorr proof verification failed for {test_name}"
-        );
-    }
-}
-
-fn extract_vectors_new() -> Result<HashMap<String, TestVector>, String> {
-    use std::collections::HashMap;
-
-    let content = include_str!("./spec/vectors/testSigmaProtocols.json");
-    let root: JsonValue = json::parse(content).map_err(|e| format!("JSON parsing error: {e}"))?;
-
-    let mut vectors = HashMap::new();
-
-    for (name, obj) in root.entries() {
-        let ciphersuite = obj["Ciphersuite"]
-            .as_str()
-            .ok_or_else(|| format!("Ciphersuite field not found for {name}"))?
-            .to_string();
-
-        let session_id = Vec::from_hex(
-            obj["SessionId"]
-                .as_str()
-                .ok_or_else(|| format!("SessionId field not found for {name}"))?,
-        )
-        .map_err(|e| format!("Invalid hex in SessionId for {name}: {e}"))?;
-
-        let statement = Vec::from_hex(
-            obj["Statement"]
-                .as_str()
-                .ok_or_else(|| format!("Statement field not found for {name}"))?,
-        )
-        .map_err(|e| format!("Invalid hex in Statement for {name}: {e}"))?;
-
-        let witness = Vec::from_hex(
-            obj["Witness"]
-                .as_str()
-                .ok_or_else(|| format!("Witness field not found for {name}"))?,
-        )
-        .map_err(|e| format!("Invalid hex in Witness for {name}: {e}"))?;
-
-        let proof = Vec::from_hex(
-            obj["Batchable Proof"]
-                .as_str()
-                .ok_or_else(|| format!("Proof field not found for {name}"))?,
-        )
-        .map_err(|e| format!("Invalid hex in Proof for {name}: {e}"))?;
-
-        vectors.insert(
-            name.to_string(),
-            TestVector {
-                ciphersuite,
-                session_id,
-                statement,
-                witness,
-                proof,
-            },
+        let compact_proof = nizk.prove_compact(&witness, &mut proof_rng).unwrap();
+        assert_eq!(
+            compact_proof, vector.proof.0,
+            "compact proof bytes do not match for {test_name}"
         );
     }
-
-    Ok(vectors)
 }
