@@ -286,18 +286,29 @@ impl<G: Group> ScalarAssignments<G> for &ScalarMap<G> {
     }
 }
 
-impl<G: Group, A: AsRef<[(ScalarVar<G>, G::Scalar)]>> ScalarAssignments<G> for A {
+impl<G: Group> ScalarAssignments<G> for [(ScalarVar<G>, G::Scalar)] {
     /// Access the assignment of a [ScalarVar] from an array-like struct (e.g. `[_; N]` or `Vec`).
     ///
     /// The variable is fetched via a linear search. For small arrays, this is optimal and avoids
     /// allocation into a [ScalarMap]. For statements with a large number of scalars, this will not
     /// be as effcicient as allocating a [ScalarMap].
     fn get(&self, var: ScalarVar<G>) -> Result<<G as Group>::Scalar, UnassignedScalarVarError> {
-        self.as_ref()
-            .iter()
+        self.iter()
             .copied()
             .find_map(|(var_i, scalar)| (var == var_i).then_some(scalar))
             .ok_or(UnassignedScalarVarError(var.to_elided()))
+    }
+}
+
+impl<G: Group, const N: usize> ScalarAssignments<G> for [(ScalarVar<G>, G::Scalar); N] {
+    fn get(&self, var: ScalarVar<G>) -> Result<<G as Group>::Scalar, UnassignedScalarVarError> {
+        ScalarAssignments::get(self.as_slice(), var)
+    }
+}
+
+impl<G: Group> ScalarAssignments<G> for Vec<(ScalarVar<G>, G::Scalar)> {
+    fn get(&self, var: ScalarVar<G>) -> Result<<G as Group>::Scalar, UnassignedScalarVarError> {
+        ScalarAssignments::get(self.as_slice(), var)
     }
 }
 
