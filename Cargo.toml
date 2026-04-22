@@ -41,6 +41,7 @@ bls12_381 = { version = "0.8.0", default-features = false, features = ["groups"]
 curve25519-dalek = { version = "4.1.3", default-features = false, features = ["alloc", "group"], optional = true }
 ff = { version = "0.13", default-features = false, features = ["std"] }
 group = "0.13.0"
+hashbrown = { version = "0.17.0", default-features = false, features = ["default-hasher", "alloc"] }
 itertools = { version = "0.14", default-features = false }
 k256 = { version = "0.13.4", default-features = false, features = ["arithmetic", "alloc"], optional = true }
 p256 = { version = "0.13", default-features = false, features = ["arithmetic"], optional = true }

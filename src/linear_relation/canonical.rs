@@ -2,10 +2,11 @@ use alloc::format;
 use alloc::vec::Vec;
 use core::iter;
 use core::marker::PhantomData;
-use itertools::Itertools;
 
 use ff::Field;
 use group::prime::PrimeGroup;
+use hashbrown::{HashMap, HashSet};
+use itertools::Itertools;
 use subtle::{Choice, ConstantTimeEq};
 
 use super::{
@@ -24,7 +25,7 @@ use crate::linear_relation::Allocator;
 /// This struct represents a normalized form of a linear relation where each
 /// constraint is of the form: image_i = Σ (scalar_j * group_element_k)
 /// without weights or extra scalars.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct CanonicalLinearRelation<G: PrimeGroup> {
     /// The image group elements (left-hand side of equations)
@@ -36,6 +37,17 @@ pub struct CanonicalLinearRelation<G: PrimeGroup> {
     pub group_elements: GroupMap<G>,
     /// Set of scalar variables used in this relation.
     pub scalar_vars: HashSet<ScalarVar<G>>,
+}
+
+impl<G: PrimeGroup> Default for CanonicalLinearRelation<G> {
+    fn default() -> Self {
+        Self {
+            image: Default::default(),
+            linear_combinations: Default::default(),
+            group_elements: Default::default(),
+            scalar_vars: Default::default(),
+        }
+    }
 }
 
 impl<G: PrimeGroup> CanonicalLinearRelation<G> {
@@ -405,7 +417,7 @@ impl<G: PrimeGroup + ConstantTimeEq + MultiScalarMul> CanonicalLinearRelation<G>
 /// The cache is essentially a mapping (GroupVar, Scalar) => GroupVar, which maps the original
 /// weighted group vars to a new assignment, such that if a pair appears more than once, it will
 /// map to the same group variable in the canonical linear relation.
-type WeightedGroupCache<G> = Vec<Vec<(<G as group::Group>::Scalar, GroupVar<G>)>>;
+type WeightedGroupCache<G> = HashMap<GroupVar<G>, Vec<(<G as group::Group>::Scalar, GroupVar<G>)>>;
 
 #[derive(Debug)]
 struct CanonicalLinearRelationBuilder<G: PrimeGroup> {
@@ -513,8 +525,8 @@ impl<G: PrimeGroup> CanonicalLinearRelationBuilder<G> {
 impl<G: PrimeGroup> Default for CanonicalLinearRelationBuilder<G> {
     fn default() -> Self {
         Self {
-            relation: CanonicalLinearRelation::new(),
-            weighted_group_cache: Vec::new(),
+            relation: Default::default(),
+            weighted_group_cache: Default::default(),
         }
     }
 }
