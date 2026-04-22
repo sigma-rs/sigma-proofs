@@ -512,14 +512,9 @@ impl<G: PrimeGroup> CanonicalLinearRelationBuilder<G> {
 
 impl<G: PrimeGroup> Default for CanonicalLinearRelationBuilder<G> {
     fn default() -> Self {
-        #[cfg(feature = "std")]
-        let weighted_group_cache = HashMap::new();
-        #[cfg(not(feature = "std"))]
-        let weighted_group_cache = HashMap::with_hasher(RandomState::new());
-
         Self {
             relation: CanonicalLinearRelation::new(),
-            weighted_group_cache,
+            weighted_group_cache: Vec::new(),
         }
     }
 }

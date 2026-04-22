@@ -45,6 +45,13 @@ impl From<InvalidInstance> for Error {
     }
 }
 
+impl From<spongefish::VerificationError> for Error {
+    // TODO: Don't drop the error message here.
+    fn from(_value: spongefish::VerificationError) -> Self {
+        Error::VerificationFailure
+    }
+}
+
 /// Represents an error encountered during the execution of a Sigma protocol.
 ///
 /// This may occur during proof generation, response computation, or verification.

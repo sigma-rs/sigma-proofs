@@ -35,7 +35,7 @@ use crate::MultiScalarMul;
 use crate::{
     errors::Error,
     fiat_shamir::Nizk,
-    linear_relation::{CanonicalLinearRelation, LinearRelation},
+    linear_relation::{Allocator, CanonicalLinearRelation, Heap, LinearRelation, ScalarAssignments, ScalarVar},
     traits::{SigmaProtocol, SigmaProtocolSimulator},
 };
 
@@ -80,9 +80,11 @@ where
     ///
     /// # Returns
     /// A `Nizk` instance ready for proving and verification
-    pub fn into_nizk(self, session_identifier: &[u8]) -> Nizk<Self, Shake128DuplexSponge<G>>
+    pub fn into_nizk(self, session_identifier: &[u8]) -> Nizk<Self>
     where
-        Shake128DuplexSponge<G>: Codec<Challenge = <Self as SigmaProtocol>::Challenge>,
+        <Self as SigmaProtocol>::Challenge: PartialEq,
+        <Self as SigmaProtocol>::Commitment: NargSerialize + NargDeserialize + Encoding,
+        <Self as SigmaProtocol>::Response: NargSerialize + NargDeserialize + Encoding,
     {
         Nizk::new(session_identifier, self)
     }
@@ -137,6 +139,7 @@ impl<G: PrimeGroup, A> ComposedLinearRelation<G, A> {
     pub fn compute_image(&mut self, scalars: impl ScalarAssignments<G> + Clone) -> Result<(), Error>
     where
         A: Allocator<G = G>,
+        G: MultiScalarMul,
     {
         match self {
             Self::Simple(relation) => relation.compute_image(scalars),
@@ -641,10 +644,12 @@ impl<G: PrimeGroup> From<Vec<(ScalarVar<G>, G::Scalar)>> for ComposedWitness<G> 
     }
 }
 
-impl<G: PrimeGroup> From<<CanonicalLinearRelation<G> as SigmaProtocol>::Witness>
-    for ComposedWitness<G>
+impl<G> From<Vec<G::Scalar>> for ComposedWitness<G>
+where
+    G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize + MultiScalarMul,
+    G::Scalar: Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]>,
 {
-    fn from(value: <CanonicalLinearRelation<G> as SigmaProtocol>::Witness) -> Self {
+    fn from(value: Vec<G::Scalar>) -> Self {
         Self::Simple(value)
     }
 }
@@ -910,7 +915,18 @@ where
     }
 }
 
-impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<G> {
+impl<G> ComposedRelation<G>
+where
+    G: PrimeGroup
+        + ConstantTimeEq
+        + ConditionallySelectable
+        + Encoding<[u8]>
+        + NargSerialize
+        + NargDeserialize
+        + MultiScalarMul,
+    G::Scalar:
+        Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]> + ConditionallySelectable,
+{
     fn prover_commit_simple(
         protocol: &CanonicalLinearRelation<G>,
         witness: &<CanonicalLinearRelation<G> as SigmaProtocol>::Witness,

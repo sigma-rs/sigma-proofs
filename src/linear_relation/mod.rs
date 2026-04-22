@@ -23,7 +23,6 @@ pub use collections::{GroupMap, ScalarAssignments, ScalarMap};
 mod allocator;
 pub use allocator::{Allocator, Heap};
 
-use alloc::format;
 use alloc::vec::Vec;
 use collections::{UnassignedGroupVarError, UnassignedScalarVarError};
 use core::iter;
@@ -32,11 +31,8 @@ use core::marker::PhantomData;
 use ff::Field;
 use group::prime::PrimeGroup;
 
-use crate::codec::Shake128DuplexSponge;
-use crate::errors::{Error, InvalidInstance};
 use crate::errors::{Error, InvalidInstance};
 use crate::group::msm::MultiScalarMul;
-use crate::Nizk;
 
 /// A wrapper representing an reference for a scalar variable.
 ///
@@ -281,7 +277,10 @@ impl<G: PrimeGroup, A: Allocator<G = G>> LinearRelation<G, A> {
     /// # Returns
     ///
     /// A vector of group elements, each being the result of evaluating one linear combination with the scalars.
-    pub fn evaluate(&self, scalars: impl ScalarAssignments<G>) -> Result<Vec<G>, Error> {
+    pub fn evaluate(&self, scalars: impl ScalarAssignments<G>) -> Result<Vec<G>, Error>
+    where
+        G: MultiScalarMul,
+    {
         self.linear_combinations
             .iter()
             .map(|lc| {
