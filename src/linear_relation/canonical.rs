@@ -18,10 +18,6 @@ use crate::linear_relation::Allocator;
 
 /// A [`LinearRelation`] in canonical form, compatible with the IETF spec.
 ///
-/// This relation is type-safe:
-/// it can be instantiated only if all group vars are assigned,
-/// size match, and the relation is not trivially false.
-///
 /// This struct represents a normalized form of a linear relation where each
 /// constraint is of the form: image_i = Σ (scalar_j * group_element_k)
 /// without weights or extra scalars.
