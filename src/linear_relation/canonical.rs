@@ -5,17 +5,20 @@ use alloc::vec::Vec;
 use core::iter;
 use core::marker::PhantomData;
 #[cfg(not(feature = "std"))]
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
 #[cfg(feature = "std")]
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use ff::Field;
 use group::prime::PrimeGroup;
 use subtle::{Choice, ConstantTimeEq};
 
-use super::{GroupMap, GroupVar, LinearCombination, LinearRelation, ScalarTerm, ScalarVar};
+use super::{
+    GroupMap, GroupVar, LinearCombination, LinearRelation, ScalarAssignments, ScalarTerm, ScalarVar,
+};
 use crate::errors::{Error, InvalidInstance};
 use crate::group::msm::VariableMultiScalarMul;
+use crate::linear_relation::Allocator;
 use crate::serialization::serialize_elements;
 
 /// A [`LinearRelation`] in canonical form, compatible with the IETF spec.
@@ -28,6 +31,7 @@ use crate::serialization::serialize_elements;
 /// constraint is of the form: image_i = Σ (scalar_j * group_element_k)
 /// without weights or extra scalars.
 #[derive(Clone, Debug, Default)]
+#[non_exhaustive]
 pub struct CanonicalLinearRelation<G: PrimeGroup> {
     /// The image group elements (left-hand side of equations)
     pub image: Vec<GroupVar<G>>,
@@ -36,20 +40,9 @@ pub struct CanonicalLinearRelation<G: PrimeGroup> {
     pub linear_combinations: Vec<Vec<(ScalarVar<G>, GroupVar<G>)>>,
     /// The group elements map
     pub group_elements: GroupMap<G>,
-    /// Number of scalar variables
-    pub num_scalars: usize,
+    /// Set of scalar variables used in this relation.
+    pub scalar_vars: HashSet<ScalarVar<G>>,
 }
-
-/// Private type alias used to simplify function signatures below.
-///
-/// The cache is essentially a mapping (GroupVar, Scalar) => GroupVar, which maps the original
-/// weighted group vars to a new assignment, such that if a pair appears more than once, it will
-/// map to the same group variable in the canonical linear relation.
-#[cfg(feature = "std")]
-type WeightedGroupCache<G> = HashMap<GroupVar<G>, Vec<(<G as group::Group>::Scalar, GroupVar<G>)>>;
-#[cfg(not(feature = "std"))]
-type WeightedGroupCache<G> =
-    HashMap<GroupVar<G>, Vec<(<G as group::Group>::Scalar, GroupVar<G>)>, RandomState>;
 
 impl<G: PrimeGroup> CanonicalLinearRelation<G> {
     /// Create a new empty canonical linear relation.
@@ -61,10 +54,12 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
             image: Vec::new(),
             linear_combinations: Vec::new(),
             group_elements: GroupMap::default(),
-            num_scalars: 0,
+            scalar_vars: HashSet::default(),
         }
     }
 
+    // QUESTION: Why does this currently panic when a variable is unassigned? Should this return
+    // Result instead?
     /// Evaluate the canonical linear relation with the provided scalars
     ///
     /// This returns a list of image points produced by evaluating each linear combination in the
@@ -75,13 +70,13 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
     /// Panics if the number of scalars given is less than the number of scalar variables in this
     /// linear relation.
     /// If the vector of scalars if longer than the number of terms in each linear combinations, the extra terms are ignored.
-    pub fn evaluate(&self, scalars: &[G::Scalar]) -> Vec<G> {
+    pub fn evaluate(&self, scalars: impl ScalarAssignments<G>) -> Vec<G> {
         self.linear_combinations
             .iter()
             .map(|lc| {
                 let scalars = lc
                     .iter()
-                    .map(|(scalar_var, _)| scalars[scalar_var.index()])
+                    .map(|(scalar_var, _)| scalars.get(*scalar_var).unwrap())
                     .collect::<Vec<_>>();
                 let bases = lc
                     .iter()
@@ -90,105 +85,6 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
                 G::msm(&scalars, &bases)
             })
             .collect()
-    }
-
-    /// Get or create a GroupVar for a weighted group element, with deduplication
-    fn get_or_create_weighted_group_var(
-        &mut self,
-        group_var: GroupVar<G>,
-        weight: &G::Scalar,
-        original_group_elements: &GroupMap<G>,
-        weighted_group_cache: &mut WeightedGroupCache<G>,
-    ) -> Result<GroupVar<G>, InvalidInstance> {
-        // Check if we already have this (weight, group_var) combination
-        let entry = weighted_group_cache.entry(group_var).or_default();
-
-        // Find if we already have this weight for this group_var
-        if let Some((_, existing_var)) = entry.iter().find(|(w, _)| w == weight) {
-            return Ok(*existing_var);
-        }
-
-        // Create new weighted group element
-        // Use a special case for one, as this is the most common weight.
-        let original_group_val = original_group_elements.get(group_var)?;
-        let weighted_group = match *weight == G::Scalar::ONE {
-            true => original_group_val,
-            false => original_group_val * weight,
-        };
-
-        // Add to our group elements with new index (length)
-        let new_var = self.group_elements.push(weighted_group);
-
-        // Cache the mapping for this group_var and weight
-        entry.push((*weight, new_var));
-
-        Ok(new_var)
-    }
-
-    /// Process a single constraint equation and add it to the canonical relation.
-    fn process_constraint(
-        &mut self,
-        &image_var: &GroupVar<G>,
-        equation: &LinearCombination<G>,
-        original_relation: &LinearRelation<G>,
-        weighted_group_cache: &mut WeightedGroupCache<G>,
-    ) -> Result<(), InvalidInstance> {
-        let mut rhs_terms = Vec::new();
-
-        // Collect RHS terms that have scalar variables and apply weights
-        for weighted_term in equation.terms() {
-            if let ScalarTerm::Var(scalar_var) = weighted_term.term.scalar {
-                let group_var = weighted_term.term.elem;
-                let weight = &weighted_term.weight;
-
-                if weight.is_zero_vartime() {
-                    continue; // Skip zero weights
-                }
-
-                let canonical_group_var = self.get_or_create_weighted_group_var(
-                    group_var,
-                    weight,
-                    &original_relation.linear_map.group_elements,
-                    weighted_group_cache,
-                )?;
-
-                rhs_terms.push((scalar_var, canonical_group_var));
-            }
-        }
-
-        // Compute the canonical image by subtracting constant terms from the original image
-        let mut canonical_image = original_relation.linear_map.group_elements.get(image_var)?;
-        for weighted_term in equation.terms() {
-            if let ScalarTerm::Unit = weighted_term.term.scalar {
-                let group_val = original_relation
-                    .linear_map
-                    .group_elements
-                    .get(weighted_term.term.elem)?;
-                canonical_image -= group_val * weighted_term.weight;
-            }
-        }
-
-        // Only include constraints that are non-trivial (not zero constraints).
-        #[expect(clippy::collapsible_if)]
-        if rhs_terms.is_empty() {
-            if canonical_image.is_identity().into() {
-                return Ok(());
-            }
-            // In this location, we have determined that the constraint is trivially false.
-            // If the constraint is added to the relation, proving will always fail for this
-            // constraint. A composed relation containing a trivially false constraint in an OR
-            // branch may still be provable.
-            //
-            // TODO: In this case, we can optimize and improve error reporting by having this
-            // library special-case trvially false statements. One appraoch would be to return an
-            // error here and handle it in the OR composition.
-        }
-
-        let canonical_image_group_var = self.group_elements.push(canonical_image);
-        self.image.push(canonical_image_group_var);
-        self.linear_combinations.push(rhs_terms);
-
-        Ok(())
     }
 
     /// Serialize the linear relation to bytes.
@@ -380,12 +276,14 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
 
         // Build the canonical relation
         let mut canonical = Self::new();
-        canonical.num_scalars = (max_scalar_index + 1) as usize;
+        canonical.scalar_vars = (0..=max_scalar_index as usize)
+            .map(|i| ScalarVar(i, PhantomData))
+            .collect();
 
         // Add all group elements to the map
         let mut group_var_map = Vec::new();
         for elem in &group_elements_ordered {
-            let var = canonical.group_elements.push(*elem);
+            let var = canonical.group_elements.allocate_element_with(*elem);
             group_var_map.push(var);
         }
 
@@ -418,37 +316,33 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
     }
 }
 
-impl<G: PrimeGroup> TryFrom<LinearRelation<G>> for CanonicalLinearRelation<G> {
+impl<G: PrimeGroup, A: Allocator<G = G>> TryFrom<LinearRelation<G, A>>
+    for CanonicalLinearRelation<G>
+{
     type Error = InvalidInstance;
 
-    fn try_from(value: LinearRelation<G>) -> Result<Self, Self::Error> {
+    fn try_from(value: LinearRelation<G, A>) -> Result<Self, Self::Error> {
         Self::try_from(&value)
     }
 }
 
-impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
+impl<G: PrimeGroup, A: Allocator<G = G>> TryFrom<&LinearRelation<G, A>>
+    for CanonicalLinearRelation<G>
+{
     type Error = InvalidInstance;
 
-    fn try_from(relation: &LinearRelation<G>) -> Result<Self, Self::Error> {
-        if relation.image.len() != relation.linear_map.linear_combinations.len() {
+    fn try_from(relation: &LinearRelation<G, A>) -> Result<Self, Self::Error> {
+        if relation.image.len() != relation.linear_combinations.len() {
             return Err(InvalidInstance::new(
                 "Number of equations must be equal to number of image elements.",
             ));
         }
 
-        let mut canonical = CanonicalLinearRelation::new();
-        canonical.num_scalars = relation.linear_map.num_scalars;
-
-        // Cache for deduplicating weighted group elements
-        #[cfg(feature = "std")]
-        let mut weighted_group_cache = HashMap::new();
-        #[cfg(not(feature = "std"))]
-        let mut weighted_group_cache = HashMap::with_hasher(RandomState::new());
-
-        // Process each constraint using the modular helper method
-        for (lhs, rhs) in iter::zip(&relation.image, &relation.linear_map.linear_combinations) {
+        // Process each constraint using the canonical linear relation builder.
+        let mut builder = CanonicalLinearRelationBuilder::default();
+        for (lhs, rhs) in iter::zip(&relation.image, &relation.linear_combinations) {
             // If any group element in the image is not assigned, return `InvalidInstance`.
-            let lhs_value = relation.linear_map.group_elements.get(*lhs)?;
+            let lhs_value = relation.heap.get_element(*lhs)?;
 
             // Compute the constant terms on the right-hand side of the equation.
             // If any group element in the linear constraints is not assigned, return `InvalidInstance`.
@@ -457,11 +351,11 @@ impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
                 .iter()
                 .filter(|term| matches!(term.term.scalar, ScalarTerm::Unit))
                 .map(|term| {
-                    let elem = relation.linear_map.group_elements.get(term.term.elem)?;
+                    let elem = relation.heap.get_element(term.term.elem)?;
                     let scalar = term.weight;
                     Ok((elem, scalar))
                 })
-                .collect::<Result<(Vec<G>, Vec<G::Scalar>), _>>()?;
+                .collect::<Result<(Vec<G>, Vec<G::Scalar>), Self::Error>>()?;
 
             let rhs_constant_term = G::msm(&rhs_constant_terms.1, &rhs_constant_terms.0);
 
@@ -485,10 +379,10 @@ impl<G: PrimeGroup> TryFrom<&LinearRelation<G>> for CanonicalLinearRelation<G> {
                 return Err(InvalidInstance::new("Trivial kernel in this relation"));
             }
 
-            canonical.process_constraint(lhs, rhs, relation, &mut weighted_group_cache)?;
+            builder.process_constraint(lhs, rhs, relation)?;
         }
 
-        Ok(canonical)
+        Ok(builder.build())
     }
 }
 
@@ -501,10 +395,138 @@ impl<G: PrimeGroup + ConstantTimeEq> CanonicalLinearRelation<G> {
     ///
     /// Panics if the number of scalars given is less than the number of scalar variables.
     /// If the number of scalars is more than the number of scalar variables, the extra elements are ignored.
-    pub fn is_witness_valid(&self, witness: &[G::Scalar]) -> Choice {
+    pub fn is_witness_valid(&self, witness: impl ScalarAssignments<G>) -> Choice {
         let got = self.evaluate(witness);
         self.image_elements()
             .zip(got)
             .fold(Choice::from(1), |acc, (lhs, rhs)| acc & lhs.ct_eq(&rhs))
+    }
+}
+
+/// Private type alias used to simplify function signatures below.
+///
+/// The cache is essentially a mapping (GroupVar, Scalar) => GroupVar, which maps the original
+/// weighted group vars to a new assignment, such that if a pair appears more than once, it will
+/// map to the same group variable in the canonical linear relation.
+#[cfg(feature = "std")]
+type WeightedGroupCache<G> = HashMap<GroupVar<G>, Vec<(<G as group::Group>::Scalar, GroupVar<G>)>>;
+#[cfg(not(feature = "std"))]
+type WeightedGroupCache<G> =
+    HashMap<GroupVar<G>, Vec<(<G as group::Group>::Scalar, GroupVar<G>)>, RandomState>;
+
+#[derive(Debug)]
+struct CanonicalLinearRelationBuilder<G: PrimeGroup> {
+    relation: CanonicalLinearRelation<G>,
+    weighted_group_cache: WeightedGroupCache<G>,
+}
+
+impl<G: PrimeGroup> CanonicalLinearRelationBuilder<G> {
+    /// Get or create a GroupVar for a weighted group element, with deduplication
+    fn get_or_create_weighted_group_var<A: Allocator<G = G>>(
+        &mut self,
+        group_var: GroupVar<G>,
+        weight: &G::Scalar,
+        original_alloc: &A,
+    ) -> Result<GroupVar<G>, InvalidInstance> {
+        // Check if we already have this (weight, group_var) combination
+        let entry = self.weighted_group_cache.entry(group_var).or_default();
+
+        // Find if we already have this weight for this group_var
+        if let Some((_, existing_var)) = entry.iter().find(|(w, _)| w == weight) {
+            return Ok(*existing_var);
+        }
+
+        // Create new weighted group element
+        // Use a special case for one, as this is the most common weight.
+        let original_group_val = original_alloc.get_element(group_var)?;
+        let weighted_group = match *weight == G::Scalar::ONE {
+            true => original_group_val,
+            false => original_group_val * weight,
+        };
+
+        // Add to our group elements with new index (length)
+        let new_var = self
+            .relation
+            .group_elements
+            .allocate_element_with(weighted_group);
+
+        // Cache the mapping for this group_var and weight
+        entry.push((*weight, new_var));
+
+        Ok(new_var)
+    }
+
+    /// Process a single constraint equation and add it to the canonical relation.
+    fn process_constraint<A: Allocator<G = G>>(
+        &mut self,
+        &image_var: &GroupVar<G>,
+        equation: &LinearCombination<G>,
+        allocator: &A,
+    ) -> Result<(), InvalidInstance> {
+        let mut rhs_terms = Vec::new();
+
+        // Collect RHS terms that have scalar variables and apply weights
+        for weighted_term in equation.terms() {
+            if let ScalarTerm::Var(scalar_var) = weighted_term.term.scalar {
+                let group_var = weighted_term.term.elem;
+                let weight = &weighted_term.weight;
+
+                if weight.is_zero_vartime() {
+                    continue; // Skip zero weights
+                }
+
+                let canonical_group_var =
+                    self.get_or_create_weighted_group_var(group_var, weight, allocator)?;
+
+                rhs_terms.push((scalar_var, canonical_group_var));
+                self.relation.scalar_vars.insert(scalar_var);
+            }
+        }
+
+        // Compute the canonical image by subtracting constant terms from the original image
+        let mut canonical_image = allocator.get_element(image_var)?;
+        for weighted_term in equation.terms() {
+            if let ScalarTerm::Unit = weighted_term.term.scalar {
+                let group_val = allocator.get_element(weighted_term.term.elem)?;
+                canonical_image -= group_val * weighted_term.weight;
+            }
+        }
+
+        // Only include constraints that are non-trivial (not zero constraints).
+        if rhs_terms.is_empty() {
+            if canonical_image.is_identity().into() {
+                return Ok(());
+            }
+            return Err(InvalidInstance::new(
+                "trivially false constraint: constraint has empty right-hand side and non-identity left-hand side",
+            ));
+        }
+
+        let canonical_image_group_var = self
+            .relation
+            .group_elements
+            .allocate_element_with(canonical_image);
+        self.relation.image.push(canonical_image_group_var);
+        self.relation.linear_combinations.push(rhs_terms);
+
+        Ok(())
+    }
+
+    fn build(self) -> CanonicalLinearRelation<G> {
+        self.relation
+    }
+}
+
+impl<G: PrimeGroup> Default for CanonicalLinearRelationBuilder<G> {
+    fn default() -> Self {
+        #[cfg(feature = "std")]
+        let weighted_group_cache = HashMap::new();
+        #[cfg(not(feature = "std"))]
+        let weighted_group_cache = HashMap::with_hasher(RandomState::new());
+
+        Self {
+            relation: CanonicalLinearRelation::new(),
+            weighted_group_cache,
+        }
     }
 }

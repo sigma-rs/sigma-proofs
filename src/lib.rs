@@ -85,7 +85,7 @@ pub use duplex_sponge::{
 };
 pub use fiat_shamir::Nizk;
 pub use group::msm::VariableMultiScalarMul;
-pub use linear_relation::LinearRelation;
+pub use linear_relation::{Allocator, LinearRelation};
 
 #[deprecated = "Use sigma_proofs::group::serialization instead"]
 pub use group::serialization;
