@@ -632,18 +632,6 @@ where
     }
 }
 
-impl<G: PrimeGroup, const N: usize> From<[(ScalarVar<G>, G::Scalar); N]> for ComposedWitness<G> {
-    fn from(value: [(ScalarVar<G>, G::Scalar); N]) -> Self {
-        Self::Simple(value.into())
-    }
-}
-
-impl<G: PrimeGroup> From<Vec<(ScalarVar<G>, G::Scalar)>> for ComposedWitness<G> {
-    fn from(value: Vec<(ScalarVar<G>, G::Scalar)>) -> Self {
-        Self::Simple(value.into())
-    }
-}
-
 impl<G> From<Vec<G::Scalar>> for ComposedWitness<G>
 where
     G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize + MultiScalarMul,
