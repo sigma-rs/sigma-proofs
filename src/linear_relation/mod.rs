@@ -34,22 +34,15 @@ use group::prime::PrimeGroup;
 use crate::errors::{Error, InvalidInstance};
 use crate::group::msm::MultiScalarMul;
 
-/// A wrapper representing an reference for a scalar variable.
+/// A reference for a scalar variable in a relation.
 ///
-/// Used to reference scalars in sparse linear combinations.
-#[derive(Debug, PartialEq, Eq)]
+/// This type is opaque
+#[derive(Debug)]
 pub struct ScalarVar<G>(usize, PhantomData<G>);
 
-impl<G> ScalarVar<G> {
-    // QUESTION: Should I mark this method as deprecated? It currently leaks the internal
-    // representation of the variable and may not be stable. It's not clear what valid use cases
-    // there are for this index.
-    pub fn index(&self) -> usize {
-        self.0
-    }
-}
-
-// Implement copy and clone for all G
+// Implement core traits for ScalarVar.
+// NOTE: Derive cannot be used because it requires all generic paramter types to implement the
+// derived trait. Instead, we provide a manual implementation over all G without bounds.
 impl<G> Copy for ScalarVar<G> {}
 impl<G> Clone for ScalarVar<G> {
     fn clone(&self) -> Self {
@@ -60,6 +53,46 @@ impl<G> Clone for ScalarVar<G> {
 impl<G> core::hash::Hash for ScalarVar<G> {
     fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         self.0.hash(state)
+    }
+}
+
+impl<G> PartialEq for ScalarVar<G> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+// TODO: As currently defined this is technically unsound in due to the "two distinct allocators"
+// case. Two options exist for trying to address this:
+// 1. Add a lifetime to ScalarVar that links it at a type system level to the allocator.
+// 2. Mark scalar vars by their allocator, and panic when vars from two distinct allocators are
+//    compared.
+impl<G> Eq for ScalarVar<G> {}
+
+/// Partial ordering for [`ScalarVar`].
+///
+/// Variables created by an allocator are ordered by the allocation, such that variables created
+/// earlier as "less" than variables created later. Variables created by two distinct allocators
+/// have no defined ordering.
+impl<G> PartialOrd for ScalarVar<G> {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        self.0.partial_cmp(&other.0)
+    }
+}
+
+// TODO: As currently defined this is technically unsound in due to the "two distinct allocators"
+// case. Two options exist for trying to address this:
+// 1. Add a lifetime to ScalarVar that links it at a type system level to the allocator.
+// 2. Mark scalar vars by their allocator, and panic when vars from two distinct allocators are
+//    compared.
+/// Total ordering for [`ScalarVar`].
+///
+/// Variables created by an allocator are ordered by the allocation, such that variables created
+/// earlier as "less" than variables created later. Variables created by two distinct allocators
+/// have no defined ordering.
+impl<G> Ord for ScalarVar<G> {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.partial_cmp(other).unwrap()
     }
 }
 
