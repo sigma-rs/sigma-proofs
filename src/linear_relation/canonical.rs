@@ -1,3 +1,4 @@
+use alloc::collections::BTreeSet;
 use alloc::format;
 use alloc::vec::Vec;
 use core::iter;
@@ -32,7 +33,11 @@ pub struct CanonicalLinearRelation<G: PrimeGroup> {
     /// The group elements map
     pub group_elements: GroupMap<G>,
     /// Set of scalar variables used in this relation.
-    pub scalar_vars: HashSet<ScalarVar<G>>,
+    // NOTE: We use an ordered set here to establish a canonical ordering of the variables, and
+    // allow a slice of values to have an unambiguous correspondence to variables. This is
+    // important to the wire format, as variable labels are never sent.
+    // TODO: Consider whether BTreeSet is the best struct to use here.
+    pub scalar_vars: BTreeSet<ScalarVar<G>>,
 }
 
 impl<G: PrimeGroup> Default for CanonicalLinearRelation<G> {
@@ -53,10 +58,10 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
     /// so that all instances guaranteed to be "good" relations over which the prover will want to make a proof.
     fn new() -> Self {
         Self {
-            image: Vec::new(),
-            linear_combinations: Vec::new(),
-            group_elements: GroupMap::default(),
-            scalar_vars: HashSet::default(),
+            image: Default::default(),
+            linear_combinations: Default::default(),
+            group_elements: Default::default(),
+            scalar_vars: Default::default(),
         }
     }
 
@@ -388,23 +393,6 @@ impl<G: PrimeGroup + MultiScalarMul, A: Allocator<G = G>> TryFrom<&LinearRelatio
         }
 
         Ok(builder.build())
-    }
-}
-
-impl<G: PrimeGroup + ConstantTimeEq + MultiScalarMul> CanonicalLinearRelation<G> {
-    /// Tests is the witness is valid.
-    ///
-    /// Returns a [`Choice`] indicating if the witness is valid for the instance constructed.
-    ///
-    /// # Panic
-    ///
-    /// Panics if the number of scalars given is less than the number of scalar variables.
-    /// If the number of scalars is more than the number of scalar variables, the extra elements are ignored.
-    pub fn is_witness_valid(&self, witness: impl ScalarAssignments<G>) -> Choice {
-        let got = self.evaluate(witness);
-        self.image_elements()
-            .zip_eq(got)
-            .fold(Choice::from(1), |acc, (lhs, rhs)| acc & lhs.ct_eq(&rhs))
     }
 }
 
