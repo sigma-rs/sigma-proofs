@@ -265,21 +265,3 @@ impl<G: Group> ScalarMap<G> {
         var.assign(self, value)
     }
 }
-
-/*
-#[non_exhaustive]
-pub struct StructuredRelation<G: PrimeGroup, Vars> {
-    pub vars: Vars,
-    pub relation: LinearRelation<G>,
-}
-
-impl<G: PrimeGroup, Vars: Allocate<G = G>> StructuredRelation<G, Vars> {
-    fn new() -> Self {
-        let mut relation = LinearRelation::new();
-        Self {
-            vars: relation.allocate(),
-            relation,
-        }
-    }
-}
-*/
