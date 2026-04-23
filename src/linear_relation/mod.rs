@@ -43,6 +43,8 @@ pub struct ScalarVar<G>(usize, PhantomData<G>);
 // Implement core traits for ScalarVar.
 // NOTE: Derive cannot be used because it requires all generic paramter types to implement the
 // derived trait. Instead, we provide a manual implementation over all G without bounds.
+// TODO: Include some metadata to determine if two variables come from the same allocator and use
+// it below.
 impl<G> Copy for ScalarVar<G> {}
 impl<G> Clone for ScalarVar<G> {
     fn clone(&self) -> Self {
@@ -56,22 +58,25 @@ impl<G> core::hash::Hash for ScalarVar<G> {
     }
 }
 
+/// Compare two variables, returning `true` if there are the same variable (i.e. the symbolically
+/// reference the same scalar).
+///
+/// Variables from two distinct allocators are unequal by definition.
 impl<G> PartialEq for ScalarVar<G> {
     fn eq(&self, other: &Self) -> bool {
         self.0 == other.0
     }
 }
 
-// TODO: As currently defined this is technically unsound in due to the "two distinct allocators"
-// case. Two options exist for trying to address this:
-// 1. Add a lifetime to ScalarVar that links it at a type system level to the allocator.
-// 2. Mark scalar vars by their allocator, and panic when vars from two distinct allocators are
-//    compared.
+/// Compare two variables, returning `true` if there are the same variable (i.e. the symbolically
+/// reference the same scalar).
+///
+/// Variables from two distinct allocators are unequal by definition.
 impl<G> Eq for ScalarVar<G> {}
 
 /// Partial ordering for [`ScalarVar`].
 ///
-/// Variables created by an allocator are ordered by the allocation, such that variables created
+/// Variables created by an allocator are ordered by their allocation, such that variables created
 /// earlier as "less" than variables created later. Variables created by two distinct allocators
 /// have no defined ordering.
 impl<G> PartialOrd for ScalarVar<G> {
@@ -80,16 +85,16 @@ impl<G> PartialOrd for ScalarVar<G> {
     }
 }
 
-// TODO: As currently defined this is technically unsound in due to the "two distinct allocators"
-// case. Two options exist for trying to address this:
-// 1. Add a lifetime to ScalarVar that links it at a type system level to the allocator.
-// 2. Mark scalar vars by their allocator, and panic when vars from two distinct allocators are
-//    compared.
 /// Total ordering for [`ScalarVar`].
 ///
 /// Variables created by an allocator are ordered by the allocation, such that variables created
-/// earlier as "less" than variables created later. Variables created by two distinct allocators
-/// have no defined ordering.
+/// earlier as "less" than variables created later.
+///
+/// # Panic
+///
+/// Variables created by two distinct allocators have no defined ordering. Comparing variables from
+/// two distinct allocators will result in a panic. This traits is provided for ease of use (e.g.
+/// with `slice::sort`).
 impl<G> Ord for ScalarVar<G> {
     fn cmp(&self, other: &Self) -> core::cmp::Ordering {
         self.partial_cmp(other).unwrap()
@@ -99,6 +104,8 @@ impl<G> Ord for ScalarVar<G> {
 /// A wrapper representing a reference for a group element (i.e. elliptic curve point).
 ///
 /// Used to reference group elements in sparse linear combinations.
+// TODO: If GroupVar has an ordering, then the CanonicalLinearRelation encoding could be made
+// invariant to order of the constraints and perhaps the building could be made more efficient.
 #[derive(Debug, PartialEq, Eq)]
 pub struct GroupVar<G>(usize, PhantomData<G>);
 
