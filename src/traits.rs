@@ -4,7 +4,9 @@
 //! used to describe interactive zero-knowledge proofs of knowledge,
 //! such as Schnorr proofs, that follow the 3-message Sigma protocol structure.
 
-use crate::errors::Result;
+use core::array;
+
+use crate::{errors::Result, linear_relation::ScalarAssignments};
 use alloc::vec::Vec;
 use group::Group;
 use spongefish::{Decoding, Encoding, NargDeserialize, NargSerialize};
@@ -16,8 +18,15 @@ use spongefish::{Decoding, Encoding, NargDeserialize, NargSerialize};
 /// Passing any cryptographically-secure random number generator (CSRNG) is
 /// recommended for creating proofs.
 pub trait ScalarRng {
-    fn random_scalars<G: Group, const N: usize>(&mut self) -> [G::Scalar; N];
-    fn random_scalars_vec<G: Group>(&mut self, n: usize) -> Vec<G::Scalar>;
+    fn random_scalar<G: Group>(&mut self) -> G::Scalar;
+
+    fn random_scalars<G: Group, const N: usize>(&mut self) -> [G::Scalar; N] {
+        array::from_fn(|_| self.random_scalar::<G>())
+    }
+
+    fn random_scalars_vec<G: Group>(&mut self, n: usize) -> Vec<G::Scalar> {
+        (0..n).map(|_| self.random_scalar::<G>()).collect()
+    }
 }
 
 pub type Transcript<P> = (
