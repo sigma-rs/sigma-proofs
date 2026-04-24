@@ -5,7 +5,7 @@
 //! through a group morphism abstraction (see [Maurer09](https://crypto-test.ethz.ch/publications/files/Maurer09.pdf)).
 
 use crate::errors::{Error, Result};
-use crate::linear_relation::CanonicalLinearRelation;
+use crate::linear_relation::{CanonicalLinearRelation, ScalarMap};
 use crate::traits::{ScalarRng, SigmaProtocol, SigmaProtocolSimulator, Transcript};
 use crate::{LinearRelation, MultiScalarMul, Nizk};
 use alloc::vec::Vec;
@@ -13,6 +13,7 @@ use itertools::Itertools;
 
 use group::prime::PrimeGroup;
 use spongefish::{Decoding, Encoding, NargDeserialize, NargSerialize};
+use subtle::{Choice, ConstantTimeEq};
 
 fn protocol_identifier_for_group<G>() -> [u8; 64] {
     let _ = core::marker::PhantomData::<G>;
@@ -47,10 +48,12 @@ where
     G::Scalar: Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]>,
 {
     type Commitment = G;
-    type ProverState = (Vec<G::Scalar>, Vec<G::Scalar>);
-    type Response = G::Scalar;
-    type Witness = Vec<G::Scalar>;
     type Challenge = G::Scalar;
+    /// Prover response to the challenge.
+    type Response = G::Scalar;
+    /// Prover state is a pair of (nonces, witness). Each scalar in the witness has a nonce.
+    type ProverState = (ScalarMap<G>, ScalarMap<G>);
+    type Witness = ScalarMap<G>;
 
     /// Prover's first message: generates a commitment using random nonces.
     ///
@@ -71,13 +74,24 @@ where
         witness: &Self::Witness,
         rng: &mut impl ScalarRng,
     ) -> Result<(Vec<Self::Commitment>, Self::ProverState)> {
-        if witness.len() != self.num_scalars {
-            return Err(Error::InvalidInstanceWitnessPair);
-        }
+        // Collect the scalars from the witness for variables in this relation.
+        // NOTE: The witness may have additional assignments e.g. in the case of composition.
+        // TODO: Should we be permissive in this way, or more restrictive?
+        let witness_state = self
+            .scalar_vars
+            .iter()
+            .map(|&var| Ok((var, witness.get(var)?)))
+            .collect::<Result<ScalarMap<G>>>()?;
 
-        let nonces = rng.random_scalars_vec::<G>(self.num_scalars);
+        // Create a random nonce for each scalar variable in the relation.
+        let nonces = self
+            .scalar_vars
+            .iter()
+            .map(|&var| (var, rng.random_scalar::<G>()))
+            .collect();
+
         let commitment = self.evaluate(&nonces);
-        let prover_state = (nonces.to_vec(), witness.to_vec());
+        let prover_state = (nonces, witness_state);
         Ok((commitment, prover_state))
     }
 
@@ -98,15 +112,16 @@ where
         challenge: &Self::Challenge,
     ) -> Result<Vec<Self::Response>> {
         let (nonces, witness) = prover_state;
-        if witness.len() != self.num_scalars || nonces.len() != self.num_scalars {
-            return Err(Error::InvalidInstanceWitnessPair);
-        }
 
-        let responses = nonces
-            .into_iter()
-            .zip_eq(witness)
-            .map(|(r, w)| r + w * challenge)
-            .collect();
+        let responses = self
+            .scalar_vars
+            .iter()
+            .map(|&var| {
+                let r = nonces.get(var)?;
+                let w = witness.get(var)?;
+                Ok(r + w * challenge)
+            })
+            .collect::<Result<_>>()?;
         Ok(responses)
     }
     /// Verifies the correctness of the proof.
@@ -131,11 +146,20 @@ where
         challenge: &Self::Challenge,
         response: &[Self::Response],
     ) -> Result<()> {
-        if commitment.len() != self.image.len() || response.len() != self.num_scalars {
+        if commitment.len() != self.image.len() || response.len() != self.scalar_vars.len() {
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
-        let lhs = self.evaluate(response);
+        // TODO: This allocation does feel a little wasteful, since evaluate _could_ match up the
+        // variables to slice positions internally.
+        let response_map: ScalarMap<G> = self
+            .scalar_vars
+            .iter()
+            .copied()
+            .zip_eq(response.iter().copied())
+            .collect();
+
+        let lhs = self.evaluate(response_map);
         let mut rhs = Vec::new();
         for (img, g) in self.image_elements().zip_eq(commitment) {
             rhs.push(img * challenge + g);
@@ -151,7 +175,7 @@ where
     }
 
     fn response_len(&self) -> usize {
-        self.num_scalars
+        self.scalar_vars.len()
     }
 
     fn instance_label(&self) -> impl AsRef<[u8]> {
@@ -261,7 +285,13 @@ where
 }
 impl<G> SigmaProtocolSimulator for CanonicalLinearRelation<G>
 where
-    G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize + MultiScalarMul,
+    // TODO: Should we split out `is_witness_valid` to avoid the ConstantTimeEq bound?
+    G: PrimeGroup
+        + Encoding<[u8]>
+        + NargSerialize
+        + NargDeserialize
+        + MultiScalarMul
+        + ConstantTimeEq,
     G::Scalar: Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]>,
 {
     /// Simulates a valid transcript for a given challenge without a witness.
@@ -273,7 +303,7 @@ where
     /// # Returns
     /// - A commitment and response forming a valid proof for the given challenge.
     fn simulate_response(&self, rng: &mut impl ScalarRng) -> Vec<Self::Response> {
-        rng.random_scalars_vec::<G>(self.num_scalars)
+        rng.random_scalars_vec::<G>(self.scalar_vars.len())
     }
 
     /// Simulates a full proof transcript using a randomly generated challenge.
@@ -306,9 +336,18 @@ where
         challenge: &Self::Challenge,
         response: &[Self::Response],
     ) -> Result<Vec<Self::Commitment>> {
-        if response.len() != self.num_scalars {
+        if response.len() != self.scalar_vars.len() {
             return Err(Error::InvalidInstanceWitnessPair);
         }
+
+        // TODO: This allocation does feel a little wasteful, since evaluate _could_ match up the
+        // variables to slice positions internally.
+        let response_map: ScalarMap<G> = self
+            .scalar_vars
+            .iter()
+            .copied()
+            .zip_eq(response.iter().copied())
+            .collect();
 
         // Evaluate the constraint linear combinations using the response scalars.
         // NOTE: This does not use CanonicalLinearRelation::evaluate because we also want to
@@ -317,7 +356,7 @@ where
             .map(|(constraint, img)| {
                 let scalars = constraint
                     .iter()
-                    .map(|(scalar_var, _)| response[scalar_var.index()])
+                    .map(|(scalar_var, _)| response_map.get(*scalar_var).unwrap())
                     .chain(core::iter::once(-*challenge))
                     .collect::<Vec<_>>();
                 let bases = constraint
@@ -330,5 +369,12 @@ where
             .collect();
 
         Ok(commitment)
+    }
+
+    fn is_witness_valid(&self, witness: &Self::Witness) -> Choice {
+        let got = self.evaluate(witness);
+        self.image_elements()
+            .zip_eq(got)
+            .fold(Choice::from(1), |acc, (lhs, rhs)| acc & lhs.ct_eq(&rhs))
     }
 }

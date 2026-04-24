@@ -3,12 +3,14 @@
 //! This module provides collections of group elements and scalars, [GroupMap] and [ScalarMap].
 //! These collections act as a mapping of opaque variable references to values.
 
-use alloc::vec::Vec;
+use alloc::collections::BTreeMap;
 use core::marker::PhantomData;
 use group::Group;
+use std::collections::btree_map;
 
 use super::{GroupVar, ScalarVar};
 
+// TODO: Also refactor GroupMap to match ScalarMap?
 /// Ordered mapping of [GroupVar] to group elements assignments.
 #[derive(Clone, Debug)]
 pub struct GroupMap<G>(Vec<Option<G>>);
@@ -123,20 +125,9 @@ impl<G: Group> FromIterator<(GroupVar<G>, G)> for GroupMap<G> {
 
 /// Ordered mapping of [ScalarVar] to scalar assignments.
 #[derive(Clone, Debug)]
-pub struct ScalarMap<G: Group>(Vec<Option<G::Scalar>>);
+pub struct ScalarMap<G: Group>(BTreeMap<ScalarVar<G>, G::Scalar>);
 
 impl<G: Group> ScalarMap<G> {
-    pub fn allocate_scalar(&mut self) -> ScalarVar<G> {
-        self.0.push(None);
-        ScalarVar(self.0.len() - 1, PhantomData)
-    }
-
-    /// Add a new scalar to the map and return its variable reference
-    pub fn allocate_scalar_with(&mut self, scalar: G::Scalar) -> ScalarVar<G> {
-        self.0.push(Some(scalar));
-        ScalarVar(self.0.len() - 1, PhantomData)
-    }
-
     /// Assign a scalar value to a variable.
     ///
     /// # Parameters
@@ -148,15 +139,16 @@ impl<G: Group> ScalarMap<G> {
     ///
     /// Panics if the given assignment conflicts with the existing assignment.
     pub fn assign_scalar(&mut self, var: ScalarVar<G>, scalar: G::Scalar) {
-        if self.0.len() <= var.0 {
-            self.0.resize(var.0 + 1, None);
-        } else if let Some(assignment) = self.0[var.0] {
-            assert_eq!(
-                assignment, scalar,
+        match self.0.entry(var) {
+            btree_map::Entry::Vacant(vacant_entry) => {
+                vacant_entry.insert(scalar);
+            }
+            btree_map::Entry::Occupied(occupied_entry) => assert_eq!(
+                *occupied_entry.get(),
+                scalar,
                 "conflicting assignments for var {var:?}"
-            )
-        }
-        self.0[var.0] = Some(scalar);
+            ),
+        };
     }
 
     /// Assigns specific scalars to variables.
@@ -179,52 +171,22 @@ impl<G: Group> ScalarMap<G> {
 
     /// Get the scalar value assigned to the given variable.
     ///
-    /// Returns [`InvalidInstance`] if a value is not assigned.
+    /// Returns [`UnassignedScalarVarError`] if a value is not assigned.
     pub fn get(&self, var: ScalarVar<G>) -> Result<G::Scalar, UnassignedScalarVarError> {
-        match self.0.get(var.0) {
-            Some(Some(elem)) => Ok(*elem),
-            Some(None) | None => Err(UnassignedScalarVarError(var.to_elided())),
-        }
+        self.0
+            .get(&var)
+            .copied()
+            .ok_or(UnassignedScalarVarError(var.to_elided()))
     }
 
     /// Iterate over the assigned variable and scalar pairs in this map.
-    // NOTE: Not implemented as `IntoIterator` for now because doing so requires explicitly
-    // defining an iterator type, See https://github.com/rust-lang/rust/issues/63063
-    #[allow(clippy::should_implement_trait)]
-    pub fn into_iter(self) -> impl Iterator<Item = (ScalarVar<G>, Option<G::Scalar>)> {
-        self.0
-            .into_iter()
-            .enumerate()
-            .map(|(i, x)| (ScalarVar(i, PhantomData), x))
-    }
-
-    /// Iterate over the assigned variable and scalar pairs in this map.
-    pub fn iter(&self) -> impl Iterator<Item = (ScalarVar<G>, Option<&G::Scalar>)> {
-        self.0
-            .iter()
-            .enumerate()
-            .map(|(i, opt)| (ScalarVar(i, PhantomData), opt.as_ref()))
+    pub fn iter(&self) -> impl Iterator<Item = (ScalarVar<G>, G::Scalar)> + use<'_, G> {
+        self.0.iter().map(|(var, val)| (*var, *val))
     }
 
     /// Iterate over the scalar variable references in this scalar map.
-    pub fn vars(&self) -> impl Iterator<Item = ScalarVar<G>> {
-        (0..self.0.len()).map(|i| ScalarVar(i, PhantomData))
-    }
-
-    pub fn zip<'a>(
-        &'a self,
-        other: &'a Self,
-    ) -> impl Iterator<Item = (ScalarVar<G>, Option<G::Scalar>, Option<G::Scalar>)> + use<'a, G>
-    {
-        // NOTE: Due to the packed representation, we know that var `i` is stored at position `i`.
-        // This simplifies the implementation by allowing iteration over the longer of the two to
-        // consider all allocated variables. `left` is the longer if different.
-        let (left, right) = match self.len() >= other.len() {
-            true => (self, other),
-            false => (other, self),
-        };
-        left.vars()
-            .map(|var| (var, left.get(var).ok(), right.get(var).ok()))
+    pub fn vars(&self) -> impl Iterator<Item = ScalarVar<G>> + use<'_, G> {
+        self.0.keys().copied()
     }
 
     /// Get the number of scalars in the map
@@ -240,7 +202,7 @@ impl<G: Group> ScalarMap<G> {
 
 impl<G: Group> Default for ScalarMap<G> {
     fn default() -> Self {
-        Self(Vec::default())
+        Self(Default::default())
     }
 }
 

@@ -6,10 +6,11 @@
 
 use core::array;
 
-use crate::{errors::Result, linear_relation::ScalarAssignments};
+use crate::errors::Result;
 use alloc::vec::Vec;
 use group::Group;
 use spongefish::{Decoding, Encoding, NargDeserialize, NargSerialize};
+use subtle::Choice;
 
 /// An automatic trait helper for sampling scalars from an RNG.
 ///
@@ -125,6 +126,11 @@ pub trait SigmaProtocol {
 /// - `simulate_proof`
 /// - `simulate_transcript`
 pub trait SigmaProtocolSimulator: SigmaProtocol {
+    /// Tests is the witness is valid.
+    ///
+    /// Returns a [`Choice`] indicating if the witness is valid for the instance constructed.
+    fn is_witness_valid(&self, witness: &Self::Witness) -> Choice;
+
     /// Generates a random response (e.g. for simulation or OR composition).
     ///
     /// Typically used to simulate a proof without a witness.

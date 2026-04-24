@@ -35,7 +35,9 @@ use crate::MultiScalarMul;
 use crate::{
     errors::Error,
     fiat_shamir::Nizk,
-    linear_relation::{Allocator, CanonicalLinearRelation, Heap, LinearRelation, ScalarAssignments, ScalarVar},
+    linear_relation::{
+        Allocator, CanonicalLinearRelation, Heap, LinearRelation, ScalarAssignments,
+    },
     traits::{SigmaProtocol, SigmaProtocolSimulator},
 };
 
@@ -602,10 +604,10 @@ where
 #[derive(Clone)]
 pub enum ComposedWitness<G>
 where
-    G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize + MultiScalarMul,
-    G::Scalar: Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]>,
+    G: PrimeGroup,
 {
-    Simple(<CanonicalLinearRelation<G> as SigmaProtocol>::Witness),
+    // NOTE: This must be equal to <CanonicalLinearRelation as SigmaProtocol>::Witness.
+    Simple(Vec<G::Scalar>),
     And(Vec<ComposedWitness<G>>),
     Or(Vec<ComposedWitness<G>>),
     Threshold(Vec<ComposedWitness<G>>),
@@ -613,8 +615,7 @@ where
 
 impl<G> ComposedWitness<G>
 where
-    G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize + MultiScalarMul,
-    G::Scalar: Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]>,
+    G: PrimeGroup,
 {
     /// Create a [ComposedWitness] for an AND relation from the given list of witnesses.
     pub fn and<T: Into<ComposedWitness<G>>>(witness: impl IntoIterator<Item = T>) -> Self {
@@ -632,11 +633,7 @@ where
     }
 }
 
-impl<G> From<Vec<G::Scalar>> for ComposedWitness<G>
-where
-    G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize + MultiScalarMul,
-    G::Scalar: Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]>,
-{
+impl<G: PrimeGroup> From<Vec<G::Scalar>> for ComposedWitness<G> {
     fn from(value: Vec<G::Scalar>) -> Self {
         Self::Simple(value)
     }
@@ -856,51 +853,6 @@ where
     G::Scalar:
         Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]> + ConditionallySelectable,
 {
-    fn is_witness_valid(&self, witness: &ComposedWitness<G>) -> Choice {
-        match (self, witness) {
-            (ComposedRelation::Simple(instance), ComposedWitness::Simple(witness)) => {
-                instance.is_witness_valid(witness)
-            }
-            (ComposedRelation::And(instances), ComposedWitness::And(witnesses)) => {
-                if instances.len() != witnesses.len() {
-                    return Choice::from(0);
-                }
-                instances
-                    .iter()
-                    .zip_eq(witnesses)
-                    .fold(Choice::from(1), |bit, (instance, witness)| {
-                        bit & instance.is_witness_valid(witness)
-                    })
-            }
-            (ComposedRelation::Or(instances), ComposedWitness::Or(witnesses)) => {
-                if instances.len() != witnesses.len() {
-                    return Choice::from(0);
-                }
-                instances
-                    .iter()
-                    .zip_eq(witnesses)
-                    .fold(Choice::from(0), |bit, (instance, witness)| {
-                        bit | instance.is_witness_valid(witness)
-                    })
-            }
-            (
-                ComposedRelation::Threshold(threshold, instances),
-                ComposedWitness::Threshold(witnesses),
-            ) => {
-                if *threshold == 0 || instances.len() != witnesses.len() {
-                    return Choice::from(0);
-                }
-                let mut count = 0usize;
-                for (instance, witness) in instances.iter().zip_eq(witnesses) {
-                    if instance.is_witness_valid(witness).unwrap_u8() == 1 {
-                        count += 1;
-                    }
-                }
-                Choice::from((count >= *threshold) as u8)
-            }
-            _ => Choice::from(0),
-        }
-    }
 }
 
 impl<G> ComposedRelation<G>
@@ -1776,6 +1728,52 @@ where
                     )],
                 ))
             }
+        }
+    }
+
+    fn is_witness_valid(&self, witness: &Self::Witness) -> Choice {
+        match (self, witness) {
+            (ComposedRelation::Simple(instance), ComposedWitness::Simple(witness)) => {
+                instance.is_witness_valid(witness)
+            }
+            (ComposedRelation::And(instances), ComposedWitness::And(witnesses)) => {
+                if instances.len() != witnesses.len() {
+                    return Choice::from(0);
+                }
+                instances
+                    .iter()
+                    .zip_eq(witnesses)
+                    .fold(Choice::from(1), |bit, (instance, witness)| {
+                        bit & instance.is_witness_valid(witness)
+                    })
+            }
+            (ComposedRelation::Or(instances), ComposedWitness::Or(witnesses)) => {
+                if instances.len() != witnesses.len() {
+                    return Choice::from(0);
+                }
+                instances
+                    .iter()
+                    .zip_eq(witnesses)
+                    .fold(Choice::from(0), |bit, (instance, witness)| {
+                        bit | instance.is_witness_valid(witness)
+                    })
+            }
+            (
+                ComposedRelation::Threshold(threshold, instances),
+                ComposedWitness::Threshold(witnesses),
+            ) => {
+                if *threshold == 0 || instances.len() != witnesses.len() {
+                    return Choice::from(0);
+                }
+                let mut count = 0usize;
+                for (instance, witness) in instances.iter().zip_eq(witnesses) {
+                    if instance.is_witness_valid(witness).unwrap_u8() == 1 {
+                        count += 1;
+                    }
+                }
+                Choice::from((count >= *threshold) as u8)
+            }
+            _ => Choice::from(0),
         }
     }
 }
