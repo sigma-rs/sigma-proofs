@@ -6,9 +6,7 @@ use core::marker::PhantomData;
 
 use ff::Field;
 use group::prime::PrimeGroup;
-use hashbrown::{HashMap, HashSet};
-use itertools::Itertools;
-use subtle::{Choice, ConstantTimeEq};
+use hashbrown::HashMap;
 
 use super::{
     GroupMap, GroupVar, LinearCombination, LinearRelation, ScalarAssignments, ScalarTerm, ScalarVar,
@@ -37,6 +35,7 @@ pub struct CanonicalLinearRelation<G: PrimeGroup> {
     // allow a slice of values to have an unambiguous correspondence to variables. This is
     // important to the wire format, as variable labels are never sent.
     // TODO: Consider whether BTreeSet is the best struct to use here.
+    // TODO: Should this and other fields be private?
     pub scalar_vars: BTreeSet<ScalarVar<G>>,
 }
 
@@ -65,7 +64,7 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
         }
     }
 
-    // QUESTION: Why does this currently panic when a variable is unassigned? Should this return
+    // TODO: Why does this currently panic when a variable is unassigned? Should this return
     // Result instead?
     /// Evaluate the canonical linear relation with the provided scalars
     ///
