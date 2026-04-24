@@ -70,6 +70,7 @@ pub enum Error {
     UnassignedGroupVarError(#[from] UnassignedGroupVarError),
 }
 
+/// Alias for `Result` with [Error] as the default error type.
 pub type Result<T, E = Error> = core::result::Result<T, E>;
 
 /// Construct an `Ok` value of type `Result<T, sigma_proofs::errors::Error>`.
