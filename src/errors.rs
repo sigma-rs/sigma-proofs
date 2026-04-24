@@ -70,7 +70,7 @@ pub enum Error {
     UnassignedGroupVarError(#[from] UnassignedGroupVarError),
 }
 
-pub type Result<T> = core::result::Result<T, Error>;
+pub type Result<T, E = Error> = core::result::Result<T, E>;
 
 /// Construct an `Ok` value of type `Result<T, sigma_proofs::errors::Error>`.
 pub const fn Ok<T>(value: T) -> Result<T> {
