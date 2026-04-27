@@ -1,9 +1,9 @@
 use group::{ff::Field, prime::PrimeGroup, Group};
 
 use sigma_proofs::{
-    linear_relation::{CanonicalLinearRelation, LinearRelation, Sum},
+    linear_relation::{CanonicalLinearRelation, LinearRelation, ScalarMap, Sum},
     traits::ScalarRng,
-    MultiScalarMul,
+    Allocator, MultiScalarMul,
 };
 
 pub(crate) fn random_elem<G: Group>(rng: &mut impl ScalarRng) -> G {
@@ -14,7 +14,7 @@ pub(crate) fn random_elem<G: Group>(rng: &mut impl ScalarRng) -> G {
     G::generator() * x
 }
 
-type Return<G> = (CanonicalLinearRelation<G>, Vec<<G as Group>::Scalar>);
+type Return<G> = (CanonicalLinearRelation<G>, ScalarMap<G>);
 
 /// LinearMap for knowledge of a discrete logarithm relative to a fixed basepoint.
 #[allow(non_snake_case)]
@@ -27,13 +27,13 @@ pub fn discrete_logarithm<G: PrimeGroup + MultiScalarMul>(rng: &mut impl ScalarR
 
     let var_X = relation.allocate_eq(var_x * var_G);
 
-    relation.set_element(var_G, G::generator());
-    relation.compute_image(&[x]).unwrap();
+    relation.assign_element(var_G, G::generator());
+    relation.compute_image([(var_x, x)]).unwrap();
 
-    let X = relation.linear_map.group_elements.get(var_X).unwrap();
+    let X = relation.heap.get_element(var_X).unwrap();
 
     assert_eq!(X, G::generator() * x);
-    let witness = vec![x];
+    let witness = [(var_x, x)].into();
     let instance = (&relation).try_into().unwrap();
     (instance, witness)
 }
@@ -51,10 +51,10 @@ pub fn shifted_dlog<G: PrimeGroup + MultiScalarMul>(rng: &mut impl ScalarRng) ->
     // another way of writing this is:
     relation.append_equation(var_X, (var_x + G::Scalar::from(1)) * var_G);
 
-    relation.set_element(var_G, G::generator());
-    relation.compute_image(&[x]).unwrap();
+    relation.assign_element(var_G, G::generator());
+    relation.compute_image([(var_x, x)]).unwrap();
 
-    let witness = vec![x];
+    let witness = [(var_x, x)].into();
     let instance = (&relation).try_into().unwrap();
     (instance, witness)
 }
@@ -72,15 +72,15 @@ pub fn dleq<G: PrimeGroup + MultiScalarMul>(rng: &mut impl ScalarRng) -> Return<
     let var_X = relation.allocate_eq(var_x * var_G);
     let var_Y = relation.allocate_eq(var_x * var_H);
 
-    relation.set_elements([(var_G, G::generator()), (var_H, H)]);
-    relation.compute_image(&[x]).unwrap();
+    relation.assign_elements([(var_G, G::generator()), (var_H, H)]);
+    relation.compute_image([(var_x, x)]).unwrap();
 
-    let X = relation.linear_map.group_elements.get(var_X).unwrap();
-    let Y = relation.linear_map.group_elements.get(var_Y).unwrap();
+    let X = relation.heap.get_element(var_X).unwrap();
+    let Y = relation.heap.get_element(var_Y).unwrap();
 
     assert_eq!(X, G::generator() * x);
     assert_eq!(Y, H * x);
-    let witness = vec![x];
+    let witness = [(var_x, x)].into();
     let instance = (&relation).try_into().unwrap();
     (instance, witness)
 }
@@ -98,15 +98,15 @@ pub fn shifted_dleq<G: PrimeGroup + MultiScalarMul>(rng: &mut impl ScalarRng) ->
     let var_X = relation.allocate_eq(var_x * var_G + var_H);
     let var_Y = relation.allocate_eq(var_x * var_H + var_G);
 
-    relation.set_elements([(var_G, G::generator()), (var_H, H)]);
-    relation.compute_image(&[x]).unwrap();
+    relation.assign_elements([(var_G, G::generator()), (var_H, H)]);
+    relation.compute_image([(var_x, x)]).unwrap();
 
-    let X = relation.linear_map.group_elements.get(var_X).unwrap();
-    let Y = relation.linear_map.group_elements.get(var_Y).unwrap();
+    let X = relation.heap.get_element(var_X).unwrap();
+    let Y = relation.heap.get_element(var_Y).unwrap();
 
     assert_eq!(X, G::generator() * x + H);
     assert_eq!(Y, H * x + G::generator());
-    let witness = vec![x];
+    let witness = [(var_x, x)].into();
     let instance = (&relation).try_into().unwrap();
     (instance, witness)
 }
@@ -123,12 +123,12 @@ pub fn pedersen_commitment<G: PrimeGroup + MultiScalarMul>(rng: &mut impl Scalar
 
     let var_C = relation.allocate_eq(var_x * var_G + var_r * var_H);
 
-    relation.set_elements([(var_H, H), (var_G, G::generator())]);
-    relation.compute_image(&[x, r]).unwrap();
+    relation.assign_elements([(var_H, H), (var_G, G::generator())]);
+    relation.compute_image([(var_x, x), (var_r, r)]).unwrap();
 
-    let C = relation.linear_map.group_elements.get(var_C).unwrap();
+    let C = relation.heap.get_element(var_C).unwrap();
 
-    let witness = vec![x, r];
+    let witness = [(var_x, x), (var_r, r)].into();
     assert_eq!(C, G::generator() * x + H * r);
     let instance = (&relation).try_into().unwrap();
     (instance, witness)
@@ -150,10 +150,10 @@ pub fn twisted_pedersen_commitment<G: PrimeGroup + MultiScalarMul>(
             + (var_r * G::Scalar::from(2) + G::Scalar::from(3)) * var_H,
     );
 
-    relation.set_elements([(var_H, H), (var_G, G::generator())]);
-    relation.compute_image(&[x, r]).unwrap();
+    relation.assign_elements([(var_H, H), (var_G, G::generator())]);
+    relation.compute_image([(var_x, x), (var_r, r)]).unwrap();
 
-    let witness = vec![x, r];
+    let witness = [(var_x, x), (var_r, r)].into();
     let instance = (&relation).try_into().unwrap();
     (instance, witness)
 }
@@ -237,18 +237,17 @@ pub fn range_instance_generation<G: PrimeGroup + MultiScalarMul>(
     let s2 = (0..bases.len())
         .map(|i| (G::Scalar::ONE - b[i]) * s[i])
         .collect::<Vec<_>>();
-    let witness = [x, r]
-        .iter()
-        .chain(&b)
-        .chain(&s)
-        .chain(&s2)
-        .copied()
-        .collect::<Vec<_>>();
+    let witness: ScalarMap<G> = std::iter::once((var_x, x))
+        .chain(std::iter::once((var_r, r)))
+        .chain(vars_b.iter().copied().zip(b.iter().copied()))
+        .chain(vars_s.iter().copied().zip(s.iter().copied()))
+        .chain(var_s2.iter().copied().zip(s2.iter().copied()))
+        .collect();
 
-    instance.set_elements([(var_G, G), (var_H, H)]);
-    instance.set_element(var_C, G * x + H * r);
+    instance.assign_elements([(var_G, G), (var_H, H)]);
+    instance.assign_element(var_C, G * x + H * r);
     for i in 0..bases.len() {
-        instance.set_element(var_Ds[i], G * b[i] + H * s[i]);
+        instance.assign_element(var_Ds[i], G * b[i] + H * s[i]);
     }
 
     (instance.canonical().unwrap(), witness)
@@ -293,7 +292,7 @@ pub fn bbs_blind_commitment<G: PrimeGroup + MultiScalarMul>(rng: &mut impl Scala
             + var_msg_3 * var_J_3,
     );
 
-    relation.set_elements([
+    relation.assign_elements([
         (var_Q_2, Q_2),
         (var_J_1, J_1),
         (var_J_2, J_2),
@@ -301,9 +300,15 @@ pub fn bbs_blind_commitment<G: PrimeGroup + MultiScalarMul>(rng: &mut impl Scala
         (var_C, C),
     ]);
 
-    let witness = vec![secret_prover_blind, msg_1, msg_2, msg_3];
+    let witness: ScalarMap<G> = [
+        (var_secret_prover_blind, secret_prover_blind),
+        (var_msg_1, msg_1),
+        (var_msg_2, msg_2),
+        (var_msg_3, msg_3),
+    ]
+    .into();
 
-    assert!(vec![C] == relation.linear_map.evaluate(&witness).unwrap());
+    assert!(vec![C] == relation.evaluate(&witness).unwrap());
     let instance = (&relation).try_into().unwrap();
     (instance, witness)
 }
@@ -324,16 +329,18 @@ pub fn weird_linear_combination<G: PrimeGroup + MultiScalarMul>(
     let sigma__eq1 = sigma__lr.allocate_eq(A * G::Scalar::from(1) + gen__disj1_x_r_var * var_B);
 
     // Set the group elements
-    sigma__lr.set_elements([(A, G::generator()), (var_B, B)]);
-    sigma__lr.compute_image(&[gen__disj1_x_r]).unwrap();
+    sigma__lr.assign_elements([(A, G::generator()), (var_B, B)]);
+    sigma__lr
+        .compute_image([(gen__disj1_x_r_var, gen__disj1_x_r)])
+        .unwrap();
 
-    let result = sigma__lr.linear_map.group_elements.get(sigma__eq1).unwrap();
+    let result = sigma__lr.heap.get_element(sigma__eq1).unwrap();
 
     // Verify the relation computes correctly
     let expected = G::generator() + B * gen__disj1_x_r;
     assert_eq!(result, expected);
 
-    let witness = vec![gen__disj1_x_r];
+    let witness = [(gen__disj1_x_r_var, gen__disj1_x_r)].into();
     let instance = (&sigma__lr).try_into().unwrap();
     (instance, witness)
 }
@@ -348,11 +355,11 @@ pub fn simple_subtractions<G: PrimeGroup + MultiScalarMul>(rng: &mut impl Scalar
     let var_x = linear_relation.allocate_scalar();
     let var_B = linear_relation.allocate_element();
     let var_X = linear_relation.allocate_eq((var_x + (-G::Scalar::from(1))) * var_B);
-    linear_relation.set_element(var_B, B);
-    linear_relation.set_element(var_X, X);
+    linear_relation.assign_element(var_B, B);
+    linear_relation.assign_element(var_X, X);
 
     let instance = (&linear_relation).try_into().unwrap();
-    let witness = vec![x];
+    let witness = [(var_x, x)].into();
     (instance, witness)
 }
 
@@ -369,10 +376,10 @@ pub fn subtractions_with_shift<G: PrimeGroup + MultiScalarMul>(
     let var_B = linear_relation.allocate_element();
     let var_X = linear_relation.allocate_eq((var_x + (-G::Scalar::from(1))) * var_B + (-var_B));
 
-    linear_relation.set_element(var_B, B);
-    linear_relation.set_element(var_X, X);
+    linear_relation.assign_element(var_B, B);
+    linear_relation.assign_element(var_X, X);
     let instance = (&linear_relation).try_into().unwrap();
-    let witness = vec![x];
+    let witness = [(var_x, x)].into();
     (instance, witness)
 }
 
@@ -404,18 +411,27 @@ pub fn cmz_wallet_spend_relation<G: PrimeGroup + MultiScalarMul>(
     let var_C = relation
         .allocate_eq((var_n_balance + var_i_price + fee) * var_P_W + var_z_w_balance * var_A);
 
-    relation.set_elements([(var_P_W, P_W), (var_A, A)]);
+    relation.assign_elements([(var_P_W, P_W), (var_A, A)]);
 
     // Include fee in the witness
     relation
-        .compute_image(&[n_balance, i_price, z_w_balance])
+        .compute_image([
+            (var_n_balance, n_balance),
+            (var_i_price, i_price),
+            (var_z_w_balance, z_w_balance),
+        ])
         .unwrap();
 
-    let C = relation.linear_map.group_elements.get(var_C).unwrap();
+    let C = relation.heap.get_element(var_C).unwrap();
     let expected = P_W * w_balance + A * z_w_balance;
     assert_eq!(C, expected);
 
-    let witness = vec![n_balance, i_price, z_w_balance];
+    let witness = [
+        (var_n_balance, n_balance),
+        (var_i_price, i_price),
+        (var_z_w_balance, z_w_balance),
+    ]
+    .into();
     let instance = (&relation).try_into().unwrap();
     (instance, witness)
 }
@@ -436,11 +452,11 @@ pub fn nested_affine_relation<G: PrimeGroup + MultiScalarMul>(
     let B = random_elem(rng);
     let [r] = rng.random_scalars::<G, _>();
     let C = A * G::Scalar::from(4) + B * (r * G::Scalar::from(2) + G::Scalar::from(3));
-    instance.set_element(var_A, A);
-    instance.set_element(var_B, B);
-    instance.set_element(eq1, C);
+    instance.assign_element(var_A, A);
+    instance.assign_element(var_B, B);
+    instance.assign_element(eq1, C);
 
-    let witness = vec![r];
+    let witness = [(var_r, r)].into();
     let instance = CanonicalLinearRelation::try_from(&instance).unwrap();
     (instance, witness)
 }
@@ -457,10 +473,10 @@ pub fn pedersen_commitment_equality<G: PrimeGroup + MultiScalarMul>(
     instance.allocate_eq(var_G * m + var_H * r1);
     instance.allocate_eq(var_G * m + var_H * r2);
 
-    instance.set_elements([(var_G, G::generator()), (var_H, random_elem(rng))]);
+    instance.assign_elements([(var_G, G::generator()), (var_H, random_elem(rng))]);
 
-    let mut witness = vec![G::Scalar::from(42)];
-    witness.extend_from_slice(&rng.random_scalars::<G, 2>());
+    let [r1_val, r2_val] = rng.random_scalars::<G, 2>();
+    let witness: ScalarMap<G> = [(m, G::Scalar::from(42)), (r1, r1_val), (r2, r2_val)].into();
     instance.compute_image(&witness).unwrap();
 
     (instance.canonical().unwrap(), witness)
@@ -482,16 +498,16 @@ pub fn elgamal_subtraction<G: PrimeGroup + MultiScalarMul>(rng: &mut impl Scalar
     let witness_dk = G::Scalar::from(4242);
     let witness_a = G::Scalar::from(1000);
     let [witness_r] = rng.random_scalars::<G, _>();
-    let witness = vec![witness_dk, witness_a, witness_r];
+    let witness: ScalarMap<G> = [(dk, witness_dk), (a, witness_a), (r, witness_r)].into();
 
     // Assign group elements consistent with the witness so compute_image is unnecessary.
     let [alt_gen_log] = rng.random_scalars::<G, _>();
     let alt_gen = G::generator() * alt_gen_log;
-    instance.set_elements([(G, G::generator()), (H, alt_gen)]);
+    instance.assign_elements([(G, G::generator()), (H, alt_gen)]);
     let ek_val = alt_gen * witness_dk;
     let D_val = alt_gen * witness_r;
     let C_val = ek_val * witness_r + G::generator() * witness_a;
-    instance.set_elements([(ek, ek_val), (D, D_val), (C, C_val)]);
+    instance.assign_elements([(ek, ek_val), (D, D_val), (C, C_val)]);
 
     (instance.canonical().unwrap(), witness)
 }
