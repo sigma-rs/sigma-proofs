@@ -25,7 +25,6 @@ pub use allocator::{Allocator, Heap};
 
 use alloc::vec::Vec;
 use collections::{UnassignedGroupVarError, UnassignedScalarVarError};
-use core::iter;
 use core::marker::PhantomData;
 
 use ff::Field;
@@ -80,6 +79,7 @@ impl<G> Eq for ScalarVar<G> {}
 /// earlier as "less" than variables created later. Variables created by two distinct allocators
 /// have no defined ordering.
 impl<G> PartialOrd for ScalarVar<G> {
+    #[expect(clippy::non_canonical_partial_ord_impl)]
     fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
         self.0.partial_cmp(&other.0)
     }
@@ -290,7 +290,7 @@ impl<G: PrimeGroup, A: Allocator<G = G>> LinearRelation<G, A> {
         }
 
         let mapped_scalars: Vec<(GroupVar<G>, G)> =
-            iter::zip(self.image.iter().copied(), self.evaluate(scalars)?).collect();
+            itertools::zip_eq(self.image.iter().copied(), self.evaluate(scalars)?).collect();
 
         self.heap.assign_elements(mapped_scalars);
         Ok(())
