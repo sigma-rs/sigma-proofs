@@ -351,7 +351,7 @@ impl<G: PrimeGroup + MultiScalarMul, A: Allocator<G = G>> TryFrom<&LinearRelatio
         let mut builder = CanonicalLinearRelationBuilder::default();
         for (lhs, rhs) in iter::zip(&relation.image, &relation.linear_combinations) {
             // If any group element in the image is not assigned, return `InvalidInstance`.
-            let lhs_value = relation.heap.get_element(*lhs)?;
+            let lhs_value = relation.allocator.get_element(*lhs)?;
 
             // Compute the constant terms on the right-hand side of the equation.
             // If any group element in the linear constraints is not assigned, return `InvalidInstance`.
@@ -360,7 +360,7 @@ impl<G: PrimeGroup + MultiScalarMul, A: Allocator<G = G>> TryFrom<&LinearRelatio
                 .iter()
                 .filter(|term| matches!(term.term.scalar, ScalarTerm::Unit))
                 .map(|term| {
-                    let elem = relation.heap.get_element(term.term.elem)?;
+                    let elem = relation.allocator.get_element(term.term.elem)?;
                     let scalar = term.weight;
                     Ok((elem, scalar))
                 })

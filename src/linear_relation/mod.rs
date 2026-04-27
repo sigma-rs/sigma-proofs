@@ -203,7 +203,7 @@ pub type LinearCombination<G> = Sum<Weighted<Term<G>, <G as group::Group>::Scala
 pub struct LinearRelation<G: PrimeGroup, A = Heap<G>> {
     /// The set of linear combination constraints (equations).
     pub linear_combinations: Vec<LinearCombination<G>>,
-    pub heap: A,
+    pub allocator: A,
     /// References pointing to elements representing the "target" images for each constraint.
     pub image: Vec<GroupVar<G>>,
 }
@@ -213,7 +213,7 @@ impl<G: PrimeGroup> LinearRelation<G> {
     pub fn new() -> Self {
         Self {
             linear_combinations: Vec::new(),
-            heap: Default::default(),
+            allocator: Default::default(),
             image: Vec::new(),
         }
     }
@@ -224,7 +224,7 @@ impl<G: PrimeGroup, A: Allocator<G = G>> LinearRelation<G, A> {
     pub fn new_in(allocator: A) -> Self {
         Self {
             linear_combinations: Vec::new(),
-            heap: allocator,
+            allocator,
             image: Vec::new(),
         }
     }
@@ -292,7 +292,7 @@ impl<G: PrimeGroup, A: Allocator<G = G>> LinearRelation<G, A> {
         let mapped_scalars: Vec<(GroupVar<G>, G)> =
             itertools::zip_eq(self.image.iter().copied(), self.evaluate(scalars)?).collect();
 
-        self.heap.assign_elements(mapped_scalars);
+        self.allocator.assign_elements(mapped_scalars);
         Ok(())
     }
 
@@ -305,7 +305,7 @@ impl<G: PrimeGroup, A: Allocator<G = G>> LinearRelation<G, A> {
     pub fn image(&self) -> Result<Vec<G>, UnassignedGroupVarError> {
         self.image
             .iter()
-            .map(|&var| self.heap.get_element(var))
+            .map(|&var| self.allocator.get_element(var))
             .collect()
     }
 
@@ -338,7 +338,7 @@ impl<G: PrimeGroup, A: Allocator<G = G>> LinearRelation<G, A> {
                         .collect::<Result<Vec<_>, UnassignedScalarVarError>>()?;
                 let elements =
                     lc.0.iter()
-                        .map(|weighted| self.heap.get_element(weighted.term.elem))
+                        .map(|weighted| self.allocator.get_element(weighted.term.elem))
                         .collect::<Result<Vec<_>, _>>()?;
                 Ok(G::msm(&weighted_coefficients, &elements))
             })
@@ -361,19 +361,19 @@ impl<G: PrimeGroup, A: Allocator<G = G>> Allocator for LinearRelation<G, A> {
 
     /// Allocates a scalar variable for use in the linear map.
     fn allocate_scalar(&mut self) -> ScalarVar<G> {
-        self.heap.allocate_scalar()
+        self.allocator.allocate_scalar()
     }
 
     /// Allocates a group element variable (i.e. elliptic curve point) for use in the linear map.
     fn allocate_element(&mut self) -> GroupVar<G> {
-        self.heap.allocate_element()
+        self.allocator.allocate_element()
     }
 
     fn assign_element(&mut self, var: GroupVar<Self::G>, element: Self::G) {
-        self.heap.assign_element(var, element)
+        self.allocator.assign_element(var, element)
     }
 
     fn get_element(&self, var: GroupVar<Self::G>) -> Result<Self::G, UnassignedGroupVarError> {
-        self.heap.get_element(var)
+        self.allocator.get_element(var)
     }
 }

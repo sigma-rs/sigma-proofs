@@ -30,7 +30,7 @@ pub fn discrete_logarithm<G: PrimeGroup + MultiScalarMul>(rng: &mut impl ScalarR
     relation.assign_element(var_G, G::generator());
     relation.compute_image([(var_x, x)]).unwrap();
 
-    let X = relation.heap.get_element(var_X).unwrap();
+    let X = relation.allocator.get_element(var_X).unwrap();
 
     assert_eq!(X, G::generator() * x);
     let witness = [(var_x, x)].into();
@@ -75,8 +75,8 @@ pub fn dleq<G: PrimeGroup + MultiScalarMul>(rng: &mut impl ScalarRng) -> Return<
     relation.assign_elements([(var_G, G::generator()), (var_H, H)]);
     relation.compute_image([(var_x, x)]).unwrap();
 
-    let X = relation.heap.get_element(var_X).unwrap();
-    let Y = relation.heap.get_element(var_Y).unwrap();
+    let X = relation.allocator.get_element(var_X).unwrap();
+    let Y = relation.allocator.get_element(var_Y).unwrap();
 
     assert_eq!(X, G::generator() * x);
     assert_eq!(Y, H * x);
@@ -101,8 +101,8 @@ pub fn shifted_dleq<G: PrimeGroup + MultiScalarMul>(rng: &mut impl ScalarRng) ->
     relation.assign_elements([(var_G, G::generator()), (var_H, H)]);
     relation.compute_image([(var_x, x)]).unwrap();
 
-    let X = relation.heap.get_element(var_X).unwrap();
-    let Y = relation.heap.get_element(var_Y).unwrap();
+    let X = relation.allocator.get_element(var_X).unwrap();
+    let Y = relation.allocator.get_element(var_Y).unwrap();
 
     assert_eq!(X, G::generator() * x + H);
     assert_eq!(Y, H * x + G::generator());
@@ -126,7 +126,7 @@ pub fn pedersen_commitment<G: PrimeGroup + MultiScalarMul>(rng: &mut impl Scalar
     relation.assign_elements([(var_H, H), (var_G, G::generator())]);
     relation.compute_image([(var_x, x), (var_r, r)]).unwrap();
 
-    let C = relation.heap.get_element(var_C).unwrap();
+    let C = relation.allocator.get_element(var_C).unwrap();
 
     let witness = [(var_x, x), (var_r, r)].into();
     assert_eq!(C, G::generator() * x + H * r);
@@ -334,7 +334,7 @@ pub fn weird_linear_combination<G: PrimeGroup + MultiScalarMul>(
         .compute_image([(gen__disj1_x_r_var, gen__disj1_x_r)])
         .unwrap();
 
-    let result = sigma__lr.heap.get_element(sigma__eq1).unwrap();
+    let result = sigma__lr.allocator.get_element(sigma__eq1).unwrap();
 
     // Verify the relation computes correctly
     let expected = G::generator() + B * gen__disj1_x_r;
@@ -422,7 +422,7 @@ pub fn cmz_wallet_spend_relation<G: PrimeGroup + MultiScalarMul>(
         ])
         .unwrap();
 
-    let C = relation.heap.get_element(var_C).unwrap();
+    let C = relation.allocator.get_element(var_C).unwrap();
     let expected = P_W * w_balance + A * z_w_balance;
     assert_eq!(C, expected);
 
