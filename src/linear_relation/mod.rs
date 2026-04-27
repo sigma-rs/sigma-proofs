@@ -203,6 +203,7 @@ pub type LinearCombination<G> = Sum<Weighted<Term<G>, <G as group::Group>::Scala
 pub struct LinearRelation<G: PrimeGroup, A = Heap<G>> {
     /// The set of linear combination constraints (equations).
     pub linear_combinations: Vec<LinearCombination<G>>,
+    // TODO(victor): Should the allocator be pub? We provide a pass-through impl Allocator for LinearRelation
     pub allocator: A,
     /// References pointing to elements representing the "target" images for each constraint.
     pub image: Vec<GroupVar<G>>,

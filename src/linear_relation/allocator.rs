@@ -173,14 +173,15 @@ where
 }
 
 // TODO(victor/scalarvars) Rename this from Heap. Its not really a heap.
+#[non_exhaustive]
 #[derive(Clone, Debug)]
 pub struct Heap<G> {
-    pub elements: GroupMap<G>,
+    elements: GroupMap<G>,
     // TODO(victor/scalarvars): Should this be a ScalarMap? I hesitate to do so because I don't
     // really want to store witness values on a struct like this. One particular reason for this is
     // that this is a member of LinearRelation, which seems ok, but we do not want to carry the
     // witness assignments in that struct as we convert it to a CanonicalRelation or Nizk.
-    pub num_scalars: usize,
+    num_scalars: usize,
 }
 
 impl<G> Default for Heap<G> {
