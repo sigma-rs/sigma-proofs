@@ -30,6 +30,7 @@ use spongefish::{
 use subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
 
 use crate::errors::InvalidInstance;
+use crate::linear_relation::ScalarMap;
 use crate::traits::ScalarRng;
 use crate::MultiScalarMul;
 use crate::{
@@ -892,22 +893,21 @@ where
 
     fn prover_commit_and(
         protocols: &[ComposedRelation<G>],
-        witnesses: &[ComposedWitness<G>],
+        witness: &ScalarMap<G>,
         rng: &mut impl ScalarRng,
     ) -> Result<(ComposedCommitment<G>, ComposedProverState<G>), Error> {
-        if protocols.len() != witnesses.len() {
-            return Err(Error::InvalidInstanceWitnessPair);
-        }
-
         let mut commitments = Vec::with_capacity(protocols.len());
         let mut prover_states = Vec::with_capacity(protocols.len());
 
-        for (p, w) in protocols.iter().zip_eq(witnesses.iter()) {
-            let (mut c, s) = p.prover_commit(w, rng)?;
+        for p in protocols {
+            let (mut c, s) = p.prover_commit(witness, rng)?;
+
+            // NOTE: c should contain exactly one challenge value.
             let commitment = c.pop().ok_or(Error::InvalidInstanceWitnessPair)?;
             if !c.is_empty() {
                 return Err(Error::InvalidInstanceWitnessPair);
             }
+
             commitments.push(commitment);
             prover_states.push(s);
         }
@@ -941,23 +941,24 @@ where
 
     fn prover_commit_or(
         instances: &[ComposedRelation<G>],
-        witnesses: &[ComposedWitness<G>],
+        witness: &ScalarMap<G>,
         rng: &mut impl ScalarRng,
     ) -> Result<(ComposedCommitment<G>, ComposedProverState<G>), Error>
     where
         G: ConditionallySelectable,
     {
-        if instances.len() != witnesses.len() {
-            return Err(Error::InvalidInstanceWitnessPair);
-        }
-
         let mut commitments = Vec::new();
         let mut prover_states = Vec::new();
 
-        // Selector value set when the first valid witness is found.
+        // Produce a commitment with the given witness and with a simulator for each branch.
+        // Conditionally select exactly one branch with a valid witness to use in the response.
+        // NOTE: Each commitment vec should have exactly one commitment,
+        // TODO: All of these pop and check patterns are fairly annoying. Is there another way?
         let mut valid_witness_found = Choice::from(0);
-        for (i, w) in witnesses.iter().enumerate() {
-            let (mut commitment_vec, prover_state) = instances[i].prover_commit(w, rng)?;
+        for instance in instances.iter() {
+            // Produce a commitment using the given witness.
+            // NOTE: This witness may not be valid.
+            let (mut commitment_vec, prover_state) = instance.prover_commit(witness, rng)?;
             let commitment = commitment_vec
                 .pop()
                 .ok_or(Error::InvalidInstanceWitnessPair)?;
@@ -965,8 +966,9 @@ where
                 return Err(Error::InvalidInstanceWitnessPair);
             }
 
+            // Produce a transcript using the simulator.
             let (mut simulated_commitment_vec, simulated_challenge, mut simulated_response_vec) =
-                instances[i].simulate_transcript(rng)?;
+                instance.simulate_transcript(rng)?;
             let simulated_commitment = simulated_commitment_vec
                 .pop()
                 .ok_or(Error::InvalidInstanceWitnessPair)?;
@@ -980,8 +982,8 @@ where
                 return Err(Error::InvalidInstanceWitnessPair);
             }
 
-            let valid_witness = instances[i].is_witness_valid(w) & !valid_witness_found;
-            let select_witness = valid_witness;
+            // Conditionally select the commitment for the first valid witness.
+            let select_witness = instance.is_witness_valid(witness) & !valid_witness_found;
 
             let commitment = ComposedCommitment::conditional_select(
                 &simulated_commitment,
@@ -997,9 +999,13 @@ where
                 simulated_response,
             ));
 
-            valid_witness_found |= valid_witness;
+            valid_witness_found |= select_witness;
         }
 
+        // TODO: This unwrap could reveal which branch of a multi-level composition has an invalid
+        // witness. It's possible to construct a toy example in which this oracle would leak
+        // significant deatils about the witness. It is unclear how large this impact is or what
+        // could reasonably be done to prevent it.
         if valid_witness_found.unwrap_u8() == 0 {
             Err(Error::InvalidInstanceWitnessPair)
         } else {
@@ -1074,21 +1080,20 @@ where
     fn prover_commit_threshold(
         threshold: usize,
         instances: &[ComposedRelation<G>],
-        witnesses: &[ComposedWitness<G>],
+        witness: &ScalarMap<G>,
         rng: &mut impl ScalarRng,
     ) -> Result<(ComposedCommitment<G>, ComposedProverState<G>), Error>
     where
         G: ConditionallySelectable,
     {
-        if instances.len() != witnesses.len() || threshold == 0 || threshold > instances.len() {
+        if threshold == 0 || threshold > instances.len() {
             return Err(Error::InvalidInstanceWitnessPair);
         }
         let degree = instances.len() - threshold;
 
         let valid_witnesses = instances
             .iter()
-            .zip_eq(witnesses.iter())
-            .map(|(x, w)| x.is_witness_valid(w))
+            .map(|instance| instance.is_witness_valid(witness))
             .collect::<Vec<Choice>>();
 
         // Degree-(t-1) interpolation can only satisfy t fixed points.
@@ -1100,7 +1105,7 @@ where
         let mut remaining_seeds = (degree - invalid_count) as u32;
         let mut commitments = Vec::with_capacity(instances.len());
         let mut prover_states = Vec::with_capacity(instances.len());
-        for (i, (instance, witness)) in instances.iter().zip_eq(witnesses.iter()).enumerate() {
+        for (i, instance) in instances.iter().enumerate() {
             let (mut commitment_vec, prover_state) = instance.prover_commit(witness, rng)?;
             let commitment = commitment_vec
                 .pop()
@@ -1248,7 +1253,7 @@ where
     type Commitment = ComposedCommitment<G>;
     type ProverState = ComposedProverState<G>;
     type Response = ComposedResponse<G>;
-    type Witness = ComposedWitness<G>;
+    type Witness = ScalarMap<G>;
     type Challenge = ComposedChallenge<G>;
 
     fn prover_commit(
@@ -1256,20 +1261,13 @@ where
         witness: &Self::Witness,
         rng: &mut impl ScalarRng,
     ) -> Result<(Vec<Self::Commitment>, Self::ProverState), Error> {
-        let (commitment, state) = match (self, witness) {
-            (ComposedRelation::Simple(p), ComposedWitness::Simple(w)) => {
-                Self::prover_commit_simple(p, w, rng)
+        let (commitment, state) = match self {
+            ComposedRelation::Simple(p) => Self::prover_commit_simple(p, witness, rng),
+            ComposedRelation::And(ps) => Self::prover_commit_and(ps, witness, rng),
+            ComposedRelation::Or(ps) => Self::prover_commit_or(ps, witness, rng),
+            ComposedRelation::Threshold(threshold, ps) => {
+                Self::prover_commit_threshold(*threshold, ps, witness, rng)
             }
-            (ComposedRelation::And(ps), ComposedWitness::And(ws)) => {
-                Self::prover_commit_and(ps, ws, rng)
-            }
-            (ComposedRelation::Or(ps), ComposedWitness::Or(witnesses)) => {
-                Self::prover_commit_or(ps, witnesses, rng)
-            }
-            (ComposedRelation::Threshold(threshold, ps), ComposedWitness::Threshold(witnesses)) => {
-                Self::prover_commit_threshold(*threshold, ps, witnesses, rng)
-            }
-            _ => Err(Error::InvalidInstanceWitnessPair),
         }?;
         Ok((vec![commitment], state))
     }
@@ -1732,48 +1730,34 @@ where
     }
 
     fn is_witness_valid(&self, witness: &Self::Witness) -> Choice {
-        match (self, witness) {
-            (ComposedRelation::Simple(instance), ComposedWitness::Simple(witness)) => {
-                instance.is_witness_valid(witness)
+        match self {
+            ComposedRelation::Simple(instance) => instance.is_witness_valid(witness),
+            ComposedRelation::And(instances) => {
+                instances.iter().fold(Choice::from(1), |bit, instance| {
+                    bit & instance.is_witness_valid(witness)
+                })
             }
-            (ComposedRelation::And(instances), ComposedWitness::And(witnesses)) => {
-                if instances.len() != witnesses.len() {
+            ComposedRelation::Or(instances) => {
+                instances.iter().fold(Choice::from(0), |bit, instance| {
+                    bit | instance.is_witness_valid(witness)
+                })
+            }
+
+            ComposedRelation::Threshold(threshold, instances) => {
+                // NOTE: If threshold is 0, the instance is invalid.
+                if *threshold == 0 {
                     return Choice::from(0);
                 }
-                instances
-                    .iter()
-                    .zip_eq(witnesses)
-                    .fold(Choice::from(1), |bit, (instance, witness)| {
-                        bit & instance.is_witness_valid(witness)
-                    })
-            }
-            (ComposedRelation::Or(instances), ComposedWitness::Or(witnesses)) => {
-                if instances.len() != witnesses.len() {
-                    return Choice::from(0);
-                }
-                instances
-                    .iter()
-                    .zip_eq(witnesses)
-                    .fold(Choice::from(0), |bit, (instance, witness)| {
-                        bit | instance.is_witness_valid(witness)
-                    })
-            }
-            (
-                ComposedRelation::Threshold(threshold, instances),
-                ComposedWitness::Threshold(witnesses),
-            ) => {
-                if *threshold == 0 || instances.len() != witnesses.len() {
-                    return Choice::from(0);
-                }
+                // TODO: This could result in timing leakage on invalid witnesses. If we want to
+                // eliminate such timing leakage, some care about need to be taken.
                 let mut count = 0usize;
-                for (instance, witness) in instances.iter().zip_eq(witnesses) {
+                for instance in instances {
                     if instance.is_witness_valid(witness).unwrap_u8() == 1 {
                         count += 1;
                     }
                 }
                 Choice::from((count >= *threshold) as u8)
             }
-            _ => Choice::from(0),
         }
     }
 }

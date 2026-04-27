@@ -19,7 +19,6 @@
 
 mod relations;
 
-use core::{array::from_fn, iter::repeat_with};
 use std::{
     hint::black_box,
     sync::LazyLock,
@@ -33,9 +32,9 @@ use rand_chacha::{rand_core::SeedableRng, ChaCha12Rng};
 use serial_test::serial;
 use sigma_proofs::{
     composition::{ComposedRelation, ComposedWitness},
-    linear_relation::{CanonicalLinearRelation, Sum},
+    linear_relation::{CanonicalLinearRelation, ScalarMap, Sum},
     traits::{ScalarRng, SigmaProtocol, SigmaProtocolSimulator},
-    LinearRelation, Nizk,
+    Allocator, LinearRelation, Nizk,
 };
 
 use crate::stats::{ct_stats, CtSummary};
@@ -103,16 +102,21 @@ fn baseline() {
 
 fn wide_relation<const WIDTH: usize>(
     rng: &mut impl ScalarRng,
-) -> (CanonicalLinearRelation<G>, Vec<Scalar>) {
+) -> (CanonicalLinearRelation<G>, ScalarMap<G>) {
     let mut rel = LinearRelation::<G>::new();
-    let constraint: Sum<_> = (0..WIDTH)
-        .map(|_| rel.allocate_scalar() * rel.allocate_element_with(relations::random_elem(rng)))
+    let scalar_vars = rel.allocate_scalars::<WIDTH>();
+    let constraint: Sum<_> = scalar_vars
+        .iter()
+        .map(|&scalar_var| scalar_var * rel.allocate_element_with(relations::random_elem(rng)))
         .sum();
     let _ = rel.allocate_eq(constraint);
 
-    let wit = rng.random_scalars::<G, WIDTH>();
+    let wit = scalar_vars
+        .iter()
+        .map(|&var| (var, rng.random_scalar::<G>()))
+        .collect();
     rel.compute_image(&wit).unwrap();
-    (rel.try_into().unwrap(), wit.to_vec())
+    (rel.try_into().unwrap(), wit)
 }
 
 /// Create two OR composition instances, one with the left branch false and one with the right
@@ -170,12 +174,8 @@ where
 struct FixedRng;
 
 impl ScalarRng for FixedRng {
-    fn random_scalars<G: Group, const N: usize>(&mut self) -> [G::Scalar; N] {
-        from_fn(|_| <G::Scalar as Field>::ONE)
-    }
-
-    fn random_scalars_vec<G: Group>(&mut self, n: usize) -> Vec<G::Scalar> {
-        repeat_with(|| <G::Scalar as Field>::ONE).take(n).collect()
+    fn random_scalar<G: Group>(&mut self) -> G::Scalar {
+        <G::Scalar as Field>::ONE
     }
 }
 

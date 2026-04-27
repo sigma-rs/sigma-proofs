@@ -42,7 +42,7 @@ fn prove(x: Scalar) -> Result<Vec<u8>, Error> {
     relation.compute_image(witness)?;
     relation
         .into_nizk(b"sigma-proofs-example")?
-        .prove_batchable(witness, &mut OsRng)
+        .prove_batchable(&witness.into(), &mut OsRng)
 }
 
 /// Verify a proof of knowledge of discrete logarithm for the given public key P
