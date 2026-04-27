@@ -31,7 +31,7 @@ use group::{ff::Field, Group};
 use rand_chacha::{rand_core::SeedableRng, ChaCha12Rng};
 use serial_test::serial;
 use sigma_proofs::{
-    composition::{ComposedRelation, ComposedWitness},
+    composition::ComposedRelation,
     linear_relation::{CanonicalLinearRelation, ScalarMap, Sum},
     traits::{ScalarRng, SigmaProtocol, SigmaProtocolSimulator},
     Allocator, LinearRelation, Nizk,
@@ -207,29 +207,12 @@ trait FalsifyWitness {
     fn falsify(self) -> Self;
 }
 
-impl FalsifyWitness for Vec<Scalar> {
+impl FalsifyWitness for ScalarMap<G> {
     fn falsify(self) -> Self {
         // Assumes that the zero-witness is false for all relations.
         // This is not strictly true, since you can have trivial relation for which the zero
         // witness if valid.
-        (0..self.len()).map(|_| Scalar::ZERO).collect()
-    }
-}
-
-impl FalsifyWitness for ComposedWitness<G> {
-    fn falsify(self) -> Self {
-        match self {
-            ComposedWitness::Simple(wit) => ComposedWitness::Simple(wit.falsify()),
-            ComposedWitness::And(items) => ComposedWitness::And(items.falsify()),
-            ComposedWitness::Or(items) => ComposedWitness::Or(items.falsify()),
-            ComposedWitness::Threshold(items) => ComposedWitness::Threshold(items.falsify()),
-        }
-    }
-}
-
-impl FalsifyWitness for Vec<ComposedWitness<G>> {
-    fn falsify(self) -> Self {
-        self.into_iter().map(|x| x.falsify()).collect()
+        self.iter().map(|(var, _)| (var, Scalar::ZERO)).collect()
     }
 }
 
@@ -251,15 +234,28 @@ where
     FR: InstanceFn<R>,
     FL::Protocol: Into<ComposedRelation<G>>,
     FR::Protocol: Into<ComposedRelation<G>>,
-    <FL::Protocol as SigmaProtocol>::Witness: Into<ComposedWitness<G>>,
-    <FR::Protocol as SigmaProtocol>::Witness: Into<ComposedWitness<G>>,
+    <FL::Protocol as SigmaProtocol>::Witness: Into<ScalarMap<G>>,
+    <FR::Protocol as SigmaProtocol>::Witness: Into<ScalarMap<G>>,
 {
     move |rng| {
         let (left_rel, left_wit) = left(rng);
         let (right_rel, right_wit) = right(rng);
+        // TODO: This is actually a broken pattern. Two or branches should not share variables, and
+        // both branches should use the same allocator. To solve this, we need to change the way
+        // compositions are constructed.
+        // Merge witnesses: left values take precedence; right adds only vars not already present.
+        // Both sub-protocols may share ScalarVar indices (independent allocators), so we can't
+        // assign conflicting values — we keep left's value and fill in any extra vars from right.
+        let mut combined: ScalarMap<G> = left_wit.into();
+        let right_map: ScalarMap<G> = right_wit.into();
+        for (var, val) in right_map.iter() {
+            if combined.get(var).is_err() {
+                combined.assign_scalar(var, val);
+            }
+        }
         (
             ComposedRelation::or([left_rel.into(), right_rel.into()]),
-            ComposedWitness::or([left_wit.into(), right_wit.into()]),
+            combined,
         )
     }
 }
