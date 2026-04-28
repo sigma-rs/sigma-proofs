@@ -63,7 +63,7 @@ group = "0.13.0"
 itertools = { version = "0.14", default-features = false }
 k256 = { workspace = true, features = ["arithmetic", "alloc"], optional = true }
 p256 = { workspace = true, features = ["arithmetic"], optional = true }
-rand_core = { version = "0.6", default-features = false }
+rand_core = { version = "0.10", default-features = false }
 sha3 = { workspace = true }
 spongefish = { version = "0.6" }
 subtle = { version = "2.6.1", default-features = false }
