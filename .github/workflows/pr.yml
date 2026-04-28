@@ -92,6 +92,8 @@ jobs:
       - name: Build
         run: cargo build --workspace --target wasm32-wasip1 --verbose
       - name: Test
+        env:
+          WASMTIME_BACKTRACE_DETAILS: "1"
         run: cargo test --workspace --target wasm32-wasip1 --verbose --no-fail-fast
 
   bench:
@@ -111,7 +113,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@nightly
-      - run: cargo doc --workspace --all-features --no-deps
+      - run: cargo +nightly doc --workspace --all-features --no-deps
 
   # Anchor job for branch protection. Point required status checks at this.
   # see: https://github.com/orgs/community/discussions/26822
