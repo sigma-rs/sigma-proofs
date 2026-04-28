@@ -93,8 +93,8 @@ impl<const N: usize, D: Digest> CheckExpandMsgXmdParams<D, N> {
         // NOTE: This ensures that domain separators of all lengths can be used, applying
         // compression as needed.
         assert!(
-            <D::OutputSize as Unsigned>::USIZE < u8::MAX as usize,
-            "expand_message_xm requires the digest output size to be at most 255 bytes",
+            <D::OutputSize as Unsigned>::USIZE <= u8::MAX as usize,
+            "expand_message_xmd requires the digest output size to be at most 255 bytes",
         )
     };
 }
