@@ -281,4 +281,3 @@ where
     xof.finalize_xof().read(&mut output);
     output
 }
-
