@@ -13,8 +13,6 @@
 //! - `p256` — [`FromUniformBytes`] / [`FromHash`] for `p256::ProjectivePoint`.
 
 #![no_std]
-#![deny(unused_variables)]
-#![deny(unused_mut)]
 
 use bytemuck::Zeroable;
 
