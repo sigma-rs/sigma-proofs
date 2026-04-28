@@ -6,7 +6,7 @@ impl FromUniformBytes for RistrettoPoint {
     type Bytes = [u8; 64];
 
     fn from_uniform_bytes(bytes: &Self::Bytes) -> Self {
-        Self::from_uniform_bytes(bytes)
+        RistrettoPoint::from_uniform_bytes(bytes)
     }
 }
 
