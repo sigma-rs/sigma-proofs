@@ -240,6 +240,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5d20789868f4b01b2f2caec9f5c4e0213b41e3e5702a50157d699ae31ced2fcb"
 
 [[package]]
+name = "bytemuck"
+version = "1.25.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c8efb64bd706a16a1bdde310ae86b351e4d21550d98d056f22f8a7f7a2183fec"
+
+[[package]]
 name = "cc"
 version = "1.2.60"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -708,6 +714,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "hash2group"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "curve25519-dalek",
+ "digest 0.11.2",
+ "elliptic-curve",
+ "hex-literal",
+ "k256",
+ "p256",
+ "sha2 0.11.0",
+ "sha3",
+]
+
+[[package]]
 name = "hashbrown"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -736,9 +757,9 @@ checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
 name = "hex-literal"
-version = "1.1.0"
+version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e712f64ec3850b98572bffac52e2c6f282b29fe6c5fa6d42334b30be438d95c1"
+checksum = "6fe2267d4ed49bc07b63801559be28c718ea06c4738b7a03c94df7386d2cde46"
 
 [[package]]
 name = "hmac"
@@ -857,15 +878,6 @@ dependencies = [
  "once_cell",
  "sha2 0.10.9",
  "signature",
-]
-
-[[package]]
-name = "keccak"
-version = "0.1.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cb26cec98cce3a3d96cbb7bced3c4b16e3d13f27ec56dbd62cbc8f39cfb9d653"
-dependencies = [
- "cpufeatures 0.2.17",
 ]
 
 [[package]]
@@ -1556,22 +1568,12 @@ dependencies = [
 
 [[package]]
 name = "sha3"
-version = "0.10.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77fd7028345d415a4034cf8777cd4f8ab1851274233b45f84e3d955502d93874"
-dependencies = [
- "digest 0.10.7",
- "keccak 0.1.6",
-]
-
-[[package]]
-name = "sha3"
 version = "0.11.0-rc.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b233a7d59d7bfc027208506a33ffc9532b2acb24ddc61fe7e758dc2250db431"
 dependencies = [
  "digest 0.11.2",
- "keccak 0.2.0",
+ "keccak",
 ]
 
 [[package]]
@@ -1603,7 +1605,8 @@ dependencies = [
  "serde_json",
  "serde_with",
  "serial_test",
- "sha3 0.10.9",
+ "sha2 0.11.0",
+ "sha3",
  "spongefish",
  "subtle",
  "thiserror",
@@ -1667,7 +1670,7 @@ dependencies = [
  "p3-koala-bear",
  "rand 0.8.6",
  "sha2 0.11.0",
- "sha3 0.11.0-rc.9",
+ "sha3",
  "zeroize",
 ]
 
