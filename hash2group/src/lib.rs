@@ -143,7 +143,7 @@ pub trait FromHash<H: ExpandMessage>: FromUniformBytes {
 
 /// Hash a byte string into a group element under a domain separation tag.
 ///
-/// Complimenting [`FromHash`], this method is implemented on the hasher rather than the group.
+/// Complementing [`FromHash`], this method is implemented on the hasher rather than the group.
 /// See [`FromHash`] for more information and implementation properties.
 ///
 /// # Example
