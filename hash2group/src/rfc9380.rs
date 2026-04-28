@@ -210,7 +210,7 @@ impl<X: CollisionResistance, const N: usize> CheckExpandMsgXofParams<X, N> {
         let cr_bytes = <X::CollisionResistance as Unsigned>::USIZE;
         let compressed_dst_len = if 2 * cr_bytes > 32 { 2 * cr_bytes } else { 32 };
         assert!(
-            compressed_dst_len < u8::MAX as usize,
+            compressed_dst_len <= u8::MAX as usize,
             "expand_message_xof requires the compressed DST length (max(2k/8, 32) bytes) to be at most 255 bytes",
         );
     };
