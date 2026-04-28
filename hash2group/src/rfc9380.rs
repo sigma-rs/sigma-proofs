@@ -263,7 +263,7 @@ where
 
         // Compute the collision resistance value k to determine the compressed length.
         let cr_bytes = <X::CollisionResistance as Unsigned>::USIZE;
-        let compressed_dst_len = 2 * cr_bytes;
+        let compressed_dst_len = usize::max(2 * cr_bytes, 32);
 
         // NOTE: Use the max length such that this works for any collision resistance.
         compressed_dst = [0u8; 255];
