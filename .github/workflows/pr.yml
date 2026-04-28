@@ -94,6 +94,7 @@ jobs:
       - name: Test
         env:
           WASMTIME_BACKTRACE_DETAILS: "1"
+          DUDECT_DUMP_SAMPLES: "1"
         run: cargo test --workspace --target wasm32-wasip1 --verbose --no-fail-fast
 
   bench:

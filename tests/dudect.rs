@@ -29,6 +29,7 @@ use std::{
 use curve25519_dalek::{RistrettoPoint as G, Scalar};
 use group::{ff::Field, Group};
 
+use rand::Rng;
 use rand_chacha::{rand_core::SeedableRng, ChaCha12Rng};
 use serial_test::serial;
 use sigma_proofs::{
@@ -61,6 +62,7 @@ mod relation_ct_tests {
             fn $name() {
                 set_core_affinity().ok();
                 let stats = compare::<CanonicalLinearRelation<G>>(
+                    stringify!($name),
                     relations::$name.distribution(&mut rand::thread_rng()),
                     relations::$name.distribution(&mut FixedRng),
                 );
@@ -94,6 +96,7 @@ mod relation_ct_tests {
 fn baseline() {
     set_core_affinity().ok();
     let stats = compare::<CanonicalLinearRelation<G>>(
+        "baseline",
         relations::pedersen_commitment.distribution(&mut rand::thread_rng()),
         relations::pedersen_commitment.distribution(&mut rand::thread_rng()),
     );
@@ -122,6 +125,7 @@ fn wide_relation<const WIDTH: usize>(
 fn test_ct_or_composition() {
     set_core_affinity().ok();
     let stats = compare(
+        "test_ct_or_composition",
         or(relations::pedersen_commitment, falsify(wide_relation::<16>))
             .distribution(&mut rand::thread_rng()),
         or(falsify(relations::pedersen_commitment), wide_relation::<16>)
@@ -132,19 +136,67 @@ fn test_ct_or_composition() {
 }
 
 fn compare<P: SigmaProtocol<Challenge = Scalar> + SigmaProtocolSimulator>(
+    name: &str,
     mut left: impl InstanceDist<Protocol = P>,
     mut right: impl InstanceDist<Protocol = P>,
 ) -> CtSummary {
+    // Randomize per-pair sampling order so monotonic drift in the host environment (thermal
+    // ramp, neighbor activity, frequency scaling) is not attributed to one class.
+    let mut rng = rand::thread_rng();
     let (left_times, right_times): (Vec<u64>, Vec<u64>) = (0..*SAMPLES)
         .map(|_| {
-            (
-                time_prove(left()).as_nanos() as u64,
-                time_prove(right()).as_nanos() as u64,
-            )
+            if rng.gen::<bool>() {
+                let l = time_prove(left()).as_nanos() as u64;
+                let r = time_prove(right()).as_nanos() as u64;
+                (l, r)
+            } else {
+                let r = time_prove(right()).as_nanos() as u64;
+                let l = time_prove(left()).as_nanos() as u64;
+                (l, r)
+            }
         })
         .collect();
 
+    if std::env::var_os("DUDECT_DUMP_SAMPLES").is_some() {
+        dump_samples(name, &left_times, &right_times);
+    }
+
     ct_stats(&left_times, &right_times)
+}
+
+/// Print a summary of the timing samples and the raw paired data, so that a CI failure can be
+/// diagnosed as a single outlier vs a systematic mean shift between the two distributions.
+fn dump_samples(name: &str, left: &[u64], right: &[u64]) {
+    fn summarize(name: &str, side: &str, samples: &[u64]) {
+        let n = samples.len();
+        let mut sorted = samples.to_vec();
+        sorted.sort_unstable();
+        let pct = |p: f64| -> u64 {
+            let idx = (((n as f64 - 1.0) * p).round() as usize).min(n - 1);
+            sorted[idx]
+        };
+        let mean = sorted.iter().sum::<u64>() as f64 / n as f64;
+        let var = sorted
+            .iter()
+            .map(|&x| (x as f64 - mean).powi(2))
+            .sum::<f64>()
+            / (n as f64 - 1.0);
+        println!(
+            "dudect-summary test={name} side={side} n={n} mean={mean:.0} sd={sd:.0} \
+             min={min} p01={p01} p50={p50} p99={p99} max={max}",
+            sd = var.sqrt(),
+            min = sorted[0],
+            p01 = pct(0.01),
+            p50 = pct(0.5),
+            p99 = pct(0.99),
+            max = sorted[n - 1],
+        );
+    }
+    summarize(name, "left", left);
+    summarize(name, "right", right);
+    for (i, (&l, &r)) in itertools::zip_eq(left, right).enumerate() {
+        println!("dudect-raw test={name} i={i} left={l} right={r}");
+    }
 }
 
 /// Time the call to [Nizk::prove_compact] with the given relation and witness.
