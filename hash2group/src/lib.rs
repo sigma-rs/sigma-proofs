@@ -179,7 +179,6 @@ where
     ///     .hasher_into(b"HashInto::hasher_into::docs");
     /// # }
     /// ```
-    // TODO: hasher_into is not my favorite name for a method ever
     fn hasher_into(self, domain: &[u8]) -> T {
         T::from_hasher(domain, self)
     }
