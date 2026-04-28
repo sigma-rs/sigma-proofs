@@ -45,6 +45,7 @@ hashbrown = { version = "0.17.0", default-features = false, features = ["default
 itertools = { version = "0.14", default-features = false }
 k256 = { version = "0.13.4", default-features = false, features = ["arithmetic", "alloc"], optional = true }
 p256 = { version = "0.13", default-features = false, features = ["arithmetic"], optional = true }
+radium = { version = "1.1.1", default-features = false }
 rand_core = { version = "0.6", default-features = false }
 sha3 = { version = "0.10.8", default-features = false }
 spongefish = { version = "0.6" }

@@ -625,8 +625,12 @@ mod tests {
     use curve25519_dalek::RistrettoPoint as G;
     use curve25519_dalek::Scalar;
 
-    fn scalar_var(i: usize) -> ScalarVar<G> {
-        ScalarVar(i, PhantomData)
+    fn scalar_var(i: u32) -> ScalarVar<G> {
+        ScalarVar {
+            index: i,
+            tag: u32::MAX,
+            phantom_g: PhantomData,
+        }
     }
 
     fn group_var(i: usize) -> GroupVar<G> {

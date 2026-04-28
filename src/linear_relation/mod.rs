@@ -33,11 +33,14 @@ use group::prime::PrimeGroup;
 use crate::errors::{Error, InvalidInstance};
 use crate::group::msm::MultiScalarMul;
 
+// NOTE: This type is intended to opaque.
 /// A reference for a scalar variable in a relation.
-///
-/// This type is opaque
 #[derive(Debug)]
-pub struct ScalarVar<G>(usize, PhantomData<G>);
+pub struct ScalarVar<G> {
+    index: u32,
+    tag: u32,
+    phantom_g: PhantomData<G>,
+}
 
 // Implement core traits for ScalarVar.
 // NOTE: Derive cannot be used because it requires all generic paramter types to implement the
@@ -53,7 +56,8 @@ impl<G> Clone for ScalarVar<G> {
 
 impl<G> core::hash::Hash for ScalarVar<G> {
     fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
-        self.0.hash(state)
+        self.tag.hash(state);
+        self.index.hash(state);
     }
 }
 
@@ -63,7 +67,7 @@ impl<G> core::hash::Hash for ScalarVar<G> {
 /// Variables from two distinct allocators are unequal by definition.
 impl<G> PartialEq for ScalarVar<G> {
     fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
+        self.tag == other.tag && self.index == other.index
     }
 }
 
@@ -79,22 +83,20 @@ impl<G> Eq for ScalarVar<G> {}
 /// earlier as "less" than variables created later. Variables created by two distinct allocators
 /// have no defined ordering.
 impl<G> PartialOrd for ScalarVar<G> {
-    #[expect(clippy::non_canonical_partial_ord_impl)]
     fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
-        self.0.partial_cmp(&other.0)
+        match self.tag.partial_cmp(&other.tag) {
+            Some(core::cmp::Ordering::Equal) => {}
+            ord => return ord,
+        }
+        self.index.partial_cmp(&other.index)
     }
 }
 
 /// Total ordering for [`ScalarVar`].
 ///
 /// Variables created by an allocator are ordered by the allocation, such that variables created
-/// earlier as "less" than variables created later.
-///
-/// # Panic
-///
-/// Variables created by two distinct allocators have no defined ordering. Comparing variables from
-/// two distinct allocators will result in a panic. This traits is provided for ease of use (e.g.
-/// with `slice::sort`).
+/// earlier as "less" than variables created later. Variables created by two distinct allocators
+/// have no defined ordering.
 impl<G> Ord for ScalarVar<G> {
     fn cmp(&self, other: &Self) -> core::cmp::Ordering {
         self.partial_cmp(other).unwrap()

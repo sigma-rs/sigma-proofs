@@ -287,7 +287,11 @@ impl<G> GroupVar<G> {
 
 impl<G> ScalarVar<G> {
     fn to_elided(self) -> ScalarVar<Elided> {
-        ScalarVar(self.0, PhantomData)
+        ScalarVar {
+            tag: self.tag,
+            index: self.index,
+            phantom_g: PhantomData,
+        }
     }
 }
 

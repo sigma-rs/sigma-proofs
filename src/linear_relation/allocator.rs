@@ -1,7 +1,8 @@
-use core::{array, cell::RefCell, marker::PhantomData};
+use core::{array, cell::RefCell, marker::PhantomData, sync::atomic::Ordering};
 use std::rc::Rc;
 
 use group::Group;
+use radium::types::RadiumU32;
 
 use crate::{
     errors::UnassignedGroupVarError,
@@ -173,21 +174,27 @@ where
     }
 }
 
+/// A counter for the number of allocator that have been created. Used to assign a unique tag to
+/// each allocator, and thereby give each its own domain.
+static ALLOCATOR_COUNT: RadiumU32 = RadiumU32::new(0);
+
 // TODO(victor/scalarvars) Rename this from Heap. Its not really a heap.
 #[non_exhaustive]
 #[derive(Clone, Debug)]
 pub struct Heap<G> {
+    tag: u32,
     elements: GroupMap<G>,
     // TODO(victor/scalarvars): Should this be a ScalarMap? I hesitate to do so because I don't
     // really want to store witness values on a struct like this. One particular reason for this is
     // that this is a member of LinearRelation, which seems ok, but we do not want to carry the
     // witness assignments in that struct as we convert it to a CanonicalRelation or Nizk.
-    num_scalars: usize,
+    num_scalars: u32,
 }
 
 impl<G> Default for Heap<G> {
     fn default() -> Self {
         Self {
+            tag: ALLOCATOR_COUNT.fetch_add(1, Ordering::Relaxed),
             elements: Default::default(),
             num_scalars: 0,
         }
@@ -199,7 +206,11 @@ impl<G: Group> Allocator for Heap<G> {
 
     fn allocate_scalar(&mut self) -> ScalarVar<Self::G> {
         self.num_scalars += 1;
-        ScalarVar(self.num_scalars - 1, PhantomData)
+        ScalarVar {
+            tag: self.tag,
+            index: self.num_scalars - 1,
+            phantom_g: PhantomData,
+        }
     }
 
     fn allocate_element(&mut self) -> GroupVar<Self::G> {

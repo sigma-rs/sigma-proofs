@@ -1,8 +1,7 @@
-use alloc::collections::BTreeSet;
+use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::format;
 use alloc::vec::Vec;
 use core::iter;
-use core::marker::PhantomData;
 
 use ff::Field;
 use group::prime::PrimeGroup;
@@ -13,7 +12,7 @@ use super::{
 };
 use crate::errors::{Error, InvalidInstance};
 use crate::group::msm::MultiScalarMul;
-use crate::linear_relation::Allocator;
+use crate::linear_relation::{Allocator, Heap};
 
 /// A [`LinearRelation`] in canonical form, compatible with the IETF spec.
 ///
@@ -31,10 +30,8 @@ pub struct CanonicalLinearRelation<G: PrimeGroup> {
     /// The group elements map
     pub group_elements: GroupMap<G>,
     /// Set of scalar variables used in this relation.
-    // NOTE: We use an ordered set here to establish a canonical ordering of the variables, and
-    // allow a slice of values to have an unambiguous correspondence to variables. This is
-    // important to the wire format, as variable labels are never sent.
-    // TODO: Consider whether BTreeSet is the best struct to use here.
+    // NOTE: When building the relation, this Vec should always be sorted to reduce variability
+    // that might result in verification failures between a client and server.
     // TODO: Should this and other fields be private?
     pub scalar_vars: BTreeSet<ScalarVar<G>>,
 }
@@ -113,11 +110,25 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
         // scalar indices. Note that the group indices are into group_elements_ordered.
         let mut constraint_data = Vec::<(u32, Vec<(u32, u32)>)>::new();
 
-        for (image_var, constraint_terms) in iter::zip(&self.image, &self.linear_combinations) {
+        // Build a map of scalar vars to indices in this relation's list of scalar_vars.
+        // NOTE: We cannot use the ScalarVar::index because this is the index with respect to all
+        // variables allocated, and may not match.
+        let scalar_var_indices: BTreeMap<ScalarVar<G>, u32> = self
+            .scalar_vars
+            .iter()
+            .enumerate()
+            .map(|(i, &var)| (var, i as u32))
+            .collect();
+
+        for (image_var, constraint_terms) in
+            itertools::zip_eq(&self.image, &self.linear_combinations)
+        {
             // Build the RHS terms
             let mut rhs_terms = Vec::new();
             for (scalar_var, group_var) in constraint_terms {
-                rhs_terms.push((scalar_var.0 as u32, group_var.0 as u32));
+                // TODO: In the case that an allocator is shared between relations, or some of the
+                // variables are not used, there could be gaps here that cause issues.
+                rhs_terms.push((scalar_var_indices[scalar_var], group_var.0 as u32));
             }
 
             constraint_data.push((image_var.0 as u32, rhs_terms));
@@ -183,8 +194,8 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
 
         // Parse constraints and collect unique group element indices
         let mut constraint_data = Vec::new();
-        let mut max_scalar_index = 0u32;
-        let mut max_group_index = 0u32;
+        let mut max_scalar_index = None::<u32>;
+        let mut max_group_index = None::<u32>;
 
         for _ in 0..num_equations {
             // Read LHS index (4 bytes)
@@ -198,7 +209,7 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
                 data[offset + 3],
             ]);
             offset += 4;
-            max_group_index = max_group_index.max(lhs_index);
+            max_group_index = max_group_index.unwrap_or(0).max(lhs_index).into();
 
             // Read number of RHS terms (4 bytes)
             if offset + 4 > data.len() {
@@ -228,7 +239,7 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
                     data[offset + 3],
                 ]);
                 offset += 4;
-                max_scalar_index = max_scalar_index.max(scalar_index);
+                max_scalar_index = max_scalar_index.unwrap_or(0).max(scalar_index).into();
 
                 // Read group index (4 bytes)
                 if offset + 4 > data.len() {
@@ -241,7 +252,7 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
                     data[offset + 3],
                 ]);
                 offset += 4;
-                max_group_index = max_group_index.max(group_index);
+                max_group_index = max_group_index.unwrap_or(0).max(group_index).into();
 
                 rhs_terms.push((scalar_index, group_index));
             }
@@ -250,7 +261,7 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
         }
 
         // Calculate expected number of group elements
-        let num_group_elements = (max_group_index + 1) as usize;
+        let num_group_elements = max_group_index.map(|n| n as usize + 1).unwrap_or(0);
         let group_element_size = G::Repr::default().as_ref().len();
         let expected_remaining = num_group_elements * group_element_size;
 
@@ -285,9 +296,12 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
 
         // Build the canonical relation
         let mut canonical = Self::new();
-        canonical.scalar_vars = (0..=max_scalar_index as usize)
-            .map(|i| ScalarVar(i, PhantomData))
-            .collect();
+
+        // Allocate all the scalar variables.
+        let mut allocator = Heap::default();
+        let num_scalars = max_scalar_index.map(|n| n as usize + 1).unwrap_or(0);
+        let scalars_vars_vec = allocator.allocate_scalars_vec(num_scalars);
+        canonical.scalar_vars = scalars_vars_vec.iter().copied().collect();
 
         // Add all group elements to the map
         let mut group_var_map = Vec::new();
@@ -304,7 +318,7 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
             // Build linear combination
             let mut linear_combination = Vec::new();
             for (scalar_index, group_index) in rhs_terms {
-                let scalar_var = ScalarVar(scalar_index as usize, PhantomData);
+                let scalar_var = scalars_vars_vec[scalar_index as usize];
                 let group_var = group_var_map[group_index as usize];
                 linear_combination.push((scalar_var, group_var));
             }
