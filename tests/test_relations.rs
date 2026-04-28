@@ -1,7 +1,7 @@
 use ff::Field;
 
 use sigma_proofs::linear_relation::{CanonicalLinearRelation, LinearRelation};
-use sigma_proofs::Nizk;
+use sigma_proofs::{Allocator, Nizk};
 
 mod relations;
 use relations::*;
@@ -39,14 +39,18 @@ fn test_cmz_wallet_with_fee() {
             + var_z_w_balance * var_A,
     );
 
-    relation.set_elements([(var_P_W, P_W), (var_A, A)]);
-    relation
-        .compute_image(&[n_balance, i_price, z_w_balance])
-        .unwrap();
+    let witness = [
+        (var_n_balance, n_balance),
+        (var_i_price, i_price),
+        (var_z_w_balance, z_w_balance),
+    ]
+    .into();
+    relation.assign_elements([(var_P_W, P_W), (var_A, A)]);
+    relation.compute_image(&witness).unwrap();
 
     // Try to convert to CanonicalLinearRelation - this should fail
     let nizk = relation.into_nizk(b"session_identifier").unwrap();
-    let result = nizk.prove_batchable(&vec![n_balance, i_price, z_w_balance], &mut rng);
+    let result = nizk.prove_batchable(&witness, &mut rng);
     assert!(result.is_ok());
     let proof = result.unwrap();
     let verify_result = nizk.verify_batchable(&proof);

@@ -4,11 +4,7 @@ use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::scalar::Scalar;
 use group::Group;
 use rand::rngs::OsRng;
-use sigma_proofs::{
-    composition::{ComposedRelation, ComposedWitness},
-    errors::Error,
-    LinearRelation,
-};
+use sigma_proofs::{composition::ComposedRelation, errors::Error, Allocator, LinearRelation};
 
 type G = RistrettoPoint;
 type ProofResult<T> = Result<T, Error>;
@@ -21,22 +17,19 @@ fn create_relation(P1: G, P2: G, Q: G, H: G) -> ComposedRelation<G> {
     // First relation: discrete logarithm P1 = x1 * G
     let mut rel1 = LinearRelation::<G>::new();
     let x1 = rel1.allocate_scalar();
-    let G1 = rel1.allocate_element();
+    let G1 = rel1.allocate_element_with(G::generator());
     let P1_var = rel1.allocate_eq(x1 * G1);
-    rel1.set_element(G1, G::generator());
-    rel1.set_element(P1_var, P1);
+    rel1.assign_element(P1_var, P1);
 
     // Second relation: DLEQ (P2 = x2 * G, Q = x2 * H)
     let mut rel2 = LinearRelation::<G>::new();
     let x2 = rel2.allocate_scalar();
-    let G2 = rel2.allocate_element();
-    let H_var = rel2.allocate_element();
+    let G2 = rel2.allocate_element_with(G::generator());
+    let H_var = rel2.allocate_element_with(H);
     let P2_var = rel2.allocate_eq(x2 * G2);
     let Q_var = rel2.allocate_eq(x2 * H_var);
-    rel2.set_element(G2, G::generator());
-    rel2.set_element(H_var, H);
-    rel2.set_element(P2_var, P2);
-    rel2.set_element(Q_var, Q);
+    rel2.assign_element(P2_var, P2);
+    rel2.assign_element(Q_var, Q);
 
     // Compose into OR protocol
     ComposedRelation::or([rel1.canonical().unwrap(), rel2.canonical().unwrap()])
@@ -46,15 +39,28 @@ fn create_relation(P1: G, P2: G, Q: G, H: G) -> ComposedRelation<G> {
 #[allow(non_snake_case)]
 fn prove(P1: G, x2: Scalar, H: G) -> ProofResult<Vec<u8>> {
     // Compute public values
+    // TODO: This is unfortunate, because it represents hand-written witness generation code.
     let P2 = G::generator() * x2;
     let Q = H * x2;
 
     let instance = create_relation(P1, P2, Q, H);
     // Create OR witness with branch 1 being the real one (index 1)
-    let witness = ComposedWitness::Or(vec![
-        ComposedWitness::Simple(vec![Scalar::from(0u64)]),
-        ComposedWitness::Simple(vec![x2]),
-    ]);
+    // TODO: Figure out how to make it possible to only set the scalar vars for the real branch.
+    // With the assumption of constant time, we should be able to just zero-out the other branches.
+    // TODO: This is ugly as sin. One option would be to supply a nicer way to navigate the
+    // composed relation to extract the right variables. Another option would be to return the
+    // scalar vars with the relation from create_relation.
+    let (x1_var, x2_var) = match instance {
+        ComposedRelation::Or(ref branches) => match branches.as_slice() {
+            &[ComposedRelation::Simple(ref left), ComposedRelation::Simple(ref right)] => (
+                *left.scalar_vars.iter().next().unwrap(),
+                *right.scalar_vars.iter().next().unwrap(),
+            ),
+            _ => unreachable!(),
+        },
+        _ => unreachable!(),
+    };
+    let witness = [(x1_var, Scalar::ZERO), (x2_var, x2)].into();
     let nizk = instance.into_nizk(b"or_proof_example");
 
     nizk.prove_batchable(&witness, &mut OsRng)

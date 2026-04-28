@@ -1,5 +1,3 @@
-use core::{array::from_fn, iter::repeat_with};
-
 use group::{ff::PrimeField, prime::PrimeGroup, Group};
 use sha3::digest::{ExtendableOutput, Update, XofReader};
 use spongefish::Decoding;
@@ -18,14 +16,8 @@ impl<I: Iterator<Item = Vec<u8>>> MockScalarRng<I> {
 }
 
 impl<I: Iterator<Item = Vec<u8>>> ScalarRng for MockScalarRng<I> {
-    fn random_scalars<G: Group, const N: usize>(&mut self) -> [G::Scalar; N] {
-        from_fn(|_| self.next::<G>())
-    }
-
-    fn random_scalars_vec<G: Group>(&mut self, n: usize) -> Vec<G::Scalar> {
-        let mut v = Vec::with_capacity(n);
-        v.extend(repeat_with(|| self.next::<G>()).take(n));
-        v
+    fn random_scalar<G: Group>(&mut self) -> G::Scalar {
+        self.next::<G>()
     }
 }
 

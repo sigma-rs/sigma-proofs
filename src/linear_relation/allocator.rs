@@ -1,4 +1,4 @@
-use core::{array, cell::RefCell, iter::zip, marker::PhantomData};
+use core::{array, cell::RefCell, marker::PhantomData};
 use std::rc::Rc;
 
 use group::Group;
@@ -8,6 +8,7 @@ use crate::{
     linear_relation::{GroupMap, GroupVar, ScalarMap, ScalarVar},
 };
 
+// TODO: Have the Allocator tag ScalarVars and check the tag when assigning an accessing variables.
 pub trait Allocator {
     type G;
 
@@ -241,7 +242,7 @@ impl<T: ScalarAssignment, const N: usize> ScalarAssignment for [T; N] {
     type Assignment = [T::Assignment; N];
 
     fn assign(&self, map: &mut ScalarMap<Self::G>, value: Self::Assignment) {
-        for (var, value) in zip(self, value) {
+        for (var, value) in itertools::zip_eq(self, value) {
             var.assign(map, value);
         }
     }
