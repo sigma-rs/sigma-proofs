@@ -41,7 +41,7 @@ pub trait ExpandMessage: Sized {
     fn expand_message<const N: usize>(domain_separator: &[u8], message: &[u8]) -> [u8; N];
 
     /// Expand the message already absorbed into `self` into a pseudorandom `[u8; N]`.
-    fn expand_message_digest<const N: usize>(self, domain_separator: &[u8]) -> [u8; N];
+    fn expand_message_hasher<const N: usize>(self, domain_separator: &[u8]) -> [u8; N];
 }
 
 /// Map a fixed number of uniform bytes into the target group, ensuring a uniform distribution.
@@ -224,7 +224,7 @@ macro_rules! impl_from_hash {
         {
             fn from_hasher(domain: &[u8], hasher: H) -> Self {
                 let uniform_bytes =
-                    <H as $crate::ExpandMessage>::expand_message_digest(hasher, domain);
+                    <H as $crate::ExpandMessage>::expand_message_hasher(hasher, domain);
                 <Self as $crate::FromUniformBytes>::from_uniform_bytes(&uniform_bytes)
             }
 

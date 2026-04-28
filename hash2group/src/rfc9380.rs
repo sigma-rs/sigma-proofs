@@ -48,11 +48,11 @@ impl<D: Digest + BlockSizeUser> Update for ExpandMsgXmd<D> {
 
 impl<D: Digest + BlockSizeUser> ExpandMessage for ExpandMsgXmd<D> {
     fn expand_message<const N: usize>(domain_separator: &[u8], message: &[u8]) -> [u8; N] {
-        Self::extract(message).expand_message_digest(domain_separator)
+        Self::extract(message).expand_message_hasher(domain_separator)
     }
 
-    fn expand_message_digest<const N: usize>(self, domain_separator: &[u8]) -> [u8; N] {
-        expand_message_digest_xmd::<D, N>(domain_separator, self.inner)
+    fn expand_message_hasher<const N: usize>(self, domain_separator: &[u8]) -> [u8; N] {
+        expand_message_hasher_xmd::<D, N>(domain_separator, self.inner)
     }
 }
 
@@ -64,8 +64,8 @@ where
         expand_message_xof::<X, N>(domain_separator, message)
     }
 
-    fn expand_message_digest<const N: usize>(self, domain_separator: &[u8]) -> [u8; N] {
-        expand_message_digest_xof::<X, N>(domain_separator, self)
+    fn expand_message_hasher<const N: usize>(self, domain_separator: &[u8]) -> [u8; N] {
+        expand_message_hasher_xof::<X, N>(domain_separator, self)
     }
 }
 
@@ -113,10 +113,10 @@ pub fn expand_message_xmd<D: Digest + BlockSizeUser, const N: usize>(
     domain_separator: &[u8],
     message: &[u8],
 ) -> [u8; N] {
-    ExpandMsgXmd::<D>::extract(message).expand_message_digest(domain_separator)
+    ExpandMsgXmd::<D>::extract(message).expand_message_hasher(domain_separator)
 }
 
-/// Expands a digest state (with message already absorbed) into a pseudorandom `[u8; N]`
+/// Expands a hasher state (with message already absorbed) into a pseudorandom `[u8; N]`
 /// under `domain_separator`.
 ///
 /// When the caller prefixed the message with a block of zeroes, this is `expand_message_xmd`
@@ -126,9 +126,9 @@ pub fn expand_message_xmd<D: Digest + BlockSizeUser, const N: usize>(
 /// compile time.
 ///
 /// [rfc9380-5.3.1]: https://www.rfc-editor.org/rfc/rfc9380#section-5.3.1
-pub fn expand_message_digest_xmd<D: Digest, const N: usize>(
+pub fn expand_message_hasher_xmd<D: Digest, const N: usize>(
     domain_separator: &[u8],
-    message_digest: D,
+    hasher: D,
 ) -> [u8; N] {
     // Ensure the generic parameters are valid. This is a compile time check.
     #[allow(path_statements)]
@@ -146,7 +146,7 @@ pub fn expand_message_digest_xmd<D: Digest, const N: usize>(
         &compressed_dst
     };
 
-    let digest_0 = message_digest
+    let digest_0 = hasher
         // Add the requested output length.
         .chain_update(u16::try_from(N).unwrap().to_be_bytes())
         // Add a zero index to mark this as the 0-index digest.
@@ -231,7 +231,7 @@ where
 {
     let mut xof = X::default();
     xof.update(message);
-    expand_message_digest_xof::<X, N>(domain_separator, xof)
+    expand_message_hasher_xof::<X, N>(domain_separator, xof)
 }
 
 /// Expands an XOF state (with message already absorbed) into a pseudorandom `[u8; N]`
@@ -243,7 +243,7 @@ where
 /// compile time.
 ///
 /// [rfc9380-5.3.2]: https://www.rfc-editor.org/rfc/rfc9380#section-5.3.2
-pub fn expand_message_digest_xof<X, const N: usize>(domain_separator: &[u8], mut xof: X) -> [u8; N]
+pub fn expand_message_hasher_xof<X, const N: usize>(domain_separator: &[u8], mut xof: X) -> [u8; N]
 where
     X: ExtendableOutput + Default + CollisionResistance,
 {
