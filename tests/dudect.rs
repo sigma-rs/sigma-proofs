@@ -29,6 +29,7 @@ use std::{
 use curve25519_dalek::{RistrettoPoint as G, Scalar};
 use group::{ff::Field, Group};
 
+use rand::Rng;
 use rand_chacha::{rand_core::SeedableRng, ChaCha12Rng};
 use serial_test::serial;
 use sigma_proofs::{
@@ -135,12 +136,20 @@ fn compare<P: SigmaProtocol<Challenge = Scalar> + SigmaProtocolSimulator>(
     mut left: impl InstanceDist<Protocol = P>,
     mut right: impl InstanceDist<Protocol = P>,
 ) -> CtSummary {
+    // Randomize per-pair sampling order so monotonic drift in the host environment (thermal
+    // ramp, neighbor activity, frequency scaling) is not attributed to one class.
+    let mut rng = rand::thread_rng();
     let (left_times, right_times): (Vec<u64>, Vec<u64>) = (0..*SAMPLES)
         .map(|_| {
-            (
-                time_prove(left()).as_nanos() as u64,
-                time_prove(right()).as_nanos() as u64,
-            )
+            if rng.gen::<bool>() {
+                let l = time_prove(left()).as_nanos() as u64;
+                let r = time_prove(right()).as_nanos() as u64;
+                (l, r)
+            } else {
+                let r = time_prove(right()).as_nanos() as u64;
+                let l = time_prove(left()).as_nanos() as u64;
+                (l, r)
+            }
         })
         .collect();
 
