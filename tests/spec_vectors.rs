@@ -6,7 +6,7 @@ use spongefish::{Decoding, Encoding, NargDeserialize, NargSerialize};
 use sigma_proofs::{linear_relation::CanonicalLinearRelation, MultiScalarMul, Nizk};
 
 mod spec;
-use spec::{rng::proof_generation_rng, vectors::TestVector};
+use spec::{rng::TestDrng, vectors::TestVector};
 
 #[test]
 fn test_spec_vectors_p256() {
@@ -75,7 +75,7 @@ where
             "compact proof from vectors did not verify for {test_name}"
         );
 
-        let mut proof_rng = proof_generation_rng::<G>(2 * witness.len());
+        let mut proof_rng = TestDrng::from_seed(b"proof_generation_seed");
         let batchable_proof = nizk.prove_batchable(&witness, &mut proof_rng).unwrap();
         assert_eq!(
             batchable_proof, vector.batchable_proof.0,
