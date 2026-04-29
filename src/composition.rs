@@ -143,7 +143,7 @@ impl<G: PrimeGroup, A> ComposedLinearRelation<G, A> {
         Self::Or(relation.into_iter().map(|x| x.into()).collect())
     }
 
-    pub fn compute_image(&mut self, scalars: impl ScalarAssignments<G> + Clone) -> Result<(), Error>
+    pub fn compute_image(&mut self, scalars: &impl ScalarAssignments<G>) -> Result<(), Error>
     where
         A: Allocator<G = G>,
         G: MultiScalarMul,
@@ -152,10 +152,34 @@ impl<G: PrimeGroup, A> ComposedLinearRelation<G, A> {
             Self::Simple(relation) => relation.compute_image(scalars),
             Self::And(relations) => relations
                 .iter_mut()
-                .try_for_each(|relation| relation.compute_image(scalars.clone())),
+                .try_for_each(|relation| relation.compute_image(scalars)),
             Self::Or(relations) => relations
                 .iter_mut()
-                .try_for_each(|relation| relation.compute_image(scalars.clone())),
+                .try_for_each(|relation| relation.compute_image(scalars)),
+        }
+    }
+
+    /// Convert this [ComposedLinearRelation] into a [ComposedRelation] by canonicalizing each
+    /// constituent [LinearRelation].
+    pub fn canonical(self) -> Result<ComposedRelation<G>, crate::errors::InvalidInstance>
+    where
+        A: Allocator<G = G>,
+        G: MultiScalarMul,
+    {
+        match self {
+            Self::Simple(relation) => Ok(ComposedRelation::Simple(relation.canonical()?)),
+            Self::And(relations) => Ok(ComposedRelation::And(
+                relations
+                    .into_iter()
+                    .map(|r| r.canonical())
+                    .collect::<Result<_, _>>()?,
+            )),
+            Self::Or(relations) => Ok(ComposedRelation::Or(
+                relations
+                    .into_iter()
+                    .map(|r| r.canonical())
+                    .collect::<Result<_, _>>()?,
+            )),
         }
     }
 }

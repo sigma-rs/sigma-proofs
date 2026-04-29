@@ -282,6 +282,7 @@ impl<G: PrimeGroup, A: Allocator<G = G>> LinearRelation<G, A> {
         var
     }
 
+    // TODO: Move this and allocate_elements_with onto Allocator?
     /// Allocates a group element variable (i.e. elliptic curve point) and sets it immediately to the given value
     pub fn allocate_element_with(&mut self, element: G) -> GroupVar<G> {
         let var = self.allocate_element();
@@ -313,7 +314,7 @@ impl<G: PrimeGroup, A: Allocator<G = G>> LinearRelation<G, A> {
     ///
     /// Return `Ok` on success, and an error if unassigned elements prevent the image from being
     /// computed. Modifies the group elements assigned in the [LinearRelation].
-    pub fn compute_image(&mut self, scalars: impl ScalarAssignments<G>) -> Result<(), Error>
+    pub fn compute_image(&mut self, scalars: &impl ScalarAssignments<G>) -> Result<(), Error>
     where
         G: MultiScalarMul,
     {
@@ -328,23 +329,10 @@ impl<G: PrimeGroup, A: Allocator<G = G>> LinearRelation<G, A> {
                 continue;
             }
 
-            let image = self.linear_combinations[i].evaluate(&self.allocator, &scalars)?;
+            let image = self.linear_combinations[i].evaluate(&self.allocator, scalars)?;
             self.allocator.assign_element(image_var, image);
         }
         Ok(())
-    }
-
-    /// Returns the current group elements corresponding to the image variables.
-    ///
-    /// # Returns
-    ///
-    /// A vector of group elements (`Vec<G>`) representing the linear map's image.
-    // TODO: Should this return GroupMap? Do we need this method?
-    pub fn image(&self) -> Result<Vec<G>, UnassignedGroupVarError> {
-        self.image
-            .iter()
-            .map(|&var| self.allocator.get_element(var))
-            .collect()
     }
 
     /// Evaluates all linear combinations in the linear relation with the provided scalars.

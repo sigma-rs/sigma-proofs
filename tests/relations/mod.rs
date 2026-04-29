@@ -28,7 +28,7 @@ pub fn discrete_logarithm<G: PrimeGroup + MultiScalarMul>(rng: &mut impl ScalarR
     let var_X = relation.allocate_eq(var_x * var_G);
 
     relation.assign_element(var_G, G::generator());
-    relation.compute_image([(var_x, x)]).unwrap();
+    relation.compute_image(&[(var_x, x)]).unwrap();
 
     let X = relation.allocator.get_element(var_X).unwrap();
 
@@ -52,7 +52,7 @@ pub fn shifted_dlog<G: PrimeGroup + MultiScalarMul>(rng: &mut impl ScalarRng) ->
     relation.append_equation(var_X, (var_x + G::Scalar::from(1)) * var_G);
 
     relation.assign_element(var_G, G::generator());
-    relation.compute_image([(var_x, x)]).unwrap();
+    relation.compute_image(&[(var_x, x)]).unwrap();
 
     let witness = [(var_x, x)].into();
     let instance = (&relation).try_into().unwrap();
@@ -73,7 +73,7 @@ pub fn dleq<G: PrimeGroup + MultiScalarMul>(rng: &mut impl ScalarRng) -> Return<
     let var_Y = relation.allocate_eq(var_x * var_H);
 
     relation.assign_elements([(var_G, G::generator()), (var_H, H)]);
-    relation.compute_image([(var_x, x)]).unwrap();
+    relation.compute_image(&[(var_x, x)]).unwrap();
 
     let X = relation.allocator.get_element(var_X).unwrap();
     let Y = relation.allocator.get_element(var_Y).unwrap();
@@ -99,7 +99,7 @@ pub fn shifted_dleq<G: PrimeGroup + MultiScalarMul>(rng: &mut impl ScalarRng) ->
     let var_Y = relation.allocate_eq(var_x * var_H + var_G);
 
     relation.assign_elements([(var_G, G::generator()), (var_H, H)]);
-    relation.compute_image([(var_x, x)]).unwrap();
+    relation.compute_image(&[(var_x, x)]).unwrap();
 
     let X = relation.allocator.get_element(var_X).unwrap();
     let Y = relation.allocator.get_element(var_Y).unwrap();
@@ -124,7 +124,7 @@ pub fn pedersen_commitment<G: PrimeGroup + MultiScalarMul>(rng: &mut impl Scalar
     let var_C = relation.allocate_eq(var_x * var_G + var_r * var_H);
 
     relation.assign_elements([(var_H, H), (var_G, G::generator())]);
-    relation.compute_image([(var_x, x), (var_r, r)]).unwrap();
+    relation.compute_image(&[(var_x, x), (var_r, r)]).unwrap();
 
     let C = relation.allocator.get_element(var_C).unwrap();
 
@@ -151,7 +151,7 @@ pub fn twisted_pedersen_commitment<G: PrimeGroup + MultiScalarMul>(
     );
 
     relation.assign_elements([(var_H, H), (var_G, G::generator())]);
-    relation.compute_image([(var_x, x), (var_r, r)]).unwrap();
+    relation.compute_image(&[(var_x, x), (var_r, r)]).unwrap();
 
     let witness = [(var_x, x), (var_r, r)].into();
     let instance = (&relation).try_into().unwrap();
@@ -334,7 +334,7 @@ pub fn weird_linear_combination<G: PrimeGroup + MultiScalarMul>(
     // Set the group elements
     sigma__lr.assign_elements([(A, G::generator()), (var_B, B)]);
     sigma__lr
-        .compute_image([(gen__disj1_x_r_var, gen__disj1_x_r)])
+        .compute_image(&[(gen__disj1_x_r_var, gen__disj1_x_r)])
         .unwrap();
 
     let result = sigma__lr.allocator.get_element(sigma__eq1).unwrap();
@@ -418,7 +418,7 @@ pub fn cmz_wallet_spend_relation<G: PrimeGroup + MultiScalarMul>(
 
     // Include fee in the witness
     relation
-        .compute_image([
+        .compute_image(&[
             (var_n_balance, n_balance),
             (var_i_price, i_price),
             (var_z_w_balance, z_w_balance),

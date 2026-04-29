@@ -1,86 +1,90 @@
 //! OR-proof composition example.
 
+// In this example, we use capitalized letters for group elements.
+#![allow(non_snake_case)]
+
 use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::scalar::Scalar;
 use group::Group;
-use rand::rngs::OsRng;
-use sigma_proofs::{composition::ComposedRelation, errors::Error, Allocator, LinearRelation};
+use rand::thread_rng;
+use sigma_proofs::{
+    composition::ComposedLinearRelation,
+    errors::Result,
+    linear_relation::{GroupVar, ScalarVar},
+    Allocator, LinearRelation,
+};
 
 type G = RistrettoPoint;
-type ProofResult<T> = Result<T, Error>;
 
-/// Create an OR relation between two statements:
+/// An OR relation between two statements:
 /// 1. Knowledge of discrete log: P1 = x1 * G
 /// 2. Knowledge of DLEQ: (P2 = x2 * G, Q = x2 * H)
-#[allow(non_snake_case)]
-fn create_relation(P1: G, P2: G, Q: G, H: G) -> ComposedRelation<G> {
-    // First relation: discrete logarithm P1 = x1 * G
-    let mut rel1 = LinearRelation::<G>::new();
-    let x1 = rel1.allocate_scalar();
-    let G1 = rel1.allocate_element_with(G::generator());
-    let P1_var = rel1.allocate_eq(x1 * G1);
-    rel1.assign_element(P1_var, P1);
-
-    // Second relation: DLEQ (P2 = x2 * G, Q = x2 * H)
-    let mut rel2 = LinearRelation::<G>::new();
-    let x2 = rel2.allocate_scalar();
-    let G2 = rel2.allocate_element_with(G::generator());
-    let H_var = rel2.allocate_element_with(H);
-    let P2_var = rel2.allocate_eq(x2 * G2);
-    let Q_var = rel2.allocate_eq(x2 * H_var);
-    rel2.assign_element(P2_var, P2);
-    rel2.assign_element(Q_var, Q);
-
-    // Compose into OR protocol
-    ComposedRelation::or([rel1.canonical().unwrap(), rel2.canonical().unwrap()])
+///
+/// A struct is defined to organize the variables referenced by prover and verifier.
+struct ExampleRelation {
+    relation: ComposedLinearRelation<G>,
+    x1: ScalarVar<G>,
+    x2: ScalarVar<G>,
+    P1: GroupVar<G>,
+    P2: GroupVar<G>,
+    Q: GroupVar<G>,
 }
 
-/// Prove knowledge of one of the witnesses (we know x2 for the DLEQ)
-#[allow(non_snake_case)]
-fn prove(P1: G, x2: Scalar, H: G) -> ProofResult<Vec<u8>> {
-    // Compute public values
-    // TODO: This is unfortunate, because it represents hand-written witness generation code.
-    let P2 = G::generator() * x2;
-    let Q = H * x2;
+impl ExampleRelation {
+    fn create(H: G) -> Self {
+        // First relation: discrete logarithm P1 = x1 * G
+        let mut rel1 = LinearRelation::<G>::new();
+        let x1 = rel1.allocate_scalar();
+        let G1 = rel1.allocate_element_with(G::generator());
+        let P1 = rel1.allocate_eq(x1 * G1);
 
-    let instance = create_relation(P1, P2, Q, H);
-    // Create OR witness with branch 1 being the real one (index 1)
-    // TODO: Figure out how to make it possible to only set the scalar vars for the real branch.
-    // With the assumption of constant time, we should be able to just zero-out the other branches.
-    // TODO: This is ugly as sin. One option would be to supply a nicer way to navigate the
-    // composed relation to extract the right variables. Another option would be to return the
-    // scalar vars with the relation from create_relation.
-    let (x1_var, x2_var) = match instance {
-        ComposedRelation::Or(ref branches) => match branches.as_slice() {
-            &[ComposedRelation::Simple(ref left), ComposedRelation::Simple(ref right)] => (
-                *left.scalar_vars.iter().next().unwrap(),
-                *right.scalar_vars.iter().next().unwrap(),
-            ),
-            _ => unreachable!(),
-        },
-        _ => unreachable!(),
-    };
-    let witness = [(x1_var, Scalar::ZERO), (x2_var, x2)].into();
-    let nizk = instance.into_nizk(b"or_proof_example");
+        // Second relation: DLEQ (P2 = x2 * G, Q = x2 * H)
+        let mut rel2 = LinearRelation::<G>::new();
+        let x2 = rel2.allocate_scalar();
+        let G2 = rel2.allocate_element_with(G::generator());
+        let H_var = rel2.allocate_element_with(H);
+        let P2 = rel2.allocate_eq(x2 * G2);
+        let Q = rel2.allocate_eq(x2 * H_var);
 
-    nizk.prove_batchable(&witness, &mut OsRng)
+        // Compose into OR protocol
+        let relation = ComposedLinearRelation::or([rel1, rel2]);
+        Self {
+            relation,
+            x1,
+            x2,
+            P1,
+            P2,
+            Q,
+        }
+    }
+
+    ///
+    fn prove_case_two(mut self, P1: G, x2: Scalar) -> Result<Vec<u8>> {
+        // Assemble the witness. Use zero for x1 as we are not proving that branch.
+        // TODO: Figure out how to make it possible to only set the scalar vars for the real branch.
+        // With the assumption of constant time, we should be able to just zero-out the other branches.
+        let witness = [(self.x1, Scalar::ZERO), (self.x2, x2)].into();
+        self.relation.compute_image(&witness);
+        let nizk = self.relation.canonical()?.into_nizk(b"or_proof_example");
+
+        nizk.prove_batchable(&witness, &mut thread_rng())
+    }
+
+    fn verify(self, P1: G, P2: G, Q: G, proof: &[u8]) -> Result<()> {
+        todo!("there is no way to assign the variables");
+        let nizk = self.relation.canonical()?.into_nizk(b"or_proof_example");
+        nizk.verify_batchable(proof)
+    }
 }
 
 /// Verify an OR proof given the public values
-#[allow(non_snake_case)]
-fn verify(P1: G, P2: G, Q: G, H: G, proof: &[u8]) -> ProofResult<()> {
-    let protocol = create_relation(P1, P2, Q, H);
-    let nizk = protocol.into_nizk(b"or_proof_example");
+fn verify(P1: G, P2: G, Q: G, H: G, proof: &[u8]) -> Result<()> {}
 
-    nizk.verify_batchable(proof)
-}
-
-#[allow(non_snake_case)]
 fn main() {
     // Setup: We don't know x1, but we do know x2
-    let x1 = Scalar::random(&mut OsRng);
-    let x2 = Scalar::random(&mut OsRng);
-    let H = G::random(&mut OsRng);
+    let x1 = Scalar::random(&mut thread_rng());
+    let x2 = Scalar::random(&mut thread_rng());
+    let H = G::random(&mut thread_rng());
 
     // Compute public values
     let P1 = G::generator() * x1; // We don't actually know x1 in the proof
