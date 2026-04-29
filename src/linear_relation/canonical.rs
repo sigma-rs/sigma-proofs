@@ -113,6 +113,9 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
         // Build a map of scalar vars to indices in this relation's list of scalar_vars.
         // NOTE: We cannot use the ScalarVar::index because this is the index with respect to all
         // variables allocated, and may not match.
+        // TODO: Is this a sign that the shared allocator approach is bad? If not, it may be
+        // possible to improve on this by applying a sorting condition to the constraints matrix
+        // such that we could resolve scalar and group var indices with a single linear scan.
         let scalar_var_indices: BTreeMap<ScalarVar<G>, u32> = self
             .scalar_vars
             .iter()
