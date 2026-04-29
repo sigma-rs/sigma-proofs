@@ -95,7 +95,7 @@ impl<G> PartialOrd for ScalarVar<G> {
 /// have no defined ordering.
 impl<G> Ord for ScalarVar<G> {
     fn cmp(&self, other: &Self) -> core::cmp::Ordering {
-        self.partial_cmp(other).unwrap()
+        (self.tag, self.index).cmp(&(other.tag, other.index))
     }
 }
 
