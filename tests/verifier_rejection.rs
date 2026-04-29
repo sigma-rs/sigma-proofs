@@ -13,8 +13,8 @@ use std::ops::Bound;
 use curve25519_dalek::ristretto::RistrettoPoint as G;
 use curve25519_dalek::scalar::Scalar;
 use rand::RngCore;
-use sigma_proofs::composition::{ComposedRelation, ComposedWitness};
-use sigma_proofs::linear_relation::CanonicalLinearRelation;
+use sigma_proofs::composition::ComposedRelation;
+use sigma_proofs::linear_relation::{CanonicalLinearRelation, ScalarMap};
 use sigma_proofs::Nizk;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -69,7 +69,7 @@ const SIMPLE_SESSION_ID: &[u8] = b"verifier-rejection-simple";
 
 /// Simple discrete-log relation.
 /// Returns (witness, nizk).
-fn make_simple_nizk() -> (Vec<Scalar>, Nizk<CanonicalLinearRelation<G>>) {
+fn make_simple_nizk() -> (ScalarMap<G>, Nizk<CanonicalLinearRelation<G>>) {
     let mut rng = rand::thread_rng();
     let (instance, witness) = relations::dleq::<G>(&mut rng);
     (witness, Nizk::new(SIMPLE_SESSION_ID, instance))
@@ -316,14 +316,13 @@ fn compact_wrong_instance() {
 
 /// AND(dleq, pedersen_commitment) with valid witnesses.
 /// Returns (witness, nizk).
-fn make_and_nizk() -> (ComposedWitness<G>, Nizk<ComposedRelation<G>>) {
+fn make_and_nizk() -> (ScalarMap<G>, Nizk<ComposedRelation<G>>) {
     let mut rng = rand::thread_rng();
     let (rel1, wit1) = relations::dleq::<G>(&mut rng);
     let (rel2, wit2) = relations::pedersen_commitment::<G>(&mut rng);
     let and_relation = ComposedRelation::<G>::and([rel1, rel2]);
     let nizk = and_relation.into_nizk(b"verifier-rejection-and");
-    let witness =
-        ComposedWitness::and([ComposedWitness::Simple(wit1), ComposedWitness::Simple(wit2)]);
+    let witness: ScalarMap<G> = wit1.iter().chain(wit2.iter()).collect();
     (witness, nizk)
 }
 
@@ -449,15 +448,16 @@ fn and_one_wrong_witness() {
     let (rel1, wit1) = relations::dleq::<G>(&mut rng);
     let (rel2, _) = relations::pedersen_commitment::<G>(&mut rng);
 
-    let and_relation = ComposedRelation::<G>::and([rel1, rel2]);
+    let and_relation = ComposedRelation::<G>::and([rel1, rel2.clone()]);
     let nizk = and_relation.into_nizk(b"verifier-rejection-and");
 
     // Second witness is wrong (random scalars, not a valid opening of rel2)
-    let bad_wit2: Vec<Scalar> = (0..2).map(|_| Scalar::random(&mut rng)).collect();
-    let witness = ComposedWitness::and([
-        ComposedWitness::Simple(wit1),
-        ComposedWitness::Simple(bad_wit2),
-    ]);
+    let bad_wit2: ScalarMap<G> = rel2
+        .scalar_vars
+        .iter()
+        .map(|&var| (var, Scalar::random(&mut rng)))
+        .collect();
+    let witness: ScalarMap<G> = wit1.iter().chain(bad_wit2.iter()).collect();
     // The prover doesn't validate the witness; the verifier must reject the resulting proof.
     let proof = nizk.prove_batchable(&witness, &mut rng).unwrap();
     assert!(
@@ -470,7 +470,7 @@ fn and_one_wrong_witness() {
 
 /// OR(dleq, dleq) with one valid witness (second branch).
 /// Returns (witness, nizk).
-fn make_or_nizk() -> (ComposedWitness<G>, Nizk<ComposedRelation<G>>) {
+fn make_or_nizk() -> (ScalarMap<G>, Nizk<ComposedRelation<G>>) {
     let mut rng = rand::thread_rng();
     let (rel1, _) = relations::dleq::<G>(&mut rng);
     let (rel2, wit2) = relations::dleq::<G>(&mut rng);
@@ -478,14 +478,8 @@ fn make_or_nizk() -> (ComposedWitness<G>, Nizk<ComposedRelation<G>>) {
     let or_relation = ComposedRelation::<G>::or([rel1, rel2]);
     let nizk = or_relation.into_nizk(b"verifier-rejection-or");
 
-    // Provide a dummy (zero) witness for the first branch and valid for the second.
-    // For OR, all branches must have a witness slot — only one needs to be valid.
-    let dummy_wit1: Vec<Scalar> = wit2.iter().map(|_| Scalar::ZERO).collect();
-    let witness = ComposedWitness::or([
-        ComposedWitness::Simple(dummy_wit1),
-        ComposedWitness::Simple(wit2),
-    ]);
-    (witness, nizk)
+    // Only the second branch has a valid witness; the prover simulates the first.
+    (wit2, nizk)
 }
 
 #[test]
@@ -608,18 +602,18 @@ fn or_compact_empty() {
 fn or_no_valid_witness() {
     let mut rng = rand::thread_rng();
     let (rel1, _) = relations::dleq::<G>(&mut rng);
-    let (rel2, wit2) = relations::dleq::<G>(&mut rng);
+    let (rel2, _) = relations::dleq::<G>(&mut rng);
 
-    let or_relation = ComposedRelation::<G>::or([rel1, rel2]);
+    let or_relation = ComposedRelation::<G>::or([rel1.clone(), rel2.clone()]);
     let nizk = or_relation.into_nizk(b"verifier-rejection-or");
 
     // Both witnesses are wrong (random scalars satisfy neither branch)
-    let bad_wit1: Vec<Scalar> = wit2.iter().map(|_| Scalar::random(&mut rng)).collect();
-    let bad_wit2: Vec<Scalar> = wit2.iter().map(|_| Scalar::random(&mut rng)).collect();
-    let witness = ComposedWitness::or([
-        ComposedWitness::Simple(bad_wit1),
-        ComposedWitness::Simple(bad_wit2),
-    ]);
+    let witness: ScalarMap<G> = rel1
+        .scalar_vars
+        .iter()
+        .chain(rel2.scalar_vars.iter())
+        .map(|&var| (var, Scalar::random(&mut rng)))
+        .collect();
     assert!(
         nizk.prove_batchable(&witness, &mut rng).is_err(),
         "OR prover should fail when no branch has a valid witness"
@@ -630,19 +624,17 @@ fn or_no_valid_witness() {
 
 /// Threshold(2, [dleq, dleq, dleq]) with 2 valid witnesses and 1 wrong.
 /// Returns (witness, nizk).
-fn make_threshold_nizk() -> (ComposedWitness<G>, Nizk<ComposedRelation<G>>) {
+fn make_threshold_nizk() -> (ScalarMap<G>, Nizk<ComposedRelation<G>>) {
     let mut rng = rand::thread_rng();
     let (rel1, wit1) = relations::dleq::<G>(&mut rng);
     let (rel2, wit2) = relations::dleq::<G>(&mut rng);
-    let (rel3, wit3) = relations::dleq::<G>(&mut rng);
-
-    // Third witness is intentionally wrong
-    let wrong_wit3: Vec<Scalar> = wit3.iter().map(|_| Scalar::random(&mut rng)).collect();
+    let (rel3, _) = relations::dleq::<G>(&mut rng);
 
     let threshold_relation = ComposedRelation::<G>::threshold(2, [rel1, rel2, rel3]);
     let nizk = threshold_relation.into_nizk(b"verifier-rejection-threshold");
 
-    let witness = ComposedWitness::threshold([wit1, wit2, wrong_wit3]);
+    // Two valid witnesses; the prover simulates the third branch.
+    let witness: ScalarMap<G> = wit1.iter().chain(wit2.iter()).collect();
     (witness, nizk)
 }
 
@@ -766,17 +758,23 @@ fn threshold_compact_empty() {
 fn threshold_insufficient_witnesses() {
     let mut rng = rand::thread_rng();
     let (rel1, wit1) = relations::dleq::<G>(&mut rng);
-    let (rel2, wit2) = relations::dleq::<G>(&mut rng);
+    let (rel2, _) = relations::dleq::<G>(&mut rng);
     let (rel3, _) = relations::dleq::<G>(&mut rng);
 
     // Only 1 valid witness in a 2-of-3 threshold: prover should fail.
-    let wrong_wit2: Vec<Scalar> = wit2.iter().map(|_| Scalar::random(&mut rng)).collect();
-    let wrong_wit3: Vec<Scalar> = wit2.iter().map(|_| Scalar::random(&mut rng)).collect();
+    let witness: ScalarMap<G> = wit1
+        .iter()
+        .chain(
+            rel2.scalar_vars
+                .iter()
+                .chain(rel3.scalar_vars.iter())
+                .map(|&var| (var, Scalar::random(&mut rng))),
+        )
+        .collect();
 
     let threshold_relation = ComposedRelation::<G>::threshold(2, [rel1, rel2, rel3]);
     let nizk = threshold_relation.into_nizk(b"verifier-rejection-threshold");
 
-    let witness = ComposedWitness::threshold([wit1, wrong_wit2, wrong_wit3]);
     assert!(
         nizk.prove_batchable(&witness, &mut rng).is_err(),
         "threshold prover should fail with only 1 of 2 required witnesses"
@@ -787,18 +785,13 @@ fn threshold_insufficient_witnesses() {
 
 /// AND(OR(dleq, dleq), Simple(pedersen_commitment)) with valid witnesses.
 /// Returns (witness, nizk).
-fn make_nested_nizk() -> (ComposedWitness<G>, Nizk<ComposedRelation<G>>) {
+fn make_nested_nizk() -> (ScalarMap<G>, Nizk<ComposedRelation<G>>) {
     let mut rng = rand::thread_rng();
 
-    // OR branch: prove second dleq
+    // OR branch: prove second dleq; prover simulates the first.
     let (dleq1, _) = relations::dleq::<G>(&mut rng);
     let (dleq2, wit_dleq2) = relations::dleq::<G>(&mut rng);
-    let dummy_wit1: Vec<Scalar> = wit_dleq2.iter().map(|_| Scalar::ZERO).collect();
     let or_branch = ComposedRelation::<G>::or([dleq1, dleq2]);
-    let or_witness = ComposedWitness::or([
-        ComposedWitness::Simple(dummy_wit1),
-        ComposedWitness::Simple(wit_dleq2),
-    ]);
 
     // Simple Pedersen commitment branch
     let (pedersen, wit_pedersen) = relations::pedersen_commitment::<G>(&mut rng);
@@ -806,7 +799,7 @@ fn make_nested_nizk() -> (ComposedWitness<G>, Nizk<ComposedRelation<G>>) {
     let nested = ComposedRelation::<G>::and([or_branch, ComposedRelation::Simple(pedersen)]);
     let nizk = nested.into_nizk(b"verifier-rejection-nested");
 
-    let witness = ComposedWitness::and([or_witness, ComposedWitness::Simple(wit_pedersen)]);
+    let witness: ScalarMap<G> = wit_dleq2.iter().chain(wit_pedersen.iter()).collect();
     (witness, nizk)
 }
 

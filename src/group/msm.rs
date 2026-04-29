@@ -86,7 +86,7 @@ mod k256 {
         fn msm(scalars: &[Scalar], bases: &[Self]) -> Self {
             assert_eq!(scalars.len(), bases.len());
             LinearCombinationExt::lincomb_ext(
-                core::iter::zip(bases.iter().copied(), scalars.iter().copied())
+                itertools::zip_eq(bases.iter().copied(), scalars.iter().copied())
                     .collect::<Vec<_>>()
                     .as_slice(),
             )

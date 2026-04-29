@@ -84,11 +84,7 @@ impl<G> Eq for ScalarVar<G> {}
 /// have no defined ordering.
 impl<G> PartialOrd for ScalarVar<G> {
     fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
-        match self.tag.partial_cmp(&other.tag) {
-            Some(core::cmp::Ordering::Equal) => {}
-            ord => return ord,
-        }
-        self.index.partial_cmp(&other.index)
+        Some(self.cmp(other))
     }
 }
 

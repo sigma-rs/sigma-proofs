@@ -239,9 +239,9 @@ pub fn range_instance_generation<G: PrimeGroup + MultiScalarMul>(
         .collect::<Vec<_>>();
     let witness: ScalarMap<G> = std::iter::once((var_x, x))
         .chain(std::iter::once((var_r, r)))
-        .chain(vars_b.iter().copied().zip(b.iter().copied()))
-        .chain(vars_s.iter().copied().zip(s.iter().copied()))
-        .chain(var_s2.iter().copied().zip(s2.iter().copied()))
+        .chain(itertools::zip_eq(vars_b.iter().copied(), b.iter().copied()))
+        .chain(itertools::zip_eq(vars_s.iter().copied(), s.iter().copied()))
+        .chain(itertools::zip_eq(var_s2.iter().copied(), s2.iter().copied()))
         .collect();
 
     instance.assign_elements([(var_G, G), (var_H, H)]);

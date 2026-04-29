@@ -1,7 +1,6 @@
 use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::format;
 use alloc::vec::Vec;
-use core::iter;
 
 use ff::Field;
 use group::prime::PrimeGroup;
@@ -366,7 +365,7 @@ impl<G: PrimeGroup + MultiScalarMul, A: Allocator<G = G>> TryFrom<&LinearRelatio
 
         // Process each constraint using the canonical linear relation builder.
         let mut builder = CanonicalLinearRelationBuilder::default();
-        for (lhs, rhs) in iter::zip(&relation.image, &relation.linear_combinations) {
+        for (lhs, rhs) in itertools::zip_eq(&relation.image, &relation.linear_combinations) {
             // If any group element in the image is not assigned, return `InvalidInstance`.
             let lhs_value = relation.allocator.get_element(*lhs)?;
 

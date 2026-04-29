@@ -601,6 +601,7 @@ where
     }
 }
 
+// TODO: Can we remove this enum?
 // Structure representing the Witness type of Protocol as SigmaProtocol
 #[derive(Clone)]
 pub enum ComposedWitness<G>
@@ -608,7 +609,7 @@ where
     G: PrimeGroup,
 {
     // NOTE: This must be equal to <CanonicalLinearRelation as SigmaProtocol>::Witness.
-    Simple(Vec<G::Scalar>),
+    Simple(ScalarMap<G>),
     And(Vec<ComposedWitness<G>>),
     Or(Vec<ComposedWitness<G>>),
     Threshold(Vec<ComposedWitness<G>>),
@@ -634,8 +635,8 @@ where
     }
 }
 
-impl<G: PrimeGroup> From<Vec<G::Scalar>> for ComposedWitness<G> {
-    fn from(value: Vec<G::Scalar>) -> Self {
+impl<G: PrimeGroup> From<ScalarMap<G>> for ComposedWitness<G> {
+    fn from(value: ScalarMap<G>) -> Self {
         Self::Simple(value)
     }
 }

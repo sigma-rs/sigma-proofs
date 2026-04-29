@@ -123,6 +123,8 @@ impl<G: Group> FromIterator<(GroupVar<G>, G)> for GroupMap<G> {
     }
 }
 
+// TODO: In some of the tests, there is a pattern of combining witnesses. If this is a pattern that
+// is useful, providing a union operator (BitOr) might be nice.
 /// Ordered mapping of [ScalarVar] to scalar assignments.
 #[derive(Clone, Debug)]
 pub struct ScalarMap<G: Group>(BTreeMap<ScalarVar<G>, G::Scalar>);

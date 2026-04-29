@@ -2,8 +2,12 @@ use bls12_381::G1Projective as Bls12381G1;
 use group::prime::PrimeGroup;
 use p256::ProjectivePoint as P256ProjectivePoint;
 use spongefish::{Decoding, Encoding, NargDeserialize, NargSerialize};
+use subtle::ConstantTimeEq;
 
-use sigma_proofs::{linear_relation::CanonicalLinearRelation, MultiScalarMul, Nizk};
+use sigma_proofs::{
+    linear_relation::{CanonicalLinearRelation, ScalarMap},
+    MultiScalarMul, Nizk,
+};
 
 mod spec;
 use spec::{rng::proof_generation_rng, vectors::TestVector};
@@ -39,7 +43,12 @@ where
 
 fn testvectors<G>(vectors_json: &str)
 where
-    G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize + MultiScalarMul,
+    G: PrimeGroup
+        + ConstantTimeEq
+        + Encoding<[u8]>
+        + NargSerialize
+        + NargDeserialize
+        + MultiScalarMul,
     G::Scalar: Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]>,
 {
     let test_vectors: Vec<TestVector> = serde_json::from_str(vectors_json)
@@ -51,12 +60,17 @@ where
         let parsed_instance = CanonicalLinearRelation::<G>::from_label(&vector.statement.0)
             .expect("failed to parse statement");
 
-        let witness = decode_scalars::<G>(&vector.witness.0);
+        let witness_vec = decode_scalars::<G>(&vector.witness.0);
         assert_eq!(
-            witness.len(),
-            parsed_instance.num_scalars,
+            witness_vec.len(),
+            parsed_instance.scalar_vars.len(),
             "witness length doesn't match instance scalars",
         );
+        let witness: ScalarMap<G> = itertools::zip_eq(
+            parsed_instance.scalar_vars.iter().copied(),
+            witness_vec.iter().copied(),
+        )
+        .collect();
 
         assert_eq!(
             parsed_instance.label(),

@@ -31,7 +31,7 @@ fn bench_msm<G: Group + MultiScalarMul>(bencher: Bencher, n: usize) {
 #[allow(dead_code)]
 fn msm_naive<G: Group>(scalars: &[G::Scalar], bases: &[G]) -> G {
     assert_eq!(scalars.len(), bases.len());
-    std::iter::zip(scalars, bases).map(|(x, g)| *g * x).sum()
+    itertools::zip_eq(scalars, bases).map(|(x, g)| *g * x).sum()
 }
 
 // Included as a baseline. As needed, add a benchmark using this function to provide a comparison.
