@@ -47,6 +47,8 @@ pub struct ScalarVar<G> {
 // derived trait. Instead, we provide a manual implementation over all G without bounds.
 // TODO: Include some metadata to determine if two variables come from the same allocator and use
 // it below.
+// TODO: Move ScalarVar and GroupVar into a `var` module. This will help ensure that no other
+// modules accidentally introspect the variables.
 impl<G> Copy for ScalarVar<G> {}
 impl<G> Clone for ScalarVar<G> {
     fn clone(&self) -> Self {

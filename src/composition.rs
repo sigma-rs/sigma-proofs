@@ -66,6 +66,14 @@ impl<G: PrimeGroup> ComposedRelation<G> {
     pub fn or<T: Into<ComposedRelation<G>>>(relation: impl IntoIterator<Item = T>) -> Self {
         Self::Or(relation.into_iter().map(|x| x.into()).collect())
     }
+
+    /// Create a [ComposedRelation] for a threshold relation from the given list of relations.
+    pub fn threshold<T: Into<ComposedRelation<G>>>(
+        threshold: usize,
+        relations: impl IntoIterator<Item = T>,
+    ) -> Self {
+        Self::Threshold(threshold, relations.into_iter().map(|x| x.into()).collect())
+    }
 }
 
 impl<G: PrimeGroup> ComposedRelation<G>
@@ -91,14 +99,6 @@ where
     {
         Nizk::new(session_identifier, self)
     }
-
-    /// Create a [ComposedRelation] for a threshold relation from the given list of relations.
-    pub fn threshold<T: Into<ComposedRelation<G>>>(
-        threshold: usize,
-        witness: impl IntoIterator<Item = T>,
-    ) -> Self {
-        Self::Threshold(threshold, witness.into_iter().map(|x| x.into()).collect())
-    }
 }
 
 impl<G: PrimeGroup> From<CanonicalLinearRelation<G>> for ComposedRelation<G> {
@@ -117,6 +117,10 @@ impl<G: PrimeGroup + MultiScalarMul, A: Allocator<G = G>> TryFrom<LinearRelation
     }
 }
 
+// TODO: I'm lukewarm about this struct. If it can simply he a generic version of "composed" for
+// instance, that would be great. Also, this maybe should be renamed as *Builder as I am
+// considering for LinearRelation -> LinearRelationBuilder and CanonicalLinearRelation ->
+// LinearRelation.
 #[derive(Clone)]
 pub enum ComposedLinearRelation<G: PrimeGroup, A = Heap<G>> {
     Simple(LinearRelation<G, A>),
@@ -153,6 +157,12 @@ impl<G: PrimeGroup, A> ComposedLinearRelation<G, A> {
                 .iter_mut()
                 .try_for_each(|relation| relation.compute_image(scalars.clone())),
         }
+    }
+}
+
+impl<G: PrimeGroup, A> From<LinearRelation<G, A>> for ComposedLinearRelation<G, A> {
+    fn from(value: LinearRelation<G, A>) -> Self {
+        Self::Simple(value)
     }
 }
 
