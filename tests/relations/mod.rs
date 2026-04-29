@@ -241,7 +241,10 @@ pub fn range_instance_generation<G: PrimeGroup + MultiScalarMul>(
         .chain(std::iter::once((var_r, r)))
         .chain(itertools::zip_eq(vars_b.iter().copied(), b.iter().copied()))
         .chain(itertools::zip_eq(vars_s.iter().copied(), s.iter().copied()))
-        .chain(itertools::zip_eq(var_s2.iter().copied(), s2.iter().copied()))
+        .chain(itertools::zip_eq(
+            var_s2.iter().copied(),
+            s2.iter().copied(),
+        ))
         .collect();
 
     instance.assign_elements([(var_G, G), (var_H, H)]);
