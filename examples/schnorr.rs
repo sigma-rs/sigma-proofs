@@ -37,12 +37,9 @@ fn create_relation() -> (
 /// generate a proof that P = x * G
 #[allow(non_snake_case)]
 fn prove(x: Scalar) -> Result<Vec<u8>, Error> {
-    let (mut relation, x_var, _) = create_relation();
-    let witness = [(x_var, x)];
-    relation.compute_image(witness)?;
-    relation
-        .into_nizk(b"sigma-proofs-example")?
-        .prove_batchable(&witness.into(), &mut OsRng)
+    let (relation, x_var, _) = create_relation();
+    let witness = [(x_var, x)].into();
+    relation.prove(b"sigma-proofs-example", &witness, &mut OsRng)
 }
 
 /// Verify a proof of knowledge of discrete logarithm for the given public key P
@@ -50,9 +47,7 @@ fn prove(x: Scalar) -> Result<Vec<u8>, Error> {
 fn verify(P: RistrettoPoint, proof: &[u8]) -> Result<(), Error> {
     let (mut relation, _, P_var) = create_relation();
     relation.assign_element(P_var, P);
-    relation
-        .into_nizk(b"sigma-proofs-example")?
-        .verify_batchable(proof)
+    relation.verify(b"sigma-proofs-example", proof)
 }
 
 #[allow(non_snake_case)]

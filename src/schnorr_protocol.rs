@@ -282,6 +282,59 @@ where
             .map_err(|_| crate::errors::Error::InvalidInstanceWitnessPair)?
             .into_nizk(session_identifier)
     }
+
+    // TODO: Improve the doc strings. Also, should the prove functions take a wider range of types?
+    /// Convenience method: computes the image from `witness`, converts to a NIZK, and proves.
+    ///
+    /// Returns a batchable proof serialized as bytes.
+    pub fn prove_batchable(
+        mut self,
+        session_identifier: &[u8],
+        witness: &ScalarMap<G>,
+        rng: &mut impl ScalarRng,
+    ) -> Result<Vec<u8>>
+    where
+        G::Scalar: PartialEq,
+    {
+        self.compute_image(witness)?;
+        self.into_nizk(session_identifier)?
+            .prove_batchable(witness, rng)
+    }
+
+    /// Convenience method: computes the image from `witness`, converts to a NIZK, and proves.
+    ///
+    /// Returns a compact proof serialized as bytes.
+    pub fn prove(
+        mut self,
+        session_identifier: &[u8],
+        witness: &ScalarMap<G>,
+        rng: &mut impl ScalarRng,
+    ) -> Result<Vec<u8>>
+    where
+        G: ConstantTimeEq,
+        G::Scalar: PartialEq,
+    {
+        self.compute_image(witness)?;
+        self.into_nizk(session_identifier)?
+            .prove_compact(witness, rng)
+    }
+
+    /// Convenience method: converts to a NIZK and verifies a batchable proof.
+    pub fn verify_batchable(self, session_identifier: &[u8], proof: &[u8]) -> Result<()>
+    where
+        G::Scalar: PartialEq,
+    {
+        self.into_nizk(session_identifier)?.verify_batchable(proof)
+    }
+
+    /// Convenience method: converts to a NIZK and verifies a compact proof.
+    pub fn verify(self, session_identifier: &[u8], proof: &[u8]) -> Result<()>
+    where
+        G: ConstantTimeEq,
+        G::Scalar: PartialEq,
+    {
+        self.into_nizk(session_identifier)?.verify_compact(proof)
+    }
 }
 impl<G> SigmaProtocolSimulator for CanonicalLinearRelation<G>
 where
