@@ -1,3 +1,4 @@
+
 [package]
 name = "sigma-proofs"
 version = "0.3.1"
@@ -8,12 +9,12 @@ authors = [
     "Victor Snyder-Graf <victor@subgraf.dev>",
     "Lénaïck Gouriou <lg@leanear.io>",
 ]
-edition = "2021"
-license = "MIT OR Apache-2.0"
+edition.workspace = true
+license.workspace = true
 readme = "README.md"
-repository = "https://github.com/sigma-rs/sigma-proofs"
+repository.workspace = true
 documentation = "https://docs.rs/sigma-proofs"
-categories = ["cryptography"]
+categories.workspace = true
 keywords = ["cryptography", "zero-knowledge", "NIZK", "sigma-protocols"]
 description = "A toolkit for auto-generated implementations of Σ-protocols"
 exclude = [".gitignore"]
@@ -22,6 +23,25 @@ rust-version = "1.87"
 [package.metadata.docs.rs]
 all-features = true
 cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
+[workspace]
+members = [".", "hash2group"]
+
+[workspace.package]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/sigma-rs/sigma-proofs"
+categories = ["cryptography"]
+
+[workspace.dependencies]
+bytemuck = { version = "1.25.0", default-features = false }
+curve25519-dalek = { version = "4.1.3", default-features = false }
+digest = { version = "0.11.2", default-features = false }
+elliptic-curve = { version = "0.13.8", default-features = false }
+hex-literal = "1.0"
+k256 = { version = "0.13.4", default-features = false }
+p256 = { version = "0.13", default-features = false }
+sha2 = { version = "0.11", default-features = false }
+sha3 = { version = "=0.11.0-rc.9", default-features = false }
 
 [features]
 # Include commonly used curved in default features.
@@ -30,7 +50,7 @@ default = ["std", "bls12_381", "curve25519-dalek", "k256", "p256"]
 # Kept as a no-op for backward compatibility with downstream crates that enabled
 # the former optional rand dependency feature.
 rand = []
-std = ["rand", "sha3/std", "rand_core/std", "spongefish/std"]
+std = ["rand", "rand_core/std", "spongefish/std"]
 bls12_381 = ["dep:bls12_381", "spongefish/bls12_381"]
 curve25519-dalek = ["dep:curve25519-dalek", "spongefish/curve25519-dalek"]
 k256 = ["dep:k256", "spongefish/k256"]
@@ -38,16 +58,16 @@ p256 = ["dep:p256", "spongefish/p256"]
 
 [dependencies]
 bls12_381 = { version = "0.8.0", default-features = false, features = ["groups"], optional = true }
-curve25519-dalek = { version = "4.1.3", default-features = false, features = ["alloc", "group"], optional = true }
+curve25519-dalek = { workspace = true, features = ["alloc", "group"], optional = true }
 ff = { version = "0.13", default-features = false, features = ["std"] }
 group = "0.13.0"
 hashbrown = { version = "0.17.0", default-features = false, features = ["default-hasher", "alloc"] }
 itertools = { version = "0.14", default-features = false }
-k256 = { version = "0.13.4", default-features = false, features = ["arithmetic", "alloc"], optional = true }
-p256 = { version = "0.13", default-features = false, features = ["arithmetic"], optional = true }
+k256 = { workspace = true, features = ["arithmetic", "alloc"], optional = true }
+p256 = { workspace = true, features = ["arithmetic"], optional = true }
 radium = { version = "1.1.1", default-features = false }
 rand_core = { version = "0.6", default-features = false }
-sha3 = { version = "0.10.8", default-features = false }
+sha3 = { workspace = true }
 spongefish = { version = "0.6" }
 subtle = { version = "2.6.1", default-features = false }
 thiserror = { version = "2", default-features = false }
@@ -55,18 +75,19 @@ thiserror = { version = "2", default-features = false }
 [dev-dependencies]
 anyhow = "1.0.100"
 bls12_381 = { version = "0.8.0", default-features = false, features = ["groups"] }
-curve25519-dalek = { version = "4", default-features = false, features = ["rand_core", "alloc", "precomputed-tables", "group"] }
+curve25519-dalek = { workspace = true, features = ["rand_core", "alloc", "precomputed-tables", "group"] }
 divan = "0.1.21"
 hex = "0.4"
-hex-literal = "1.0"
-k256 = { version = "0.13", features = ["arithmetic"] }
-p256 = { version = "0.13", features = ["arithmetic"] }
+hex-literal = { workspace = true }
+k256 = { workspace = true, features = ["arithmetic"] }
+p256 = { workspace = true, features = ["arithmetic"] }
 rand = "0.8.5"
 rand_chacha = { version = "0.3.1" }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
 serde_with = { version = "3.16.1", features = ["hex"] }
 serial_test = "3.3.1"
+sha2 = { workspace = true }
 spongefish = { version = "0.6", features = ["curve25519-dalek", "p256", "bls12_381", "std"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]

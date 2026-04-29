@@ -1,0 +1,42 @@
+[package]
+name = "hash2group"
+version = "0.1.0"
+authors = ["Victor Snyder-Graf <victor@subgraf.dev>", "Michele Orrù <m@orru.net>"]
+edition.workspace = true
+license.workspace = true
+description = "Hash-to-group traits with optional RFC 9380 expand_message and curve implementations"
+repository.workspace = true
+categories = ["cryptography", "no-std"]
+keywords = ["cryptography", "hash-to-curve", "elliptic-curve", "rfc9380"]
+
+[features]
+default = []
+rfc9380 = ["dep:digest"]
+curve25519-dalek = ["dep:curve25519-dalek"]
+k256 = ["dep:k256", "dep:elliptic-curve"]
+p256 = ["dep:p256", "dep:elliptic-curve"]
+
+[dependencies]
+bytemuck = { workspace = true, features = ["min_const_generics"] }
+curve25519-dalek = { workspace = true, optional = true }
+digest = { workspace = true, optional = true }
+elliptic-curve = { workspace = true, features = ["hash2curve"], optional = true }
+k256 = { workspace = true, features = ["arithmetic", "expose-field", "hash2curve"], optional = true }
+p256 = { workspace = true, features = ["arithmetic", "expose-field", "hash2curve"], optional = true }
+
+[dev-dependencies]
+hex-literal = { workspace = true }
+sha2 = { workspace = true }
+sha3 = { workspace = true }
+
+[[test]]
+name = "rfc9380_expand"
+required-features = ["rfc9380"]
+
+[[test]]
+name = "rfc9380_hash2curve_p256"
+required-features = ["rfc9380", "p256"]
+
+[[test]]
+name = "rfc9380_hash2curve_k256"
+required-features = ["rfc9380", "k256"]
