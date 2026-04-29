@@ -176,6 +176,10 @@ where
 
 /// A counter for the number of allocator that have been created. Used to assign a unique tag to
 /// each allocator, and thereby give each its own domain.
+///
+/// RadiumU32 is a best-effort atomic cell. On platforms with no atomics support and concurrency
+/// (some embedded ARM targets) this could allow races on creation of allocators. However, the
+/// likelihood of this happening is low.
 static ALLOCATOR_COUNT: RadiumU32 = RadiumU32::new(0);
 
 // TODO(victor/scalarvars) Rename this from Heap. Its not really a heap.
