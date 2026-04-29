@@ -16,6 +16,7 @@ pub trait Allocator {
     /// Allocates a scalar variable for use in the linear map.
     fn allocate_scalar(&mut self) -> ScalarVar<Self::G>;
 
+    // TODO: This function could potentially be replaced by the return-generic allocate
     /// Allocates `N` new scalar variables, with `N` known at compile-time.
     ///
     /// # Returns
@@ -108,6 +109,7 @@ pub trait Allocator {
         }
     }
 
+    // TODO(victor/scalarvars): Evaluate whether this or GroupMap perhaps does not need to exist.
     fn get_element(&self, var: GroupVar<Self::G>) -> Result<Self::G, UnassignedGroupVarError>;
 }
 

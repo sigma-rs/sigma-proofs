@@ -30,7 +30,7 @@ use core::marker::PhantomData;
 use ff::Field;
 use group::prime::PrimeGroup;
 
-use crate::errors::{Error, InvalidInstance};
+use crate::errors::{Error, InvalidInstance, Result};
 use crate::group::msm::MultiScalarMul;
 
 // NOTE: This type is intended to opaque.
@@ -190,6 +190,36 @@ impl<T> core::iter::Sum<T> for Sum<T> {
 /// - `w_i` are the constant weight scalars
 pub type LinearCombination<G> = Sum<Weighted<Term<G>, <G as group::Group>::Scalar>>;
 
+impl<G: PrimeGroup + MultiScalarMul> LinearCombination<G> {
+    fn evaluate(
+        &self,
+        // TODO: Using `Allocator` here as the trait impl is awkward.
+        elems: &impl Allocator<G = G>,
+        scalars: &impl ScalarAssignments<G>,
+    ) -> Result<G> {
+        let weighted_coefficients = self
+            .0
+            .iter()
+            .map(|weighted| {
+                weighted.term.scalar.value(scalars).map(|scalar| {
+                    // NOTE: Weights are public, permitting variable-time treatment.
+                    // TODO: Check whether this has any real performance impact.
+                    match weighted.weight == G::Scalar::ONE {
+                        true => scalar,
+                        false => scalar * weighted.weight,
+                    }
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let elements = self
+            .0
+            .iter()
+            .map(|weighted| elems.get_element(weighted.term.elem))
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(G::msm(&weighted_coefficients, &elements))
+    }
+}
+
 /// This structure represents the *preimage problem* for a group linear map: given a set of scalar inputs,
 /// determine whether their image under the linear map matches a target set of group elements.
 ///
@@ -265,14 +295,17 @@ impl<G: PrimeGroup, A: Allocator<G = G>> LinearRelation<G, A> {
             .collect()
     }
 
-    /// Evaluates all linear combinations in the linear map with the provided scalars, computing the
-    /// left-hand side of this constraints (i.e. the image).
+    // TODO: This function has a weird feel to it. It has unit return, its unclear when it should
+    // and should not be called, and it only assigns _some_ of the group variables in the relation.
+    /// Evaluates all linear combinations in the linear map with the provided scalars, attempting
+    /// to compute all unassigned group variables.
     ///
-    /// After calling this function, all point variables will be assigned.
+    /// After calling this function, all group variables on the left-hand side will be assigned. If
+    /// not all group variables could be assigned, an error is returned.
     ///
-    /// # Parameters
-    ///
-    /// - `scalars`: A slice of scalar values corresponding to the scalar variables.
+    /// Assignments are computed in a "top-down" fashion, computing each left-hand side of the
+    /// linear combinations in the order they are defined. If this approach fails to find a
+    /// solution, an error is returned. This procedure cannot solve for all relations.
     ///
     /// # Returns
     ///
@@ -282,16 +315,20 @@ impl<G: PrimeGroup, A: Allocator<G = G>> LinearRelation<G, A> {
     where
         G: MultiScalarMul,
     {
-        if self.linear_combinations.len() != self.image.len() {
-            // NOTE: This is a panic, rather than a returned error, because this can only happen if
-            // this implementation has a bug.
-            panic!("invalid LinearRelation: different number of constraints and image variables");
+        // Iterate through the linear combinations and associated image variables. Compute any
+        // unassigned image variables. Note that this is done iteratively to allow for the case
+        // that an image variable is used in a later linear combination.
+        for i in 0..self.linear_combinations.len() {
+            let image_var = self.image[i];
+
+            // If the left-hand side variable is already assigned, continue.
+            if self.get_element(image_var).is_ok() {
+                continue;
+            }
+
+            let image = self.linear_combinations[i].evaluate(&self.allocator, &scalars)?;
+            self.allocator.assign_element(image_var, image);
         }
-
-        let mapped_scalars: Vec<(GroupVar<G>, G)> =
-            itertools::zip_eq(self.image.iter().copied(), self.evaluate(scalars)?).collect();
-
-        self.allocator.assign_elements(mapped_scalars);
         Ok(())
     }
 
@@ -300,7 +337,7 @@ impl<G: PrimeGroup, A: Allocator<G = G>> LinearRelation<G, A> {
     /// # Returns
     ///
     /// A vector of group elements (`Vec<G>`) representing the linear map's image.
-    // TODO: Should this return GroupMap?
+    // TODO: Should this return GroupMap? Do we need this method?
     pub fn image(&self) -> Result<Vec<G>, UnassignedGroupVarError> {
         self.image
             .iter()
@@ -316,31 +353,14 @@ impl<G: PrimeGroup, A: Allocator<G = G>> LinearRelation<G, A> {
     /// # Returns
     ///
     /// A vector of group elements, each being the result of evaluating one linear combination with the scalars.
+    // TODO: Should the scalars arg here be a reference, or perhaps something else entirely?
     pub fn evaluate(&self, scalars: impl ScalarAssignments<G>) -> Result<Vec<G>, Error>
     where
         G: MultiScalarMul,
     {
         self.linear_combinations
             .iter()
-            .map(|lc| {
-                // TODO: The multiplication by the (public) weight is potentially wasteful in the
-                // weight is most commonly 1, but multiplication is constant time.
-                let weighted_coefficients =
-                    lc.0.iter()
-                        .map(|weighted| {
-                            weighted
-                                .term
-                                .scalar
-                                .value(&scalars)
-                                .map(|scalar| scalar * weighted.weight)
-                        })
-                        .collect::<Result<Vec<_>, UnassignedScalarVarError>>()?;
-                let elements =
-                    lc.0.iter()
-                        .map(|weighted| self.allocator.get_element(weighted.term.elem))
-                        .collect::<Result<Vec<_>, _>>()?;
-                Ok(G::msm(&weighted_coefficients, &elements))
-            })
+            .map(|lc| lc.evaluate(&self.allocator, &scalars))
             .collect()
     }
 
