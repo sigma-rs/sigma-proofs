@@ -11,10 +11,10 @@
 //! - `P`: the underlying Sigma protocol ([`SigmaProtocol`] trait).
 
 use crate::errors::Error;
-use crate::traits::ScalarRng;
 use crate::traits::SigmaProtocol;
 use crate::traits::SigmaProtocolSimulator;
 use alloc::vec::Vec;
+use rand_core::CryptoRngCore;
 use sha3::digest::{ExtendableOutput, Update, XofReader};
 use spongefish::{
     DomainSeparator, Encoding, NargDeserialize, NargSerialize, ProverState, VerifierState,
@@ -75,7 +75,7 @@ where
     pub fn prove_batchable(
         &self,
         witness: &P::Witness,
-        rng: &mut impl ScalarRng,
+        rng: &mut impl CryptoRngCore,
     ) -> Result<Vec<u8>, Error> {
         let protocol_id = self.interactive_proof.protocol_identifier();
         let instance_label = self.interactive_proof.instance_label();
@@ -145,7 +145,7 @@ where
     pub fn prove_compact(
         &self,
         witness: &P::Witness,
-        rng: &mut impl ScalarRng,
+        rng: &mut impl CryptoRngCore,
     ) -> Result<Vec<u8>, Error> {
         let protocol_id = self.interactive_proof.protocol_identifier();
         let instance_label = self.interactive_proof.instance_label();
