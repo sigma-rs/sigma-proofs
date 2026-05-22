@@ -196,6 +196,10 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
     ///   - `[Nt: u32]` number of terms
     ///   - `Nt × [scalar_index: u32, group_index: u32]` term entries
     /// - All group elements in serialized form.
+    ///
+    /// Only scalar variables that appear in at least one encoded term are part of this label.
+    /// Unused scalar variables are not statement components and are not preserved by
+    /// [`from_label`](Self::from_label).
     pub fn label(&self) -> Vec<u8> {
         let mut out = Vec::new();
 
