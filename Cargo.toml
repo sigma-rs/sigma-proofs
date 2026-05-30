@@ -58,7 +58,7 @@ p256 = ["dep:p256", "spongefish/p256"]
 [dependencies]
 bls12_381 = { version = "0.8.0", default-features = false, features = ["groups"], optional = true }
 curve25519-dalek = { workspace = true, features = ["alloc", "group"], optional = true }
-ff = { version = "0.13", default-features = false, features = ["std"] }
+ff = { version = "0.14", default-features = false, features = ["std"] }
 group = "0.13.0"
 itertools = { version = "0.14", default-features = false }
 k256 = { workspace = true, features = ["arithmetic", "alloc"], optional = true }
