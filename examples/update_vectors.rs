@@ -12,7 +12,9 @@ use serde_with::{hex, serde_as};
 use sha3::digest::{ExtendableOutput, Update, XofReader};
 use spongefish::{Decoding, Encoding, NargDeserialize, NargSerialize};
 
-use sigma_proofs::{linear_relation::CanonicalLinearRelation, traits::ScalarRng, MultiScalarMul, Nizk};
+use sigma_proofs::{
+    linear_relation::CanonicalLinearRelation, traits::ScalarRng, MultiScalarMul, Nizk,
+};
 
 #[serde_as]
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -122,7 +124,9 @@ where
     G::Scalar: Decoding<[u8]>,
 {
     let mut drng = TestDrng::from_seed(b"proof_generation_seed");
-    let scalars: Vec<Vec<u8>> = (0..count).map(|_| drng.random_scalar_bytes::<G>()).collect();
+    let scalars: Vec<Vec<u8>> = (0..count)
+        .map(|_| drng.random_scalar_bytes::<G>())
+        .collect();
     MockScalarRng(scalars.into_iter())
 }
 
@@ -148,15 +152,20 @@ where
     let mut vectors: Vec<TestVector> = serde_json::from_str(&json).expect("parse json");
 
     for v in &mut vectors {
-        let instance = CanonicalLinearRelation::<G>::from_label(&v.statement.0).expect("from_label");
+        let instance =
+            CanonicalLinearRelation::<G>::from_label(&v.statement.0).expect("from_label");
         let witness = decode_scalars::<G>(&v.witness.0);
         let nizk = Nizk::new(&v.session_id.0, instance);
 
         // Must use a single RNG: batchable consumes the first N scalars,
         // compact uses the next N — matching how spec_vectors.rs runs them.
         let mut rng = proof_generation_rng::<G>(2 * witness.len());
-        let batchable = nizk.prove_batchable(&witness, &mut rng).expect("prove_batchable");
-        let compact = nizk.prove_compact(&witness, &mut rng).expect("prove_compact");
+        let batchable = nizk
+            .prove_batchable(&witness, &mut rng)
+            .expect("prove_batchable");
+        let compact = nizk
+            .prove_compact(&witness, &mut rng)
+            .expect("prove_compact");
 
         v.batchable_proof = Hex(batchable);
         v.proof = Hex(compact);

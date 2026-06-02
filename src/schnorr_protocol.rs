@@ -6,7 +6,9 @@
 
 use crate::errors::{Error, Result};
 use crate::linear_relation::CanonicalLinearRelation;
-use crate::traits::{ScalarRng, SigmaProtocol, SigmaProtocolSimulator, StaticSigmaProtocol, Transcript};
+use crate::traits::{
+    ScalarRng, SigmaProtocol, SigmaProtocolSimulator, StaticSigmaProtocol, Transcript,
+};
 use crate::{LinearRelation, MultiScalarMul, Nizk};
 use alloc::vec::Vec;
 use itertools::Itertools;
