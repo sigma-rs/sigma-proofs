@@ -266,76 +266,49 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
     pub fn from_label(data: &[u8]) -> Result<Self, Error> {
         use crate::errors::InvalidInstance;
 
+        fn read_u32(data: &[u8], offset: &mut usize, field: &str) -> Result<u32, Error> {
+            let end = offset.checked_add(4).ok_or_else(|| {
+                InvalidInstance::new(format!("Invalid label: offset overflow reading {field}"))
+            })?;
+            let bytes = data
+                .get(*offset..end)
+                .ok_or_else(|| InvalidInstance::new(format!("Invalid label: truncated {field}")))?;
+            *offset = end;
+            Ok(u32::from_le_bytes(<[u8; 4]>::try_from(bytes).map_err(
+                |_| InvalidInstance::new(format!("Invalid label: truncated {field}")),
+            )?))
+        }
+
         let mut offset = 0;
 
         // Read number of equations (4 bytes, little endian)
-        if data.len() < 4 {
-            return Err(InvalidInstance::new("Invalid label: too short for equation count").into());
-        }
-        let num_equations = u32::from_le_bytes([data[0], data[1], data[2], data[3]]) as usize;
-        offset += 4;
+        let num_equations = read_u32(data, &mut offset, "equation count")? as usize;
 
         // Parse constraints and collect unique group element indices
         let mut constraint_data = Vec::new();
-        let mut max_scalar_index = 0u32;
-        let mut max_group_index = 0u32;
+        let mut max_scalar_index: Option<u32> = None;
+        let mut max_group_index: Option<u32> = None;
 
         for _ in 0..num_equations {
             // Read LHS index (4 bytes)
-            if offset + 4 > data.len() {
-                return Err(InvalidInstance::new("Invalid label: truncated LHS index").into());
-            }
-            let lhs_index = u32::from_le_bytes([
-                data[offset],
-                data[offset + 1],
-                data[offset + 2],
-                data[offset + 3],
-            ]);
-            offset += 4;
-            max_group_index = max_group_index.max(lhs_index);
+            let lhs_index = read_u32(data, &mut offset, "LHS index")?;
+            max_group_index = Some(max_group_index.map_or(lhs_index, |max| max.max(lhs_index)));
 
             // Read number of RHS terms (4 bytes)
-            if offset + 4 > data.len() {
-                return Err(InvalidInstance::new("Invalid label: truncated RHS count").into());
-            }
-            let num_rhs_terms = u32::from_le_bytes([
-                data[offset],
-                data[offset + 1],
-                data[offset + 2],
-                data[offset + 3],
-            ]) as usize;
-            offset += 4;
+            let num_rhs_terms = read_u32(data, &mut offset, "RHS count")? as usize;
 
             // Read RHS terms
             let mut rhs_terms = Vec::new();
             for _ in 0..num_rhs_terms {
                 // Read scalar index (4 bytes)
-                if offset + 4 > data.len() {
-                    return Err(
-                        InvalidInstance::new("Invalid label: truncated scalar index").into(),
-                    );
-                }
-                let scalar_index = u32::from_le_bytes([
-                    data[offset],
-                    data[offset + 1],
-                    data[offset + 2],
-                    data[offset + 3],
-                ]);
-                offset += 4;
-                max_scalar_index = max_scalar_index.max(scalar_index);
+                let scalar_index = read_u32(data, &mut offset, "scalar index")?;
+                max_scalar_index =
+                    Some(max_scalar_index.map_or(scalar_index, |max| max.max(scalar_index)));
 
                 // Read group index (4 bytes)
-                if offset + 4 > data.len() {
-                    return Err(InvalidInstance::new("Invalid label: truncated group index").into());
-                }
-                let group_index = u32::from_le_bytes([
-                    data[offset],
-                    data[offset + 1],
-                    data[offset + 2],
-                    data[offset + 3],
-                ]);
-                offset += 4;
-                max_group_index = max_group_index.max(group_index);
+                let group_index = read_u32(data, &mut offset, "group index")?;
+                max_group_index =
+                    Some(max_group_index.map_or(group_index, |max| max.max(group_index)));
 
                 rhs_terms.push((scalar_index, group_index));
             }
@@ -344,9 +317,17 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
         }
 
         // Calculate expected number of group elements
-        let num_group_elements = (max_group_index + 1) as usize;
+        let num_group_elements = max_group_index
+            .map(|max| {
+                max.checked_add(1)
+                    .ok_or_else(|| InvalidInstance::new("Invalid label: too many group elements"))
+            })
+            .transpose()?
+            .unwrap_or(0) as usize;
         let group_element_size = G::Repr::default().as_ref().len();
-        let expected_remaining = num_group_elements * group_element_size;
+        let expected_remaining = num_group_elements
+            .checked_mul(group_element_size)
+            .ok_or_else(|| InvalidInstance::new("Invalid label: group element data too large"))?;
 
         if data.len() - offset != expected_remaining {
             return Err(InvalidInstance::new(format!(
@@ -379,7 +360,13 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
 
         // Build the canonical relation
         let mut canonical = Self::new();
-        canonical.num_scalars = (max_scalar_index + 1) as usize;
+        canonical.num_scalars = max_scalar_index
+            .map(|max| {
+                max.checked_add(1)
+                    .ok_or_else(|| InvalidInstance::new("Invalid label: too many scalars"))
+            })
+            .transpose()?
+            .unwrap_or(0) as usize;
 
         // Add all group elements to the map
         let mut group_var_map = Vec::new();
@@ -391,14 +378,19 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
         // Build constraints
         for (lhs_index, rhs_terms) in constraint_data {
             // Add image element
-            canonical.image.push(group_var_map[lhs_index as usize]);
+            let lhs = group_var_map
+                .get(lhs_index as usize)
+                .ok_or_else(|| InvalidInstance::new("Invalid label: LHS index out of bounds"))?;
+            canonical.image.push(*lhs);
 
             // Build linear combination
             let mut linear_combination = Vec::new();
             for (scalar_index, group_index) in rhs_terms {
                 let scalar_var = ScalarVar(scalar_index as usize, PhantomData);
-                let group_var = group_var_map[group_index as usize];
-                linear_combination.push((scalar_var, group_var));
+                let group_var = group_var_map.get(group_index as usize).ok_or_else(|| {
+                    InvalidInstance::new("Invalid label: group index out of bounds")
+                })?;
+                linear_combination.push((scalar_var, *group_var));
             }
             canonical.linear_combinations.push(linear_combination);
         }
@@ -502,5 +494,37 @@ impl<G: PrimeGroup + ConstantTimeEq + MultiScalarMul> CanonicalLinearRelation<G>
         self.image_elements()
             .zip_eq(got)
             .fold(Choice::from(1), |acc, (lhs, rhs)| acc & lhs.ct_eq(&rhs))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::CanonicalLinearRelation;
+    use alloc::vec::Vec;
+    use group::GroupEncoding;
+
+    type G = bls12_381::G1Projective;
+
+    #[test]
+    fn from_label_rejects_max_lhs_group_index() {
+        let mut label = Vec::new();
+        label.extend_from_slice(&1u32.to_le_bytes());
+        label.extend_from_slice(&u32::MAX.to_le_bytes());
+        label.extend_from_slice(&0u32.to_le_bytes());
+
+        assert!(CanonicalLinearRelation::<G>::from_label(&label).is_err());
+    }
+
+    #[test]
+    fn from_label_rejects_max_scalar_index() {
+        let mut label = Vec::new();
+        label.extend_from_slice(&1u32.to_le_bytes());
+        label.extend_from_slice(&0u32.to_le_bytes());
+        label.extend_from_slice(&1u32.to_le_bytes());
+        label.extend_from_slice(&u32::MAX.to_le_bytes());
+        label.extend_from_slice(&0u32.to_le_bytes());
+        label.extend_from_slice(G::identity().to_bytes().as_ref());
+
+        assert!(CanonicalLinearRelation::<G>::from_label(&label).is_err());
     }
 }
