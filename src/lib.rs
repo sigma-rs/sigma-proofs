@@ -71,6 +71,13 @@
 
 extern crate alloc;
 
+#[cfg(target_endian = "big")]
+compile_error!(
+    r#"
+This crate doesn't support big-endian targets.
+"#
+);
+
 pub mod composition;
 pub mod errors;
 pub mod group;
