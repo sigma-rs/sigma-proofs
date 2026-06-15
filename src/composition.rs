@@ -578,6 +578,7 @@ where
 }
 
 type ComposedChallenge<G> = <CanonicalLinearRelation<G> as SigmaProtocol>::Challenge;
+
 fn threshold_x<F: PrimeField>(index: usize) -> F {
     F::from((index + 1) as u64)
 }
@@ -917,7 +918,7 @@ where
     where
         G: ConditionallySelectable,
     {
-        if instances.len() != witnesses.len() {
+        if instances.is_empty() || instances.len() != witnesses.len() {
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
@@ -988,7 +989,7 @@ where
         let mut result_challenges = Vec::with_capacity(instances.len());
         let mut result_responses = Vec::with_capacity(instances.len());
 
-        if instances.len() != prover_state.len() {
+        if instances.is_empty() || instances.len() != prover_state.len() {
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
@@ -1311,7 +1312,7 @@ where
             ) => {
                 if ps.len() != commitments.len()
                     || commitments.len() != responses.len()
-                    || challenges.len() != ps.len() - 1
+                    || ps.len().checked_sub(1) != Some(challenges.len())
                 {
                     return Err(Error::InvalidInstanceWitnessPair);
                 }
@@ -1477,7 +1478,7 @@ where
                 ComposedCommitment::And(commitments)
             }
             (ComposedRelation::Or(ps), ComposedResponse::Or(challenges, rs)) => {
-                if rs.len() != ps.len() || challenges.len() + 1 != ps.len() {
+                if rs.len() != ps.len() || ps.len().checked_sub(1) != Some(challenges.len()) {
                     return Err(Error::InvalidInstanceWitnessPair);
                 }
                 let last_challenge = *challenge - challenges.iter().sum::<G::Scalar>();
@@ -1541,7 +1542,8 @@ where
                 ComposedResponse::And(responses)
             }
             ComposedRelation::Or(ps) => {
-                let challenges = rng.random_scalars_vec::<G>(ps.len()).to_vec();
+                let challenge_count = ps.len().saturating_sub(1);
+                let challenges = rng.random_scalars_vec::<G>(challenge_count).to_vec();
                 let mut responses = Vec::with_capacity(ps.len());
                 for p in ps.iter() {
                     let mut r = p.simulate_response(&mut *rng);
@@ -1619,7 +1621,11 @@ where
                 ))
             }
             ComposedRelation::Or(ps) => {
-                let challenges = rng.random_scalars_vec::<G>(ps.len() - 1);
+                let challenge_count = ps
+                    .len()
+                    .checked_sub(1)
+                    .ok_or(Error::InvalidInstanceWitnessPair)?;
+                let challenges = rng.random_scalars_vec::<G>(challenge_count);
                 let mut responses = Vec::with_capacity(ps.len());
                 for p in ps.iter() {
                     let mut resp = p.simulate_response(&mut *rng);
@@ -1633,7 +1639,7 @@ where
                 let mut commitments = Vec::with_capacity(ps.len());
                 for i in 0..ps.len() {
                     let mut commitment = ps[i].simulate_commitment(
-                        &if i == ps.len() - 1 {
+                        &if i == challenge_count {
                             challenges.iter().fold(G::Scalar::ZERO, |acc, x| acc - x)
                         } else {
                             challenges[i]

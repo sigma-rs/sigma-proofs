@@ -1,7 +1,13 @@
 use curve25519_dalek::ristretto::RistrettoPoint as G;
 use group::Group;
 
-use sigma_proofs::composition::{ComposedRelation, ComposedWitness};
+use sigma_proofs::composition::{
+    ComposedCommitment, ComposedProverState, ComposedRelation, ComposedResponse, ComposedWitness,
+};
+use sigma_proofs::errors::Error;
+use sigma_proofs::traits::{SigmaProtocol, SigmaProtocolSimulator};
+
+type Scalar = <G as Group>::Scalar;
 
 mod relations;
 pub use relations::*;
@@ -106,6 +112,49 @@ fn test_or_both_true() {
     // Verify proofs
     assert!(nizk.verify_batchable(&proof_batchable_bytes).is_ok());
     assert!(nizk.verify_compact(&proof_compact_bytes).is_ok());
+}
+
+#[test]
+fn empty_or_verifier_rejects_without_panicking() {
+    let relation: ComposedRelation<G> = ComposedRelation::Or(Vec::new());
+    let commitment = vec![ComposedCommitment::<G>::Or(Vec::new())];
+    let response = vec![ComposedResponse::<G>::Or(Vec::new(), Vec::new())];
+
+    assert!(matches!(
+        relation.verifier(&commitment, &Scalar::from(0u64), &response),
+        Err(Error::InvalidInstanceWitnessPair)
+    ));
+}
+
+#[test]
+fn empty_or_simulate_transcript_rejects_without_panicking() {
+    let relation: ComposedRelation<G> = ComposedRelation::Or(Vec::new());
+
+    assert!(matches!(
+        relation.simulate_transcript(&mut rand::thread_rng()),
+        Err(Error::InvalidInstanceWitnessPair)
+    ));
+}
+
+#[test]
+fn empty_or_simulate_response_cannot_form_commitment() {
+    let relation: ComposedRelation<G> = ComposedRelation::Or(Vec::new());
+    let response = relation.simulate_response(&mut rand::thread_rng());
+
+    assert!(matches!(
+        relation.simulate_commitment(&Scalar::from(0u64), &response),
+        Err(Error::InvalidInstanceWitnessPair)
+    ));
+}
+
+#[test]
+fn empty_or_prover_response_rejects_without_panicking() {
+    let relation: ComposedRelation<G> = ComposedRelation::Or(Vec::new());
+
+    assert!(matches!(
+        relation.prover_response(ComposedProverState::Or(Vec::new()), &Scalar::from(0u64)),
+        Err(Error::InvalidInstanceWitnessPair)
+    ));
 }
 
 #[allow(non_snake_case)]
