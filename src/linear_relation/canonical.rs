@@ -500,6 +500,7 @@ impl<G: PrimeGroup + ConstantTimeEq + MultiScalarMul> CanonicalLinearRelation<G>
 #[cfg(test)]
 mod tests {
     use super::CanonicalLinearRelation;
+    use alloc::vec::Vec;
     use group::GroupEncoding;
 
     type G = bls12_381::G1Projective;
