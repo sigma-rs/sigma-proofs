@@ -5,10 +5,11 @@
 //! through a group morphism abstraction (see [Maurer09](https://crypto-test.ethz.ch/publications/files/Maurer09.pdf)).
 
 use crate::errors::{Error, Result};
-use crate::linear_relation::CanonicalLinearRelation;
+use crate::linear_relation::{CanonicalLinearRelation, GroupVar, ScalarVar};
 use crate::traits::{ScalarRng, SigmaProtocol, SigmaProtocolSimulator, Transcript};
 use crate::{LinearRelation, MultiScalarMul, Nizk};
-use alloc::vec::Vec;
+use alloc::{vec, vec::Vec};
+use ff::Field;
 use itertools::Itertools;
 
 use group::prime::PrimeGroup;
@@ -39,6 +40,61 @@ fn pad_identifier(identifier: &[u8]) -> [u8; 64] {
     let mut padded = [0u8; 64];
     padded[..identifier.len()].copy_from_slice(identifier);
     padded
+}
+
+fn batch_powers<G: PrimeGroup>(mu: G::Scalar, count: usize) -> Vec<G::Scalar>
+where
+    G::Scalar: Field,
+{
+    let mut powers = Vec::with_capacity(count);
+    let mut power = G::Scalar::ONE;
+    for _ in 0..count {
+        powers.push(power);
+        power *= mu;
+    }
+    powers
+}
+
+fn verify_batch_constraint<G>(
+    relation: &CanonicalLinearRelation<G>,
+    constraint_index: usize,
+    linear_combination: &[(ScalarVar<G>, GroupVar<G>)],
+    image: G,
+    transcripts: &[&(Vec<G>, G::Scalar, Vec<G::Scalar>)],
+    powers: &[G::Scalar],
+) -> bool
+where
+    G: PrimeGroup + MultiScalarMul,
+    G::Scalar: Field,
+{
+    let mut scalars = Vec::new();
+    let mut bases = Vec::new();
+
+    for (scalar_var, group_var) in linear_combination {
+        let mut weight = G::Scalar::ZERO;
+        for (transcript, power) in itertools::zip_eq(transcripts, powers) {
+            let (_, _, response) = *transcript;
+            weight += *power * response[scalar_var.index()];
+        }
+        scalars.push(weight);
+        bases.push(relation.group_elements.get(*group_var).unwrap());
+    }
+
+    let mut challenge_weight = G::Scalar::ZERO;
+    for (transcript, power) in itertools::zip_eq(transcripts, powers) {
+        let (_, challenge, _) = *transcript;
+        challenge_weight += *power * challenge;
+    }
+    scalars.push(-challenge_weight);
+    bases.push(image);
+
+    for (transcript, power) in itertools::zip_eq(transcripts, powers) {
+        let (commitment, _, _) = *transcript;
+        scalars.push(-*power);
+        bases.push(commitment[constraint_index]);
+    }
+
+    G::msm(&scalars, &bases) == G::identity()
 }
 
 impl<G> SigmaProtocol for CanonicalLinearRelation<G>
@@ -203,6 +259,69 @@ where
     /// ```
     pub fn into_nizk(self, session_identifier: &[u8]) -> Result<Nizk<CanonicalLinearRelation<G>>> {
         Ok(Nizk::new(session_identifier, self))
+    }
+
+    /// Batch-verifies multiple batchable non-interactive proofs.
+    ///
+    /// # Parameters
+    /// - `proofs`: Pairs of `(nizk_instance, serialized_proof)`.
+    ///
+    /// # Returns
+    /// - `Ok(())` if all proofs are valid.
+    /// - `Err(Error)` if any proof is malformed or invalid.
+    pub fn verify_batch(proofs: &[(&Nizk<Self>, &[u8])]) -> Result<()> {
+        if proofs.is_empty() {
+            return Ok(());
+        }
+
+        let (mu, transcripts) = Nizk::parse_batch_for_verification(proofs)?;
+        let powers = batch_powers::<G>(mu, proofs.len());
+
+        let mut groups: Vec<(Vec<u8>, Vec<usize>)> = Vec::new();
+        for (index, (nizk, _)) in proofs.iter().enumerate() {
+            let label = nizk.interactive_proof.label();
+            if let Some((_, indices)) = groups.iter_mut().find(|(existing, _)| existing == &label) {
+                indices.push(index);
+            } else {
+                groups.push((label, vec![index]));
+            }
+        }
+
+        for (_, indices) in groups {
+            let relation = &proofs[indices[0]].0.interactive_proof;
+            let group_transcripts: Vec<_> = indices.iter().map(|&i| &transcripts[i]).collect();
+            let group_powers: Vec<_> = indices.iter().map(|&i| powers[i]).collect();
+
+            for transcript in &group_transcripts {
+                let (commitment, _, response) = *transcript;
+                if commitment.len() != relation.image.len()
+                    || response.len() != relation.num_scalars
+                {
+                    return Err(Error::InvalidInstanceWitnessPair);
+                }
+            }
+
+            for (constraint_index, linear_combination) in
+                relation.linear_combinations.iter().enumerate()
+            {
+                let image = relation
+                    .group_elements
+                    .get(relation.image[constraint_index])
+                    .unwrap();
+                if !verify_batch_constraint(
+                    relation,
+                    constraint_index,
+                    linear_combination,
+                    image,
+                    &group_transcripts,
+                    &group_powers,
+                ) {
+                    return Err(Error::VerificationFailure);
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 
