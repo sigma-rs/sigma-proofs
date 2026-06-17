@@ -60,7 +60,7 @@ bls12_381 = { version = "0.8.0", default-features = false, features = ["groups"]
 curve25519-dalek = { workspace = true, features = ["alloc", "group"], optional = true }
 ff = { version = "0.13", default-features = false, features = ["std"] }
 group = "0.13.0"
-itertools = { version = "0.14", default-features = false }
+itertools = { version = "0.15", default-features = false }
 k256 = { workspace = true, features = ["arithmetic", "alloc"], optional = true }
 p256 = { workspace = true, features = ["arithmetic"], optional = true }
 rand_core = { version = "0.6", default-features = false }
