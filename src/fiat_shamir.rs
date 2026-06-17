@@ -171,7 +171,9 @@ where
             .collect::<core::result::Result<Vec<_>, Error>>()?;
 
         let mut batch_state = initialize_batch_verifier_state(proofs.len());
-        for ((nizk, _), (commitment, challenge, response)) in proofs.iter().zip(&transcripts) {
+        for ((nizk, _), (commitment, challenge, response)) in
+            itertools::zip_eq(proofs, &transcripts)
+        {
             absorb_batch_transcript(&mut batch_state, nizk, commitment, challenge, response)?;
         }
         // squeeze once
