@@ -55,12 +55,18 @@ where
     powers
 }
 
+struct BatchTranscript<'a, G: PrimeGroup> {
+    commitment: &'a [G],
+    challenge: &'a G::Scalar,
+    response: &'a [G::Scalar],
+}
+
 fn verify_batch_constraint<G>(
     relation: &CanonicalLinearRelation<G>,
     constraint_index: usize,
     linear_combination: &[(ScalarVar<G>, GroupVar<G>)],
     image: G,
-    transcripts: &[&(Vec<G>, G::Scalar, Vec<G::Scalar>)],
+    transcripts: &[BatchTranscript<'_, G>],
     powers: &[G::Scalar],
 ) -> bool
 where
@@ -73,8 +79,7 @@ where
     for (scalar_var, group_var) in linear_combination {
         let mut weight = G::Scalar::ZERO;
         for (transcript, power) in itertools::zip_eq(transcripts, powers) {
-            let (_, _, response) = *transcript;
-            weight += *power * response[scalar_var.index()];
+            weight += *power * transcript.response[scalar_var.index()];
         }
         scalars.push(weight);
         bases.push(relation.group_elements.get(*group_var).unwrap());
@@ -82,16 +87,14 @@ where
 
     let mut challenge_weight = G::Scalar::ZERO;
     for (transcript, power) in itertools::zip_eq(transcripts, powers) {
-        let (_, challenge, _) = *transcript;
-        challenge_weight += *power * challenge;
+        challenge_weight += *power * *transcript.challenge;
     }
     scalars.push(-challenge_weight);
     bases.push(image);
 
     for (transcript, power) in itertools::zip_eq(transcripts, powers) {
-        let (commitment, _, _) = *transcript;
         scalars.push(-*power);
-        bases.push(commitment[constraint_index]);
+        bases.push(transcript.commitment[constraint_index]);
     }
 
     G::msm(&scalars, &bases) == G::identity()
@@ -289,13 +292,22 @@ where
 
         for (_, indices) in groups {
             let relation = &proofs[indices[0]].0.interactive_proof;
-            let group_transcripts: Vec<_> = indices.iter().map(|&i| &transcripts[i]).collect();
+            let group_transcripts = indices
+                .iter()
+                .map(|&i| {
+                    let (commitment, challenge, response) = &transcripts[i];
+                    BatchTranscript {
+                        commitment,
+                        challenge,
+                        response,
+                    }
+                })
+                .collect::<Vec<_>>();
             let group_powers: Vec<_> = indices.iter().map(|&i| powers[i]).collect();
 
             for transcript in &group_transcripts {
-                let (commitment, _, response) = *transcript;
-                if commitment.len() != relation.image.len()
-                    || response.len() != relation.num_scalars
+                if transcript.commitment.len() != relation.image.len()
+                    || transcript.response.len() != relation.num_scalars
                 {
                     return Err(Error::InvalidInstanceWitnessPair);
                 }
