@@ -17,7 +17,7 @@ use crate::traits::SigmaProtocolSimulator;
 use alloc::vec::Vec;
 use sha3::digest::{ExtendableOutput, Update, XofReader};
 use spongefish::{
-    Decoding, DomainSeparator, Encoding, NargDeserialize, NargSerialize, ProverState, VerifierState,
+    DomainSeparator, Encoding, NargDeserialize, NargSerialize, ProverState, VerifierState,
 };
 
 /// A Fiat-Shamir transformation of a [`SigmaProtocol`] into a non-interactive proof.
@@ -42,7 +42,7 @@ where
 impl<P> Nizk<P>
 where
     P: SigmaProtocol,
-    P::Challenge: PartialEq + Decoding,
+    P::Challenge: PartialEq,
     P::Commitment: NargSerialize + NargDeserialize + Encoding,
     P::Response: NargSerialize + NargDeserialize + Encoding,
 {
@@ -91,13 +91,14 @@ where
         Ok(transcript.narg_string().to_vec())
     }
 
-    /// Deserializes a batchable non-interactive proof into its transcript components.
+    /// Deserializes a batchable non-interactive proof into its transcript,
+    /// re-deriving the challenge from the commitment.
     ///
     /// # Parameters
     /// - `narg_string`: A serialized batchable proof.
     ///
     /// # Returns
-    /// - `Ok((commitment, challenge, response))` if deserialization succeeds.
+    /// - `Ok((commitment, challenge, response))` on success.
     /// - `Err(Error)` if the proof is malformed or has trailing bytes.
     pub(crate) fn deserialize_batchable(
         &self,
@@ -137,48 +138,6 @@ where
         let (commitment, challenge, response) = self.deserialize_batchable(narg_string)?;
         self.interactive_proof
             .verifier(&commitment, &challenge, &response)
-    }
-}
-
-impl<P> Nizk<P>
-where
-    P: SigmaProtocol,
-    P::Challenge: PartialEq + Decoding + Encoding,
-    P::Commitment: NargSerialize + NargDeserialize + Encoding,
-    P::Response: NargSerialize + NargDeserialize + Encoding,
-{
-    /// Parses a batch of batchable proofs and derives the batch challenge.
-    ///
-    /// # Parameters
-    /// - `proofs`: Pairs of `(nizk_instance, serialized_proof)`.
-    ///
-    /// # Returns
-    /// - `Ok((batch_challenge, transcripts))` if all proofs are parsed successfully.
-    ///
-    /// # Errors
-    /// - Returns [`Error::InvalidInstanceWitnessPair`] if the batch is empty.
-    /// - Returns [`Error::VerificationFailure`] if a proof is malformed.
-    pub(crate) fn parse_batch_for_verification(
-        proofs: &[(&Nizk<P>, &[u8])],
-    ) -> Result<(P::Challenge, Vec<crate::traits::Transcript<P>>), Error> {
-        if proofs.is_empty() {
-            return Err(Error::InvalidInstanceWitnessPair);
-        }
-
-        let transcripts = proofs
-            .iter()
-            .map(|(nizk, narg_string)| nizk.deserialize_batchable(narg_string))
-            .collect::<core::result::Result<Vec<_>, Error>>()?;
-
-        let mut batch_state = initialize_batch_verifier_state(proofs.len());
-        for ((nizk, _), (commitment, challenge, response)) in
-            itertools::zip_eq(proofs, &transcripts)
-        {
-            absorb_batch_transcript(&mut batch_state, nizk, commitment, challenge, response)?;
-        }
-        // squeeze once
-        let batch_challenge = batch_state.verifier_message::<P::Challenge>();
-        Ok((batch_challenge, transcripts))
     }
 }
 
@@ -304,52 +263,21 @@ fn initialize_verifier_state<'a>(
         .std_verifier(narg_string)
 }
 
-fn batch_protocol_identifier() -> [u8; 64] {
-    const BATCH_PROTOCOL: &[u8] = b"sigma-proofs/batch-verify";
-    assert!(BATCH_PROTOCOL.len() <= 64);
-
-    let mut protocol_id = [0u8; 64];
-    protocol_id[..BATCH_PROTOCOL.len()].copy_from_slice(BATCH_PROTOCOL);
-    protocol_id
-}
-
-fn initialize_batch_verifier_state(proof_count: usize) -> VerifierState<'static> {
-    let instance = (proof_count as u64).to_le_bytes();
-    DomainSeparator::new(batch_protocol_identifier())
-        .session(derive_session_id(b"sigma-proofs/batch-verify"))
-        .instance(instance)
+/// Fresh duplex sponge for deriving batch-verification randomness, per the
+/// spec: `DS.Init(DeriveSessionID("irtf-cfrg-sigma-protocols/batch-verify"))`.
+///
+/// The derived batching session identifier is the sponge's initialization
+/// vector; the empty session and instance below encode to zero bytes and
+/// absorb nothing.
+pub(crate) fn initialize_batch_verifier_state() -> VerifierState<'static> {
+    let batching_sid = derive_session_id(b"irtf-cfrg-sigma-protocols/batch-verify");
+    DomainSeparator::new(batching_sid)
+        .without_session()
+        .instance([0u8; 0])
         .std_verifier(&[])
 }
 
-fn absorb_batch_transcript<P>(
-    batch_state: &mut VerifierState<'_>,
-    nizk: &Nizk<P>,
-    commitment: &[P::Commitment],
-    challenge: &P::Challenge,
-    response: &[P::Response],
-) -> Result<(), Error>
-where
-    P: SigmaProtocol,
-    P::Challenge: PartialEq + Encoding<[u8]>,
-    P::Commitment: Encoding<[u8]>,
-    P::Response: Encoding<[u8]>,
-{
-    batch_state.public_message(&nizk.interactive_proof.protocol_identifier());
-    batch_state.public_message(&derive_session_id(&nizk.session_id));
-    batch_state.public_message(nizk.interactive_proof.instance_label().as_ref());
-
-    for message in commitment {
-        batch_state.public_message(message);
-    }
-    batch_state.public_message(challenge);
-    for message in response {
-        batch_state.public_message(message);
-    }
-
-    Ok(())
-}
-
-fn derive_session_id(session_id: &[u8]) -> [u8; 64] {
+pub(crate) fn derive_session_id(session_id: &[u8]) -> [u8; 64] {
     const RATE: usize = 168;
     const DOMAIN: &[u8] = b"fiat-shamir/session-id";
 

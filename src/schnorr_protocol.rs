@@ -5,11 +5,11 @@
 //! through a group morphism abstraction (see [Maurer09](https://crypto-test.ethz.ch/publications/files/Maurer09.pdf)).
 
 use crate::errors::{Error, Result};
-use crate::linear_relation::{CanonicalLinearRelation, GroupVar, ScalarVar};
+use crate::linear_relation::CanonicalLinearRelation;
 use crate::traits::{ScalarRng, SigmaProtocol, SigmaProtocolSimulator, Transcript};
 use crate::{LinearRelation, MultiScalarMul, Nizk};
-use alloc::{vec, vec::Vec};
-use ff::Field;
+use alloc::vec::Vec;
+use ff::PrimeField;
 use itertools::Itertools;
 
 use group::prime::PrimeGroup;
@@ -40,64 +40,6 @@ fn pad_identifier(identifier: &[u8]) -> [u8; 64] {
     let mut padded = [0u8; 64];
     padded[..identifier.len()].copy_from_slice(identifier);
     padded
-}
-
-fn batch_powers<G: PrimeGroup>(mu: G::Scalar, count: usize) -> Vec<G::Scalar>
-where
-    G::Scalar: Field,
-{
-    let mut powers = Vec::with_capacity(count);
-    let mut power = G::Scalar::ONE;
-    for _ in 0..count {
-        powers.push(power);
-        power *= mu;
-    }
-    powers
-}
-
-struct BatchTranscript<'a, G: PrimeGroup> {
-    commitment: &'a [G],
-    challenge: &'a G::Scalar,
-    response: &'a [G::Scalar],
-}
-
-fn verify_batch_constraint<G>(
-    relation: &CanonicalLinearRelation<G>,
-    constraint_index: usize,
-    linear_combination: &[(ScalarVar<G>, GroupVar<G>)],
-    image: G,
-    transcripts: &[BatchTranscript<'_, G>],
-    powers: &[G::Scalar],
-) -> bool
-where
-    G: PrimeGroup + MultiScalarMul,
-    G::Scalar: Field,
-{
-    let mut scalars = Vec::new();
-    let mut bases = Vec::new();
-
-    for (scalar_var, group_var) in linear_combination {
-        let mut weight = G::Scalar::ZERO;
-        for (transcript, power) in itertools::zip_eq(transcripts, powers) {
-            weight += *power * transcript.response[scalar_var.index()];
-        }
-        scalars.push(weight);
-        bases.push(relation.group_elements.get(*group_var).unwrap());
-    }
-
-    let mut challenge_weight = G::Scalar::ZERO;
-    for (transcript, power) in itertools::zip_eq(transcripts, powers) {
-        challenge_weight += *power * *transcript.challenge;
-    }
-    scalars.push(-challenge_weight);
-    bases.push(image);
-
-    for (transcript, power) in itertools::zip_eq(transcripts, powers) {
-        scalars.push(-*power);
-        bases.push(transcript.commitment[constraint_index]);
-    }
-
-    G::msm(&scalars, &bases) == G::identity()
 }
 
 impl<G> SigmaProtocol for CanonicalLinearRelation<G>
@@ -264,76 +206,72 @@ where
         Ok(Nizk::new(session_identifier, self))
     }
 
-    /// Batch-verifies multiple batchable non-interactive proofs.
+    /// Batch-verifies batchable non-interactive proofs, following the
+    /// batch verification procedure of the IETF spec.
+    ///
+    /// Each proof's challenge is re-derived individually; a single random
+    /// linear combination of all the verification equations is then checked
+    /// with one multi-scalar multiplication. The 128-bit batching randomness
+    /// is squeezed from a fresh duplex sponge only after absorbing, for every
+    /// proof, its session identifier, its instance label, and its NARG string,
+    /// so that it is unpredictable to the prover.
+    ///
+    /// Instances are validated when constructed ([`CanonicalLinearRelation`]
+    /// is type-safe). Empty batches are valid. Upon failure, the offending
+    /// NARG string is not identified; an application may fall back to
+    /// verifying the NARG strings individually with
+    /// [`Nizk::verify_batchable`].
     ///
     /// # Parameters
-    /// - `proofs`: Pairs of `(nizk_instance, serialized_proof)`.
+    /// - `proofs`: Pairs of `(nizk_instance, serialized_batchable_proof)`.
     ///
     /// # Returns
     /// - `Ok(())` if all proofs are valid.
-    /// - `Err(Error)` if any proof is malformed or invalid.
+    /// - `Err(Error)` if the batch is larger than `2^32 - 1`, or any proof is
+    ///   malformed or invalid.
     pub fn verify_batch(proofs: &[(&Nizk<Self>, &[u8])]) -> Result<()> {
         if proofs.is_empty() {
             return Ok(());
         }
-
-        let (mu, transcripts) = Nizk::parse_batch_for_verification(proofs)?;
-        let powers = batch_powers::<G>(mu, proofs.len());
-
-        let mut groups: Vec<(Vec<u8>, Vec<usize>)> = Vec::new();
-        for (index, (nizk, _)) in proofs.iter().enumerate() {
-            let label = nizk.interactive_proof.label();
-            if let Some((_, indices)) = groups.iter_mut().find(|(existing, _)| existing == &label) {
-                indices.push(index);
-            } else {
-                groups.push((label, vec![index]));
-            }
+        if u32::try_from(proofs.len()).is_err() {
+            return Err(Error::InvalidInstanceWitnessPair);
         }
 
-        for (_, indices) in groups {
-            let relation = &proofs[indices[0]].0.interactive_proof;
-            let group_transcripts = indices
-                .iter()
-                .map(|&i| {
-                    let (commitment, challenge, response) = &transcripts[i];
-                    BatchTranscript {
-                        commitment,
-                        challenge,
-                        response,
-                    }
-                })
-                .collect::<Vec<_>>();
-            let group_powers: Vec<_> = indices.iter().map(|&i| powers[i]).collect();
+        let mut sponge = crate::fiat_shamir::initialize_batch_verifier_state();
+        for (nizk, narg_string) in proofs {
+            sponge.public_message(&crate::fiat_shamir::derive_session_id(&nizk.session_id));
+            sponge.public_message(nizk.interactive_proof.instance_label().as_ref());
+            sponge.public_message(*narg_string);
+        }
 
-            for transcript in &group_transcripts {
-                if transcript.commitment.len() != relation.image.len()
-                    || transcript.response.len() != relation.num_scalars
-                {
-                    return Err(Error::InvalidInstanceWitnessPair);
-                }
-            }
-
-            for (constraint_index, linear_combination) in
-                relation.linear_combinations.iter().enumerate()
-            {
-                let image = relation
-                    .group_elements
-                    .get(relation.image[constraint_index])
-                    .unwrap();
-                if !verify_batch_constraint(
-                    relation,
-                    constraint_index,
-                    linear_combination,
-                    image,
-                    &group_transcripts,
-                    &group_powers,
-                ) {
-                    return Err(Error::VerificationFailure);
+        // sum(r[i][j] * (commitment[i][j] + challenge[i] * image[i][j]
+        //                - map(instance[i], response[i])[j])) == identity,
+        // with each r[i][j] a 16-byte squeeze read as a little-endian integer,
+        // in row-major order.
+        let mut scalars = Vec::new();
+        let mut bases = Vec::new();
+        for (nizk, narg_string) in proofs {
+            let relation = &nizk.interactive_proof;
+            let (commitment, challenge, response) = nizk.deserialize_batchable(narg_string)?;
+            let equations = core::iter::zip(&relation.image, &relation.linear_combinations);
+            for ((image_var, constraint), commitment_j) in equations.zip_eq(commitment) {
+                let r = G::Scalar::from_u128(u128::from_le_bytes(
+                    sponge.verifier_message::<[u8; 16]>(),
+                ));
+                scalars.push(r);
+                bases.push(commitment_j);
+                scalars.push(r * challenge);
+                bases.push(relation.group_elements.get(*image_var)?);
+                for (scalar_var, group_var) in constraint {
+                    scalars.push(-(r * response[scalar_var.index()]));
+                    bases.push(relation.group_elements.get(*group_var)?);
                 }
             }
         }
-
-        Ok(())
+        match G::msm(&scalars, &bases) == G::identity() {
+            true => Ok(()),
+            false => Err(Error::VerificationFailure),
+        }
     }
 }
 
