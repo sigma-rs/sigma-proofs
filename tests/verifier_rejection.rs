@@ -312,6 +312,82 @@ fn compact_wrong_instance() {
     );
 }
 
+// ── Batch verification rejection tests ───────────────────────────────────────
+
+/// Batch of `n` valid batchable proofs over the same simple relation.
+/// Returns (nizk, proofs).
+fn make_simple_batch(n: usize) -> (Nizk<CanonicalLinearRelation<G>>, Vec<Vec<u8>>) {
+    let (witness, nizk) = make_simple_nizk();
+    let proofs = (0..n)
+        .map(|_| {
+            nizk.prove_batchable(&witness, &mut rand::thread_rng())
+                .unwrap()
+        })
+        .collect();
+    (nizk, proofs)
+}
+
+#[test]
+fn batch_bitflip() {
+    let (nizk, mut proofs) = make_simple_batch(3);
+    let original = proofs[1].clone();
+    for i in 0..original.len() * 8 {
+        proofs[1] = bitflip(&original, i);
+        let batch: Vec<_> = proofs.iter().map(|p| (&nizk, p.as_slice())).collect();
+        assert!(
+            CanonicalLinearRelation::verify_batch(&batch).is_err(),
+            "should reject batch: bit {i} flipped"
+        );
+    }
+}
+
+#[test]
+fn batch_append_bytes() {
+    let (nizk, mut proofs) = make_simple_batch(2);
+    let original = proofs[0].clone();
+    for n in 1..=8 {
+        proofs[0] = append_random_bytes(&original, n);
+        let batch: Vec<_> = proofs.iter().map(|p| (&nizk, p.as_slice())).collect();
+        assert!(
+            CanonicalLinearRelation::verify_batch(&batch).is_err(),
+            "should reject batch: {n} bytes appended to a proof"
+        );
+    }
+}
+
+#[test]
+fn batch_wrong_session_id() {
+    let mut rng = rand::thread_rng();
+    let (instance, witness) = relations::dleq::<G>(&mut rng);
+    let nizk = Nizk::new(b"some-session-id", instance.clone());
+    let wrong_session = Nizk::new(b"different-session-id", instance);
+    let mislabeled = nizk.prove_batchable(&witness, &mut rng).unwrap();
+    let valid = wrong_session.prove_batchable(&witness, &mut rng).unwrap();
+    let batch = [
+        (&wrong_session, mislabeled.as_slice()),
+        (&wrong_session, valid.as_slice()),
+    ];
+    assert!(
+        CanonicalLinearRelation::verify_batch(&batch).is_err(),
+        "should reject batch containing a proof made under another session ID"
+    );
+}
+
+#[test]
+fn batch_wrong_instance() {
+    let mut rng = rand::thread_rng();
+    let (instance_a, witness_a) = relations::dleq::<G>(&mut rng);
+    let (instance_b, _) = relations::dleq::<G>(&mut rng);
+    let nizk_a = Nizk::new(SIMPLE_SESSION_ID, instance_a);
+    let nizk_b = Nizk::new(SIMPLE_SESSION_ID, instance_b);
+    let proof = nizk_a.prove_batchable(&witness_a, &mut rng).unwrap();
+    let batch = [(&nizk_b, proof.as_slice())];
+    assert!(
+        CanonicalLinearRelation::verify_batch(&batch).is_err(),
+        "should reject batch verifying a proof against a different instance"
+    );
+}
+
 // ── Composed AND rejection tests ─────────────────────────────────────────────
 
 /// AND(dleq, pedersen_commitment) with valid witnesses.
