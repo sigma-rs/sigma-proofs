@@ -3,7 +3,7 @@
 use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::scalar::Scalar;
 use group::Group;
-use rand::rngs::OsRng;
+use sigma_proofs::ProofRng;
 use sigma_proofs::{
     composition::{ComposedRelation, ComposedWitness},
     errors::Error,
@@ -39,7 +39,7 @@ fn create_relation(P1: G, P2: G, Q: G, H: G) -> ComposedRelation<G> {
     rel2.set_element(Q_var, Q);
 
     // Compose into OR protocol
-    ComposedRelation::or([rel1.canonical().unwrap(), rel2.canonical().unwrap()])
+    ComposedRelation::or([rel1.compile().unwrap(), rel2.compile().unwrap()])
 }
 
 /// Prove knowledge of one of the witnesses (we know x2 for the DLEQ)
@@ -57,7 +57,7 @@ fn prove(P1: G, x2: Scalar, H: G) -> ProofResult<Vec<u8>> {
     ]);
     let nizk = instance.into_nizk(b"or_proof_example");
 
-    nizk.prove_batchable(&witness, &mut OsRng)
+    nizk.prove_batchable(&witness, &mut ProofRng::from_os_entropy())
 }
 
 /// Verify an OR proof given the public values
@@ -72,9 +72,9 @@ fn verify(P1: G, P2: G, Q: G, H: G, proof: &[u8]) -> ProofResult<()> {
 #[allow(non_snake_case)]
 fn main() {
     // Setup: We don't know x1, but we do know x2
-    let x1 = Scalar::random(&mut OsRng);
-    let x2 = Scalar::random(&mut OsRng);
-    let H = G::random(&mut OsRng);
+    let x1 = Scalar::random(&mut ProofRng::from_os_entropy());
+    let x2 = Scalar::random(&mut ProofRng::from_os_entropy());
+    let H = G::random(&mut ProofRng::from_os_entropy());
 
     // Compute public values
     let P1 = G::generator() * x1; // We don't actually know x1 in the proof

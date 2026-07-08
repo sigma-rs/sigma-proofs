@@ -30,11 +30,12 @@ use curve25519_dalek::{RistrettoPoint as G, Scalar};
 use group::{ff::Field, Group};
 
 use rand::Rng;
-use rand_chacha::{rand_core::SeedableRng, ChaCha12Rng};
+
 use serial_test::serial;
+use sigma_proofs::ProofRng;
 use sigma_proofs::{
     composition::{ComposedRelation, ComposedWitness},
-    linear_relation::{CanonicalLinearRelation, Sum},
+    linear_relation::{Instance, Sum},
     traits::{ScalarRng, SigmaProtocol, SigmaProtocolSimulator},
     LinearRelation, Nizk,
 };
@@ -61,9 +62,9 @@ mod relation_ct_tests {
             #[serial]
             fn $name() {
                 set_core_affinity().ok();
-                let stats = compare::<CanonicalLinearRelation<G>>(
+                let stats = compare::<Instance<G>>(
                     stringify!($name),
-                    relations::$name.distribution(&mut rand::thread_rng()),
+                    relations::$name.distribution(&mut ProofRng::from_os_entropy()),
                     relations::$name.distribution(&mut FixedRng),
                 );
                 println!("test {}: {stats}", stringify!($name));
@@ -95,10 +96,10 @@ mod relation_ct_tests {
 #[serial]
 fn baseline() {
     set_core_affinity().ok();
-    let stats = compare::<CanonicalLinearRelation<G>>(
+    let stats = compare::<Instance<G>>(
         "baseline",
-        relations::pedersen_commitment.distribution(&mut rand::thread_rng()),
-        relations::pedersen_commitment.distribution(&mut rand::thread_rng()),
+        relations::pedersen_commitment.distribution(&mut ProofRng::from_os_entropy()),
+        relations::pedersen_commitment.distribution(&mut ProofRng::from_os_entropy()),
     );
     println!("baseline: {stats}");
     assert!(stats.max_t.abs() < T_VALUE_THRESHOLD);
@@ -106,7 +107,7 @@ fn baseline() {
 
 fn wide_relation<const WIDTH: usize>(
     rng: &mut impl ScalarRng,
-) -> (CanonicalLinearRelation<G>, Vec<Scalar>) {
+) -> (Instance<G>, Vec<Scalar>) {
     let mut rel = LinearRelation::<G>::new();
     let constraint: Sum<_> = (0..WIDTH)
         .map(|_| rel.allocate_scalar() * rel.allocate_element_with(relations::random_elem(rng)))
@@ -127,7 +128,7 @@ fn test_ct_or_composition() {
     let stats = compare(
         "test_ct_or_composition",
         or(relations::pedersen_commitment, falsify(wide_relation::<16>))
-            .distribution(&mut rand::thread_rng()),
+            .distribution(&mut ProofRng::from_os_entropy()),
         or(falsify(relations::pedersen_commitment), wide_relation::<16>)
             .distribution(&mut FixedRng),
     );
@@ -142,7 +143,7 @@ fn compare<P: SigmaProtocol<Challenge = Scalar> + SigmaProtocolSimulator>(
 ) -> CtSummary {
     // Randomize per-pair sampling order so monotonic drift in the host environment (thermal
     // ramp, neighbor activity, frequency scaling) is not attributed to one class.
-    let mut rng = rand::thread_rng();
+    let mut rng = ProofRng::from_os_entropy();
     let (left_times, right_times): (Vec<u64>, Vec<u64>) = (0..*SAMPLES)
         .map(|_| {
             if rng.gen::<bool>() {
@@ -208,7 +209,11 @@ where
     // NOTE: Creating a new RNG here was found to be important, compared to using `rand::thread_rng`
     // directly, when the instance generation uses `rand::thread_rng`. Otherwise caching behavior
     // leads to false positive timing variance.
-    let mut rng = ChaCha12Rng::from_rng(rand::thread_rng()).unwrap();
+    let mut rng = {
+        let mut seed = [0u8; 32];
+        ProofRng::from_os_entropy().fill_bytes(&mut seed);
+        ProofRng::from_seed(seed)
+    };
     let nizk = Nizk::new(b"sigma-proofs-dudect-test", rel);
 
     let start = Instant::now();
@@ -242,7 +247,7 @@ fn set_core_affinity() -> anyhow::Result<()> {
 
     let core_ids = core_affinity2::get_core_ids().context("Failed to get core IDs")?;
 
-    let Some(core_id) = core_ids.choose(&mut rand::thread_rng()) else {
+    let Some(core_id) = core_ids.choose(&mut ProofRng::from_os_entropy()) else {
         anyhow::bail!("No core IDs available");
     };
     core_id

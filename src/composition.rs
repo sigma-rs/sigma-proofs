@@ -1,6 +1,6 @@
 //! # Protocol Composition with AND/OR Logic
 //!
-//! This module defines the [`ComposedRelation`] enum, which generalizes the [`CanonicalLinearRelation`]
+//! This module defines the [`ComposedRelation`] enum, which generalizes the [`Instance`]
 //! by enabling compositional logic between multiple proof instances.
 //!
 //! Specifically, it supports:
@@ -23,7 +23,6 @@ use alloc::{vec, vec::Vec};
 use ff::{Field, PrimeField};
 use group::prime::PrimeGroup;
 use itertools::Itertools;
-use sha3::{Digest, Sha3_256};
 use spongefish::{
     Decoding, Encoding, NargDeserialize, NargSerialize, VerificationError, VerificationResult,
 };
@@ -35,19 +34,19 @@ use crate::MultiScalarMul;
 use crate::{
     errors::Error,
     fiat_shamir::Nizk,
-    linear_relation::{CanonicalLinearRelation, LinearRelation},
+    linear_relation::{Instance, LinearRelation},
     traits::{SigmaProtocol, SigmaProtocolSimulator},
 };
 
 /// A protocol proving knowledge of a witness for a composition of linear relations.
 ///
-/// This implementation generalizes [`CanonicalLinearRelation`] by using AND/OR links.
+/// This implementation generalizes [`Instance`] by using AND/OR links.
 ///
 /// # Type Parameters
 /// - `G`: A cryptographic group implementing [`group::Group`] and [`group::GroupEncoding`].
 #[derive(Clone)]
 pub enum ComposedRelation<G: PrimeGroup> {
-    Simple(CanonicalLinearRelation<G>),
+    Simple(Instance<G>),
     And(Vec<ComposedRelation<G>>),
     Or(Vec<ComposedRelation<G>>),
     Threshold(usize, Vec<ComposedRelation<G>>),
@@ -73,8 +72,8 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedRelation<
     }
 }
 
-impl<G: PrimeGroup> From<CanonicalLinearRelation<G>> for ComposedRelation<G> {
-    fn from(value: CanonicalLinearRelation<G>) -> Self {
+impl<G: PrimeGroup> From<Instance<G>> for ComposedRelation<G> {
+    fn from(value: Instance<G>) -> Self {
         ComposedRelation::Simple(value)
     }
 }
@@ -83,7 +82,7 @@ impl<G: PrimeGroup + MultiScalarMul> TryFrom<LinearRelation<G>> for ComposedRela
     type Error = InvalidInstance;
 
     fn try_from(value: LinearRelation<G>) -> Result<Self, Self::Error> {
-        Ok(Self::Simple(CanonicalLinearRelation::try_from(value)?))
+        Ok(Self::Simple(value.compile()?))
     }
 }
 
@@ -166,7 +165,7 @@ where
     G::Scalar:
         Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]> + ConditionallySelectable,
 {
-    Simple(<CanonicalLinearRelation<G> as SigmaProtocol>::ProverState),
+    Simple(<Instance<G> as SigmaProtocol>::ProverState),
     And(Vec<ComposedProverState<G>>),
     Or(ComposedOrProverState<G>),
     Threshold(ComposedThresholdProverState<G>),
@@ -222,7 +221,7 @@ where
     G::Scalar:
         Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]> + ConditionallySelectable,
 {
-    Simple(Vec<<CanonicalLinearRelation<G> as SigmaProtocol>::Response>),
+    Simple(Vec<<Instance<G> as SigmaProtocol>::Response>),
     And(Vec<ComposedResponse<G>>),
     Or(Vec<ComposedChallenge<G>>, Vec<ComposedResponse<G>>),
     Threshold(Vec<ComposedChallenge<G>>, Vec<ComposedResponse<G>>),
@@ -539,7 +538,7 @@ where
     G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize + MultiScalarMul,
     G::Scalar: Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]>,
 {
-    Simple(<CanonicalLinearRelation<G> as SigmaProtocol>::Witness),
+    Simple(<Instance<G> as SigmaProtocol>::Witness),
     And(Vec<ComposedWitness<G>>),
     Or(Vec<ComposedWitness<G>>),
     Threshold(Vec<ComposedWitness<G>>),
@@ -566,18 +565,18 @@ where
     }
 }
 
-impl<G> From<<CanonicalLinearRelation<G> as SigmaProtocol>::Witness> for ComposedWitness<G>
+impl<G> From<<Instance<G> as SigmaProtocol>::Witness> for ComposedWitness<G>
 where
     G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize + MultiScalarMul,
     G::Scalar:
         Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]> + ConditionallySelectable,
 {
-    fn from(value: <CanonicalLinearRelation<G> as SigmaProtocol>::Witness) -> Self {
+    fn from(value: <Instance<G> as SigmaProtocol>::Witness) -> Self {
         Self::Simple(value)
     }
 }
 
-type ComposedChallenge<G> = <CanonicalLinearRelation<G> as SigmaProtocol>::Challenge;
+type ComposedChallenge<G> = <Instance<G> as SigmaProtocol>::Challenge;
 
 fn threshold_x<F: PrimeField>(index: usize) -> F {
     F::from((index + 1) as u64)
@@ -839,8 +838,8 @@ where
     }
 
     fn prover_commit_simple(
-        protocol: &CanonicalLinearRelation<G>,
-        witness: &<CanonicalLinearRelation<G> as SigmaProtocol>::Witness,
+        protocol: &Instance<G>,
+        witness: &<Instance<G> as SigmaProtocol>::Witness,
         rng: &mut impl ScalarRng,
     ) -> Result<(ComposedCommitment<G>, ComposedProverState<G>), Error> {
         protocol.prover_commit(witness, rng).map(|(c, s)| {
@@ -852,9 +851,9 @@ where
     }
 
     fn prover_response_simple(
-        instance: &CanonicalLinearRelation<G>,
-        state: <CanonicalLinearRelation<G> as SigmaProtocol>::ProverState,
-        challenge: &<CanonicalLinearRelation<G> as SigmaProtocol>::Challenge,
+        instance: &Instance<G>,
+        state: <Instance<G> as SigmaProtocol>::ProverState,
+        challenge: &<Instance<G> as SigmaProtocol>::Challenge,
     ) -> Result<ComposedResponse<G>, Error> {
         instance
             .prover_response(state, challenge)
@@ -1374,71 +1373,76 @@ where
         1
     }
 
+    /// The encoded composed instance.
+    ///
+    /// The composition structure is bound by the encoding itself: a variant
+    /// tag byte (`0` simple, `1` and, `2` or, `3` threshold), the threshold
+    /// and branch counts as 4-byte little-endian integers, and each
+    /// sub-instance's label prefixed by its 4-byte length. The encoding is
+    /// prefix-free, so structurally different compositions (and compositions
+    /// of different sub-statements) absorb different bytes.
     fn instance_label(&self) -> impl AsRef<[u8]> {
+        fn extend_prefixed(bytes: &mut Vec<u8>, label: impl AsRef<[u8]>) {
+            let label = label.as_ref();
+            bytes.extend_from_slice(&(label.len() as u32).to_le_bytes());
+            bytes.extend_from_slice(label);
+        }
+
+        let mut bytes = Vec::new();
         match self {
             ComposedRelation::Simple(p) => {
-                let label = p.instance_label();
-                label.as_ref().to_vec()
+                bytes.push(0u8);
+                extend_prefixed(&mut bytes, p.instance_label());
             }
             ComposedRelation::And(ps) => {
-                let mut bytes = Vec::new();
+                bytes.push(1u8);
+                bytes.extend_from_slice(&(ps.len() as u32).to_le_bytes());
                 for p in ps {
-                    bytes.extend(p.instance_label().as_ref());
+                    extend_prefixed(&mut bytes, p.instance_label());
                 }
-                bytes
             }
             ComposedRelation::Or(ps) => {
-                let mut bytes = Vec::new();
+                bytes.push(2u8);
+                bytes.extend_from_slice(&(ps.len() as u32).to_le_bytes());
                 for p in ps {
-                    bytes.extend(p.instance_label().as_ref());
+                    extend_prefixed(&mut bytes, p.instance_label());
                 }
-                bytes
             }
             ComposedRelation::Threshold(threshold, ps) => {
-                let mut bytes = Vec::new();
-                bytes.extend_from_slice(&((*threshold as u64).to_le_bytes()));
+                bytes.push(3u8);
+                bytes.extend_from_slice(&(*threshold as u32).to_le_bytes());
+                bytes.extend_from_slice(&(ps.len() as u32).to_le_bytes());
                 for p in ps {
-                    bytes.extend(p.instance_label().as_ref());
-                }
-                bytes
-            }
-        }
-    }
-
-    fn protocol_identifier(&self) -> [u8; 64] {
-        let mut hasher = Sha3_256::new();
-
-        match self {
-            ComposedRelation::Simple(p) => {
-                // take the digest of the simple protocol id
-                hasher.update([0u8; 32]);
-                hasher.update(p.protocol_identifier());
-            }
-            ComposedRelation::And(protocols) => {
-                hasher.update([1u8; 32]);
-                for p in protocols {
-                    hasher.update(p.protocol_identifier().as_ref());
-                }
-            }
-            ComposedRelation::Or(protocols) => {
-                hasher.update([2u8; 32]);
-                for p in protocols {
-                    hasher.update(p.protocol_identifier().as_ref());
-                }
-            }
-            ComposedRelation::Threshold(threshold, protocols) => {
-                hasher.update([3u8; 32]);
-                hasher.update(((*threshold as u64).to_le_bytes()).as_ref());
-                for p in protocols {
-                    hasher.update(p.protocol_identifier().as_ref());
+                    extend_prefixed(&mut bytes, p.instance_label());
                 }
             }
         }
-
-        let mut protocol_id = [0u8; 64];
-        protocol_id[..32].clone_from_slice(&hasher.finalize());
-        protocol_id
+        bytes
     }
+
+    /// Recursively rejects identity elements in commitment messages.
+    fn check_commitment(&self, commitment: &[Self::Commitment]) -> crate::errors::Result<()> {
+        for c in commitment {
+            match (self, c) {
+                (ComposedRelation::Simple(p), ComposedCommitment::Simple(cs)) => {
+                    p.check_commitment(cs)?;
+                }
+                (ComposedRelation::And(ps), ComposedCommitment::And(cs))
+                | (ComposedRelation::Or(ps), ComposedCommitment::Or(cs))
+                | (ComposedRelation::Threshold(_, ps), ComposedCommitment::Threshold(cs)) => {
+                    if ps.len() != cs.len() {
+                        return Err(Error::VerificationFailure);
+                    }
+                    for (p, c) in ps.iter().zip_eq(cs) {
+                        p.check_commitment(core::slice::from_ref(c))?;
+                    }
+                }
+                _ => return Err(Error::VerificationFailure),
+            }
+        }
+        crate::errors::Result::Ok(())
+    }
+
 }
 
 impl<G> SigmaProtocolSimulator for ComposedRelation<G>

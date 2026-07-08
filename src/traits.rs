@@ -9,15 +9,19 @@ use alloc::vec::Vec;
 use group::Group;
 use spongefish::{Decoding, Encoding, NargDeserialize, NargSerialize};
 
-/// An automatic trait helper for sampling scalars from an RNG.
+/// Interface for sampling uniformly random scalars.
 ///
-/// This trait is implemented for all types implementing
-/// `rand_core::RngCore + rand_core::CryptoRng`.
-/// Passing any cryptographically-secure random number generator (CSRNG) is
-/// recommended for creating proofs.
+/// Implemented by [`ProofRng`][crate::rng::ProofRng], the specification's
+/// CSPRNG-plus-wide-reduction sampler (see [`crate::rng`]). Scalars are drawn
+/// through their [`Decoding`] codec, the same distribution-preserving path
+/// used for Fiat-Shamir challenges.
 pub trait ScalarRng {
-    fn random_scalars<G: Group, const N: usize>(&mut self) -> [G::Scalar; N];
-    fn random_scalars_vec<G: Group>(&mut self, n: usize) -> Vec<G::Scalar>;
+    fn random_scalars<G: Group, const N: usize>(&mut self) -> [G::Scalar; N]
+    where
+        G::Scalar: Decoding<[u8]>;
+    fn random_scalars_vec<G: Group>(&mut self, n: usize) -> Vec<G::Scalar>
+    where
+        G::Scalar: Decoding<[u8]>;
 }
 
 pub type Transcript<P> = (
@@ -58,8 +62,9 @@ pub type Transcript<P> = (
 /// ## Identification
 /// To allow transcript hash binding and protocol distinction,
 /// implementors must provide:
-/// - `protocol_identifier` — A fixed byte identifier of the protocol.
-/// - `instance_label` — A label specific to the instance being proven.
+/// - `instance_label` — the encoded instance (`encode[0]` of the Fiat-Shamir
+///   draft): a prefix-free encoding binding every element of the statement,
+///   including the composition structure for composed relations.
 pub trait SigmaProtocol {
     type Commitment: Encoding<[u8]> + NargSerialize + NargDeserialize;
     type Challenge: Decoding<[u8]>;
@@ -99,9 +104,15 @@ pub trait SigmaProtocol {
 
     fn response_len(&self) -> usize;
 
-    fn protocol_identifier(&self) -> [u8; 64];
-
     fn instance_label(&self) -> impl AsRef<[u8]>;
+
+    /// Rejects malformed commitment messages after deserialization or
+    /// simulation. Group instantiations reject the identity element,
+    /// maintaining consistency with group deserialization (which must reject
+    /// any encoding of the identity).
+    fn check_commitment(&self, _commitment: &[Self::Commitment]) -> Result<()> {
+        Result::Ok(())
+    }
 }
 
 /// A trait defining the behavior of a Sigma protocol for which simulation of transcripts is necessary.

@@ -1,6 +1,7 @@
 use ff::Field;
 
-use sigma_proofs::linear_relation::{CanonicalLinearRelation, LinearRelation};
+use sigma_proofs::ProofRng;
+use sigma_proofs::linear_relation::{Instance, LinearRelation};
 use sigma_proofs::Nizk;
 
 mod relations;
@@ -12,7 +13,7 @@ fn test_cmz_wallet_with_fee() {
     use group::Group;
     type G = bls12_381::G1Projective;
 
-    let mut rng = rand::thread_rng();
+    let mut rng = ProofRng::from_os_entropy();
 
     // This version should fail with InvalidInstanceWitnessPair
     // because it uses a scalar constant directly in the equation
@@ -44,7 +45,7 @@ fn test_cmz_wallet_with_fee() {
         .compute_image(&[n_balance, i_price, z_w_balance])
         .unwrap();
 
-    // Try to convert to CanonicalLinearRelation - this should fail
+    // Try to convert to Instance - this should fail
     let nizk = relation.into_nizk(b"session_identifier").unwrap();
     let result = nizk.prove_batchable(&vec![n_balance, i_price, z_w_balance], &mut rng);
     assert!(result.is_ok());
@@ -77,14 +78,14 @@ fn test_relations() {
     ];
 
     for (relation_name, relation_sampler) in instance_generators.iter() {
-        let mut rng = rand::thread_rng();
+        let mut rng = ProofRng::from_os_entropy();
         let (canonical_relation, witness) = relation_sampler(&mut rng);
 
         // Test the NIZK protocol
         let domain_sep = format!("test-fiat-shamir-{relation_name}")
             .as_bytes()
             .to_vec();
-        let nizk = Nizk::<CanonicalLinearRelation<G>>::new(&domain_sep, canonical_relation);
+        let nizk = Nizk::<Instance<G>>::new(&domain_sep, canonical_relation);
 
         // Test both proof types
         let proof_batchable = nizk

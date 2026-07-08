@@ -23,9 +23,9 @@ mod convert;
 /// Implementations of core ops for the linear combination types.
 mod ops;
 
-/// Implementation of canonical linear relation.
-mod canonical;
-pub use canonical::CanonicalLinearRelation;
+/// The validated instance of the sigma-protocols specification.
+mod instance;
+pub use instance::{Equation, Instance};
 
 /// A wrapper representing an index for a scalar variable.
 ///
@@ -340,7 +340,7 @@ impl<G: PrimeGroup> LinearMap<G> {
 /// Internally, the constraint system is defined through:
 /// - A list of group elements and linear equations (held in the [`LinearMap`] field),
 /// - A list of [`GroupVar`] indices (`image`) that specify the expected output for each constraint.
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Debug)]
 pub struct LinearRelation<G: PrimeGroup> {
     /// The underlying linear map describing the structure of the statement.
     pub linear_map: LinearMap<G>,
@@ -348,13 +348,33 @@ pub struct LinearRelation<G: PrimeGroup> {
     pub image: Vec<GroupVar<G>>,
 }
 
+impl<G: PrimeGroup> Default for LinearRelation<G> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<G: PrimeGroup> LinearRelation<G> {
     /// Create a new empty [`LinearRelation`].
+    ///
+    /// Element index `0` is reserved for the group generator (per the
+    /// specification's representation, `elements[0]` is `G::generator()` in
+    /// every instance) and is assigned on construction; use
+    /// [`LinearRelation::generator`] to reference it in equations.
     pub fn new() -> Self {
-        Self {
+        let mut relation = Self {
             linear_map: LinearMap::new(),
             image: Vec::new(),
-        }
+        };
+        let generator_var = relation.allocate_element();
+        debug_assert_eq!(generator_var.0, 0);
+        relation.set_element(generator_var, G::generator());
+        relation
+    }
+
+    /// The variable referencing the group generator, fixed at element index `0`.
+    pub fn generator(&self) -> GroupVar<G> {
+        GroupVar(0, PhantomData)
     }
 
     /// Adds a new equation to the statement of the form:
@@ -558,13 +578,59 @@ impl<G: PrimeGroup> LinearRelation<G> {
             .collect()
     }
 
-    /// Construct a [CanonicalLinearRelation] from this generalized linear relation.
+    /// Compile this relation into a validated [`Instance`] — the single gate
+    /// through which provers and verifiers accept a statement.
     ///
-    /// The construction may fail if the linear relation is malformed, unsatisfiable, or trivial.
-    pub fn canonical(&self) -> Result<CanonicalLinearRelation<G>, InvalidInstance>
+    /// The compiled form is the specification's representation: coefficients
+    /// are kept verbatim (no folding, no synthetic elements), witness-carrying
+    /// terms become right-hand-side terms `(scalar_index, element_index,
+    /// coeff)`, and constant terms cross to the image with their coefficient
+    /// negated. Every group element of the statement is individually indexed
+    /// and bound by the serialization.
+    ///
+    /// Fails with [`InvalidInstance`] if any element is unassigned or the
+    /// result does not satisfy the specification's `ValidateInstance`
+    /// (checks 1-10).
+    pub fn compile(&self) -> Result<Instance<G>, InvalidInstance>
     where
         G: MultiScalarMul,
     {
-        self.try_into()
+        if self.image.len() != self.linear_map.linear_combinations.len() {
+            return Err(InvalidInstance::new(
+                "different number of equations and image variables",
+            ));
+        }
+
+        let mut equations = Vec::new();
+        for (lhs, combination) in iter::zip(&self.image, &self.linear_map.linear_combinations) {
+            // The image is the left-hand-side variable with coefficient one...
+            let mut image = alloc::vec![(
+                u32::try_from(lhs.0)
+                    .map_err(|_| InvalidInstance::new("element index exceeds 2^32"))?,
+                G::Scalar::ONE,
+            )];
+            let mut terms = Vec::new();
+            for weighted in combination.terms() {
+                let element_index = u32::try_from(weighted.term.elem.0)
+                    .map_err(|_| InvalidInstance::new("element index exceeds 2^32"))?;
+                match weighted.term.scalar {
+                    ScalarTerm::Var(scalar_var) => {
+                        let scalar_index = u32::try_from(scalar_var.0)
+                            .map_err(|_| InvalidInstance::new("scalar index exceeds 2^32"))?;
+                        terms.push((scalar_index, element_index, weighted.weight));
+                    }
+                    // ...plus each constant term, crossed over with its
+                    // coefficient negated (never folded into a single value).
+                    ScalarTerm::Unit => image.push((element_index, -weighted.weight)),
+                }
+            }
+            equations.push(instance::Equation { image, terms });
+        }
+
+        let elements = (0..self.linear_map.num_elements)
+            .map(|i| self.linear_map.group_elements.get(GroupVar(i, PhantomData)))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Instance::new(elements, equations)
     }
 }

@@ -1,7 +1,7 @@
 
 [package]
 name = "sigma-proofs"
-version = "0.3.2"
+version = "0.4.0"
 authors = [
     "Nugzari Uzoevi <nougzarm@icloud.com>",
     "Michele Orrù <m@orru.net>",
@@ -46,10 +46,7 @@ sha3 = { version = "=0.11.0-rc.9", default-features = false }
 # Include commonly used curved in default features.
 # Increases the default compile times, but makes the crate just-work for most users.
 default = ["std", "bls12_381", "curve25519-dalek", "k256", "p256"]
-# Kept as a no-op for backward compatibility with downstream crates that enabled
-# the former optional rand dependency feature.
-rand = []
-std = ["thiserror", "rand", "rand_core/std", "spongefish/std"]
+std = ["thiserror", "spongefish/std"]
 bls12_381 = ["dep:bls12_381", "spongefish/bls12_381"]
 curve25519-dalek = ["dep:curve25519-dalek", "spongefish/curve25519-dalek"]
 k256 = ["dep:k256", "spongefish/k256"]
@@ -63,9 +60,7 @@ group = "0.13.0"
 itertools = { version = "0.15", default-features = false }
 k256 = { workspace = true, features = ["arithmetic", "alloc"], optional = true }
 p256 = { workspace = true, features = ["arithmetic"], optional = true }
-rand_core = { version = "0.6", default-features = false }
-sha3 = { workspace = true }
-spongefish = { version = "0.7" }
+spongefish = { version = "0.8.0", path = "../spongefish/spongefish" }
 subtle = { version = "2.6.1", default-features = false }
 thiserror = { version = "2", optional = true }
 
@@ -85,7 +80,7 @@ serde_json = "1.0.140"
 serde_with = { version = "3.16.1", features = ["hex"] }
 serial_test = "3.3.1"
 sha2 = { workspace = true }
-spongefish = { version = "0.7", features = ["curve25519-dalek", "p256", "bls12_381", "std"] }
+spongefish = { version = "0.8.0", path = "../spongefish/spongefish", features = ["curve25519-dalek", "p256", "bls12_381", "std", "rand"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 core_affinity2 = "0.15.4"
@@ -112,6 +107,10 @@ required-features = ["curve25519-dalek", "std"]
 
 [[test]]
 name = "test_batch_verification"
+required-features = ["bls12_381", "std"]
+
+[[test]]
+name = "instance_malleability"
 required-features = ["bls12_381", "std"]
 
 [[test]]

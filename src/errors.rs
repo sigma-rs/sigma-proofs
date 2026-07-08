@@ -19,6 +19,10 @@ use core::fmt;
 pub struct InvalidInstance {
     /// The error message describing what's invalid about the instance.
     pub message: String,
+    /// The instance-validation check of the specification
+    /// (draft-irtf-cfrg-sigma-protocols, Section "Instance validation",
+    /// checks 1-10) that failed, when the error corresponds to one.
+    pub check: Option<u8>,
 }
 
 impl InvalidInstance {
@@ -26,6 +30,16 @@ impl InvalidInstance {
     pub fn new(message: impl Into<String>) -> Self {
         Self {
             message: message.into(),
+            check: None,
+        }
+    }
+
+    /// Create an InvalidInstance error for a failed specification check
+    /// (1 through 10, per the "Instance validation" section of the draft).
+    pub fn check(check: u8, message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            check: Some(check),
         }
     }
 }

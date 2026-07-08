@@ -9,8 +9,8 @@
 use curve25519_dalek::scalar::Scalar;
 use curve25519_dalek::RistrettoPoint;
 use group::Group;
-use rand::rngs::OsRng;
 
+use sigma_proofs::ProofRng;
 use sigma_proofs::errors::Error;
 use sigma_proofs::LinearRelation;
 
@@ -35,7 +35,7 @@ fn create_relation(P: RistrettoPoint) -> LinearRelation<RistrettoPoint> {
 #[allow(non_snake_case)]
 fn prove(x: Scalar, P: RistrettoPoint) -> ProofResult<Vec<u8>> {
     let nizk = create_relation(P).into_nizk(b"sigma-proofs-example");
-    nizk?.prove_batchable(&vec![x], &mut OsRng)
+    nizk?.prove_batchable(&vec![x], &mut ProofRng::from_os_entropy())
 }
 
 /// Verify a proof of knowledge of discrete logarithm for the given public key P
@@ -47,7 +47,7 @@ fn verify(P: RistrettoPoint, proof: &[u8]) -> ProofResult<()> {
 
 #[allow(non_snake_case)]
 fn main() {
-    let x = Scalar::random(&mut OsRng); // Private key (witness)
+    let x = Scalar::random(&mut ProofRng::from_os_entropy()); // Private key (witness)
     let P = RistrettoPoint::generator() * x; // Public key (statement)
 
     println!("Generated new key pair:");

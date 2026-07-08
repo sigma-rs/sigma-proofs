@@ -20,22 +20,25 @@
 //! # use curve25519_dalek::ristretto::RistrettoPoint;
 //! # use curve25519_dalek::scalar::Scalar;
 //! # use group::Group;
-//! let mut instance = sigma_proofs::LinearRelation::new();
-//! let mut rng = rand::thread_rng();
+//! use sigma_proofs::{LinearRelation, ProofRng};
+//!
+//! let mut instance = LinearRelation::new();
+//! let mut rng = ProofRng::from_os_entropy();
 //!
 //! // Define the statement:
 //! // Prove knowledge of (x, r) such that C = x·G + r·H (Pedersen commitment)
 //! let [var_x, var_r] = instance.allocate_scalars();
-//! let [var_G, var_H] = instance.allocate_elements();
-//! instance.allocate_eq(var_G * var_x + var_H * var_r);
-//! instance.set_elements([(var_G, RistrettoPoint::generator()), (var_H, RistrettoPoint::random(&mut rng))]);
+//! let var_H = instance.allocate_element();
+//! instance.allocate_eq(instance.generator() * var_x + var_H * var_r);
+//! instance.set_element(var_H, RistrettoPoint::random(&mut rng));
 //!
 //! // Assign the image of the linear map.
 //! let witness = vec![Scalar::random(&mut rng), Scalar::random(&mut rng)];
 //! instance.compute_image(&witness);
 //!
-//! // Create a non-interactive argument for the instance.
-//! let nizk = instance.into_nizk(b"your session identifier").unwrap();
+//! // Create a non-interactive argument for the instance. The tag identifies
+//! // the application context, the NARG flavor, and the ciphersuite.
+//! let nizk = instance.into_nizk(b"example-v00-DSFS-with-sigma-proofs_Shake128_Ristretto").unwrap();
 //! let narg_string: Vec<u8> = nizk.prove_batchable(&witness, &mut rng).unwrap();
 //! // Print the narg string.
 //! println!("{}", hex::encode(narg_string));
@@ -83,4 +86,5 @@ pub(crate) mod schnorr_protocol;
 
 pub use fiat_shamir::Nizk;
 pub use group::msm::MultiScalarMul;
-pub use linear_relation::LinearRelation;
+pub use linear_relation::{Instance, LinearRelation};
+pub use rng::ProofRng;

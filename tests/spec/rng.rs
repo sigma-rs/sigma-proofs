@@ -1,97 +1,65 @@
-use core::{array::from_fn, iter::repeat_with};
+//! The seeded test DRNG of the specification (Section "Test Vectors").
+//!
+//! `random_scalar()` is `DecodeField(Squeeze(Ns + 16), p, 1)` on a SHAKE128
+//! duplex sponge initialized with the 32-byte session identifier
+//! `__sigma-proofs/TestDRNG/SHAKE128` that absorbed the vector's tag once.
 
-use group::{ff::PrimeField, prime::PrimeGroup, Group};
-use sha3::digest::{ExtendableOutput, Update, XofReader};
+use core::array::from_fn;
+
+use group::Group;
+use spongefish::instantiations::dsfs::Shake128;
 use spongefish::Decoding;
 
 use sigma_proofs::traits::ScalarRng;
 
-pub struct MockScalarRng<I: Iterator<Item = Vec<u8>>>(pub I);
+/// The session identifier of the test DRNG (exactly 32 bytes).
+const TESTDRNG_SID: &[u8; 32] = b"__sigma-proofs/TestDRNG/SHAKE128";
 
-impl<I: Iterator<Item = Vec<u8>>> MockScalarRng<I> {
-    fn next<G: Group>(&mut self) -> G::Scalar {
-        let scalar = self.0.next().expect("missing scalar bytes");
-        let mut repr = <G::Scalar as PrimeField>::Repr::default();
-        repr.as_mut().copy_from_slice(&scalar);
-        G::Scalar::from_repr(repr).expect("invalid scalar bytes")
-    }
-}
-
-impl<I: Iterator<Item = Vec<u8>>> ScalarRng for MockScalarRng<I> {
-    fn random_scalars<G: Group, const N: usize>(&mut self) -> [G::Scalar; N] {
-        from_fn(|_| self.next::<G>())
-    }
-
-    fn random_scalars_vec<G: Group>(&mut self, n: usize) -> Vec<G::Scalar> {
-        let mut v = Vec::with_capacity(n);
-        v.extend(repeat_with(|| self.next::<G>()).take(n));
-        v
-    }
-}
-
-pub fn proof_generation_rng<G>(count: usize) -> MockScalarRng<std::vec::IntoIter<Vec<u8>>>
-where
-    G: PrimeGroup,
-    G::Scalar: Decoding<[u8]>,
-{
-    MockScalarRng(test_drng_scalars::<G>(b"proof_generation_seed", count).into_iter())
-}
-
-fn test_drng_scalars<G>(seed_label: &[u8], count: usize) -> Vec<Vec<u8>>
-where
-    G: PrimeGroup,
-    G::Scalar: Decoding<[u8]>,
-{
-    let mut drng = TestDrng::from_seed(seed_label);
-    (0..count)
-        .map(|_| drng.random_scalar_bytes::<G>())
-        .collect()
-}
-
-struct TestDrng {
-    state: sha3::Shake128,
-    squeeze_offset: usize,
-}
+pub struct TestDrng(Shake128);
 
 impl TestDrng {
-    fn from_seed(seed_label: &[u8]) -> Self {
-        let mut initial_block = [0u8; 168];
-        let domain = b"sigma-proofs/TestDRNG/SHAKE128";
-        initial_block[..domain.len()].copy_from_slice(domain);
+    pub fn new(tag: &[u8]) -> Self {
+        let mut sponge = Shake128::new(TESTDRNG_SID);
+        sponge.absorb(tag);
+        Self(sponge)
+    }
 
-        let mut state = sha3::Shake128::default();
-        state.update(&initial_block);
-        state.update(&fixed_seed(seed_label));
-        Self {
-            state,
-            squeeze_offset: 0,
+    /// Advance the stream by `n` scalar draws, as consumed by the vector
+    /// generator's relation builder (instance and witness scalars) before
+    /// the prover draws its nonces.
+    pub fn skip_scalars<G: Group>(&mut self, n: usize)
+    where
+        G::Scalar: Decoding<[u8]>,
+    {
+        for _ in 0..n {
+            let _ = self.random_scalar::<G>();
         }
     }
 
-    fn random_scalar_bytes<G>(&mut self) -> Vec<u8>
+    fn random_scalar<G: Group>(&mut self) -> G::Scalar
     where
-        G: PrimeGroup,
         G::Scalar: Decoding<[u8]>,
     {
+        // Squeeze the scalar's decoding buffer (Ns + 16 bytes for the
+        // ciphersuites of the specification) and wide-reduce.
         let mut repr = <G::Scalar as Decoding<[u8]>>::Repr::default();
-        let uniform_bytes = self.squeeze(repr.as_mut().len());
-        repr.as_mut().copy_from_slice(&uniform_bytes);
-        let scalar = G::Scalar::decode(repr);
-        scalar.to_repr().as_ref().to_vec()
-    }
-
-    fn squeeze(&mut self, length: usize) -> Vec<u8> {
-        let end = self.squeeze_offset + length;
-        let mut full = vec![0u8; end];
-        self.state.clone().finalize_xof().read(&mut full);
-        let out = full[self.squeeze_offset..end].to_vec();
-        self.squeeze_offset = end;
-        out
+        self.0.squeeze(repr.as_mut());
+        <G::Scalar as Decoding<[u8]>>::decode(repr)
     }
 }
 
-fn fixed_seed(label: &[u8]) -> [u8; 32] {
-    let mut seed = [0u8; 32];
-    seed[..label.len()].copy_from_slice(label);
-    seed
+impl ScalarRng for TestDrng {
+    fn random_scalars<G: Group, const N: usize>(&mut self) -> [G::Scalar; N]
+    where
+        G::Scalar: Decoding<[u8]>,
+    {
+        from_fn(|_| self.random_scalar::<G>())
+    }
+
+    fn random_scalars_vec<G: Group>(&mut self, n: usize) -> Vec<G::Scalar>
+    where
+        G::Scalar: Decoding<[u8]>,
+    {
+        (0..n).map(|_| self.random_scalar::<G>()).collect()
+    }
 }

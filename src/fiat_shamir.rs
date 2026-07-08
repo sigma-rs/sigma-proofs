@@ -1,30 +1,35 @@
-//! Fiat-Shamir transformation for [`SigmaProtocol`]s.
+//! Non-interactive Sigma Protocols (draft-irtf-cfrg-sigma-protocols,
+//! Section "Non-interactive Sigma Protocols").
 //!
-//! This module defines [`Nizk`], a generic non-interactive Sigma protocol wrapper,
-//! based on applying the Fiat-Shamir heuristic using a cryptographic sponge function.
+//! This module defines [`Nizk`], the non-interactive argument obtained by
+//! applying the duplex-sponge Fiat-Shamir transformation of
+//! draft-irtf-cfrg-fiat-shamir to a [`SigmaProtocol`].
 //!
-//! It transforms an interactive [`SigmaProtocol`] into a non-interactive one,
-//! by deriving challenges deterministically from previous protocol messages.
-//!
-//! # Usage
-//! This struct is generic over:
-//! - `P`: the underlying Sigma protocol ([`SigmaProtocol`] trait).
+//! The verifier challenge is `DeriveChallenge(tag, instance,
+//! commitment_bytes)`: the 32-byte session identifier is derived from the
+//! `tag` via `DeriveSessionID`, the SHAKE128 duplex sponge is seeded with it,
+//! the serialized instance and the serialized commitment are absorbed, and
+//! the challenge scalar is decoded from `Ns + 16` squeezed bytes
+//! (little-endian wide reduction).
 
 use crate::errors::Error;
+use crate::linear_relation::Instance;
 use crate::traits::ScalarRng;
 use crate::traits::SigmaProtocol;
 use crate::traits::SigmaProtocolSimulator;
+use crate::MultiScalarMul;
 use alloc::vec::Vec;
-use sha3::digest::{ExtendableOutput, Update, XofReader};
-use spongefish::{
-    DomainSeparator, Encoding, NargDeserialize, NargSerialize, ProverState, VerifierState,
-};
+use ff::PrimeField;
+use itertools::Itertools;
+use group::prime::PrimeGroup;
+use spongefish::{Decoding, Encoding, NargDeserialize, NargSerialize, StdHash};
 
-/// A Fiat-Shamir transformation of a [`SigmaProtocol`] into a non-interactive proof.
-///
-/// [`Nizk`] wraps an interactive Sigma protocol `P`
-/// to produce non-interactive proofs by deriving verifier challenges from a
-/// cryptographic sponge state.
+/// The session identifier of the batching sponge for batch verification
+/// (Section "Batch verification").
+const BATCH_VERIFY_TAG: &[u8] = b"irtf-cfrg-sigma-protocols/batch-verify";
+
+/// A non-interactive Sigma protocol, transformed via the duplex-sponge
+/// Fiat-Shamir transformation.
 ///
 /// # Type Parameters
 /// - `P`: the Sigma protocol implementation.
@@ -34,9 +39,57 @@ where
     P: SigmaProtocol,
     P::Challenge: PartialEq,
 {
-    pub session_id: Vec<u8>,
+    /// The 32-byte session identifier seeding the duplex sponge.
+    pub session_id: [u8; 32],
     /// Underlying interactive proof.
     pub interactive_proof: P,
+}
+
+/// `DeriveChallenge` of the specification, minus the session-id derivation:
+/// seed the duplex sponge with `session_id`, absorb the serialized instance
+/// and the serialized commitment, and decode the challenge.
+pub(crate) fn derive_challenge<C: Decoding<[u8]>>(
+    session_id: &[u8; 32],
+    instance_label: &[u8],
+    commitment_bytes: &[u8],
+) -> C {
+    let mut sponge = StdHash::new(session_id);
+    sponge.absorb(instance_label);
+    sponge.absorb(commitment_bytes);
+    let mut repr = C::Repr::default();
+    sponge.squeeze(repr.as_mut());
+    C::decode(repr)
+}
+
+impl<P> Nizk<P>
+where
+    P: SigmaProtocol,
+    P::Challenge: PartialEq,
+{
+    /// Constructs a new [`Nizk`] for the given application `tag`.
+    ///
+    /// The session identifier is derived from `tag` via the `DeriveSessionID`
+    /// of draft-irtf-cfrg-fiat-shamir. Per the specification, the tag must
+    /// uniquely identify the argument, its codecs, and the application
+    /// context, and must contain the flavor marker (`DSFS` for batchable,
+    /// `CMPT` for compact NARG strings) and the ciphersuite identifier
+    /// verbatim.
+    pub fn new(tag: &[u8], interactive_proof: P) -> Self {
+        Self {
+            session_id: spongefish::derive_session_id(tag),
+            interactive_proof,
+        }
+    }
+
+    /// Constructs a new [`Nizk`] from a pre-derived 32-byte session
+    /// identifier. The identifier must satisfy the same requirements as a
+    /// tag-derived one and must come from trusted input.
+    pub fn from_session_id(session_id: [u8; 32], interactive_proof: P) -> Self {
+        Self {
+            session_id,
+            interactive_proof,
+        }
+    }
 }
 
 impl<P> Nizk<P>
@@ -46,96 +99,56 @@ where
     P::Commitment: NargSerialize + NargDeserialize + Encoding,
     P::Response: NargSerialize + NargDeserialize + Encoding,
 {
-    /// Constructs a new [`Nizk`] instance.
-    ///
-    /// # Parameters
-    /// - `iv`: Domain separation tag for the hash function (e.g., protocol name or context).
-    /// - `instance`: An instance of the interactive Sigma protocol.
-    ///
-    /// # Returns
-    /// A new [`Nizk`] that can generate and verify non-interactive proofs.
-    pub fn new(session_identifier: &[u8], interactive_proof: P) -> Self {
-        Self {
-            session_id: session_identifier.to_vec(),
-            interactive_proof,
-        }
-    }
-
-    /// Generates a batchable, serialized non-interactive proof.
-    ///
-    /// # Parameters
-    /// - `witness`: The secret witness.
-    /// - `rng`: A cryptographically secure random number generator.
-    ///
-    /// # Returns
-    /// A serialized proof suitable for batch verification.
-    ///
-    /// # Panics
-    /// Panics if serialization fails (should not happen under correct implementation).
+    /// `ProveBatchable`: generates a batchable NARG string,
+    /// `serialize(commitment) || serialize(response)`.
     pub fn prove_batchable(
         &self,
         witness: &P::Witness,
         rng: &mut impl ScalarRng,
     ) -> Result<Vec<u8>, Error> {
-        let protocol_id = self.interactive_proof.protocol_identifier();
         let instance_label = self.interactive_proof.instance_label();
-        let mut transcript =
-            initialize_prover_state(protocol_id, &self.session_id, instance_label.as_ref());
         let (commitment, ip_state) = self.interactive_proof.prover_commit(witness, rng)?;
-        transcript.prover_messages(&commitment);
-        let challenge = transcript.verifier_message::<P::Challenge>();
+        let commitment_bytes = serialize_messages(&commitment);
+        let challenge = derive_challenge::<P::Challenge>(
+            &self.session_id,
+            instance_label.as_ref(),
+            &commitment_bytes,
+        );
         let response = self
             .interactive_proof
             .prover_response(ip_state, &challenge)?;
-        transcript.prover_messages(&response);
-        Ok(transcript.narg_string().to_vec())
+
+        let mut narg_string = commitment_bytes;
+        serialize_messages_into(&response, &mut narg_string);
+        Ok(narg_string)
     }
 
-    /// Deserializes a batchable non-interactive proof into its transcript,
-    /// re-deriving the challenge from the commitment.
+    /// `VerifyBatchable`: verifies a batchable NARG string.
     ///
-    /// # Parameters
-    /// - `narg_string`: A serialized batchable proof.
-    ///
-    /// # Returns
-    /// - `Ok((commitment, challenge, response))` on success.
-    /// - `Err(Error)` if the proof is malformed or has trailing bytes.
-    pub(crate) fn deserialize_batchable(
-        &self,
-        narg_string: &[u8],
-    ) -> Result<crate::traits::Transcript<P>, Error> {
-        let protocol_id = self.interactive_proof.protocol_identifier();
+    /// Instance validity is enforced by construction of the instance type;
+    /// the NARG string length is enforced by the fixed-size deserialization
+    /// plus the trailing-bytes check.
+    pub fn verify_batchable(&self, narg_string: &[u8]) -> Result<(), Error> {
         let instance_label = self.interactive_proof.instance_label();
         let commitment_len = self.interactive_proof.commitment_len();
         let response_len = self.interactive_proof.response_len();
-        let mut transcript = initialize_verifier_state(
-            protocol_id,
+
+        let mut cursor = narg_string;
+        let commitment = deserialize_messages::<P::Commitment>(commitment_len, &mut cursor)?;
+        self.interactive_proof.check_commitment(&commitment)?;
+        let commitment_bytes_len = narg_string.len() - cursor.len();
+        let response = deserialize_messages::<P::Response>(response_len, &mut cursor)?;
+        if !cursor.is_empty() {
+            return Err(Error::VerificationFailure);
+        }
+
+        // Absorbing the received bytes and absorbing the serialized
+        // commitment are interchangeable for these encodings.
+        let challenge = derive_challenge::<P::Challenge>(
             &self.session_id,
             instance_label.as_ref(),
-            narg_string,
+            &narg_string[..commitment_bytes_len],
         );
-        let commitment = transcript.prover_messages_vec::<P::Commitment>(commitment_len)?;
-        let challenge = transcript.verifier_message::<P::Challenge>();
-        let response = transcript.prover_messages_vec::<P::Response>(response_len)?;
-        transcript.check_eof()?;
-        Ok((commitment, challenge, response))
-    }
-
-    /// Verifies a batchable non-interactive proof.
-    ///
-    /// # Parameters
-    /// - `proof`: A serialized batchable proof.
-    ///
-    /// # Returns
-    /// - `Ok(())` if the proof is valid.
-    /// - `Err(Error)` if deserialization or verification fails.
-    ///
-    /// # Errors
-    /// - Returns [`Error::VerificationFailure`] if:
-    ///   - The challenge doesn't match the recomputed one from the commitment.
-    ///   - The response fails verification under the Sigma protocol.
-    pub fn verify_batchable(&self, narg_string: &[u8]) -> Result<(), Error> {
-        let (commitment, challenge, response) = self.deserialize_batchable(narg_string)?;
         self.interactive_proof
             .verifier(&commitment, &challenge, &response)
     }
@@ -146,167 +159,174 @@ where
     P: SigmaProtocol + SigmaProtocolSimulator,
     P::Challenge: PartialEq + NargDeserialize + NargSerialize,
 {
-    /// Generates a compact serialized proof.
-    ///
-    /// Uses a more space-efficient representation compared to batchable proofs.
-    ///
-    /// # Parameters
-    /// - `witness`: The secret witness.
-    /// - `rng`: A cryptographically secure random number generator.
-    ///
-    /// # Returns
-    /// A compact, serialized proof.
-    ///
-    /// # Panics
-    /// Panics if serialization fails.
+    /// `ProveCompact`: generates a compact NARG string,
+    /// `serialize(challenge) || serialize(response)`.
     pub fn prove_compact(
         &self,
         witness: &P::Witness,
         rng: &mut impl ScalarRng,
     ) -> Result<Vec<u8>, Error> {
-        let protocol_id = self.interactive_proof.protocol_identifier();
         let instance_label = self.interactive_proof.instance_label();
-        let mut transcript =
-            initialize_prover_state(protocol_id, &self.session_id, instance_label.as_ref());
         let (commitment, ip_state) = self.interactive_proof.prover_commit(witness, rng)?;
         let commitment_bytes = serialize_messages(&commitment);
-        transcript.public_message(commitment_bytes.as_slice());
-        let challenge = transcript.verifier_message::<P::Challenge>();
+        let challenge = derive_challenge::<P::Challenge>(
+            &self.session_id,
+            instance_label.as_ref(),
+            &commitment_bytes,
+        );
         let response = self
             .interactive_proof
             .prover_response(ip_state, &challenge)?;
 
-        // Serialize the compact proof string.
-        let mut proof = Vec::new();
-        challenge.serialize_into_narg(&mut proof);
-        serialize_messages_into(&response, &mut proof);
-        Ok(proof)
+        let mut narg_string = Vec::new();
+        challenge.serialize_into_narg(&mut narg_string);
+        serialize_messages_into(&response, &mut narg_string);
+        Ok(narg_string)
     }
 
-    /// Verifies a compact proof.
-    ///
-    /// Recomputes the commitment from the challenge and response, then verifies it.
-    ///
-    /// # Parameters
-    /// - `proof`: A compact serialized proof.
-    ///
-    /// # Returns
-    /// - `Ok(())` if the proof is valid.
-    /// - `Err(Error)` if deserialization or verification fails.
-    ///
-    /// # Errors
-    /// - Returns [`Error::VerificationFailure`] if:
-    ///   - Deserialization fails.
-    ///   - The recomputed commitment or response is invalid under the Sigma protocol.
-    pub fn verify_compact(&self, proof: &[u8]) -> Result<(), Error> {
-        // Deserialize challenge and response from compact proof
-        let mut cursor = proof;
-        let protocol_id = self.interactive_proof.protocol_identifier();
+    /// `VerifyCompact`: recomputes the commitment from `(challenge, response)`
+    /// via the simulator, rejects identity commitments (step 7 of the
+    /// specification), and accepts only if the re-derived challenge matches.
+    pub fn verify_compact(&self, narg_string: &[u8]) -> Result<(), Error> {
         let instance_label = self.interactive_proof.instance_label();
-        let challenge = P::Challenge::deserialize_from_narg(&mut cursor)?;
         let response_len = self.interactive_proof.response_len();
-        let response = deserialize_messages(response_len, &mut cursor)?;
 
-        // Proof size check
+        let mut cursor = narg_string;
+        let challenge = P::Challenge::deserialize_from_narg(&mut cursor)?;
+        let response = deserialize_messages::<P::Response>(response_len, &mut cursor)?;
         if !cursor.is_empty() {
             return Err(Error::VerificationFailure);
         }
 
-        // Compute the commitments
         let commitment = self
             .interactive_proof
             .simulate_commitment(&challenge, &response)?;
+        // Step 7: maintain consistency with group deserialization, which
+        // rejects the identity element.
+        self.interactive_proof.check_commitment(&commitment)?;
 
-        // Re-compute the challenge and ensure it's the same as the one
-        // we received
         let commitment_bytes = serialize_messages(&commitment);
-        let mut transcript =
-            initialize_verifier_state(protocol_id, &self.session_id, instance_label.as_ref(), &[]);
-        transcript.public_message(commitment_bytes.as_slice());
-        let recomputed_challenge = transcript.verifier_message::<P::Challenge>();
-        if challenge != recomputed_challenge {
+        let expected_challenge = derive_challenge::<P::Challenge>(
+            &self.session_id,
+            instance_label.as_ref(),
+            &commitment_bytes,
+        );
+        if challenge != expected_challenge {
             return Err(Error::VerificationFailure);
         }
-
-        // At this point, checking
-        // self.interactive_proof.verifier(&commitment, &challenge,
-        // &response) is redundant, because we know that commitment =
-        // simulate_commitment(challenge, response), and that challenge
-        // is the output of the appropriate hash, so the signature is
-        // valid.
+        // Since the simulator always outputs accepting transcripts, running
+        // the interactive verifier here would be redundant.
         Ok(())
     }
 }
 
-fn initialize_prover_state(
-    protocol_id: [u8; 64],
-    session_id: &[u8],
-    instance_label: &[u8],
-) -> ProverState {
-    let instance_label = instance_label.to_vec();
-    DomainSeparator::new(protocol_id)
-        .session(derive_session_id(session_id))
-        .instance(&instance_label)
-        .std_prover()
+impl<G> Nizk<Instance<G>>
+where
+    G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize + MultiScalarMul,
+    G::Scalar: Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]>,
+{
+    /// Batch verification of batchable NARG strings (Section "Batch
+    /// verification").
+    ///
+    /// Each NARG string's challenge is re-derived individually with
+    /// `DeriveChallenge`; a single random linear combination of all
+    /// verification equations is then checked with one multi-scalar
+    /// multiplication. The 128-bit batching randomness elements are squeezed
+    /// from a dedicated duplex sponge only after absorbing, for every proof,
+    /// its session identifier, its serialized instance, and its NARG string —
+    /// so the randomness is unpredictable to the prover(s).
+    ///
+    /// Instances are validated by construction. Empty batches are valid.
+    /// Upon failure, the offending NARG string is not identified; an
+    /// application may fall back to verifying the NARG strings individually
+    /// with [`Nizk::verify_batchable`].
+    pub fn verify_batch(proofs: &[(&Nizk<Instance<G>>, &[u8])]) -> Result<(), Error> {
+        if proofs.is_empty() {
+            return Ok(());
+        }
+        if u32::try_from(proofs.len()).is_err() {
+            return Err(Error::InvalidInstanceWitnessPair);
+        }
+
+        // Absorb every value of the batched equation before squeezing any
+        // batching randomness: session ids, instances, and NARG strings
+        // (including the responses!).
+        let batching_sid = spongefish::derive_session_id(BATCH_VERIFY_TAG);
+        let mut sponge = StdHash::new(&batching_sid);
+        for (nizk, narg_string) in proofs {
+            sponge.absorb(&nizk.session_id);
+            sponge.absorb(&nizk.interactive_proof.serialize());
+            sponge.absorb(narg_string);
+        }
+
+        // Check sum over i, j of
+        //   r[i][j] * commitment[i][j]
+        //   + r[i][j] * challenge[i] * image(instances[i])[j]
+        //   - r[i][j] * map(instances[i], response[i])[j]  == identity,
+        // with each r[i][j] a 16-byte squeeze read as a little-endian
+        // integer, in row-major order (consecutive squeezes continue one
+        // output stream, so this equals one `16 * K`-byte squeeze).
+        let mut scalars = Vec::new();
+        let mut bases = Vec::new();
+        for (nizk, narg_string) in proofs {
+            let instance = &nizk.interactive_proof;
+            let mut cursor = *narg_string;
+            let commitment =
+                deserialize_messages::<G>(instance.num_equations(), &mut cursor)?;
+            instance.check_commitment(&commitment)?;
+            let commitment_bytes_len = narg_string.len() - cursor.len();
+            let response =
+                deserialize_messages::<G::Scalar>(instance.num_scalars(), &mut cursor)?;
+            if !cursor.is_empty() {
+                return Err(Error::VerificationFailure);
+            }
+            let challenge = derive_challenge::<G::Scalar>(
+                &nizk.session_id,
+                instance.serialize().as_ref(),
+                &narg_string[..commitment_bytes_len],
+            );
+
+            for (equation, commitment_j) in instance.equations().iter().zip_eq(commitment) {
+                let mut randomness = [0u8; 16];
+                sponge.squeeze(&mut randomness);
+                let r = G::Scalar::from_u128(u128::from_le_bytes(randomness));
+
+                scalars.push(r);
+                bases.push(commitment_j);
+                for &(element_index, coeff) in &equation.image {
+                    scalars.push(r * challenge * coeff);
+                    bases.push(instance.elements()[element_index as usize]);
+                }
+                for &(scalar_index, element_index, coeff) in &equation.terms {
+                    scalars.push(-(r * response[scalar_index as usize] * coeff));
+                    bases.push(instance.elements()[element_index as usize]);
+                }
+            }
+        }
+
+        match G::msm(&scalars, &bases) == G::identity() {
+            true => Ok(()),
+            false => Err(Error::VerificationFailure),
+        }
+    }
 }
 
-fn initialize_verifier_state<'a>(
-    protocol_id: [u8; 64],
-    session_id: &[u8],
-    instance_label: &[u8],
-    narg_string: &'a [u8],
-) -> VerifierState<'a> {
-    let instance_label = instance_label.to_vec();
-    DomainSeparator::new(protocol_id)
-        .session(derive_session_id(session_id))
-        .instance(&instance_label)
-        .std_verifier(narg_string)
-}
-
-/// Fresh duplex sponge for deriving batch-verification randomness, per the
-/// spec: `DS.Init(DeriveSessionID("irtf-cfrg-sigma-protocols/batch-verify"))`.
-///
-/// The derived batching session identifier is the sponge's initialization
-/// vector; the empty session and instance below encode to zero bytes and
-/// absorb nothing.
-pub(crate) fn initialize_batch_verifier_state() -> VerifierState<'static> {
-    let batching_sid = derive_session_id(b"irtf-cfrg-sigma-protocols/batch-verify");
-    DomainSeparator::new(batching_sid)
-        .without_session()
-        .instance([0u8; 0])
-        .std_verifier(&[])
-}
-
-pub(crate) fn derive_session_id(session_id: &[u8]) -> [u8; 64] {
-    const RATE: usize = 168;
-    const DOMAIN: &[u8] = b"fiat-shamir/session-id";
-
-    let mut initial_block = [0u8; RATE];
-    initial_block[..DOMAIN.len()].copy_from_slice(DOMAIN);
-
-    let mut shake = sha3::Shake128::default();
-    shake.update(&initial_block);
-    shake.update(session_id);
-
-    let mut reader = shake.finalize_xof();
-    let mut derived = [0u8; 64];
-    reader.read(&mut derived[32..]);
-    derived
-}
-
-fn serialize_messages_into<T: NargSerialize>(messages: &[T], out: &mut Vec<u8>) {
+pub(crate) fn serialize_messages_into<T: NargSerialize>(messages: &[T], out: &mut Vec<u8>) {
     for message in messages {
         message.serialize_into_narg(out);
     }
 }
 
-fn serialize_messages<T: NargSerialize>(messages: &[T]) -> Vec<u8> {
+pub(crate) fn serialize_messages<T: NargSerialize>(messages: &[T]) -> Vec<u8> {
     let mut out = Vec::new();
     serialize_messages_into(messages, &mut out);
     out
 }
 
-fn deserialize_messages<T: NargDeserialize>(len: usize, buf: &mut &[u8]) -> Result<Vec<T>, Error> {
+pub(crate) fn deserialize_messages<T: NargDeserialize>(
+    len: usize,
+    buf: &mut &[u8],
+) -> Result<Vec<T>, Error> {
     let mut out = Vec::new();
     for _ in 0..len {
         out.push(T::deserialize_from_narg(buf).map_err(|_| Error::VerificationFailure)?);

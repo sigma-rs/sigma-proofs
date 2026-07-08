@@ -1,48 +1,22 @@
-//! Implementation of the generic Schnorr Sigma Protocol over a [`group::Group`].
+//! The Sigma Protocol for preimages of linear maps over a [`group::Group`]
+//! (draft-irtf-cfrg-sigma-protocols, Section "The Sigma Protocol").
 //!
-//! This module defines the [`SchnorrProof`] structure, which implements
-//! a Sigma protocol proving different types of discrete logarithm relations (eg. Schnorr, Pedersen's commitments)
-//! through a group morphism abstraction (see [Maurer09](https://crypto-test.ethz.ch/publications/files/Maurer09.pdf)).
+//! This module implements [`SigmaProtocol`] for the validated [`Instance`],
+//! proving knowledge of a witness for linear group relations (Schnorr,
+//! Pedersen commitments, DLEQ, ...) through the group-morphism abstraction
+//! of [Maurer09](https://crypto-test.ethz.ch/publications/files/Maurer09.pdf).
 
 use crate::errors::{Error, Result};
-use crate::linear_relation::CanonicalLinearRelation;
+use crate::linear_relation::Instance;
 use crate::traits::{ScalarRng, SigmaProtocol, SigmaProtocolSimulator, Transcript};
 use crate::{LinearRelation, MultiScalarMul, Nizk};
 use alloc::vec::Vec;
-use ff::PrimeField;
 use itertools::Itertools;
 
 use group::prime::PrimeGroup;
 use spongefish::{Decoding, Encoding, NargDeserialize, NargSerialize};
 
-fn protocol_identifier_for_group<G>() -> [u8; 64] {
-    let _ = core::marker::PhantomData::<G>;
-
-    #[cfg(feature = "p256")]
-    if core::any::type_name::<G>() == core::any::type_name::<p256::ProjectivePoint>() {
-        return pad_identifier(b"sigma-proofs_Shake128_P256");
-    }
-
-    #[cfg(feature = "bls12_381")]
-    if core::any::type_name::<G>() == core::any::type_name::<bls12_381::G1Projective>() {
-        return pad_identifier(b"sigma-proofs_Shake128_BLS12381");
-    }
-
-    pad_identifier(b"ietf sigma proof linear relation")
-}
-
-fn pad_identifier(identifier: &[u8]) -> [u8; 64] {
-    assert!(
-        identifier.len() <= 64,
-        "identifier must fit within 64 bytes"
-    );
-
-    let mut padded = [0u8; 64];
-    padded[..identifier.len()].copy_from_slice(identifier);
-    padded
-}
-
-impl<G> SigmaProtocol for CanonicalLinearRelation<G>
+impl<G> SigmaProtocol for Instance<G>
 where
     G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize + MultiScalarMul,
     G::Scalar: Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]>,
@@ -53,53 +27,38 @@ where
     type Witness = Vec<G::Scalar>;
     type Challenge = G::Scalar;
 
-    /// Prover's first message: generates a commitment using random nonces.
-    ///
-    /// # Parameters
-    /// - `witness`: A vector of scalars that satisfy the linear map relation.
-    /// - `rng`: A cryptographically secure random number generator.
-    ///
-    /// # Returns
-    /// - A tuple containing:
-    ///     - The commitment (a vector of group elements).
-    ///     - The prover state (random nonces and witness) used to compute the response.
+    /// `ProverCommitment` of the specification: sample one nonce per witness
+    /// scalar and evaluate the linear map at the nonces.
     ///
     /// # Errors
     ///
-    /// -[`Error::InvalidInstanceWitnessPair`] if the witness vector length is not equal to the number of scalar variables.
+    /// [`Error::InvalidInstanceWitnessPair`] if the witness length does not
+    /// match `num_scalars(instance)` (a mismatch cannot yield a valid proof
+    /// and may otherwise leak the witness).
     fn prover_commit(
         &self,
         witness: &Self::Witness,
         rng: &mut impl ScalarRng,
     ) -> Result<(Vec<Self::Commitment>, Self::ProverState)> {
-        if witness.len() != self.num_scalars {
+        if witness.len() != self.num_scalars() {
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
-        let nonces = rng.random_scalars_vec::<G>(self.num_scalars);
-        let commitment = self.evaluate(&nonces);
-        let prover_state = (nonces.to_vec(), witness.to_vec());
+        let nonces = rng.random_scalars_vec::<G>(self.num_scalars());
+        let commitment = self.map(&nonces);
+        let prover_state = (nonces, witness.clone());
         Ok((commitment, prover_state))
     }
 
-    /// Computes the prover's response (second message) using the challenge.
-    ///
-    /// # Parameters
-    /// - `state`: The prover state returned by `prover_commit`, typically containing randomness and witness components.
-    /// - `challenge`: The verifier's challenge scalar.
-    ///
-    /// # Returns
-    /// - A vector of scalars forming the prover's response.
-    ///
-    /// # Errors
-    /// - Returns [`Error::InvalidInstanceWitnessPair`] if the prover state vectors have incorrect lengths.
+    /// `ProverResponse` of the specification:
+    /// `response[i] = nonces[i] + witness[i] * challenge`.
     fn prover_response(
         &self,
         prover_state: Self::ProverState,
         challenge: &Self::Challenge,
     ) -> Result<Vec<Self::Response>> {
         let (nonces, witness) = prover_state;
-        if witness.len() != self.num_scalars || nonces.len() != self.num_scalars {
+        if witness.len() != self.num_scalars() || nonces.len() != self.num_scalars() {
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
@@ -110,168 +69,90 @@ where
             .collect();
         Ok(responses)
     }
-    /// Verifies the correctness of the proof.
+
+    /// `Verifier` of the specification: checks
+    /// `map(instance, response) == commitment + challenge * image(instance)`.
     ///
-    /// # Parameters
-    /// - `commitment`: The prover's commitment vector (group elements).
-    /// - `challenge`: The challenge scalar.
-    /// - `response`: The prover's response vector.
-    ///
-    /// # Returns
-    /// - `Ok(())` if the proof is valid.
-    /// - `Err(Error::VerificationFailure)` if the proof is invalid.
-    /// - `Err(Error::InvalidInstanceWitnessPair)` if the lengths of commitment or response do not match the expected counts.
-    ///
-    /// # Errors
-    /// -[`Error::VerificationFailure`] if the computed relation
-    /// does not hold for the provided challenge and response, indicating proof invalidity.
-    /// -[`Error::InvalidInstanceWitnessPair`] if the commitment or response length is incorrect.
+    /// Instance validity (step 1 of the specification's verifier) is enforced
+    /// by construction: an [`Instance`] can only be built through
+    /// `ValidateInstance`.
     fn verifier(
         &self,
         commitment: &[Self::Commitment],
         challenge: &Self::Challenge,
         response: &[Self::Response],
     ) -> Result<()> {
-        if commitment.len() != self.image.len() || response.len() != self.num_scalars {
+        if commitment.len() != self.num_equations() || response.len() != self.num_scalars() {
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
-        let lhs = self.evaluate(response);
-        let mut rhs = Vec::new();
-        for (img, g) in self.image_elements().zip_eq(commitment) {
-            rhs.push(img * challenge + g);
-        }
-        if lhs == rhs {
+        let expected = self.map(response);
+        let got: Vec<G> = self
+            .image()
+            .into_iter()
+            .zip_eq(commitment)
+            .map(|(img, com)| img * challenge + com)
+            .collect();
+        if got == expected {
             Ok(())
         } else {
             Err(Error::VerificationFailure)
         }
     }
+
     fn commitment_len(&self) -> usize {
-        self.image.len()
+        self.num_equations()
     }
 
     fn response_len(&self) -> usize {
-        self.num_scalars
+        self.num_scalars()
     }
 
+    /// The encoded instance (`SerializeLinearRelation`).
     fn instance_label(&self) -> impl AsRef<[u8]> {
-        self.label()
+        self.serialize()
     }
 
-    fn protocol_identifier(&self) -> [u8; 64] {
-        protocol_identifier_for_group::<G>()
+    /// Rejects the identity element in commitment messages, maintaining
+    /// consistency with group deserialization.
+    fn check_commitment(&self, commitment: &[Self::Commitment]) -> Result<()> {
+        match commitment.iter().any(|c| c.is_identity().into()) {
+            true => Err(Error::VerificationFailure),
+            false => Ok(()),
+        }
     }
 }
 
-impl<G> CanonicalLinearRelation<G>
+impl<G> Instance<G>
 where
     G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize + MultiScalarMul,
     G::Scalar: Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]>,
 {
-    /// Convert this LinearRelation into a non-interactive zero-knowledge protocol
-    /// using the ShakeCodec and a specified context/domain separator.
-    ///
-    /// # Parameters
-    /// - `context`: Domain separator bytes for the Fiat-Shamir transform
-    ///
-    /// # Returns
-    /// A `Nizk` instance ready for proving and verification
+    /// Wrap this instance in a non-interactive argument for the given `tag`
+    /// (see [`Nizk::new`] for the tag's requirements).
     ///
     /// # Example
     /// ```
     /// # #[cfg(feature = "curve25519-dalek")] {
-    /// # use sigma_proofs::{LinearRelation, Nizk};
+    /// # use sigma_proofs::{LinearRelation, ProofRng};
     /// # use curve25519_dalek::RistrettoPoint as G;
-    /// # use curve25519_dalek::scalar::Scalar;
-    /// # use rand::rngs::OsRng;
     /// # use group::Group;
     ///
+    /// let mut rng = ProofRng::from_os_entropy();
     /// let mut relation = LinearRelation::<G>::new();
     /// let x_var = relation.allocate_scalar();
-    /// let g_var = relation.allocate_element();
-    /// let p_var = relation.allocate_eq(x_var * g_var);
+    /// let p_var = relation.allocate_eq(x_var * relation.generator());
     ///
-    /// relation.set_element(g_var, G::generator());
-    /// let x = Scalar::random(&mut OsRng);
+    /// let x = rng.sample();
     /// relation.compute_image(&[x]).unwrap();
     ///
-    /// // Convert to NIZK with custom context
-    /// let nizk = relation.into_nizk(b"my-protocol-v1").unwrap();
-    /// let proof = nizk.prove_batchable(&vec![x], &mut OsRng).unwrap();
+    /// let nizk = relation.compile().unwrap().into_nizk(b"my-protocol-v1");
+    /// let proof = nizk.prove_batchable(&vec![x], &mut rng).unwrap();
     /// assert!(nizk.verify_batchable(&proof).is_ok());
     /// # }
     /// ```
-    pub fn into_nizk(self, session_identifier: &[u8]) -> Result<Nizk<CanonicalLinearRelation<G>>> {
-        Ok(Nizk::new(session_identifier, self))
-    }
-
-    /// Batch-verifies batchable non-interactive proofs, following the
-    /// batch verification procedure of the IETF spec.
-    ///
-    /// Each proof's challenge is re-derived individually; a single random
-    /// linear combination of all the verification equations is then checked
-    /// with one multi-scalar multiplication. The 128-bit batching randomness
-    /// is squeezed from a fresh duplex sponge only after absorbing, for every
-    /// proof, its session identifier, its instance label, and its NARG string,
-    /// so that it is unpredictable to the prover.
-    ///
-    /// Instances are validated when constructed ([`CanonicalLinearRelation`]
-    /// is type-safe). Empty batches are valid. Upon failure, the offending
-    /// NARG string is not identified; an application may fall back to
-    /// verifying the NARG strings individually with
-    /// [`Nizk::verify_batchable`].
-    ///
-    /// # Parameters
-    /// - `proofs`: Pairs of `(nizk_instance, serialized_batchable_proof)`.
-    ///
-    /// # Returns
-    /// - `Ok(())` if all proofs are valid.
-    /// - `Err(Error)` if the batch is larger than `2^32 - 1`, or any proof is
-    ///   malformed or invalid.
-    pub fn verify_batch(proofs: &[(&Nizk<Self>, &[u8])]) -> Result<()> {
-        if proofs.is_empty() {
-            return Ok(());
-        }
-        if u32::try_from(proofs.len()).is_err() {
-            return Err(Error::InvalidInstanceWitnessPair);
-        }
-
-        let mut sponge = crate::fiat_shamir::initialize_batch_verifier_state();
-        for (nizk, narg_string) in proofs {
-            sponge.public_message(&crate::fiat_shamir::derive_session_id(&nizk.session_id));
-            sponge.public_message(nizk.interactive_proof.instance_label().as_ref());
-            sponge.public_message(*narg_string);
-        }
-
-        // sum(r[i][j] * (commitment[i][j] + challenge[i] * image[i][j]
-        //                - map(instance[i], response[i])[j])) == identity,
-        // with each r[i][j] a 16-byte squeeze read as a little-endian integer,
-        // in row-major order.
-        let mut scalars = Vec::new();
-        let mut bases = Vec::new();
-        for (nizk, narg_string) in proofs {
-            let relation = &nizk.interactive_proof;
-            let (commitment, challenge, response) = nizk.deserialize_batchable(narg_string)?;
-            let equations = core::iter::zip(&relation.image, &relation.linear_combinations);
-            for ((image_var, constraint), commitment_j) in equations.zip_eq(commitment) {
-                let r = G::Scalar::from_u128(u128::from_le_bytes(
-                    sponge.verifier_message::<[u8; 16]>(),
-                ));
-                scalars.push(r);
-                bases.push(commitment_j);
-                scalars.push(r * challenge);
-                bases.push(relation.group_elements.get(*image_var)?);
-                for (scalar_var, group_var) in constraint {
-                    scalars.push(-(r * response[scalar_var.index()]));
-                    bases.push(relation.group_elements.get(*group_var)?);
-                }
-            }
-        }
-        match G::msm(&scalars, &bases) == G::identity() {
-            true => Ok(()),
-            false => Err(Error::VerificationFailure),
-        }
+    pub fn into_nizk(self, tag: &[u8]) -> Nizk<Instance<G>> {
+        Nizk::new(tag, self)
     }
 }
 
@@ -280,78 +161,25 @@ where
     G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize + MultiScalarMul,
     G::Scalar: Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]>,
 {
-    /// Convert this LinearRelation into a non-interactive zero-knowledge protocol
-    /// using the Fiat-Shamir transform.
-    ///
-    /// This is a convenience method that combines `.canonical()` and `.into_nizk()`.
-    ///
-    /// # Parameters
-    /// - `session_identifier`: Domain separator bytes for the Fiat-Shamir transform
-    ///
-    /// # Returns
-    /// A `Nizk` instance ready for proving and verification
-    ///
-    /// # Example
-    /// ```
-    /// # #[cfg(feature = "curve25519-dalek")] {
-    /// # use sigma_proofs::{LinearRelation, Nizk};
-    /// # use curve25519_dalek::RistrettoPoint as G;
-    /// # use curve25519_dalek::scalar::Scalar;
-    /// # use rand::rngs::OsRng;
-    /// # use group::Group;
-    ///
-    /// let mut relation = LinearRelation::<G>::new();
-    /// let x_var = relation.allocate_scalar();
-    /// let g_var = relation.allocate_element();
-    /// let p_var = relation.allocate_eq(x_var * g_var);
-    ///
-    /// relation.set_element(g_var, G::generator());
-    /// let x = Scalar::random(&mut OsRng);
-    /// relation.compute_image(&[x]).unwrap();
-    ///
-    /// // Convert to NIZK directly
-    /// let nizk = relation.into_nizk(b"my-protocol-v1").unwrap();
-    /// let proof = nizk.prove_batchable(&vec![x], &mut OsRng).unwrap();
-    /// assert!(nizk.verify_batchable(&proof).is_ok());
-    /// # }
-    /// ```
-    pub fn into_nizk(
-        self,
-        session_identifier: &[u8],
-    ) -> crate::errors::Result<crate::Nizk<CanonicalLinearRelation<G>>>
-    where
-        G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize,
-        G::Scalar: Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]>,
-    {
-        self.canonical()
-            .map_err(|_| crate::errors::Error::InvalidInstanceWitnessPair)?
-            .into_nizk(session_identifier)
+    /// Compile this relation ([`LinearRelation::compile`]) and wrap it in a
+    /// non-interactive argument for the given `tag`.
+    pub fn into_nizk(self, tag: &[u8]) -> crate::errors::Result<Nizk<Instance<G>>> {
+        Ok(self.compile()?.into_nizk(tag))
     }
 }
-impl<G> SigmaProtocolSimulator for CanonicalLinearRelation<G>
+
+impl<G> SigmaProtocolSimulator for Instance<G>
 where
     G: PrimeGroup + Encoding<[u8]> + NargSerialize + NargDeserialize + MultiScalarMul,
     G::Scalar: Encoding<[u8]> + NargSerialize + NargDeserialize + Decoding<[u8]>,
 {
-    /// Simulates a valid transcript for a given challenge without a witness.
-    ///
-    /// # Parameters
-    /// - `challenge`: A scalar value representing the challenge.
-    /// - `rng`: A cryptographically secure RNG.
-    ///
-    /// # Returns
-    /// - A commitment and response forming a valid proof for the given challenge.
+    /// `SimulateResponse`: a vector of `num_scalars(instance)` uniformly
+    /// random scalars.
     fn simulate_response(&self, rng: &mut impl ScalarRng) -> Vec<Self::Response> {
-        rng.random_scalars_vec::<G>(self.num_scalars)
+        rng.random_scalars_vec::<G>(self.num_scalars())
     }
 
-    /// Simulates a full proof transcript using a randomly generated challenge.
-    ///
-    /// # Parameters
-    /// - `rng`: A cryptographically secure RNG.
-    ///
-    /// # Returns
-    /// - A tuple `(commitment, challenge, response)` forming a valid proof.
+    /// Simulates a full transcript using a randomly generated challenge.
     fn simulate_transcript(&self, rng: &mut impl ScalarRng) -> Result<Transcript<Self>> {
         let [challenge] = rng.random_scalars::<G, _>();
         let response = self.simulate_response(rng);
@@ -359,40 +187,45 @@ where
         Ok((commitment, challenge, response))
     }
 
-    /// Recomputes the commitment from the challenge and response (used in compact proofs).
-    ///
-    /// # Parameters
-    /// - `challenge`: The challenge scalar issued by the verifier or derived via Fiat–Shamir.
-    /// - `response`: The prover's response vector.
-    ///
-    /// # Returns
-    /// - A vector of group elements representing the simulated commitment (one per linear constraint).
-    ///
-    /// # Errors
-    /// - [`Error::InvalidInstanceWitnessPair`] if the response length does not match the expected number of scalars.
+    /// `SimulateCommitment` of the specification: solves the verification
+    /// equation for the commitment,
+    /// `commitment[i] = map(instance, response)[i] - challenge * image(instance)[i]`.
     fn simulate_commitment(
         &self,
         challenge: &Self::Challenge,
         response: &[Self::Response],
     ) -> Result<Vec<Self::Commitment>> {
-        if response.len() != self.num_scalars {
+        if response.len() != self.num_scalars() {
             return Err(Error::InvalidInstanceWitnessPair);
         }
 
-        // Evaluate the constraint linear combinations using the response scalars.
-        // NOTE: This does not use CanonicalLinearRelation::evaluate because we also want to
-        // include the multiplication of the response image by the challenge in the same MSM.
-        let commitment = itertools::zip_eq(&self.linear_combinations, self.image_elements())
-            .map(|(constraint, img)| {
-                let scalars = constraint
+        // A single MSM per equation: the response terms plus the negated
+        // challenge times the image terms.
+        let commitment = self
+            .equations()
+            .iter()
+            .map(|equation| {
+                let scalars = equation
+                    .terms
                     .iter()
-                    .map(|(scalar_var, _)| response[scalar_var.index()])
-                    .chain(core::iter::once(-*challenge))
+                    .map(|&(s, _, coeff)| coeff * response[s as usize])
+                    .chain(
+                        equation
+                            .image
+                            .iter()
+                            .map(|&(_, coeff)| -(coeff * challenge)),
+                    )
                     .collect::<Vec<_>>();
-                let bases = constraint
+                let bases = equation
+                    .terms
                     .iter()
-                    .map(|(_, group_var)| self.group_elements.get(*group_var).unwrap())
-                    .chain(core::iter::once(img))
+                    .map(|&(_, e, _)| self.elements()[e as usize])
+                    .chain(
+                        equation
+                            .image
+                            .iter()
+                            .map(|&(e, _)| self.elements()[e as usize]),
+                    )
                     .collect::<Vec<_>>();
                 MultiScalarMul::msm(&scalars, &bases)
             })
