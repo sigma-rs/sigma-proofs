@@ -111,6 +111,10 @@ name = "verifier_rejection"
 required-features = ["curve25519-dalek", "std"]
 
 [[test]]
+name = "test_batch_verification"
+required-features = ["bls12_381", "std"]
+
+[[test]]
 name = "spec_vectors"
 required-features = ["bls12_381", "std"]
 
