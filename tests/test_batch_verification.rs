@@ -12,7 +12,7 @@ fn test_batch_verify_empty() {
 
 #[test]
 fn test_batch_verify_different_instances() {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
 
     let relation_samplers: Vec<&'static dyn Fn(&mut _) -> _> = vec![
         &discrete_logarithm,
@@ -59,7 +59,7 @@ fn test_batch_verify_different_instances() {
 #[test]
 fn test_batch_verify_agrees_with_individual() {
     use rand::Rng;
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
 
     let samplers: Vec<&'static dyn Fn(&mut _) -> _> = vec![
         &discrete_logarithm,

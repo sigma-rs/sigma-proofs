@@ -13,21 +13,23 @@ keywords = ["cryptography", "hash-to-curve", "elliptic-curve", "rfc9380"]
 default = []
 rfc9380 = ["dep:digest"]
 curve25519-dalek = ["dep:curve25519-dalek"]
-k256 = ["dep:k256", "dep:elliptic-curve"]
-p256 = ["dep:p256", "dep:elliptic-curve"]
+k256 = ["dep:k256", "dep:elliptic-curve", "dep:hash2curve"]
+p256 = ["dep:p256", "dep:elliptic-curve", "dep:hash2curve"]
 
 [dependencies]
 bytemuck = { workspace = true, features = ["min_const_generics"] }
 curve25519-dalek = { workspace = true, optional = true }
 digest = { workspace = true, optional = true }
-elliptic-curve = { workspace = true, features = ["hash2curve"], optional = true }
-k256 = { workspace = true, features = ["arithmetic", "expose-field", "hash2curve"], optional = true }
-p256 = { workspace = true, features = ["arithmetic", "expose-field", "hash2curve"], optional = true }
+elliptic-curve = { workspace = true, optional = true }
+hash2curve = { workspace = true, optional = true }
+k256 = { workspace = true, features = ["arithmetic", "hash2curve"], optional = true }
+p256 = { workspace = true, features = ["arithmetic", "hash2curve"], optional = true }
 
 [dev-dependencies]
+elliptic-curve = { workspace = true, features = ["sec1"] }
 hex-literal = { workspace = true }
 sha2 = { workspace = true }
-sha3 = { workspace = true }
+shake = { workspace = true }
 
 [[test]]
 name = "rfc9380_expand"

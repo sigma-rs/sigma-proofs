@@ -13,7 +13,7 @@ use ff::PrimeField;
 use itertools::Itertools;
 
 use group::prime::PrimeGroup;
-use rand_core::CryptoRngCore;
+use rand_core::CryptoRng;
 use spongefish::{Decoding, Encoding, NargDeserialize, NargSerialize};
 
 fn protocol_identifier_for_group<G>() -> [u8; 64] {
@@ -24,10 +24,9 @@ fn protocol_identifier_for_group<G>() -> [u8; 64] {
         return pad_identifier(b"sigma-proofs_Shake128_P256");
     }
 
-    #[cfg(feature = "bls12_381")]
-    if core::any::type_name::<G>() == core::any::type_name::<bls12_381::G1Projective>() {
-        return pad_identifier(b"sigma-proofs_Shake128_BLS12381");
-    }
+    // NOTE: the dedicated BLS12-381 protocol identifier
+    // (b"sigma-proofs_Shake128_BLS12381") is temporarily removed along with the
+    // bls12_381 feature, until a bls12_381 release implements ff/group 0.14.
 
     pad_identifier(b"ietf sigma proof linear relation")
 }
@@ -71,7 +70,7 @@ where
     fn prover_commit(
         &self,
         witness: &Self::Witness,
-        rng: &mut impl CryptoRngCore,
+        rng: &mut impl CryptoRng,
     ) -> Result<(Vec<Self::Commitment>, Self::ProverState)> {
         if witness.len() != self.num_scalars {
             return Err(Error::InvalidInstanceWitnessPair);
@@ -185,7 +184,6 @@ where
     /// # use sigma_proofs::{LinearRelation, Nizk};
     /// # use curve25519_dalek::RistrettoPoint as G;
     /// # use curve25519_dalek::scalar::Scalar;
-    /// # use rand::rngs::OsRng;
     /// # use group::Group;
     ///
     /// let mut relation = LinearRelation::<G>::new();
@@ -194,12 +192,13 @@ where
     /// let p_var = relation.allocate_eq(x_var * g_var);
     ///
     /// relation.set_element(g_var, G::generator());
-    /// let x = Scalar::random(&mut OsRng);
+    /// let mut rng = rand::rng();
+    /// let x = Scalar::random(&mut rng);
     /// relation.compute_image(&[x]).unwrap();
     ///
     /// // Convert to NIZK with custom context
     /// let nizk = relation.into_nizk(b"my-protocol-v1").unwrap();
-    /// let proof = nizk.prove_batchable(&vec![x], &mut OsRng).unwrap();
+    /// let proof = nizk.prove_batchable(&vec![x], &mut rng).unwrap();
     /// assert!(nizk.verify_batchable(&proof).is_ok());
     /// # }
     /// ```
@@ -298,7 +297,6 @@ where
     /// # use sigma_proofs::{LinearRelation, Nizk};
     /// # use curve25519_dalek::RistrettoPoint as G;
     /// # use curve25519_dalek::scalar::Scalar;
-    /// # use rand::rngs::OsRng;
     /// # use group::Group;
     ///
     /// let mut relation = LinearRelation::<G>::new();
@@ -307,12 +305,13 @@ where
     /// let p_var = relation.allocate_eq(x_var * g_var);
     ///
     /// relation.set_element(g_var, G::generator());
-    /// let x = Scalar::random(&mut OsRng);
+    /// let mut rng = rand::rng();
+    /// let x = Scalar::random(&mut rng);
     /// relation.compute_image(&[x]).unwrap();
     ///
     /// // Convert to NIZK directly
     /// let nizk = relation.into_nizk(b"my-protocol-v1").unwrap();
-    /// let proof = nizk.prove_batchable(&vec![x], &mut OsRng).unwrap();
+    /// let proof = nizk.prove_batchable(&vec![x], &mut rng).unwrap();
     /// assert!(nizk.verify_batchable(&proof).is_ok());
     /// # }
     /// ```
@@ -342,7 +341,7 @@ where
     ///
     /// # Returns
     /// - A commitment and response forming a valid proof for the given challenge.
-    fn simulate_response(&self, rng: &mut impl CryptoRngCore) -> Vec<Self::Response> {
+    fn simulate_response(&self, rng: &mut impl CryptoRng) -> Vec<Self::Response> {
         G::random_scalars_vec(rng, self.num_scalars)
     }
 
@@ -353,7 +352,7 @@ where
     ///
     /// # Returns
     /// - A tuple `(commitment, challenge, response)` forming a valid proof.
-    fn simulate_transcript(&self, rng: &mut impl CryptoRngCore) -> Result<Transcript<Self>> {
+    fn simulate_transcript(&self, rng: &mut impl CryptoRng) -> Result<Transcript<Self>> {
         let [challenge] = G::random_scalars(rng);
         let response = self.simulate_response(rng);
         let commitment = self.simulate_commitment(&challenge, &response)?;

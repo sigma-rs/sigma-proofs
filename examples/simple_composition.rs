@@ -3,7 +3,6 @@
 use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::scalar::Scalar;
 use group::Group;
-use rand::rngs::OsRng;
 use sigma_proofs::{
     composition::{ComposedRelation, ComposedWitness},
     errors::Error,
@@ -57,7 +56,7 @@ fn prove(P1: G, x2: Scalar, H: G) -> ProofResult<Vec<u8>> {
     ]);
     let nizk = instance.into_nizk(b"or_proof_example");
 
-    nizk.prove_batchable(&witness, &mut OsRng)
+    nizk.prove_batchable(&witness, &mut rand::rng())
 }
 
 /// Verify an OR proof given the public values
@@ -72,9 +71,10 @@ fn verify(P1: G, P2: G, Q: G, H: G, proof: &[u8]) -> ProofResult<()> {
 #[allow(non_snake_case)]
 fn main() {
     // Setup: We don't know x1, but we do know x2
-    let x1 = Scalar::random(&mut OsRng);
-    let x2 = Scalar::random(&mut OsRng);
-    let H = G::random(&mut OsRng);
+    let mut rng = rand::rng();
+    let x1 = Scalar::random(&mut rng);
+    let x2 = Scalar::random(&mut rng);
+    let H = G::random(&mut rng);
 
     // Compute public values
     let P1 = G::generator() * x1; // We don't actually know x1 in the proof

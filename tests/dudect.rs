@@ -27,11 +27,10 @@ use std::{
 
 use curve25519_dalek::{RistrettoPoint as G, Scalar};
 
-use rand::Rng;
-use rand_chacha::{rand_core::SeedableRng, ChaCha12Rng};
+use rand::RngExt;
+use rand_chacha::ChaCha12Rng;
 use rand_core::{
-    impls::{next_u32_via_fill, next_u64_via_fill},
-    CryptoRng, CryptoRngCore, Error, RngCore,
+    utils::next_word_via_fill, CryptoRng, Infallible, SeedableRng, TryCryptoRng, TryRng,
 };
 use serial_test::serial;
 use sigma_proofs::{
@@ -65,7 +64,7 @@ mod relation_ct_tests {
                 set_core_affinity().ok();
                 let stats = compare::<CanonicalLinearRelation<G>>(
                     stringify!($name),
-                    relations::$name.distribution(&mut rand::thread_rng()),
+                    relations::$name.distribution(&mut rand::rng()),
                     relations::$name.distribution(&mut FixedRng),
                 );
                 println!("test {}: {stats}", stringify!($name));
@@ -99,15 +98,15 @@ fn baseline() {
     set_core_affinity().ok();
     let stats = compare::<CanonicalLinearRelation<G>>(
         "baseline",
-        relations::pedersen_commitment.distribution(&mut rand::thread_rng()),
-        relations::pedersen_commitment.distribution(&mut rand::thread_rng()),
+        relations::pedersen_commitment.distribution(&mut rand::rng()),
+        relations::pedersen_commitment.distribution(&mut rand::rng()),
     );
     println!("baseline: {stats}");
     assert!(stats.max_t.abs() < T_VALUE_THRESHOLD);
 }
 
 fn wide_relation<const WIDTH: usize>(
-    rng: &mut impl CryptoRngCore,
+    rng: &mut impl CryptoRng,
 ) -> (CanonicalLinearRelation<G>, Vec<Scalar>) {
     let mut rel = LinearRelation::<G>::new();
     let constraint: Sum<_> = (0..WIDTH)
@@ -129,7 +128,7 @@ fn test_ct_or_composition() {
     let stats = compare(
         "test_ct_or_composition",
         or(relations::pedersen_commitment, falsify(wide_relation::<16>))
-            .distribution(&mut rand::thread_rng()),
+            .distribution(&mut rand::rng()),
         or(falsify(relations::pedersen_commitment), wide_relation::<16>)
             .distribution(&mut FixedRng),
     );
@@ -144,10 +143,10 @@ fn compare<P: SigmaProtocol<Challenge = Scalar> + SigmaProtocolSimulator>(
 ) -> CtSummary {
     // Randomize per-pair sampling order so monotonic drift in the host environment (thermal
     // ramp, neighbor activity, frequency scaling) is not attributed to one class.
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let (left_times, right_times): (Vec<u64>, Vec<u64>) = (0..*SAMPLES)
         .map(|_| {
-            if rng.gen::<bool>() {
+            if rng.random::<bool>() {
                 let l = time_prove(left()).as_nanos() as u64;
                 let r = time_prove(right()).as_nanos() as u64;
                 (l, r)
@@ -210,7 +209,7 @@ where
     // NOTE: Creating a new RNG here was found to be important, compared to using `rand::thread_rng`
     // directly, when the instance generation uses `rand::thread_rng`. Otherwise caching behavior
     // leads to false positive timing variance.
-    let mut rng = ChaCha12Rng::from_rng(rand::thread_rng()).unwrap();
+    let mut rng = ChaCha12Rng::from_rng(&mut rand::rng());
     let nizk = Nizk::new(b"sigma-proofs-dudect-test", rel);
 
     let start = Instant::now();
@@ -223,25 +222,23 @@ where
 /// witnesses.
 struct FixedRng;
 
-impl CryptoRng for FixedRng {}
+impl TryCryptoRng for FixedRng {}
 
-impl RngCore for FixedRng {
-    fn next_u32(&mut self) -> u32 {
-        next_u32_via_fill(self)
+impl TryRng for FixedRng {
+    type Error = Infallible;
+
+    fn try_next_u32(&mut self) -> Result<u32, Infallible> {
+        next_word_via_fill(self)
     }
 
-    fn next_u64(&mut self) -> u64 {
-        next_u64_via_fill(self)
+    fn try_next_u64(&mut self) -> Result<u64, Infallible> {
+        next_word_via_fill(self)
     }
 
-    fn fill_bytes(&mut self, dest: &mut [u8]) {
+    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), Infallible> {
         // Always returns ONE assuming the dest is interpreted as a big-endian number.
         dest.fill(0);
         dest[dest.len() - 1] = 0x01;
-    }
-
-    fn try_fill_bytes(&mut self, dst: &mut [u8]) -> Result<(), Error> {
-        self.fill_bytes(dst);
         Ok(())
     }
 }
@@ -253,11 +250,11 @@ impl RngCore for FixedRng {
 #[cfg(not(target_arch = "wasm32"))]
 fn set_core_affinity() -> anyhow::Result<()> {
     use anyhow::Context;
-    use rand::seq::SliceRandom;
+    use rand::seq::IndexedRandom;
 
     let core_ids = core_affinity2::get_core_ids().context("Failed to get core IDs")?;
 
-    let Some(core_id) = core_ids.choose(&mut rand::thread_rng()) else {
+    let Some(core_id) = core_ids.choose(&mut rand::rng()) else {
         anyhow::bail!("No core IDs available");
     };
     core_id

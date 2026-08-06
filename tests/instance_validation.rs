@@ -114,7 +114,7 @@ mod instance_validation {
     #[test]
     #[allow(non_snake_case)]
     fn test_empty_string() {
-        let rng = &mut rand::thread_rng();
+        let rng = &mut rand::rng();
         let relation = LinearRelation::<G>::new();
         let nizk = relation.into_nizk(b"test_session").unwrap();
         let narg_string = nizk.prove_batchable(&vec![], rng).unwrap();
@@ -130,7 +130,7 @@ mod instance_validation {
     #[test]
     #[allow(non_snake_case)]
     fn test_statement_without_witness() {
-        let rng = &mut rand::thread_rng();
+        let rng = &mut rand::rng();
 
         let pub_scalar = Scalar::from(42u64);
         let A = G::generator();
@@ -194,7 +194,7 @@ mod instance_validation {
     #[test]
     #[allow(non_snake_case)]
     fn test_statement_with_trivial_image() {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let mut linear_relation = LinearRelation::new();
 
         let [x_var, y_var] = linear_relation.allocate_scalars();

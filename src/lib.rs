@@ -21,7 +21,7 @@
 //! # use curve25519_dalek::scalar::Scalar;
 //! # use group::Group;
 //! let mut instance = sigma_proofs::LinearRelation::new();
-//! let mut rng = rand::thread_rng();
+//! let mut rng = rand::rng();
 //!
 //! // Define the statement:
 //! // Prove knowledge of (x, r) such that C = x·G + r·H (Pedersen commitment)

@@ -14,8 +14,8 @@ use crate::errors::Error;
 use crate::traits::SigmaProtocol;
 use crate::traits::SigmaProtocolSimulator;
 use alloc::vec::Vec;
-use rand_core::CryptoRngCore;
-use sha3::digest::{ExtendableOutput, Update, XofReader};
+use rand_core::CryptoRng;
+use shake::digest::{ExtendableOutput, Update, XofReader};
 use spongefish::{
     DomainSeparator, Encoding, NargDeserialize, NargSerialize, ProverState, VerifierState,
 };
@@ -75,7 +75,7 @@ where
     pub fn prove_batchable(
         &self,
         witness: &P::Witness,
-        rng: &mut impl CryptoRngCore,
+        rng: &mut impl CryptoRng,
     ) -> Result<Vec<u8>, Error> {
         let protocol_id = self.interactive_proof.protocol_identifier();
         let instance_label = self.interactive_proof.instance_label();
@@ -162,7 +162,7 @@ where
     pub fn prove_compact(
         &self,
         witness: &P::Witness,
-        rng: &mut impl CryptoRngCore,
+        rng: &mut impl CryptoRng,
     ) -> Result<Vec<u8>, Error> {
         let protocol_id = self.interactive_proof.protocol_identifier();
         let instance_label = self.interactive_proof.instance_label();
@@ -284,7 +284,7 @@ pub(crate) fn derive_session_id(session_id: &[u8]) -> [u8; 64] {
     let mut initial_block = [0u8; RATE];
     initial_block[..DOMAIN.len()].copy_from_slice(DOMAIN);
 
-    let mut shake = sha3::Shake128::default();
+    let mut shake = shake::Shake128::default();
     shake.update(&initial_block);
     shake.update(session_id);
 

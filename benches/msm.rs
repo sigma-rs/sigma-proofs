@@ -3,7 +3,6 @@ use std::hint::black_box;
 use divan::Bencher;
 use ff::Field;
 use group::Group;
-use rand::thread_rng;
 use sigma_proofs::MultiScalarMul;
 
 const MSM_SIZES: &[usize] = &[0, 1, 2, 4, 8, 16, 32, 64, 128];
@@ -15,9 +14,9 @@ fn main() {
 fn instance<G: Group>(n: usize) -> (Vec<G::Scalar>, Vec<G>) {
     (
         (0..n)
-            .map(|_| <G::Scalar as Field>::random(&mut thread_rng()))
+            .map(|_| <G::Scalar as Field>::random(&mut rand::rng()))
             .collect(),
-        (0..n).map(|_| G::random(&mut thread_rng())).collect(),
+        (0..n).map(|_| G::random(&mut rand::rng())).collect(),
     )
 }
 
@@ -58,12 +57,5 @@ fn p256(bencher: Bencher, n: usize) {
     bench_msm::<p256::ProjectivePoint>(bencher, n);
 }
 
-#[divan::bench(args = MSM_SIZES)]
-fn bls12_381_g1(bencher: Bencher, n: usize) {
-    bench_msm::<bls12_381::G1Projective>(bencher, n);
-}
-
-#[divan::bench(args = MSM_SIZES)]
-fn bls12_381_g2(bencher: Bencher, n: usize) {
-    bench_msm::<bls12_381::G2Projective>(bencher, n);
-}
+// NOTE: bls12_381 G1/G2 benchmarks are temporarily removed until a bls12_381
+// release implements the ff/group 0.14 traits.
