@@ -23,6 +23,7 @@ use alloc::{vec, vec::Vec};
 use ff::{Field, PrimeField};
 use group::prime::PrimeGroup;
 use itertools::Itertools;
+use rand_core::CryptoRngCore;
 use sha3::{Digest, Sha3_256};
 use spongefish::{
     Decoding, Encoding, NargDeserialize, NargSerialize, VerificationError, VerificationResult,
@@ -841,7 +842,7 @@ where
     fn prover_commit_simple(
         protocol: &CanonicalLinearRelation<G>,
         witness: &<CanonicalLinearRelation<G> as SigmaProtocol>::Witness,
-        rng: &mut impl ScalarRng,
+        rng: &mut impl CryptoRngCore,
     ) -> Result<(ComposedCommitment<G>, ComposedProverState<G>), Error> {
         protocol.prover_commit(witness, rng).map(|(c, s)| {
             (
@@ -864,7 +865,7 @@ where
     fn prover_commit_and(
         protocols: &[ComposedRelation<G>],
         witnesses: &[ComposedWitness<G>],
-        rng: &mut impl ScalarRng,
+        rng: &mut impl CryptoRngCore,
     ) -> Result<(ComposedCommitment<G>, ComposedProverState<G>), Error> {
         if protocols.len() != witnesses.len() {
             return Err(Error::InvalidInstanceWitnessPair);
@@ -913,7 +914,7 @@ where
     fn prover_commit_or(
         instances: &[ComposedRelation<G>],
         witnesses: &[ComposedWitness<G>],
-        rng: &mut impl ScalarRng,
+        rng: &mut impl CryptoRngCore,
     ) -> Result<(ComposedCommitment<G>, ComposedProverState<G>), Error>
     where
         G: ConditionallySelectable,
@@ -1046,7 +1047,7 @@ where
         threshold: usize,
         instances: &[ComposedRelation<G>],
         witnesses: &[ComposedWitness<G>],
-        rng: &mut impl ScalarRng,
+        rng: &mut impl CryptoRngCore,
     ) -> Result<(ComposedCommitment<G>, ComposedProverState<G>), Error>
     where
         G: ConditionallySelectable,
@@ -1225,7 +1226,7 @@ where
     fn prover_commit(
         &self,
         witness: &Self::Witness,
-        rng: &mut impl ScalarRng,
+        rng: &mut impl CryptoRngCore,
     ) -> Result<(Vec<Self::Commitment>, Self::ProverState), Error> {
         let (commitment, state) = match (self, witness) {
             (ComposedRelation::Simple(p), ComposedWitness::Simple(w)) => {
@@ -1527,7 +1528,7 @@ where
         Ok(vec![commitment])
     }
 
-    fn simulate_response(&self, rng: &mut impl ScalarRng) -> Vec<Self::Response> {
+    fn simulate_response(&self, rng: &mut impl CryptoRngCore) -> Vec<Self::Response> {
         let response = match self {
             ComposedRelation::Simple(p) => ComposedResponse::Simple(p.simulate_response(rng)),
             ComposedRelation::And(ps) => {
@@ -1542,8 +1543,7 @@ where
                 ComposedResponse::And(responses)
             }
             ComposedRelation::Or(ps) => {
-                let challenge_count = ps.len().saturating_sub(1);
-                let challenges = rng.random_scalars_vec::<G>(challenge_count).to_vec();
+                let challenges = G::random_scalars_vec(rng, ps.len().saturating_sub(1));
                 let mut responses = Vec::with_capacity(ps.len());
                 for p in ps.iter() {
                     let mut r = p.simulate_response(&mut *rng);
@@ -1560,7 +1560,7 @@ where
                 }
 
                 let degree = ps.len() - *threshold;
-                let compressed_challenges = rng.random_scalars_vec::<G>(degree).to_vec();
+                let compressed_challenges = G::random_scalars_vec(rng, degree);
                 let mut responses = Vec::with_capacity(ps.len());
                 for p in ps.iter() {
                     let mut r = p.simulate_response(&mut *rng);
@@ -1577,7 +1577,7 @@ where
 
     fn simulate_transcript(
         &self,
-        rng: &mut impl ScalarRng,
+        rng: &mut impl CryptoRngCore,
     ) -> Result<(Vec<Self::Commitment>, Self::Challenge, Vec<Self::Response>), Error> {
         match self {
             ComposedRelation::Simple(p) => {
@@ -1589,7 +1589,7 @@ where
                 ))
             }
             ComposedRelation::And(ps) => {
-                let [challenge] = rng.random_scalars::<G, _>();
+                let [challenge] = G::random_scalars(rng);
                 let mut responses = Vec::with_capacity(ps.len());
                 for p in ps.iter() {
                     let mut resp = p.simulate_response(&mut *rng);
@@ -1625,7 +1625,7 @@ where
                     .len()
                     .checked_sub(1)
                     .ok_or(Error::InvalidInstanceWitnessPair)?;
-                let challenges = rng.random_scalars_vec::<G>(challenge_count);
+                let challenges = G::random_scalars_vec(rng, challenge_count);
                 let mut responses = Vec::with_capacity(ps.len());
                 for p in ps.iter() {
                     let mut resp = p.simulate_response(&mut *rng);
@@ -1662,7 +1662,7 @@ where
                 }
 
                 let degree = ps.len() - *threshold;
-                let compressed_challenges = rng.random_scalars_vec::<G>(degree);
+                let compressed_challenges = G::random_scalars_vec(rng, degree);
                 let mut responses = Vec::with_capacity(ps.len());
                 for p in ps.iter() {
                     let mut resp = p.simulate_response(&mut *rng);
@@ -1673,7 +1673,7 @@ where
                     responses.push(response);
                 }
 
-                let [challenge] = rng.random_scalars::<G, _>();
+                let [challenge] = G::random_scalars(rng);
                 let full_challenges = expand_threshold_challenges(
                     *threshold,
                     ps.len(),
