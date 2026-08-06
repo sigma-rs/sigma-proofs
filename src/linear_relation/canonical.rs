@@ -255,13 +255,24 @@ impl<G: PrimeGroup> CanonicalLinearRelation<G> {
     /// # Examples
     ///
     /// ```
-    /// use hex_literal::hex;
+    /// # #[cfg(feature = "curve25519-dalek")] {
+    /// use curve25519_dalek::{RistrettoPoint, Scalar};
+    /// use group::Group;
+    /// use sigma_proofs::LinearRelation;
     /// use sigma_proofs::linear_relation::CanonicalLinearRelation;
-    /// type G = bls12_381::G1Projective;
+    /// type G = RistrettoPoint;
     ///
-    /// let dlog_instance_label = hex!("01000000000000000100000000000000010000009823a3def60a6e07fb25feb35f211ee2cbc9c130c1959514f5df6b5021a2b21a4c973630ec2090c733c1fe791834ce1197f1d3a73197d7942695638c4fa9ac0fc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bb");
+    /// let mut relation = LinearRelation::<G>::new();
+    /// let x_var = relation.allocate_scalar();
+    /// let g_var = relation.allocate_element();
+    /// relation.allocate_eq(x_var * g_var);
+    /// relation.set_element(g_var, G::generator());
+    /// relation.compute_image(&[Scalar::from(42u64)]).unwrap();
+    ///
+    /// let dlog_instance_label = relation.canonical().unwrap().label();
     /// let instance = CanonicalLinearRelation::<G>::from_label(&dlog_instance_label).unwrap();
     /// assert_eq!(&dlog_instance_label[..], &instance.label()[..]);
+    /// # }
     /// ```
     pub fn from_label(data: &[u8]) -> Result<Self, Error> {
         use crate::errors::InvalidInstance;
@@ -501,9 +512,9 @@ impl<G: PrimeGroup + ConstantTimeEq + MultiScalarMul> CanonicalLinearRelation<G>
 mod tests {
     use super::CanonicalLinearRelation;
     use alloc::vec::Vec;
-    use group::GroupEncoding;
+    use group::{Group, GroupEncoding};
 
-    type G = bls12_381::G1Projective;
+    type G = curve25519_dalek::RistrettoPoint;
 
     #[test]
     fn from_label_rejects_max_lhs_group_index() {

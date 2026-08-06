@@ -25,7 +25,7 @@ fn test_composition_example() {
     let domain_sep = b"hello world";
 
     // definitions of the underlying protocols
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let (relation1, witness1) = dleq(&mut rng);
     let (relation2, witness2) = pedersen_commitment(&mut rng);
     let (relation3, witness3) = discrete_logarithm(&mut rng);
@@ -62,7 +62,7 @@ fn test_or_one_true() {
     // Test composition of a basic OR protocol, with one of the two witnesses being valid.
 
     // definitions of the underlying protocols
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let (relation1, witness1) = dleq::<G>(&mut rng);
     let (relation2, witness2) = dleq::<G>(&mut rng);
 
@@ -97,7 +97,7 @@ fn test_or_both_true() {
     // Test composition of a basic OR protocol, with both of the two witnesses being valid.
 
     // definitions of the underlying protocols
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let (relation1, witness1) = dleq::<G>(&mut rng);
     let (relation2, witness2) = dleq::<G>(&mut rng);
 
@@ -131,7 +131,7 @@ fn empty_or_simulate_transcript_rejects_without_panicking() {
     let relation: ComposedRelation<G> = ComposedRelation::Or(Vec::new());
 
     assert!(matches!(
-        relation.simulate_transcript(&mut rand::thread_rng()),
+        relation.simulate_transcript(&mut rand::rng()),
         Err(Error::InvalidInstanceWitnessPair)
     ));
 }
@@ -139,7 +139,7 @@ fn empty_or_simulate_transcript_rejects_without_panicking() {
 #[test]
 fn empty_or_simulate_response_cannot_form_commitment() {
     let relation: ComposedRelation<G> = ComposedRelation::Or(Vec::new());
-    let response = relation.simulate_response(&mut rand::thread_rng());
+    let response = relation.simulate_response(&mut rand::rng());
 
     assert!(matches!(
         relation.simulate_commitment(&Scalar::from(0u64), &response),
@@ -162,7 +162,7 @@ fn empty_or_prover_response_rejects_without_panicking() {
 fn test_threshold_two_of_three() {
     // Test composition of a 2-out-of-3 threshold protocol.
 
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let (relation1, witness1) = dleq::<G>(&mut rng);
     let (relation2, witness2) = dleq::<G>(&mut rng);
     let (relation3, witness3) = dleq::<G>(&mut rng);
@@ -187,7 +187,7 @@ fn test_threshold_two_of_three() {
 fn test_threshold_two_of_ten_three_valid() {
     // Test composition of a 2-out-of-10 threshold protocol with three valid witnesses.
 
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
 
     let mut relations = Vec::new();
     let mut witnesses = Vec::new();

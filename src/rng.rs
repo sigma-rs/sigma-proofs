@@ -4,7 +4,7 @@ use alloc::vec::Vec;
 use core::{array::from_fn, iter::repeat_with};
 
 use group::Group;
-use rand_core::CryptoRngCore;
+use rand_core::CryptoRng;
 use spongefish::Decoding;
 
 use crate::traits::ScalarRng;
@@ -16,11 +16,11 @@ where
     G: Group,
     G::Scalar: Decoding<[u8]>,
 {
-    fn random_scalars<const N: usize>(rng: &mut impl CryptoRngCore) -> [G::Scalar; N] {
+    fn random_scalars<const N: usize>(rng: &mut impl CryptoRng) -> [G::Scalar; N] {
         from_fn(|_| sample_by_decoding(rng))
     }
 
-    fn random_scalars_vec(rng: &mut impl CryptoRngCore, n: usize) -> Vec<G::Scalar> {
+    fn random_scalars_vec(rng: &mut impl CryptoRng, n: usize) -> Vec<G::Scalar> {
         let mut v = Vec::with_capacity(n);
         v.extend(repeat_with(|| sample_by_decoding::<G::Scalar>(rng)).take(n));
         v
@@ -29,7 +29,7 @@ where
 
 /// Returns a type by decoding a byte string sampled from a
 /// cryptographically-secure random source of bytes.
-fn sample_by_decoding<D: Decoding<[u8]>>(rng: &mut impl CryptoRngCore) -> D {
+fn sample_by_decoding<D: Decoding<[u8]>>(rng: &mut impl CryptoRng) -> D {
     let mut repr = D::Repr::default();
     rng.fill_bytes(repr.as_mut());
     D::decode(repr)

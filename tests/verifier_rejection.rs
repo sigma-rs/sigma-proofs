@@ -12,7 +12,7 @@ use std::ops::Bound;
 
 use curve25519_dalek::ristretto::RistrettoPoint as G;
 use curve25519_dalek::scalar::Scalar;
-use rand::RngCore;
+use rand::Rng;
 use sigma_proofs::composition::{ComposedRelation, ComposedWitness};
 use sigma_proofs::linear_relation::CanonicalLinearRelation;
 use sigma_proofs::Nizk;
@@ -31,14 +31,14 @@ fn append_random_bytes(data: &[u8], n: usize) -> Vec<u8> {
     let mut out = data.to_vec();
     let start = out.len();
     out.resize(start + n, 0);
-    rand::thread_rng().fill_bytes(&mut out[start..]);
+    rand::rng().fill_bytes(&mut out[start..]);
     out
 }
 
 /// Returns `data` with `n` random bytes prepended.
 fn prepend_random_bytes(data: &[u8], n: usize) -> Vec<u8> {
     let mut prefix = vec![0u8; n];
-    rand::thread_rng().fill_bytes(&mut prefix);
+    rand::rng().fill_bytes(&mut prefix);
     prefix.extend_from_slice(data);
     prefix
 }
@@ -70,7 +70,7 @@ const SIMPLE_SESSION_ID: &[u8] = b"verifier-rejection-simple";
 /// Simple discrete-log relation.
 /// Returns (witness, nizk).
 fn make_simple_nizk() -> (Vec<Scalar>, Nizk<CanonicalLinearRelation<G>>) {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let (instance, witness) = relations::dleq::<G>(&mut rng);
     (witness, Nizk::new(SIMPLE_SESSION_ID, instance))
 }
@@ -80,9 +80,7 @@ fn make_simple_nizk() -> (Vec<Scalar>, Nizk<CanonicalLinearRelation<G>>) {
 #[test]
 fn batchable_bitflip() {
     let (witness, nizk) = make_simple_nizk();
-    let proof = nizk
-        .prove_batchable(&witness, &mut rand::thread_rng())
-        .unwrap();
+    let proof = nizk.prove_batchable(&witness, &mut rand::rng()).unwrap();
     assert!(nizk.verify_batchable(&proof).is_ok());
     for i in 0..proof.len() * 8 {
         assert!(
@@ -95,9 +93,7 @@ fn batchable_bitflip() {
 #[test]
 fn batchable_append_bytes() {
     let (witness, nizk) = make_simple_nizk();
-    let proof = nizk
-        .prove_batchable(&witness, &mut rand::thread_rng())
-        .unwrap();
+    let proof = nizk.prove_batchable(&witness, &mut rand::rng()).unwrap();
     assert!(nizk.verify_batchable(&proof).is_ok());
     for size in [1, 8, 32, 100] {
         assert!(
@@ -111,9 +107,7 @@ fn batchable_append_bytes() {
 #[test]
 fn batchable_prepend_bytes() {
     let (witness, nizk) = make_simple_nizk();
-    let proof = nizk
-        .prove_batchable(&witness, &mut rand::thread_rng())
-        .unwrap();
+    let proof = nizk.prove_batchable(&witness, &mut rand::rng()).unwrap();
     assert!(nizk.verify_batchable(&proof).is_ok());
     for size in [1, 8, 32, 100] {
         assert!(
@@ -127,9 +121,7 @@ fn batchable_prepend_bytes() {
 #[test]
 fn batchable_truncation() {
     let (witness, nizk) = make_simple_nizk();
-    let proof = nizk
-        .prove_batchable(&witness, &mut rand::thread_rng())
-        .unwrap();
+    let proof = nizk.prove_batchable(&witness, &mut rand::rng()).unwrap();
     assert!(nizk.verify_batchable(&proof).is_ok());
     for size in [1, 8, proof.len() / 2, proof.len() - 1] {
         if size < proof.len() {
@@ -154,11 +146,9 @@ fn batchable_empty_proof() {
 #[test]
 fn batchable_random_bytes_as_proof() {
     let (witness, nizk) = make_simple_nizk();
-    let proof = nizk
-        .prove_batchable(&witness, &mut rand::thread_rng())
-        .unwrap();
+    let proof = nizk.prove_batchable(&witness, &mut rand::rng()).unwrap();
     let mut random_proof = vec![0u8; proof.len()];
-    rand::thread_rng().fill_bytes(&mut random_proof);
+    rand::rng().fill_bytes(&mut random_proof);
     assert!(
         nizk.verify_batchable(&random_proof).is_err(),
         "should reject random bytes"
@@ -170,9 +160,7 @@ fn batchable_random_bytes_as_proof() {
 #[test]
 fn compact_bitflip() {
     let (witness, nizk) = make_simple_nizk();
-    let proof = nizk
-        .prove_compact(&witness, &mut rand::thread_rng())
-        .unwrap();
+    let proof = nizk.prove_compact(&witness, &mut rand::rng()).unwrap();
     assert!(nizk.verify_compact(&proof).is_ok());
     for i in 0..proof.len() * 8 {
         assert!(
@@ -185,9 +173,7 @@ fn compact_bitflip() {
 #[test]
 fn compact_append_bytes() {
     let (witness, nizk) = make_simple_nizk();
-    let proof = nizk
-        .prove_compact(&witness, &mut rand::thread_rng())
-        .unwrap();
+    let proof = nizk.prove_compact(&witness, &mut rand::rng()).unwrap();
     assert!(nizk.verify_compact(&proof).is_ok());
     for size in [1, 8, 32, 100] {
         assert!(
@@ -201,9 +187,7 @@ fn compact_append_bytes() {
 #[test]
 fn compact_prepend_bytes() {
     let (witness, nizk) = make_simple_nizk();
-    let proof = nizk
-        .prove_compact(&witness, &mut rand::thread_rng())
-        .unwrap();
+    let proof = nizk.prove_compact(&witness, &mut rand::rng()).unwrap();
     assert!(nizk.verify_compact(&proof).is_ok());
     for size in [1, 8, 32, 100] {
         assert!(
@@ -217,9 +201,7 @@ fn compact_prepend_bytes() {
 #[test]
 fn compact_truncation() {
     let (witness, nizk) = make_simple_nizk();
-    let proof = nizk
-        .prove_compact(&witness, &mut rand::thread_rng())
-        .unwrap();
+    let proof = nizk.prove_compact(&witness, &mut rand::rng()).unwrap();
     assert!(nizk.verify_compact(&proof).is_ok());
     for size in [1, 8, proof.len() / 2, proof.len() - 1] {
         if size < proof.len() {
@@ -244,11 +226,9 @@ fn compact_empty() {
 #[test]
 fn compact_random_bytes() {
     let (witness, nizk) = make_simple_nizk();
-    let proof = nizk
-        .prove_compact(&witness, &mut rand::thread_rng())
-        .unwrap();
+    let proof = nizk.prove_compact(&witness, &mut rand::rng()).unwrap();
     let mut random_proof = vec![0u8; proof.len()];
-    rand::thread_rng().fill_bytes(&mut random_proof);
+    rand::rng().fill_bytes(&mut random_proof);
     assert!(
         nizk.verify_compact(&random_proof).is_err(),
         "should reject random bytes as compact proof"
@@ -259,7 +239,7 @@ fn compact_random_bytes() {
 
 #[test]
 fn batchable_wrong_session_id() {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let (instance, witness) = relations::dleq::<G>(&mut rng);
     let nizk = Nizk::new(b"some-session-id", instance.clone());
     let wrong_session = Nizk::new(b"different-session-id", instance);
@@ -272,7 +252,7 @@ fn batchable_wrong_session_id() {
 
 #[test]
 fn compact_wrong_session_id() {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let (instance, witness) = relations::dleq::<G>(&mut rng);
     let nizk = Nizk::new(b"some-session-id", instance.clone());
     let wrong_session = Nizk::new(b"different-session-id", instance);
@@ -285,7 +265,7 @@ fn compact_wrong_session_id() {
 
 #[test]
 fn batchable_wrong_instance() {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     // NOTE: Each call to relations::dleq results in a different instance.
     let (instance_a, witness_a) = relations::dleq::<G>(&mut rng);
     let (instance_b, _) = relations::dleq::<G>(&mut rng);
@@ -300,7 +280,7 @@ fn batchable_wrong_instance() {
 
 #[test]
 fn compact_wrong_instance() {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let (instance_a, witness_a) = relations::dleq::<G>(&mut rng);
     let (instance_b, _) = relations::dleq::<G>(&mut rng);
     let nizk_a = Nizk::new(SIMPLE_SESSION_ID, instance_a);
@@ -319,10 +299,7 @@ fn compact_wrong_instance() {
 fn make_simple_batch(n: usize) -> (Nizk<CanonicalLinearRelation<G>>, Vec<Vec<u8>>) {
     let (witness, nizk) = make_simple_nizk();
     let proofs = (0..n)
-        .map(|_| {
-            nizk.prove_batchable(&witness, &mut rand::thread_rng())
-                .unwrap()
-        })
+        .map(|_| nizk.prove_batchable(&witness, &mut rand::rng()).unwrap())
         .collect();
     (nizk, proofs)
 }
@@ -357,7 +334,7 @@ fn batch_append_bytes() {
 
 #[test]
 fn batch_wrong_session_id() {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let (instance, witness) = relations::dleq::<G>(&mut rng);
     let nizk = Nizk::new(b"some-session-id", instance.clone());
     let wrong_session = Nizk::new(b"different-session-id", instance);
@@ -375,7 +352,7 @@ fn batch_wrong_session_id() {
 
 #[test]
 fn batch_wrong_instance() {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let (instance_a, witness_a) = relations::dleq::<G>(&mut rng);
     let (instance_b, _) = relations::dleq::<G>(&mut rng);
     let nizk_a = Nizk::new(SIMPLE_SESSION_ID, instance_a);
@@ -393,7 +370,7 @@ fn batch_wrong_instance() {
 /// AND(dleq, pedersen_commitment) with valid witnesses.
 /// Returns (witness, nizk).
 fn make_and_nizk() -> (ComposedWitness<G>, Nizk<ComposedRelation<G>>) {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let (rel1, wit1) = relations::dleq::<G>(&mut rng);
     let (rel2, wit2) = relations::pedersen_commitment::<G>(&mut rng);
     let and_relation = ComposedRelation::<G>::and([rel1, rel2]);
@@ -406,9 +383,7 @@ fn make_and_nizk() -> (ComposedWitness<G>, Nizk<ComposedRelation<G>>) {
 #[test]
 fn and_batchable_bitflip() {
     let (witness, nizk) = make_and_nizk();
-    let proof = nizk
-        .prove_batchable(&witness, &mut rand::thread_rng())
-        .unwrap();
+    let proof = nizk.prove_batchable(&witness, &mut rand::rng()).unwrap();
     assert!(nizk.verify_batchable(&proof).is_ok());
     for i in 0..proof.len() * 8 {
         assert!(
@@ -421,9 +396,7 @@ fn and_batchable_bitflip() {
 #[test]
 fn and_compact_bitflip() {
     let (witness, nizk) = make_and_nizk();
-    let proof = nizk
-        .prove_compact(&witness, &mut rand::thread_rng())
-        .unwrap();
+    let proof = nizk.prove_compact(&witness, &mut rand::rng()).unwrap();
     assert!(nizk.verify_compact(&proof).is_ok());
     for i in 0..proof.len() * 8 {
         assert!(
@@ -436,9 +409,7 @@ fn and_compact_bitflip() {
 #[test]
 fn and_batchable_append() {
     let (witness, nizk) = make_and_nizk();
-    let proof = nizk
-        .prove_batchable(&witness, &mut rand::thread_rng())
-        .unwrap();
+    let proof = nizk.prove_batchable(&witness, &mut rand::rng()).unwrap();
     assert!(nizk.verify_batchable(&proof).is_ok());
     for size in [1, 8, 32, 100] {
         assert!(
@@ -452,9 +423,7 @@ fn and_batchable_append() {
 #[test]
 fn and_compact_append() {
     let (witness, nizk) = make_and_nizk();
-    let proof = nizk
-        .prove_compact(&witness, &mut rand::thread_rng())
-        .unwrap();
+    let proof = nizk.prove_compact(&witness, &mut rand::rng()).unwrap();
     assert!(nizk.verify_compact(&proof).is_ok());
     for size in [1, 8, 32, 100] {
         assert!(
@@ -468,9 +437,7 @@ fn and_compact_append() {
 #[test]
 fn and_batchable_truncation() {
     let (witness, nizk) = make_and_nizk();
-    let proof = nizk
-        .prove_batchable(&witness, &mut rand::thread_rng())
-        .unwrap();
+    let proof = nizk.prove_batchable(&witness, &mut rand::rng()).unwrap();
     assert!(nizk.verify_batchable(&proof).is_ok());
     for size in [1, 8, proof.len() / 2, proof.len() - 1] {
         if size < proof.len() {
@@ -486,9 +453,7 @@ fn and_batchable_truncation() {
 #[test]
 fn and_compact_truncation() {
     let (witness, nizk) = make_and_nizk();
-    let proof = nizk
-        .prove_compact(&witness, &mut rand::thread_rng())
-        .unwrap();
+    let proof = nizk.prove_compact(&witness, &mut rand::rng()).unwrap();
     assert!(nizk.verify_compact(&proof).is_ok());
     for size in [1, 8, proof.len() / 2, proof.len() - 1] {
         if size < proof.len() {
@@ -521,7 +486,7 @@ fn and_compact_empty() {
 
 #[test]
 fn and_one_wrong_witness() {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let (rel1, wit1) = relations::dleq::<G>(&mut rng);
     let (rel2, _) = relations::pedersen_commitment::<G>(&mut rng);
 
@@ -547,7 +512,7 @@ fn and_one_wrong_witness() {
 /// OR(dleq, dleq) with one valid witness (second branch).
 /// Returns (witness, nizk).
 fn make_or_nizk() -> (ComposedWitness<G>, Nizk<ComposedRelation<G>>) {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let (rel1, _) = relations::dleq::<G>(&mut rng);
     let (rel2, wit2) = relations::dleq::<G>(&mut rng);
 
@@ -567,9 +532,7 @@ fn make_or_nizk() -> (ComposedWitness<G>, Nizk<ComposedRelation<G>>) {
 #[test]
 fn or_batchable_bitflip() {
     let (witness, nizk) = make_or_nizk();
-    let proof = nizk
-        .prove_batchable(&witness, &mut rand::thread_rng())
-        .unwrap();
+    let proof = nizk.prove_batchable(&witness, &mut rand::rng()).unwrap();
     assert!(nizk.verify_batchable(&proof).is_ok());
     for i in 0..proof.len() * 8 {
         assert!(
@@ -582,9 +545,7 @@ fn or_batchable_bitflip() {
 #[test]
 fn or_compact_bitflip() {
     let (witness, nizk) = make_or_nizk();
-    let proof = nizk
-        .prove_compact(&witness, &mut rand::thread_rng())
-        .unwrap();
+    let proof = nizk.prove_compact(&witness, &mut rand::rng()).unwrap();
     assert!(nizk.verify_compact(&proof).is_ok());
     for i in 0..proof.len() * 8 {
         assert!(
@@ -597,9 +558,7 @@ fn or_compact_bitflip() {
 #[test]
 fn or_batchable_append() {
     let (witness, nizk) = make_or_nizk();
-    let proof = nizk
-        .prove_batchable(&witness, &mut rand::thread_rng())
-        .unwrap();
+    let proof = nizk.prove_batchable(&witness, &mut rand::rng()).unwrap();
     assert!(nizk.verify_batchable(&proof).is_ok());
     for size in [1, 8, 32, 100] {
         assert!(
@@ -613,9 +572,7 @@ fn or_batchable_append() {
 #[test]
 fn or_compact_append() {
     let (witness, nizk) = make_or_nizk();
-    let proof = nizk
-        .prove_compact(&witness, &mut rand::thread_rng())
-        .unwrap();
+    let proof = nizk.prove_compact(&witness, &mut rand::rng()).unwrap();
     assert!(nizk.verify_compact(&proof).is_ok());
     for size in [1, 8, 32, 100] {
         assert!(
@@ -629,9 +586,7 @@ fn or_compact_append() {
 #[test]
 fn or_batchable_truncation() {
     let (witness, nizk) = make_or_nizk();
-    let proof = nizk
-        .prove_batchable(&witness, &mut rand::thread_rng())
-        .unwrap();
+    let proof = nizk.prove_batchable(&witness, &mut rand::rng()).unwrap();
     assert!(nizk.verify_batchable(&proof).is_ok());
     for size in [1, 8, proof.len() / 2, proof.len() - 1] {
         if size < proof.len() {
@@ -647,9 +602,7 @@ fn or_batchable_truncation() {
 #[test]
 fn or_compact_truncation() {
     let (witness, nizk) = make_or_nizk();
-    let proof = nizk
-        .prove_compact(&witness, &mut rand::thread_rng())
-        .unwrap();
+    let proof = nizk.prove_compact(&witness, &mut rand::rng()).unwrap();
     assert!(nizk.verify_compact(&proof).is_ok());
     for size in [1, 8, proof.len() / 2, proof.len() - 1] {
         if size < proof.len() {
@@ -682,7 +635,7 @@ fn or_compact_empty() {
 
 #[test]
 fn or_no_valid_witness() {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let (rel1, _) = relations::dleq::<G>(&mut rng);
     let (rel2, wit2) = relations::dleq::<G>(&mut rng);
 
@@ -707,7 +660,7 @@ fn or_no_valid_witness() {
 /// Threshold(2, [dleq, dleq, dleq]) with 2 valid witnesses and 1 wrong.
 /// Returns (witness, nizk).
 fn make_threshold_nizk() -> (ComposedWitness<G>, Nizk<ComposedRelation<G>>) {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let (rel1, wit1) = relations::dleq::<G>(&mut rng);
     let (rel2, wit2) = relations::dleq::<G>(&mut rng);
     let (rel3, wit3) = relations::dleq::<G>(&mut rng);
@@ -725,9 +678,7 @@ fn make_threshold_nizk() -> (ComposedWitness<G>, Nizk<ComposedRelation<G>>) {
 #[test]
 fn threshold_batchable_bitflip() {
     let (witness, nizk) = make_threshold_nizk();
-    let proof = nizk
-        .prove_batchable(&witness, &mut rand::thread_rng())
-        .unwrap();
+    let proof = nizk.prove_batchable(&witness, &mut rand::rng()).unwrap();
     assert!(nizk.verify_batchable(&proof).is_ok());
     for i in 0..proof.len() * 8 {
         assert!(
@@ -740,9 +691,7 @@ fn threshold_batchable_bitflip() {
 #[test]
 fn threshold_compact_bitflip() {
     let (witness, nizk) = make_threshold_nizk();
-    let proof = nizk
-        .prove_compact(&witness, &mut rand::thread_rng())
-        .unwrap();
+    let proof = nizk.prove_compact(&witness, &mut rand::rng()).unwrap();
     assert!(nizk.verify_compact(&proof).is_ok());
     for i in 0..proof.len() * 8 {
         assert!(
@@ -755,9 +704,7 @@ fn threshold_compact_bitflip() {
 #[test]
 fn threshold_batchable_append() {
     let (witness, nizk) = make_threshold_nizk();
-    let proof = nizk
-        .prove_batchable(&witness, &mut rand::thread_rng())
-        .unwrap();
+    let proof = nizk.prove_batchable(&witness, &mut rand::rng()).unwrap();
     assert!(nizk.verify_batchable(&proof).is_ok());
     for size in [1, 8, 32, 100] {
         assert!(
@@ -771,9 +718,7 @@ fn threshold_batchable_append() {
 #[test]
 fn threshold_compact_append() {
     let (witness, nizk) = make_threshold_nizk();
-    let proof = nizk
-        .prove_compact(&witness, &mut rand::thread_rng())
-        .unwrap();
+    let proof = nizk.prove_compact(&witness, &mut rand::rng()).unwrap();
     assert!(nizk.verify_compact(&proof).is_ok());
     for size in [1, 8, 32, 100] {
         assert!(
@@ -787,9 +732,7 @@ fn threshold_compact_append() {
 #[test]
 fn threshold_batchable_truncation() {
     let (witness, nizk) = make_threshold_nizk();
-    let proof = nizk
-        .prove_batchable(&witness, &mut rand::thread_rng())
-        .unwrap();
+    let proof = nizk.prove_batchable(&witness, &mut rand::rng()).unwrap();
     assert!(nizk.verify_batchable(&proof).is_ok());
     for size in [1, 8, proof.len() / 2, proof.len() - 1] {
         if size < proof.len() {
@@ -805,9 +748,7 @@ fn threshold_batchable_truncation() {
 #[test]
 fn threshold_compact_truncation() {
     let (witness, nizk) = make_threshold_nizk();
-    let proof = nizk
-        .prove_compact(&witness, &mut rand::thread_rng())
-        .unwrap();
+    let proof = nizk.prove_compact(&witness, &mut rand::rng()).unwrap();
     assert!(nizk.verify_compact(&proof).is_ok());
     for size in [1, 8, proof.len() / 2, proof.len() - 1] {
         if size < proof.len() {
@@ -840,7 +781,7 @@ fn threshold_compact_empty() {
 
 #[test]
 fn threshold_insufficient_witnesses() {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let (rel1, wit1) = relations::dleq::<G>(&mut rng);
     let (rel2, wit2) = relations::dleq::<G>(&mut rng);
     let (rel3, _) = relations::dleq::<G>(&mut rng);
@@ -864,7 +805,7 @@ fn threshold_insufficient_witnesses() {
 /// AND(OR(dleq, dleq), Simple(pedersen_commitment)) with valid witnesses.
 /// Returns (witness, nizk).
 fn make_nested_nizk() -> (ComposedWitness<G>, Nizk<ComposedRelation<G>>) {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
 
     // OR branch: prove second dleq
     let (dleq1, _) = relations::dleq::<G>(&mut rng);
@@ -907,9 +848,7 @@ fn nested_compact_empty() {
 #[test]
 fn nested_batchable_bitflip() {
     let (witness, nizk) = make_nested_nizk();
-    let proof = nizk
-        .prove_batchable(&witness, &mut rand::thread_rng())
-        .unwrap();
+    let proof = nizk.prove_batchable(&witness, &mut rand::rng()).unwrap();
     assert!(nizk.verify_batchable(&proof).is_ok());
     for i in 0..proof.len() * 8 {
         assert!(
@@ -922,9 +861,7 @@ fn nested_batchable_bitflip() {
 #[test]
 fn nested_compact_bitflip() {
     let (witness, nizk) = make_nested_nizk();
-    let proof = nizk
-        .prove_compact(&witness, &mut rand::thread_rng())
-        .unwrap();
+    let proof = nizk.prove_compact(&witness, &mut rand::rng()).unwrap();
     assert!(nizk.verify_compact(&proof).is_ok());
     for i in 0..proof.len() * 8 {
         assert!(

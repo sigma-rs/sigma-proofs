@@ -1,7 +1,4 @@
-use rand_core::{
-    impls::{next_u32_via_fill, next_u64_via_fill},
-    CryptoRng, Error, RngCore,
-};
+use rand_core::{utils::next_word_via_fill, Infallible, TryCryptoRng, TryRng};
 
 use spongefish::{instantiations::Shake128, DuplexSpongeInterface as _};
 
@@ -33,23 +30,21 @@ fn fixed_seed(label: &[u8]) -> [u8; 32] {
     seed
 }
 
-impl CryptoRng for TestDrng {}
+impl TryCryptoRng for TestDrng {}
 
-impl RngCore for TestDrng {
-    fn next_u32(&mut self) -> u32 {
-        next_u32_via_fill(self)
+impl TryRng for TestDrng {
+    type Error = Infallible;
+
+    fn try_next_u32(&mut self) -> Result<u32, Infallible> {
+        next_word_via_fill(self)
     }
 
-    fn next_u64(&mut self) -> u64 {
-        next_u64_via_fill(self)
+    fn try_next_u64(&mut self) -> Result<u64, Infallible> {
+        next_word_via_fill(self)
     }
 
-    fn fill_bytes(&mut self, dst: &mut [u8]) {
+    fn try_fill_bytes(&mut self, dst: &mut [u8]) -> Result<(), Infallible> {
         self.0.squeeze(dst);
-    }
-
-    fn try_fill_bytes(&mut self, dst: &mut [u8]) -> Result<(), Error> {
-        self.fill_bytes(dst);
         Ok(())
     }
 }

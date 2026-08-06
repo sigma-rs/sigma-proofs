@@ -12,7 +12,7 @@ fn test_cmz_wallet_with_fee() {
     use group::Group;
     type G = bls12_381::G1Projective;
 
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
 
     // This version should fail with InvalidInstanceWitnessPair
     // because it uses a scalar constant directly in the equation
@@ -77,7 +77,7 @@ fn test_relations() {
     ];
 
     for (relation_name, relation_sampler) in instance_generators.iter() {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let (canonical_relation, witness) = relation_sampler(&mut rng);
 
         // Test the NIZK protocol

@@ -2,7 +2,7 @@
 
 use hash2group::{rfc9380::ExpandMsgXmd, FromHash};
 use hex_literal::hex;
-use k256::elliptic_curve::sec1::ToEncodedPoint;
+use k256::elliptic_curve::sec1::ToSec1Point;
 use k256::{AffinePoint, ProjectivePoint};
 use sha2::Sha256;
 
@@ -11,7 +11,7 @@ const DST: &[u8] = b"QUUX-V01-CS02-with-secp256k1_XMD:SHA-256_SSWU_RO_";
 fn check(msg: &[u8], expected_x: [u8; 32], expected_y: [u8; 32]) {
     let p: ProjectivePoint = FromHash::<ExpandMsgXmd<Sha256>>::from_hash(DST, msg);
     let affine: AffinePoint = p.into();
-    let encoded = affine.to_encoded_point(false);
+    let encoded = affine.to_sec1_point(false);
     let x: &[u8] = encoded.x().expect("identity point").as_ref();
     let y: &[u8] = encoded.y().expect("identity or compressed").as_ref();
     assert_eq!(x, expected_x, "x mismatch");

@@ -65,25 +65,16 @@ mod curve25519 {
     }
 }
 
-#[cfg(feature = "bls12_381")]
-mod bls12_381 {
-    use super::MultiScalarMul;
-    use bls12_381::{G1Projective, G2Projective};
-
-    impl MultiScalarMul for G1Projective {}
-    impl MultiScalarMul for G2Projective {}
-}
-
 #[cfg(feature = "k256")]
 mod k256 {
     use super::MultiScalarMul;
     use alloc::vec::Vec;
-    use k256::{elliptic_curve::ops::LinearCombinationExt, ProjectivePoint, Scalar};
+    use k256::{elliptic_curve::ops::LinearCombination, ProjectivePoint, Scalar};
 
     impl MultiScalarMul for ProjectivePoint {
         fn msm(scalars: &[Scalar], bases: &[Self]) -> Self {
             assert_eq!(scalars.len(), bases.len());
-            LinearCombinationExt::lincomb_ext(
+            <Self as LinearCombination<[(Self, Scalar)]>>::lincomb(
                 core::iter::zip(bases.iter().copied(), scalars.iter().copied())
                     .collect::<Vec<_>>()
                     .as_slice(),
@@ -95,8 +86,17 @@ mod k256 {
 #[cfg(feature = "p256")]
 mod p256 {
     use super::MultiScalarMul;
-    use p256::ProjectivePoint;
+    use alloc::vec::Vec;
+    use p256::{elliptic_curve::ops::LinearCombination, ProjectivePoint, Scalar};
 
-    // NOTE: As of 0.13.2 the p256 crate does not implement LinearCombinationExt on ProjectivePoint
-    impl MultiScalarMul for ProjectivePoint {}
+    impl MultiScalarMul for ProjectivePoint {
+        fn msm(scalars: &[Scalar], bases: &[Self]) -> Self {
+            assert_eq!(scalars.len(), bases.len());
+            <Self as LinearCombination<[(Self, Scalar)]>>::lincomb(
+                core::iter::zip(bases.iter().copied(), scalars.iter().copied())
+                    .collect::<Vec<_>>()
+                    .as_slice(),
+            )
+        }
+    }
 }
