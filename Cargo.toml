@@ -127,6 +127,10 @@ name = "compressed"
 required-features = ["std"]
 
 [[test]]
+name = "property"
+required-features = ["std"]
+
+[[test]]
 name = "spec_vectors"
 required-features = ["std"]
 
