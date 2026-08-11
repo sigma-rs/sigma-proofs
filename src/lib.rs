@@ -49,6 +49,7 @@ struct ReadmeDoctests;
 
 pub mod codec;
 pub mod composition;
+pub mod compressed;
 pub mod errors;
 pub mod fiat_shamir;
 pub mod linear_relation;

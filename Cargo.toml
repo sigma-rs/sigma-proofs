@@ -123,6 +123,10 @@ name = "test_batch_verification"
 required-features = ["std"]
 
 [[test]]
+name = "compressed"
+required-features = ["std"]
+
+[[test]]
 name = "spec_vectors"
 required-features = ["std"]
 

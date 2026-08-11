@@ -26,6 +26,29 @@ let proof = prove_batchable(TAG, &statement, &witness).unwrap();
 verify_batchable(TAG, &statement, &proof).unwrap();
 ```
 
+## Compressed proofs
+
+For a relation with `n` witness scalars, `Compressed` produces a proof with
+`1 + 2·⌈log₂(n)⌉` group elements and one scalar:
+
+```rust
+use curve25519_dalek::{RistrettoPoint as G, Scalar};
+use group::Group;
+use sigma_proofs::{compressed::Compressed, derive_session_id, LinearRelation, StdHash};
+use spongefish::Narg;
+
+let witness = vec![Scalar::from(3u64), Scalar::from(5u64)];
+let mut relation = LinearRelation::<G>::new();
+let [x, y] = relation.allocate_scalars();
+let h = relation.allocate_element_with(G::generator() * Scalar::from(7u64));
+relation.allocate_eq(x * relation.generator() + y * h);
+let statement = relation.compile_with_witness(&witness).unwrap();
+
+let session = derive_session_id::<StdHash>(b"my-application compressed");
+let (proof, ()) = Narg::prove::<Compressed<G>>(&session, &statement, &witness).unwrap();
+Narg::verify::<Compressed<G>>(&session, &statement, &proof).unwrap();
+```
+
 ## Composition
 
 Compile the component statements, combine them with
