@@ -23,7 +23,9 @@ jobs:
 
           for vector in \
             sigma-proofs_Shake128_BLS12381.json \
-            sigma-proofs_Shake128_P256.json
+            sigma-proofs_Shake128_P256.json \
+            sigma-proofs-invalid_Shake128_BLS12381.json \
+            sigma-proofs-invalid_Shake128_P256.json
           do
             curl -sL "$upstream_base/$vector" -o "/tmp/$vector"
             [ "$(sha256sum "$vector_dir/$vector" | cut -d' ' -f1)" = "$(sha256sum "/tmp/$vector" | cut -d' ' -f1)" ] || exit 1

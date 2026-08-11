@@ -1,0 +1,69 @@
+# Supply-chain policy, enforced by the `cargo-deny` CI job.
+#
+# Run locally with:
+#
+#     cargo deny --workspace --all-features check
+
+[graph]
+all-features = true
+# Targets we claim to support. Dependencies pulled in only for other targets
+# are ignored, so a vulnerability in a Windows-only crate we never build does
+# not gate the tree.
+targets = [
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu",
+    "x86_64-apple-darwin",
+    "aarch64-apple-darwin",
+    "wasm32-wasip1",
+    "wasm32-unknown-unknown",
+]
+
+[advisories]
+version = 2
+# Every RUSTSEC advisory is a hard failure. Exceptions go here, each with a
+# comment naming the advisory, why it does not apply, and who to ask.
+ignore = []
+
+[licenses]
+version = 2
+# Permissive licenses only: this crate is MIT OR Apache-2.0 and must stay
+# linkable from both. Copyleft in the dependency tree is a hard failure.
+# Kept minimal on purpose: an allowance nothing in the tree uses is a hole
+# that a future dependency can slip through unnoticed. `cargo deny` warns
+# about unmatched entries, so this list stays honest.
+allow = [
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-3-Clause",
+    "MIT",
+    "Unicode-3.0",
+    "Zlib",
+]
+confidence-threshold = 0.93
+
+[bans]
+# Two versions of a crate in the tree is usually harmless churn, but for
+# cryptographic dependencies it means two implementations of the same
+# primitive are linked in and only one of them is the one we audited. Warn
+# globally, deny for the crates that carry actual crypto.
+multiple-versions = "warn"
+wildcards = "deny"
+# Build-time-only duplicates (syn, etc.) are not interesting.
+allow-wildcard-paths = true
+
+# Crates that must appear exactly once in the graph.
+deny = [
+    { name = "curve25519-dalek", deny-multiple-versions = true },
+    { name = "bls12_381", deny-multiple-versions = true },
+    { name = "k256", deny-multiple-versions = true },
+    { name = "p256", deny-multiple-versions = true },
+    { name = "group", deny-multiple-versions = true },
+    { name = "ff", deny-multiple-versions = true },
+    { name = "subtle", deny-multiple-versions = true },
+    { name = "spongefish", deny-multiple-versions = true },
+]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
