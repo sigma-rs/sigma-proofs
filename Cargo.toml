@@ -10,6 +10,7 @@ authors = [
     "Lénaïck Gouriou <lg@leanear.io>",
 ]
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 readme = "README.md"
 repository.workspace = true
@@ -27,6 +28,8 @@ members = [".", "hash2group"]
 
 [workspace.package]
 edition = "2021"
+# Enforced by the `msrv` CI job.
+rust-version = "1.88"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/sigma-rs/sigma-proofs"
 categories = ["cryptography"]
@@ -46,28 +49,32 @@ sha3 = { version = "=0.11.0-rc.9", default-features = false }
 # Include commonly used curved in default features.
 # Increases the default compile times, but makes the crate just-work for most users.
 default = ["std", "bls12_381", "curve25519-dalek", "k256", "p256"]
-# Kept as a no-op for backward compatibility with downstream crates that enabled
-# the former optional rand dependency feature.
-rand = []
-std = ["thiserror", "rand", "rand_core/std", "spongefish/std"]
-bls12_381 = ["dep:bls12_381", "spongefish/bls12_381"]
-curve25519-dalek = ["dep:curve25519-dalek", "spongefish/curve25519-dalek"]
-k256 = ["dep:k256", "spongefish/k256"]
-p256 = ["dep:p256", "spongefish/p256"]
+std = []
+# Curve support: each enables `MultiScalarMul` (and so the whole protocol) for
+# that curve's group type. The two that gate their own `Zeroize` behind a
+# feature have it turned on here: wiping witness material is unconditional (see
+# `ScalarCodec`), so every supported scalar has to implement it.
+bls12_381 = ["dep:bls12_381", "bls12_381/zeroize"]
+curve25519-dalek = ["dep:curve25519-dalek", "curve25519-dalek/zeroize"]
+k256 = ["dep:k256"]
+p256 = ["dep:p256"]
 
 [dependencies]
 bls12_381 = { version = "0.8.0", default-features = false, features = ["groups"], optional = true }
-curve25519-dalek = { workspace = true, features = ["alloc", "group"], optional = true }
+curve25519-dalek = { workspace = true, features = ["alloc", "group", "precomputed-tables"], optional = true }
 ff = { version = "0.13", default-features = false, features = ["std"] }
 group = "0.13.0"
 itertools = { version = "0.15", default-features = false }
 k256 = { workspace = true, features = ["arithmetic", "alloc"], optional = true }
 p256 = { workspace = true, features = ["arithmetic"], optional = true }
-rand_core = { version = "0.6", default-features = false }
-sha3 = { workspace = true }
 spongefish = { version = "0.7" }
 subtle = { version = "2.6.1", default-features = false }
-thiserror = { version = "2", optional = true }
+# Not optional: `zeroize` is already an unconditional part of the dependency
+# graph, reached through `spongefish`'s digest stack and through the curve
+# crates' `crypto-bigint`, with `spongefish` enabling its own `zeroize` by
+# default. Gating it here saved no dependency — only the `ScalarCodec` bound,
+# and a feature that narrows a blanket impl is not additive.
+zeroize = { version = "1.8", default-features = false, features = ["alloc"] }
 
 [dev-dependencies]
 anyhow = "1.0.100"
@@ -78,60 +85,66 @@ hex = "0.4"
 hex-literal = { workspace = true }
 k256 = { workspace = true, features = ["arithmetic"] }
 p256 = { workspace = true, features = ["arithmetic"] }
+proptest = "1.8"
 rand = "0.8.5"
-rand_chacha = { version = "0.3.1" }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
 serde_with = { version = "3.16.1", features = ["hex"] }
 serial_test = "3.3.1"
 sha2 = { workspace = true }
-spongefish = { version = "0.7", features = ["curve25519-dalek", "p256", "bls12_381", "std"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 core_affinity2 = "0.15.4"
 
+[lints.rust]
+# `kani` is set by `cargo kani`, which builds the model-checking harnesses in
+# `src/composition/ct.rs`; `docsrs` is set by docs.rs. Neither is a Cargo
+# feature, so both have to be declared or every build warns about them.
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)', 'cfg(docsrs)'] }
+
 [[test]]
 name = "dudect"
-required-features = ["curve25519-dalek", "std"]
+required-features = ["std"]
 
 [[test]]
 name = "test_composition"
-required-features = ["curve25519-dalek", "std"]
+required-features = ["std"]
 
 [[test]]
 name = "test_relations"
-required-features = ["bls12_381", "std"]
+required-features = ["std"]
 
 [[test]]
 name = "instance_validation"
-required-features = ["curve25519-dalek", "std"]
-
-[[test]]
-name = "verifier_rejection"
-required-features = ["curve25519-dalek", "std"]
+required-features = ["std"]
 
 [[test]]
 name = "test_batch_verification"
-required-features = ["bls12_381", "std"]
+required-features = ["std"]
 
 [[test]]
 name = "spec_vectors"
-required-features = ["bls12_381", "std"]
+required-features = ["std"]
 
 [[example]]
 name = "schnorr"
-required-features = ["curve25519-dalek", "std"]
+required-features = ["std"]
 doc-scrape-examples = true
 
 [[example]]
 name = "simple_composition"
-required-features = ["curve25519-dalek", "std"]
+required-features = ["std"]
 doc-scrape-examples = true
 
 [[bench]]
 name = "msm"
 harness = false
 required-features = ["std"]
+
+[[bench]]
+name = "protocol"
+harness = false
+required-features = ["std", "curve25519-dalek"]
 
 [profile.dev]
 # Makes tests run much faster at the cost of slightly longer builds and worse debug info.

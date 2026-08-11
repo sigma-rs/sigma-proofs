@@ -1,163 +1,55 @@
-//! # Linear Maps and Relations Handling.
+//! # Linear maps and relations
 //!
-//! This module provides utilities for describing and manipulating **linear group linear maps**,
-//! supporting sigma protocols over group-based statements (e.g., discrete logarithms, DLEQ proofs). See Maurer09.
+//! Utilities for describing and manipulating **linear maps over groups**, the
+//! basis of Sigma protocols for group statements such as discrete logarithms
+//! and DLEQ proofs (see Maurer09):
 //!
-//! It includes:
 //! - [`LinearCombination`]: a sparse representation of scalar multiplication relations.
 //! - [`LinearMap`]: a collection of linear combinations acting on group elements.
-//! - [`LinearRelation`]: a higher-level structure managing linear maps and their associated images.
+//! - [`LinearRelation`]: a linear map paired with its image.
 
+use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::format;
 use alloc::vec::Vec;
 use core::iter;
 use core::marker::PhantomData;
 
-use crate::errors::{Error, InvalidInstance};
-use crate::group::msm::MultiScalarMul;
+use crate::codec::{GroupCodec, ScalarCodec};
+use crate::errors::InvalidInstance;
+use crate::msm::MultiScalarMul;
 use ff::Field;
 use group::prime::PrimeGroup;
 
 /// Implementations of conversion operations such as From and FromIterator for var and term types.
 mod convert;
+/// The scalar/element variable, term, and sum expression types.
+mod expr;
 /// Implementations of core ops for the linear combination types.
 mod ops;
 
-/// Implementation of canonical linear relation.
-mod canonical;
-pub use canonical::CanonicalLinearRelation;
+/// The validated instance of the sigma-protocols specification.
+mod instance;
+/// The Sigma protocol and NIZK implementations over the validated instance.
+mod protocol;
+pub use expr::{GroupVar, ScalarTerm, ScalarVar, Sum, Term, Weighted};
+pub use instance::{Equation, Instance};
 
-/// A wrapper representing an index for a scalar variable.
+/// A sparse linear combination of scalars and group elements, such as
+/// `w_1 * (s_1 * P_1) + w_2 * (s_2 * P_2) + ... + w_n * (s_n * P_n)`, where:
 ///
-/// Used to reference scalars in sparse linear combinations.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct ScalarVar<G>(usize, PhantomData<G>);
-
-impl<G> ScalarVar<G> {
-    pub fn index(&self) -> usize {
-        self.0
-    }
-}
-
-impl<G> core::hash::Hash for ScalarVar<G> {
-    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
-        self.0.hash(state)
-    }
-}
-
-/// A wrapper representing an index for a group element (point).
+/// - `(s_i * P_i)` are the terms, with `s_i` scalars (referenced by `scalar_vars`)
+///   and `P_i` group elements (referenced by `element_vars`);
+/// - `w_i` are the constant weights.
 ///
-/// Used to reference group elements in sparse linear combinations.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct GroupVar<G>(usize, PhantomData<G>);
-
-impl<G> GroupVar<G> {
-    pub fn index(&self) -> usize {
-        self.0
-    }
-}
-
-impl<G> core::hash::Hash for GroupVar<G> {
-    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
-        self.0.hash(state)
-    }
-}
-
-#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
-pub enum ScalarTerm<G> {
-    Var(ScalarVar<G>),
-    Unit,
-}
-
-impl<G: PrimeGroup> ScalarTerm<G> {
-    // NOTE: This function is private intentionally as it would be replaced if a ScalarMap struct
-    // were to be added.
-    fn value(self, scalars: &[G::Scalar]) -> G::Scalar {
-        match self {
-            Self::Var(var) => scalars[var.0],
-            Self::Unit => G::Scalar::ONE,
-        }
-    }
-}
-
-/// A term in a linear combination, representing `scalar * elem`.
-#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
-pub struct Term<G> {
-    scalar: ScalarTerm<G>,
-    elem: GroupVar<G>,
-}
-
-#[derive(Copy, Clone, Debug)]
-pub struct Weighted<T, F> {
-    pub term: T,
-    pub weight: F,
-}
-
-#[derive(Clone, Debug)]
-pub struct Sum<T>(Vec<T>);
-
-impl<T> Sum<T> {
-    /// Access the terms of the sum as slice reference.
-    pub fn terms(&self) -> &[T] {
-        &self.0
-    }
-}
-
-impl<T> core::iter::Sum<T> for Sum<T> {
-    /// Add a bunch of `T` to yield a `Sum<T>`
-    fn sum<I>(iter: I) -> Self
-    where
-        I: Iterator<Item = T>,
-    {
-        Self(iter.collect())
-    }
-}
-
-/// Represents a sparse linear combination of scalars and group elements.
-///
-/// For example, it can represent an equation like:
-/// `w_1 * (s_1 * P_1) + w_2 * (s_2 * P_2) + ... + w_n * (s_n * P_n)`
-///
-/// where:
-/// - `(s_i * P_i)` are the terms, with `s_i` scalars (referenced by `scalar_vars`) and `P_i` group elements (referenced by `element_vars`).
-/// - `w_i` are the constant weight scalars
-///
-/// The indices refer to external lists managed by the containing LinearMap.
+/// The indices refer to external lists managed by the containing [`LinearMap`].
 pub type LinearCombination<G> = Sum<Weighted<Term<G>, <G as group::Group>::Scalar>>;
-
-impl<G: PrimeGroup + MultiScalarMul> LinearMap<G> {
-    fn map(&self, scalars: &[G::Scalar]) -> Result<Vec<G>, InvalidInstance> {
-        self.linear_combinations
-            .iter()
-            .map(|lc| {
-                let weighted_coefficients =
-                    lc.0.iter()
-                        .map(|weighted| weighted.term.scalar.value(scalars) * weighted.weight)
-                        .collect::<Vec<_>>();
-                let elements =
-                    lc.0.iter()
-                        .map(|weighted| self.group_elements.get(weighted.term.elem))
-                        .collect::<Result<Vec<_>, InvalidInstance>>();
-                match elements {
-                    Ok(elements) => Ok(G::msm(&weighted_coefficients, &elements)),
-                    Err(error) => Err(error),
-                }
-            })
-            .collect::<Result<Vec<_>, InvalidInstance>>()
-    }
-}
 
 /// Ordered mapping of [GroupVar] to group elements assignments.
 #[derive(Clone, Debug)]
 pub struct GroupMap<G>(Vec<Option<G>>);
 
 impl<G: PrimeGroup> GroupMap<G> {
-    /// Assign a group element value to a point variable.
-    ///
-    /// # Parameters
-    ///
-    /// - `var`: The variable to assign.
-    /// - `element`: The value to assign to the variable.
+    /// Assigns a group element value to a point variable.
     ///
     /// # Panics
     ///
@@ -174,11 +66,7 @@ impl<G: PrimeGroup> GroupMap<G> {
         self.0[var.0] = Some(element);
     }
 
-    /// Assigns specific group elements to point variables (indices).
-    ///
-    /// # Parameters
-    ///
-    /// - `assignments`: A collection of `(GroupVar, GroupElement)` pairs that can be iterated over.
+    /// Assigns group elements to the given point variables.
     ///
     /// # Panics
     ///
@@ -189,9 +77,8 @@ impl<G: PrimeGroup> GroupMap<G> {
         }
     }
 
-    /// Get the element value assigned to the given point var.
-    ///
-    /// Returns [`InvalidInstance`] if a value is not assigned.
+    /// Returns the element assigned to the given point variable, or
+    /// [`InvalidInstance`] if it has none.
     pub fn get(&self, var: GroupVar<G>) -> Result<G, InvalidInstance> {
         match self.0.get(var.0) {
             Some(Some(elem)) => Ok(*elem),
@@ -200,41 +87,6 @@ impl<G: PrimeGroup> GroupMap<G> {
                 var.0
             ))),
         }
-    }
-
-    /// Iterate over the assigned variable and group element pairs in this mapping.
-    // NOTE: Not implemented as `IntoIterator` for now because doing so requires explicitly
-    // defining an iterator type, See https://github.com/rust-lang/rust/issues/63063
-    #[allow(clippy::should_implement_trait)]
-    pub fn into_iter(self) -> impl Iterator<Item = (GroupVar<G>, Option<G>)> {
-        self.0
-            .into_iter()
-            .enumerate()
-            .map(|(i, x)| (GroupVar(i, PhantomData), x))
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item = (GroupVar<G>, Option<&G>)> {
-        self.0
-            .iter()
-            .enumerate()
-            .map(|(i, opt)| (GroupVar(i, PhantomData), opt.as_ref()))
-    }
-
-    /// Add a new group element to the map and return its variable index
-    pub fn push(&mut self, element: G) -> GroupVar<G> {
-        let index = self.0.len();
-        self.0.push(Some(element));
-        GroupVar(index, PhantomData)
-    }
-
-    /// Get the number of elements in the map
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    /// Check if the map is empty
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
     }
 }
 
@@ -254,17 +106,17 @@ impl<G: PrimeGroup> FromIterator<(GroupVar<G>, G)> for GroupMap<G> {
     }
 }
 
-/// A LinearMap represents a list of linear combinations over group elements.
+/// A list of linear combinations over group elements.
 ///
-/// It supports dynamic allocation of scalars and elements,
-/// and evaluates by performing multi-scalar multiplications.
+/// Scalars and elements are allocated dynamically, and evaluation is by
+/// multi-scalar multiplication.
 #[derive(Clone, Default, Debug)]
 pub struct LinearMap<G: PrimeGroup> {
     /// The set of linear combination constraints (equations).
     pub linear_combinations: Vec<LinearCombination<G>>,
     /// The list of group elements referenced in the linear map.
     ///
-    /// Uninitialized group elements are presented with `None`.
+    /// Uninitialized group elements are represented by `None`.
     pub group_elements: GroupMap<G>,
     /// The total number of scalar variables allocated.
     pub num_scalars: usize,
@@ -274,11 +126,6 @@ pub struct LinearMap<G: PrimeGroup> {
 
 impl<G: PrimeGroup> LinearMap<G> {
     /// Creates a new empty [`LinearMap`].
-    ///
-    /// # Returns
-    ///
-    /// A [`LinearMap`] instance with empty linear combinations and group elements,
-    /// and zero allocated scalars and elements.
     pub fn new() -> Self {
         Self {
             linear_combinations: Vec::new(),
@@ -294,25 +141,26 @@ impl<G: PrimeGroup> LinearMap<G> {
     }
 
     /// Adds a new linear combination constraint to the linear map.
-    ///
-    /// # Parameters
-    /// - `lc`: The [`LinearCombination`] to add.
     pub fn append(&mut self, lc: LinearCombination<G>) {
         self.linear_combinations.push(lc);
     }
 
     /// Evaluates all linear combinations in the linear map with the provided scalars.
     ///
-    /// # Parameters
-    /// - `scalars`: A slice of scalar values corresponding to the scalar variables.
-    ///
-    /// # Returns
-    ///
-    /// A vector of group elements, each being the result of evaluating one linear combination with the scalars.
-    pub fn evaluate(&self, scalars: &[G::Scalar]) -> Result<Vec<G>, Error>
+    /// `scalars` must contain exactly one value per allocated scalar variable, in allocation
+    /// order. A different length returns [`InvalidInstance`].
+    pub fn evaluate(&self, scalars: &[G::Scalar]) -> Result<Vec<G>, InvalidInstance>
     where
         G: MultiScalarMul,
     {
+        if scalars.len() != self.num_scalars {
+            return Err(InvalidInstance::new(format!(
+                "witness has {} scalars; expected {}",
+                scalars.len(),
+                self.num_scalars
+            )));
+        }
+
         self.linear_combinations
             .iter()
             .map(|lc| {
@@ -332,15 +180,15 @@ impl<G: PrimeGroup> LinearMap<G> {
     }
 }
 
-/// A wrapper struct coupling a [`LinearMap`] with the corresponding expected output (image) elements.
+/// A [`LinearMap`] coupled with its expected output (image) elements.
 ///
-/// This structure represents the *preimage problem* for a group linear map: given a set of scalar inputs,
-/// determine whether their image under the linear map matches a target set of group elements.
+/// This is the *preimage problem* for a group linear map: given scalar inputs,
+/// does their image under the map match a target set of group elements?
 ///
-/// Internally, the constraint system is defined through:
-/// - A list of group elements and linear equations (held in the [`LinearMap`] field),
-/// - A list of [`GroupVar`] indices (`image`) that specify the expected output for each constraint.
-#[derive(Clone, Default, Debug)]
+/// The constraint system is held in two parts:
+/// - the group elements and linear equations (the [`LinearMap`] field),
+/// - the [`GroupVar`] indices (`image`) giving the expected output of each constraint.
+#[derive(Clone, Debug)]
 pub struct LinearRelation<G: PrimeGroup> {
     /// The underlying linear map describing the structure of the statement.
     pub linear_map: LinearMap<G>,
@@ -348,33 +196,61 @@ pub struct LinearRelation<G: PrimeGroup> {
     pub image: Vec<GroupVar<G>>,
 }
 
+impl<G: PrimeGroup> Default for LinearRelation<G> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<G: PrimeGroup> LinearRelation<G> {
     /// Create a new empty [`LinearRelation`].
+    ///
+    /// Element index `0` is reserved for the group generator (per the
+    /// specification's representation, `elements[0]` is `G::generator()` in
+    /// every instance) and is assigned on construction; use
+    /// [`LinearRelation::generator`] to reference it in equations.
     pub fn new() -> Self {
-        Self {
+        let mut relation = Self {
             linear_map: LinearMap::new(),
             image: Vec::new(),
-        }
+        };
+        let generator_var = relation.allocate_element();
+        debug_assert_eq!(generator_var.0, 0);
+        relation.set_element(generator_var, G::generator());
+        relation
+    }
+
+    /// The variable referencing the group generator, fixed at element index `0`.
+    pub fn generator(&self) -> GroupVar<G> {
+        GroupVar(0, PhantomData)
     }
 
     /// Adds a new equation to the statement of the form:
     /// `lhs = Σ weight_i * (scalar_i * point_i)`.
-    ///
-    /// # Parameters
-    /// - `lhs`: The image group element variable (left-hand side of the equation).
-    /// - `rhs`: An instance of [`LinearCombination`] representing the linear combination on the right-hand side.
     pub fn append_equation(&mut self, lhs: GroupVar<G>, rhs: impl Into<LinearCombination<G>>) {
         self.linear_map.append(rhs.into());
         self.image.push(lhs);
     }
 
     /// Adds a new equation to the statement of the form:
-    /// `lhs = Σ weight_i * (scalar_i * point_i)` without allocating `lhs`.
-    ///
-    /// # Parameters
-    /// - `rhs`: An instance of [`LinearCombination`] representing the linear combination on the right-hand side.
+    /// `lhs = Σ weight_i * (scalar_i * point_i)`, allocating `lhs` without assigning it.
     pub fn allocate_eq(&mut self, rhs: impl Into<LinearCombination<G>>) -> GroupVar<G> {
         let var = self.allocate_element();
+        self.append_equation(var, rhs);
+        var
+    }
+
+    /// Adds an equation whose left-hand side is already known.
+    ///
+    /// This is the public-statement counterpart of [`LinearRelation::allocate_eq`].
+    /// It is equivalent to calling `allocate_eq(rhs)` followed by
+    /// `set_element(var, lhs)` and produces the same compiled representation.
+    pub fn allocate_eq_with(
+        &mut self,
+        lhs: G,
+        rhs: impl Into<LinearCombination<G>>,
+    ) -> GroupVar<G> {
+        let var = self.allocate_element_with(lhs);
         self.append_equation(var, rhs);
         var
     }
@@ -385,20 +261,8 @@ impl<G: PrimeGroup> LinearRelation<G> {
         ScalarVar(self.linear_map.num_scalars - 1, PhantomData)
     }
 
-    /// Allocates space for `N` new scalar variables.
-    ///
-    /// # Returns
-    /// An array of [`ScalarVar`] representing the newly allocated scalar indices.
-    ///
-    /// # Example
-    /// ```
-    /// # use sigma_proofs::LinearRelation;
-    /// use curve25519_dalek::RistrettoPoint as G;
-    ///
-    /// let mut relation = LinearRelation::<G>::new();
-    /// let [var_x, var_y] = relation.allocate_scalars();
-    /// let vars = relation.allocate_scalars::<10>();
-    /// ```
+    /// Allocates space for `N` new scalar variables, so
+    /// `let [x, y] = relation.allocate_scalars()` allocates two at once.
     pub fn allocate_scalars<const N: usize>(&mut self) -> [ScalarVar<G>; N] {
         let mut vars = [ScalarVar(usize::MAX, PhantomData); N];
         for var in vars.iter_mut() {
@@ -408,18 +272,6 @@ impl<G: PrimeGroup> LinearRelation<G> {
     }
 
     /// Allocates a vector of new scalar variables.
-    ///
-    /// # Returns
-    /// A vector of [`ScalarVar`] representing the newly allocated scalar indices.
-    ///    /// # Example
-    /// ```
-    /// # use sigma_proofs::LinearRelation;
-    /// use curve25519_dalek::RistrettoPoint as G;
-    ///
-    /// let mut relation = LinearRelation::<G>::new();
-    /// let [var_x, var_y] = relation.allocate_scalars();
-    /// let vars = relation.allocate_scalars_vec(10);
-    /// ```
     pub fn allocate_scalars_vec(&mut self, n: usize) -> Vec<ScalarVar<G>> {
         (0..n).map(|_| self.allocate_scalar()).collect()
     }
@@ -430,7 +282,7 @@ impl<G: PrimeGroup> LinearRelation<G> {
         GroupVar(self.linear_map.num_elements - 1, PhantomData)
     }
 
-    /// Allocates a point variable (group element) and sets it immediately to the given value
+    /// Allocates a point variable (group element) and immediately sets it to the given value.
     pub fn allocate_element_with(&mut self, element: G) -> GroupVar<G> {
         let var = self.allocate_element();
         self.set_element(var, element);
@@ -438,19 +290,6 @@ impl<G: PrimeGroup> LinearRelation<G> {
     }
 
     /// Allocates `N` point variables (group elements) for use in the linear map.
-    ///
-    /// # Returns
-    /// An array of [`GroupVar`] representing the newly allocated group element indices.
-    ///
-    /// # Example
-    /// ```
-    /// # use sigma_proofs::LinearRelation;
-    /// use curve25519_dalek::RistrettoPoint as G;
-    ///
-    /// let mut relation = LinearRelation::<G>::new();
-    /// let [var_g, var_h] = relation.allocate_elements();
-    /// let vars = relation.allocate_elements::<10>();
-    /// ```
     pub fn allocate_elements<const N: usize>(&mut self) -> [GroupVar<G>; N] {
         let mut vars = [GroupVar(usize::MAX, PhantomData); N];
         for var in vars.iter_mut() {
@@ -460,37 +299,11 @@ impl<G: PrimeGroup> LinearRelation<G> {
     }
 
     /// Allocates a vector of new point variables (group elements).
-    ///
-    /// # Returns
-    /// A vector of [`GroupVar`] representing the newly allocated group element indices.
-    ///
-    /// # Example
-    /// ```
-    /// # use sigma_proofs::LinearRelation;
-    /// use curve25519_dalek::RistrettoPoint as G;
-    /// let mut relation = LinearRelation::<G>::new();
-    /// let [var_g, var_h
-    /// ] = relation.allocate_elements();
-    /// let vars = relation.allocate_elements_vec(10);
-    /// ```
     pub fn allocate_elements_vec(&mut self, n: usize) -> Vec<GroupVar<G>> {
         (0..n).map(|_| self.allocate_element()).collect()
     }
 
-    /// Allocates a point variable (group element) and sets it immediately to the given value.
-    pub fn allocate_elements_with(&mut self, elements: &[G]) -> Vec<GroupVar<G>> {
-        elements
-            .iter()
-            .map(|element| self.allocate_element_with(*element))
-            .collect()
-    }
-
-    /// Assign a group element value to a point variable.
-    ///
-    /// # Parameters
-    ///
-    /// - `var`: The variable to assign.
-    /// - `element`: The value to assign to the variable.
+    /// Assigns a group element value to a point variable.
     ///
     /// # Panics
     ///
@@ -499,11 +312,7 @@ impl<G: PrimeGroup> LinearRelation<G> {
         self.linear_map.group_elements.assign_element(var, element)
     }
 
-    /// Assigns specific group elements to point variables (indices).
-    ///
-    /// # Parameters
-    ///
-    /// - `assignments`: A collection of `(GroupVar, GroupElement)` pairs that can be iterated over.
+    /// Assigns group elements to the given point variables.
     ///
     /// # Panics
     ///
@@ -512,44 +321,77 @@ impl<G: PrimeGroup> LinearRelation<G> {
         self.linear_map.group_elements.assign_elements(assignments)
     }
 
-    /// Evaluates all linear combinations in the linear map with the provided scalars, computing the
-    /// left-hand side of this constraints (i.e. the image).
+    /// Evaluates all linear combinations in the linear map at the provided scalars, computing the
+    /// left-hand side of each constraint (i.e. the image).
     ///
-    /// After calling this function, all point variables will be assigned.
-    ///
-    /// # Parameters
-    ///
-    /// - `scalars`: A slice of scalar values corresponding to the scalar variables.
-    ///
-    /// # Returns
-    ///
-    /// Return `Ok` on success, and an error if unassigned elements prevent the image from being
-    /// computed. Modifies the group elements assigned in the [LinearRelation].
-    pub fn compute_image(&mut self, scalars: &[G::Scalar]) -> Result<(), Error>
+    /// The slice must contain exactly one scalar per allocated scalar variable, in allocation
+    /// order. On success every previously-unassigned image variable is assigned, and any
+    /// preassigned image is checked against the computed value. A mismatch returns
+    /// [`InvalidInstance`]. The update is transactional: on any error, including
+    /// a missing base element or conflicting image, no image assignment is changed.
+    pub fn compute_image(&mut self, scalars: &[G::Scalar]) -> Result<(), InvalidInstance>
     where
         G: MultiScalarMul,
     {
         if self.linear_map.num_constraints() != self.image.len() {
-            // NOTE: This is a panic, rather than a returned error, because this can only happen if
-            // this implementation has a bug.
-            panic!("invalid LinearRelation: different number of constraints and image variables");
+            return Err(InvalidInstance::new(
+                "constraint and image counts do not match",
+            ));
         }
 
-        let mapped_scalars = self.linear_map.map(scalars)?;
+        let mapped_scalars = self.linear_map.evaluate(scalars)?;
+
+        // Stage assignments on a clone so two equations sharing an image variable are checked
+        // against one another and an error cannot leave a partly-solved relation behind.
+        let mut group_elements = self.linear_map.group_elements.clone();
 
         for (mapped_scalar, lhs) in iter::zip(mapped_scalars, &self.image) {
-            self.linear_map
-                .group_elements
-                .assign_element(*lhs, mapped_scalar)
+            if let Some(assigned) = group_elements.0.get(lhs.0).copied().flatten() {
+                if assigned != mapped_scalar {
+                    return Err(InvalidInstance::new(
+                        "witness does not match a preassigned image",
+                    ));
+                }
+            } else {
+                group_elements.assign_element(*lhs, mapped_scalar);
+            }
         }
+        self.linear_map.group_elements = group_elements;
         Ok(())
     }
 
+    /// Computes this relation's image from `witness` and compiles the resulting statement.
+    ///
+    /// This is a convenience for prover-side construction when the public image is derived from
+    /// a locally-held witness. It is equivalent to [`LinearRelation::compute_image`] followed by
+    /// [`LinearRelation::compile`]. Preassigned image values are checked rather than overwritten,
+    /// so this method also rejects a witness that does not satisfy an already-complete public
+    /// statement.
+    ///
+    /// The witness must contain exactly one scalar per allocated scalar variable, in allocation
+    /// order. As with `compute_image`, a failure while computing the image does not partially
+    /// assign image variables.
+    pub fn compile_with_witness(
+        &mut self,
+        witness: &[G::Scalar],
+    ) -> Result<Instance<G>, InvalidInstance>
+    where
+        G: MultiScalarMul + GroupCodec,
+        G::Scalar: ScalarCodec,
+    {
+        self.compute_image(witness)?;
+        let instance = self.compile()?;
+        if instance.num_scalars() != witness.len() {
+            return Err(InvalidInstance::new(format!(
+                "witness has {} scalars; expected {}",
+                witness.len(),
+                instance.num_scalars()
+            )));
+        }
+        Ok(instance)
+    }
+
     /// Returns the current group elements corresponding to the image variables.
-    ///
-    /// # Returns
-    ///
-    /// A vector of group elements (`Vec<G>`) representing the linear map's image.
     // TODO: Should this return GroupMap?
     pub fn image(&self) -> Result<Vec<G>, InvalidInstance> {
         self.image
@@ -558,13 +400,148 @@ impl<G: PrimeGroup> LinearRelation<G> {
             .collect()
     }
 
-    /// Construct a [CanonicalLinearRelation] from this generalized linear relation.
+    /// Compile this relation into a validated [`Instance`] — the single gate
+    /// through which provers and verifiers accept a statement.
     ///
-    /// The construction may fail if the linear relation is malformed, unsatisfiable, or trivial.
-    pub fn canonical(&self) -> Result<CanonicalLinearRelation<G>, InvalidInstance>
+    /// The compiled form is the specification's representation: coefficients
+    /// are kept verbatim (no folding, no synthetic elements), witness-carrying
+    /// terms become right-hand-side terms `(scalar_index, element_index,
+    /// coeff)`, and constant terms cross to the image with their coefficient
+    /// negated. Every group element of the statement is individually indexed
+    /// and bound by the serialization.
+    ///
+    /// Because this is trusted local construction (the relation is built by
+    /// this process, not received from the wire), the statement is normalized
+    /// before validation — deterministically, so a prover and a verifier
+    /// building the same relation serialize the same instance:
+    ///
+    /// - A term-free (constant) equation is a public claim, not a
+    ///   sigma-protocol statement: it is evaluated here. A true one is
+    ///   stripped; a false one fails compilation, since the statement is
+    ///   false.
+    /// - Group elements no longer used by any remaining equation are dropped
+    ///   and the indices are re-packed in allocation order (the generator
+    ///   keeps index 0). A statement already satisfying the specification's
+    ///   checks is left byte-for-byte unchanged.
+    /// - If no equation remains, compilation fails: every equation was a
+    ///   constant that holds, so nothing is left to prove knowledge of. There
+    ///   is no degenerate empty instance — check 1 rejects one on every
+    ///   construction path ([no empty instance][Instance#no-empty-instance]),
+    ///   and composition relies on that.
+    ///
+    /// Identity elements in the remaining statement stay rejected (check 8),
+    /// as does everything else the specification's `ValidateInstance`
+    /// (checks 1-10) rejects; unassigned elements fail unless normalization
+    /// dropped them.
+    pub fn compile(&self) -> Result<Instance<G>, InvalidInstance>
     where
-        G: MultiScalarMul,
+        G: MultiScalarMul + GroupCodec,
+        G::Scalar: ScalarCodec,
     {
-        self.try_into()
+        if self.image.len() != self.linear_map.linear_combinations.len() {
+            return Err(InvalidInstance::new(
+                "different number of equations and image variables",
+            ));
+        }
+
+        let mut equations = Vec::new();
+        for (lhs, combination) in iter::zip(&self.image, &self.linear_map.linear_combinations) {
+            // The image is the left-hand-side variable with coefficient one,
+            // plus each constant term crossed over with its coefficient
+            // negated (never folded into a single value).
+            let mut image = alloc::vec![(
+                u32::try_from(lhs.0)
+                    .map_err(|_| InvalidInstance::new("element index exceeds 2^32"))?,
+                G::Scalar::ONE,
+            )];
+            let mut terms = Vec::new();
+            for weighted in combination.terms() {
+                let element_index = u32::try_from(weighted.term.elem.0)
+                    .map_err(|_| InvalidInstance::new("element index exceeds 2^32"))?;
+                match weighted.term.scalar {
+                    ScalarTerm::Var(scalar_var) => {
+                        let scalar_index = u32::try_from(scalar_var.0)
+                            .map_err(|_| InvalidInstance::new("scalar index exceeds 2^32"))?;
+                        terms.push((scalar_index, element_index, weighted.weight));
+                    }
+                    ScalarTerm::Unit => image.push((element_index, -weighted.weight)),
+                }
+            }
+            if terms.is_empty() {
+                // Constant equation: evaluate the public claim instead of
+                // shipping it (see the normalization notes above).
+                let (coeffs, points): (Vec<_>, Vec<_>) = image
+                    .iter()
+                    .map(|&(element_index, coeff)| {
+                        self.linear_map
+                            .group_elements
+                            .get(GroupVar(element_index as usize, PhantomData))
+                            .map(|element| (coeff, element))
+                    })
+                    .collect::<Result<Vec<_>, _>>()?
+                    .into_iter()
+                    .unzip();
+                if !bool::from(G::msm_vartime(&coeffs, &points).is_identity()) {
+                    return Err(InvalidInstance::new(
+                        "term-free equation does not hold: the statement is false",
+                    ));
+                }
+                continue;
+            }
+            equations.push(instance::Equation { image, terms });
+        }
+
+        if equations.is_empty() {
+            return Err(InvalidInstance::new(
+                "every equation is a constant that holds: the statement has no content",
+            ));
+        }
+
+        // Drop elements no remaining equation uses, keeping allocation order.
+        let mut used = BTreeSet::new();
+        used.insert(0u32);
+        for equation in &equations {
+            used.extend(
+                equation
+                    .image
+                    .iter()
+                    .map(|&(element_index, _)| element_index),
+            );
+            used.extend(
+                equation
+                    .terms
+                    .iter()
+                    .map(|&(_, element_index, _)| element_index),
+            );
+        }
+        let remap: BTreeMap<u32, u32> = used
+            .iter()
+            .enumerate()
+            .map(|(new_index, &old_index)| {
+                (
+                    old_index,
+                    u32::try_from(new_index).expect("element count exceeds 2^32"),
+                )
+            })
+            .collect();
+        for equation in &mut equations {
+            for (element_index, _) in &mut equation.image {
+                *element_index = remap[element_index];
+            }
+            for (_, element_index, _) in &mut equation.terms {
+                *element_index = remap[element_index];
+            }
+        }
+
+        let elements = used
+            .iter()
+            .map(|&old_index| {
+                self.linear_map
+                    .group_elements
+                    .get(GroupVar(old_index as usize, PhantomData))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Instance::new(elements, equations)
     }
 }

@@ -3,6 +3,7 @@ name = "hash2group"
 version = "0.1.1"
 authors = ["Victor Snyder-Graf <victor@subgraf.dev>", "Michele Orrù <m@orru.net>"]
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 description = "Hash-to-group traits with optional RFC 9380 expand_message and curve implementations"
 repository.workspace = true
