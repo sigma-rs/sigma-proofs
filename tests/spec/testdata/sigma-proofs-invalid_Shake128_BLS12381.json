@@ -164,7 +164,7 @@
     "Instance": "0100000001000000020000000000000000000000000000000000000000000000000000000000000000000001020000000000000000000000000000000000000000000000000000000000000000000000000000000000000102000000010000000000000000000000000000000000000000000000000000000000000000000001a52f63244810b5e28b235f33df487fce15bc509eac539e19275e1a0c1ae36de179fa412292007a1d6df975de5b8ca0a6a62b428f90a014557c5744b69c6303d0db7a9c876dd15743738b432a9dd1cfad79790d101eedee3bb441bccd262db1c0",
     "NargString": "8a31aa9ace6268707d6a0213fdf4bd9a4231fc4fec35338998a38b5334723d84f3c46d55c6ff9104aba7bde3e38b46cd3b5d6d79ba363cb1f75f304c0af27b3c717d6c2048126fb60147c58ce188a5bc0c18c708366e5b159dc527ef76ac46f5fb5f58bd1acdc8a9e425c7f99d7f4b4a45a360ed659e5b5db089c8f07cf725b14d7aaf71cb6a55bc1e41ac4fb4ab03b2",
     "Expected": "reject",
-    "Comment": "Instance validation fails if scalar index 1 appears in no equation (check 6); the proof satisfies the verification equations, so rejection must come from instance validation."
+    "Comment": "Instance validation fails because scalar index 1 appears in no equation, so its column is the identity (check 10); the proof satisfies the verification equations, so rejection must come from instance validation."
   },
   {
     "Id": "sigma-protocols/bls12381/discrete_logarithm/batchable/E1b",

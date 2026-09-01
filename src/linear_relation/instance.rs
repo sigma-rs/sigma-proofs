@@ -263,25 +263,14 @@ where
             ));
         }
 
-        // Check 6: every scalar index up to the maximum appears in the terms.
-        // The early bound caps the allocation below on untrusted input.
+        // If a scalar index exceeds the number of terms, at least one earlier
+        // scalar has an identity column (check 10). Reject before allocating
+        // storage indexed by an untrusted scalar index.
         let num_scalars = max_scalar.map_or(0, |m| m as usize + 1);
         if num_scalars > total_terms {
             return Err(InvalidInstance::check(
-                6,
-                "scalar indices exceed the number of terms",
-            ));
-        }
-        let mut scalar_used = alloc::vec![false; num_scalars];
-        for equation in &self.equations {
-            for &(scalar_index, _, _) in &equation.terms {
-                scalar_used[scalar_index as usize] = true;
-            }
-        }
-        if let Some(unused) = scalar_used.iter().position(|used| !used) {
-            return Err(InvalidInstance::check(
-                6,
-                format!("scalar index {unused} does not appear in any equation"),
+                10,
+                "a scalar has an identity effective base in every equation",
             ));
         }
 
@@ -459,7 +448,8 @@ impl<G: PrimeGroup> Instance<G> {
     }
 
     /// `num_scalars(instance)`: `1 + max(scalar_index)` over the terms,
-    /// derived and checked once at construction (density is check 6).
+    /// derived and checked once at construction. Indices may have gaps, but
+    /// there are no trailing scalar slots above the largest referenced index.
     pub fn num_scalars(&self) -> usize {
         self.num_scalars
     }
