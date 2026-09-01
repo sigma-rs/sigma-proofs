@@ -123,14 +123,8 @@ fn clear_scalar_groups(scalar_slots: &mut [u32], grouped_scalars: &mut Vec<u32>)
 /// [`Instance::new`] (used by
 /// [`LinearRelation::compile`][super::LinearRelation::compile]) and
 /// [`Instance::deserialize`]; both run the specification's `ValidateInstance`
-/// (checks 1-10), so every value of this type satisfies the same acceptance
-/// criteria regardless of how it was built.
-///
-/// # No empty instance
-///
-/// Every `Instance` has at least one equation, to be spec-conforming and to prevent trivial
-/// breaks of simulation extractability where multiple degenerate instances are valid for the
-/// NARG string "".
+/// (the checks of Section "Instance validation"), so every value of this type
+/// satisfies the same acceptance criteria regardless of how it was built.
 #[derive(Clone)]
 pub struct Instance<G: PrimeGroup> {
     /// The group elements of the statement.
@@ -177,7 +171,7 @@ where
     G::Scalar: ScalarCodec,
 {
     /// Build an instance from its parts, running the specification's
-    /// `ValidateInstance` (checks 1-10).
+    /// `ValidateInstance`.
     ///
     /// `elements[0]` must be the group generator.
     pub fn new(elements: Vec<G>, equations: Vec<Equation<G>>) -> Result<Self, InvalidInstance> {
@@ -209,18 +203,13 @@ where
         Ok(instance)
     }
 
-    /// `ValidateInstance` of the specification: checks 1-10 of Section
-    /// "Instance validation". Errors carry the number of the failed check.
+    /// `ValidateInstance` of the specification. Errors carry the number of
+    /// the failed check.
     /// Returns the computed image, scalar count, and effective-base execution
     /// plan, all cached by the constructor.
     #[allow(clippy::type_complexity)]
     fn validate(&self) -> Result<(Vec<G>, usize, Vec<EvaluationPlan<G>>), InvalidInstance> {
         let num_elements = self.elements.len();
-
-        // Check 1: at least one equation.
-        if self.equations.is_empty() {
-            return Err(InvalidInstance::check(1, "the instance has no equations"));
-        }
 
         // Check 3: counts fit in u32 (indices are u32 by construction).
         if u32::try_from(self.equations.len()).is_err() || u32::try_from(num_elements).is_err() {
@@ -580,8 +569,7 @@ where
     /// 4-byte little-endian counts and indices and ciphersuite-encoded scalar
     /// coefficients), followed by the serialization of `elements[1..]` (the
     /// generator at index `0` is never serialized). The encoding is
-    /// unambiguous and prefix-free. The leading equation count is never zero
-    /// ([no empty instance][Instance#no-empty-instance]).
+    /// unambiguous and prefix-free.
     pub fn serialize(&self) -> Vec<u8> {
         let mut out = Vec::new();
         let le = repr_is_le::<G::Scalar>();

@@ -46,10 +46,13 @@ fn the_verifier_verdict_carries_no_diagnostic() {
 
 #[test]
 fn a_real_compile_failure_converts() {
-    // An empty relation fails check 1, so this is the conversion running on an
-    // error sigma-proofs raised itself rather than a hand-built one.
+    // This is the conversion running on an error sigma-proofs raised itself
+    // rather than a hand-built one.
     fn compile_for_verifier() -> Result<(), VerificationError> {
-        LinearRelation::<G>::new().compile()?;
+        let mut relation = LinearRelation::<G>::new();
+        let x = relation.allocate_scalar();
+        relation.allocate_eq(x * relation.generator());
+        relation.compile()?;
         Ok(())
     }
     assert!(compile_for_verifier().is_err());

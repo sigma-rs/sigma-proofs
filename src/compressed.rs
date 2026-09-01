@@ -139,7 +139,7 @@ where
         let weights = powers(challenge, self.num_equations());
         let image = G::msm_vartime(&weights, self.image());
 
-        // Note: `compile` rejects a statement with no content, so no empty instance reaches here.
+        // Keep one identity generator for the valid empty instance.
         let width = self.num_scalars().max(1);
         let mut generators = vec![G::identity(); width];
 

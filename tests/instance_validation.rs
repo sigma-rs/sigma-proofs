@@ -10,7 +10,9 @@ mod instance_validation {
     use group::Group;
     use sigma_proofs::codec::ScalarCodec;
     use sigma_proofs::linear_relation::{Instance, LinearRelation};
-    use sigma_proofs::ProverRng;
+    use sigma_proofs::{
+        prove_batchable, prove_compact, verify_batchable, verify_compact, ProverRng,
+    };
     use spongefish::Encoding;
 
     #[test]
@@ -72,21 +74,33 @@ mod instance_validation {
     #[test]
     #[allow(non_snake_case)]
     fn test_empty_relation_and_constant_equation() {
-        // Check 1 requires at least one equation, so a relation with none has
-        // no instance to compile to: there is no contentless instance for it
-        // to become, and no empty NARG string anywhere in the library.
+        // A relation with no equations compiles to the valid empty instance.
         let relation = LinearRelation::<G>::new();
-        assert!(relation.compile().is_err());
+        let instance = relation.compile().unwrap();
+        assert_eq!(instance.num_equations(), 0);
+        assert_eq!(instance.num_scalars(), 0);
+        assert_eq!(instance.image(), []);
+        let serialized = instance.serialize();
+        assert_eq!(
+            Instance::<G>::deserialize(&serialized).unwrap().serialize(),
+            serialized
+        );
+
+        let batchable = prove_batchable(b"empty relation DSFS", &instance, &[]).unwrap();
+        assert!(batchable.is_empty());
+        verify_batchable(b"empty relation DSFS", &instance, &batchable).unwrap();
+
+        let compact = prove_compact(b"empty relation CMPT", &instance, &[]).unwrap();
+        verify_compact(b"empty relation CMPT", &instance, &compact).unwrap();
 
         // An equation whose right-hand side carries no witness scalar is a
-        // public claim, evaluated at compilation. A true one is stripped, and
-        // stripping the only equation leaves nothing to prove — refused for
-        // the same reason.
+        // public claim, evaluated at compilation. A true one is stripped and
+        // leaves the empty relation.
         let mut relation = LinearRelation::<G>::new();
         let var_B = relation.allocate_element();
         let var_C = relation.allocate_eq(var_B * Scalar::from(1u64));
         relation.set_elements([(var_B, G::generator()), (var_C, G::generator())]);
-        assert!(Instance::try_from(&relation).is_err());
+        assert_eq!(Instance::try_from(&relation).unwrap().num_equations(), 0);
     }
 
     #[test]

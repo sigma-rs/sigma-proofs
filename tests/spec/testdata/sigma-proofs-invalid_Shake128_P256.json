@@ -156,6 +156,17 @@
     "Comment": "Verification fails on the all-zero compact proof: challenge and response are zero."
   },
   {
+    "Id": "sigma-protocols/p256/empty_relation/batchable/E0",
+    "Function": "SigmaProof",
+    "Ciphersuite": "sigma-proofs_Shake128_P256",
+    "Flavor": "batchable",
+    "Tag": "empty_relation-DSFS-with-sigma-proofs_Shake128_P256",
+    "Instance": "00000000",
+    "NargString": "",
+    "Expected": "accept",
+    "Comment": "The empty relation, with no equations and no image, is valid."
+  },
+  {
     "Id": "sigma-protocols/p256/discrete_logarithm/batchable/E1",
     "BaseId": "sigma-protocols/p256/discrete_logarithm/batchable",
     "Function": "SigmaProof",

@@ -423,11 +423,8 @@ impl<G: PrimeGroup> LinearRelation<G> {
     ///   and the indices are re-packed in allocation order (the generator
     ///   keeps index 0). A statement already satisfying the specification's
     ///   checks is left byte-for-byte unchanged.
-    /// - If no equation remains, compilation fails: every equation was a
-    ///   constant that holds, so nothing is left to prove knowledge of. There
-    ///   is no degenerate empty instance — check 1 rejects one on every
-    ///   construction path ([no empty instance][Instance#no-empty-instance]),
-    ///   and composition relies on that.
+    /// - If no equation remains, compilation produces the valid empty
+    ///   relation.
     ///
     /// Identity elements in the remaining statement stay rejected (check 8),
     /// as does everything else the specification's `ValidateInstance`
@@ -489,12 +486,6 @@ impl<G: PrimeGroup> LinearRelation<G> {
                 continue;
             }
             equations.push(instance::Equation { image, terms });
-        }
-
-        if equations.is_empty() {
-            return Err(InvalidInstance::new(
-                "every equation is a constant that holds: the statement has no content",
-            ));
         }
 
         // Drop elements no remaining equation uses, keeping allocation order.
