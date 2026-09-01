@@ -1,7 +1,8 @@
 //! Compressed Σ-protocols: logarithmic-size arguments for [`Instance`] statements.
 //!
-//! The proof size is `1 + 2·⌈log2(n)⌉` group elements and one scalar (Attema and Cramer, CRYPTO 2020).
-//! This folding is the same one Bulletproofs uses.
+//! If `n` scalar indices occur in the relation, the proof size is
+//! `1 + 2·⌈log2(max(n, 1))⌉` group elements and one scalar (Attema and Cramer,
+//! CRYPTO 2020). This folding is the same one Bulletproofs uses.
 //!
 //! ```
 //! use curve25519_dalek::{RistrettoPoint as G, Scalar};
@@ -32,7 +33,7 @@
 // Runs on NARG strings an attacker chose; see `docs/threat-model.md` §2.1.
 #![deny(clippy::indexing_slicing, clippy::expect_used, clippy::unwrap_used)]
 
-use alloc::vec;
+use alloc::collections::BTreeMap;
 use alloc::vec::Vec;
 use core::marker::PhantomData;
 
@@ -113,6 +114,7 @@ impl<F: ScalarCodec> NargDeserialize for Opening<F> {
 
 /// A statement reduced to one inner-product `image = <witness, generators>`.
 struct SquashedInstance<G: PrimeGroup> {
+    scalar_indices: Vec<u32>,
     generators: Vec<G>,
     image: G,
 }
@@ -139,26 +141,38 @@ where
         let weights = powers(challenge, self.num_equations());
         let image = G::msm_vartime(&weights, self.image());
 
-        // Keep one identity generator for the valid empty instance.
-        let width = self.num_scalars().max(1);
-        let mut generators = vec![G::identity(); width];
+        // Accumulate only referenced scalar indices. Validation permits gaps,
+        // so sizing this by `num_scalars()` would let one large wire index
+        // force an allocation unrelated to the encoded instance's size.
+        let mut generator_by_scalar = BTreeMap::new();
 
         for (row, equation) in self.equations().iter().enumerate() {
             // `row` indexes `weights`, which was built with one entry per
-            // equation; `scalar_index` and `element_index` are bounded by
-            // `num_scalars()` and `num_elements()` on a validated instance
-            // (checks 5 and 6), and `generators` is `num_scalars()` long
-            // wherever there is a term to index it with.
+            // equation, and check 4 bounds `element_index`.
             #[allow(clippy::indexing_slicing)]
             for &(scalar_index, element_index, coeff) in &equation.terms {
                 let base = *self
                     .element(element_index as usize)
                     .expect("validated element index");
-                generators[scalar_index as usize] += base * (coeff * weights[row]);
+                *generator_by_scalar
+                    .entry(scalar_index)
+                    .or_insert_with(G::identity) += base * (coeff * weights[row]);
             }
         }
 
-        SquashedInstance { generators, image }
+        // BTreeMap iteration keeps the original dense case in scalar-index
+        // order. The empty relation retains one dummy identity dimension.
+        let (scalar_indices, mut generators): (Vec<_>, Vec<_>) =
+            generator_by_scalar.into_iter().unzip();
+        if generators.is_empty() {
+            generators.push(G::identity());
+        }
+
+        SquashedInstance {
+            scalar_indices,
+            generators,
+            image,
+        }
     }
 }
 
@@ -239,8 +253,10 @@ where
         // The response `z = nonces + challenge * witness`
         // is proven with a log-round argument.
         let mut response = nonces.zip(witness).map(|(mut response, witness)| {
-            for (z, w) in core::iter::zip(&mut response, witness) {
-                *z += *w * challenge;
+            for (z, &scalar_index) in core::iter::zip(&mut response, &statement.scalar_indices) {
+                if let Some(w) = witness.get(scalar_index as usize) {
+                    *z += *w * challenge;
+                }
             }
             response
         });

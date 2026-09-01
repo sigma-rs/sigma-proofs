@@ -3,6 +3,7 @@
 //! This module is private; [`Instance`] is re-exported from
 //! [`linear_relation`][super] and carries the documentation.
 
+use alloc::collections::{btree_map::Entry, BTreeMap};
 use alloc::format;
 use alloc::vec::Vec;
 
@@ -51,11 +52,11 @@ impl<G: PrimeGroup> Equation<G> {
     ///
     /// # Panics
     ///
-    /// The indices come from a validated instance (checks 4 and 6), which
-    /// bounds them by its own `num_elements()` and `num_scalars()`. Panics if
-    /// `weights` is shorter than the former or `response` than the latter; the
-    /// callers check the response length, which is the one that comes off the
-    /// wire.
+    /// The indices come from a validated instance: check 4 bounds element
+    /// indices, and `num_scalars()` is defined from the largest scalar index.
+    /// Panics if `weights` is shorter than the former or `response` than the
+    /// latter; the callers check the response length, which is the one that
+    /// comes off the wire.
     #[allow(clippy::indexing_slicing)]
     pub(crate) fn accumulate_weights(
         &self,
@@ -84,8 +85,6 @@ enum EvaluationPlan<G: PrimeGroup> {
     ByElement,
 }
 
-const UNUSED_SCALAR_SLOT: u32 = u32::MAX;
-
 /// The paired inputs to one effective-base MSM.
 struct MsmTerms<G: PrimeGroup>(Vec<G::Scalar>, Vec<G>);
 
@@ -101,12 +100,6 @@ impl<G: PrimeGroup + MultiScalarMul> MsmTerms<G> {
 
     fn effective_base(&self) -> G {
         G::msm_vartime(&self.0, &self.1)
-    }
-}
-
-fn clear_scalar_groups(scalar_slots: &mut [u32], grouped_scalars: &mut Vec<u32>) {
-    for scalar_index in grouped_scalars.drain(..) {
-        scalar_slots[scalar_index as usize] = UNUSED_SCALAR_SLOT;
     }
 }
 
@@ -230,7 +223,6 @@ where
 
         let mut element_used = alloc::vec![false; num_elements];
         let mut max_scalar: Option<u32> = None;
-        let mut total_terms: usize = 0;
         for equation in &self.equations {
             // Check 3 (counts per equation).
             if u32::try_from(equation.image.len()).is_err()
@@ -250,7 +242,6 @@ where
                     })?;
                 *slot = true;
             }
-            total_terms += equation.terms.len();
             for &(scalar_index, element_index, _) in &equation.terms {
                 let slot = element_used
                     .get_mut(element_index as usize)
@@ -274,51 +265,31 @@ where
             ));
         }
 
-        // If a scalar index exceeds the number of terms, at least one earlier
-        // scalar has an identity column (check 10). Reject before allocating
-        // storage indexed by an untrusted scalar index.
-        let num_scalars = max_scalar.map_or(0, |m| m as usize + 1);
-        if num_scalars > total_terms {
-            return Err(InvalidInstance::check(
-                10,
-                "a scalar has an identity effective base in every equation",
-            ));
-        }
+        let num_scalars = match max_scalar {
+            None => 0,
+            Some(maximum) => usize::try_from(maximum)
+                .ok()
+                .and_then(|maximum| maximum.checked_add(1))
+                .ok_or_else(|| {
+                    InvalidInstance::check(3, "scalar count exceeds addressable size")
+                })?,
+        };
 
-        // Check 9: no image element is the identity.
         let image = self.compute_image();
-        for (i, image_element) in image.iter().enumerate() {
-            if image_element.is_identity().into() {
-                return Err(InvalidInstance::check(
-                    9,
-                    format!("the image of equation {i} is the identity"),
-                ));
-            }
-        }
-
-        // Check 10: for every scalar there is at least one equation in which
-        // its effective base (the sum of coeff * element over the terms
-        // carrying that scalar) is not the identity. Compile the runtime plan
-        // while checking this, retaining only effective bases the chosen plan
-        // will actually use.
-        let evaluation_plans = self.compile_evaluation_plans(num_scalars)?;
+        let evaluation_plans = self.compile_evaluation_plans();
 
         Ok((image, num_scalars, evaluation_plans))
     }
 
     /// Compile the wire-format term triples into the bases used to evaluate
     /// the linear map. Grouping is driven entirely by public instance data.
-    fn compile_evaluation_plans(
-        &self,
-        num_scalars: usize,
-    ) -> Result<Vec<EvaluationPlan<G>>, InvalidInstance> {
-        let mut scalar_slots = alloc::vec![UNUSED_SCALAR_SLOT; num_scalars];
+    fn compile_evaluation_plans(&self) -> Vec<EvaluationPlan<G>> {
+        let mut scalar_slots = BTreeMap::new();
         let mut grouped_scalars = Vec::new();
         let mut msm_terms = Vec::new();
         let mut element_seen = alloc::vec![false; self.elements.len()];
         let mut touched_elements = Vec::new();
         let mut plans = Vec::with_capacity(self.equations.len());
-        let mut has_nontrivial_base = alloc::vec![false; num_scalars];
 
         for equation in &self.equations {
             for &(scalar_index, element_index, _) in &equation.terms {
@@ -326,8 +297,8 @@ where
                     element_seen[element_index as usize] = true;
                     touched_elements.push(element_index);
                 }
-                if scalar_slots[scalar_index as usize] == UNUSED_SCALAR_SLOT {
-                    scalar_slots[scalar_index as usize] = grouped_scalars.len() as u32;
+                if let Entry::Vacant(slot) = scalar_slots.entry(scalar_index) {
+                    slot.insert(grouped_scalars.len());
                     grouped_scalars.push(scalar_index);
                 }
             }
@@ -338,63 +309,28 @@ where
             let plan = if grouped_scalars.len() <= touched_elements.len() {
                 msm_terms.resize_with(grouped_scalars.len(), MsmTerms::new);
                 for &(scalar_index, element_index, coefficient) in &equation.terms {
-                    let group = scalar_slots[scalar_index as usize] as usize;
-                    msm_terms[group].push(coefficient, self.elements[element_index as usize]);
+                    if let Some(&group) = scalar_slots.get(&scalar_index) {
+                        msm_terms[group].push(coefficient, self.elements[element_index as usize]);
+                    }
                 }
                 let row = grouped_scalars
                     .iter()
                     .enumerate()
-                    .map(|(group, &scalar_index)| {
-                        let base = msm_terms[group].effective_base();
-                        if !bool::from(base.is_identity()) {
-                            has_nontrivial_base[scalar_index as usize] = true;
-                        }
-                        (scalar_index, base)
-                    })
+                    .map(|(group, &scalar_index)| (scalar_index, msm_terms[group].effective_base()))
                     .collect();
                 EvaluationPlan::ByScalar(row)
             } else {
-                // ByElement needs check-10 bases only for unresolved scalars,
-                // avoiding both group storage and MSMs for proven ones.
-                clear_scalar_groups(&mut scalar_slots, &mut grouped_scalars);
-                for &(scalar_index, element_index, coefficient) in &equation.terms {
-                    if has_nontrivial_base[scalar_index as usize] {
-                        continue;
-                    }
-                    let group = match scalar_slots[scalar_index as usize] {
-                        UNUSED_SCALAR_SLOT => {
-                            let group = grouped_scalars.len();
-                            scalar_slots[scalar_index as usize] = group as u32;
-                            grouped_scalars.push(scalar_index);
-                            msm_terms.push(MsmTerms::new());
-                            group
-                        }
-                        group => group as usize,
-                    };
-                    msm_terms[group].push(coefficient, self.elements[element_index as usize]);
-                }
-                for (group, &scalar_index) in grouped_scalars.iter().enumerate() {
-                    if !bool::from(msm_terms[group].effective_base().is_identity()) {
-                        has_nontrivial_base[scalar_index as usize] = true;
-                    }
-                }
                 EvaluationPlan::ByElement
             };
-            clear_scalar_groups(&mut scalar_slots, &mut grouped_scalars);
+            scalar_slots.clear();
+            grouped_scalars.clear();
             for element_index in touched_elements.drain(..) {
                 element_seen[element_index as usize] = false;
             }
             plans.push(plan);
         }
 
-        if let Some(scalar_index) = has_nontrivial_base.iter().position(|ok| !ok) {
-            return Err(InvalidInstance::check(
-                10,
-                format!("scalar {scalar_index} has an identity effective base in every equation"),
-            ));
-        }
-
-        Ok(plans)
+        plans
     }
 
     /// Evaluate each equation's left-hand side (coefficients are public).

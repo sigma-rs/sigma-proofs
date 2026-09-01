@@ -71,8 +71,8 @@ pub fn straus_vartime<G: Group>(scalars: &[G::Scalar], bases: &[G]) -> G {
     if scalars.is_empty() {
         return G::identity();
     }
-    // A lone term with coefficient one is its own base. `compute_image` and
-    // validation check 10 hit this on nearly every call, and even the
+    // A lone term with coefficient one is its own base. Image and effective-
+    // base computation hit this on nearly every call, and even the
     // truncated multiples table below costs far more than the answer.
     if scalars.len() == 1 && scalars[0] == <G::Scalar as ff::Field>::ONE {
         return bases[0];

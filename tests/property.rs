@@ -89,10 +89,7 @@ fn shape_strategy() -> impl Strategy<Value = Shape> {
 
 /// Builds the relation the shape describes and solves it for a random witness.
 ///
-/// Returns `None` when the shape compiles to an instance the specification
-/// rejects — an equation whose image is the identity, most often, which
-/// happens whenever the terms of an equation cancel. That is a valid outcome,
-/// not a failure: it is the library refusing to make a degenerate statement.
+/// Returns `None` if relation construction fails.
 fn build(shape: &Shape, rng: &mut ProverRng) -> Option<(Instance<G>, Vec<S>)> {
     let mut relation = LinearRelation::<G>::new();
     let scalar_vars = relation.allocate_scalars_vec(shape.num_scalars);

@@ -48,27 +48,37 @@ mod instance_validation {
     #[test]
     #[allow(non_snake_case)]
     fn test_zero_image() {
-        // 0 = x * G: the identity statement element is valid, but the image
-        // still fails check 9.
+        // M != 0 and Y = 0: the zero witness satisfies 0 = x * G.
         let mut relation = LinearRelation::<G>::new();
         let [var_x] = relation.allocate_scalars();
         let [var_G] = relation.allocate_elements();
         let var_X = relation.allocate_eq(var_G * var_x);
         relation.set_element(var_G, G::generator());
         relation.set_element(var_X, G::identity());
-        let err = Instance::try_from(&relation).unwrap_err();
-        assert_eq!(err.check, Some(9));
+        let instance = Instance::try_from(&relation).unwrap();
+        let proof = prove_batchable(
+            b"nonzero map, zero image DSFS",
+            &instance,
+            &[Scalar::from(0u64)],
+        )
+        .unwrap();
+        verify_batchable(b"nonzero map, zero image DSFS", &instance, &proof).unwrap();
 
-        // 0 = 0*x*C: same, with a zero-coefficient witness term. The zero
-        // coefficient makes the scalar's effective base the identity in its
-        // only equation (check 10), besides the identity image element.
+        // M = 0 and Y = 0: a zero coefficient makes every witness valid.
         let mut relation = LinearRelation::<G>::new();
         let [var_x] = relation.allocate_scalars();
         let [var_C] = relation.allocate_elements();
         let var_X = relation.allocate_eq(var_C * var_x * Scalar::from(0u64));
         relation.set_element(var_C, G::generator());
         relation.set_element(var_X, G::identity());
-        assert!(Instance::try_from(&relation).is_err());
+        let instance = Instance::try_from(&relation).unwrap();
+        let proof = prove_batchable(
+            b"zero map, zero image DSFS",
+            &instance,
+            &[Scalar::from(42u64)],
+        )
+        .unwrap();
+        verify_batchable(b"zero map, zero image DSFS", &instance, &proof).unwrap();
     }
 
     #[test]
@@ -111,15 +121,33 @@ mod instance_validation {
         };
         assert!(Instance::<G>::new(vec![], vec![empty_terms]).is_ok());
 
-        // An empty image denotes the identity. It is syntactically valid and
-        // reaches the separate identity-image check.
+        // An empty image denotes the identity.
         let empty_image = Equation {
             image: vec![],
             terms: vec![(0, 1, Scalar::from(1u64))],
         };
-        let err =
-            Instance::<G>::new(vec![], vec![empty_image]).unwrap_err();
-        assert_eq!(err.check, Some(9));
+        assert!(Instance::<G>::new(vec![], vec![empty_image]).is_ok());
+    }
+
+    #[test]
+    fn unused_scalar_indices_are_supported() {
+        let one = Scalar::from(1u64);
+        let equation = Equation {
+            image: vec![(1, one)],
+            terms: vec![(2, 1, one)],
+        };
+        let instance = Instance::<G>::new(vec![], vec![equation]).unwrap();
+        assert_eq!(instance.num_scalars(), 3);
+
+        let encoded = instance.serialize();
+        let decoded = Instance::<G>::deserialize(&encoded).unwrap();
+        assert_eq!(decoded.num_scalars(), 3);
+        assert_eq!(decoded.equations(), instance.equations());
+        assert_eq!(decoded.serialize(), encoded);
+
+        let witness = [Scalar::from(7u64), Scalar::from(8u64), one];
+        let proof = prove_batchable(b"unused scalars DSFS", &instance, &witness).unwrap();
+        verify_batchable(b"unused scalars DSFS", &instance, &proof).unwrap();
     }
 
     #[test]

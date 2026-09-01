@@ -376,6 +376,10 @@ pub(crate) fn deserialize_scalars<F: ScalarCodec>(
     reader: &mut NargReader<'_>,
     n: usize,
 ) -> VerificationResult<Vec<F>> {
+    let expected = n.checked_mul(F::scalar_len()).ok_or(VerificationError)?;
+    if reader.remaining_len() < expected {
+        return Err(VerificationError);
+    }
     let le = repr_is_le::<F>();
     (0..n).map(|_| deserialize_scalar_le(reader, le)).collect()
 }

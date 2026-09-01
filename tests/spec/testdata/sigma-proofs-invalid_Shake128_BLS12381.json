@@ -1,7 +1,6 @@
 [
   {
     "Id": "sigma-protocols/bls12381/discrete_logarithm/batchable/A1",
-    "BaseId": "sigma-protocols/bls12381/discrete_logarithm/batchable",
     "Function": "SigmaProof",
     "Ciphersuite": "sigma-proofs_Shake128_BLS12381",
     "Flavor": "batchable",
@@ -163,44 +162,41 @@
     "Tag": "instance_unconstrained_scalar-DSFS-with-sigma-proofs_Shake128_BLS12381",
     "Instance": "0100000001000000030000000000000000000000000000000000000000000000000000000000000000000001020000000000000001000000000000000000000000000000000000000000000000000000000000000000000102000000020000000000000000000000000000000000000000000000000000000000000000000001a52f63244810b5e28b235f33df487fce15bc509eac539e19275e1a0c1ae36de179fa412292007a1d6df975de5b8ca0a6a62b428f90a014557c5744b69c6303d0db7a9c876dd15743738b432a9dd1cfad79790d101eedee3bb441bccd262db1c0",
     "NargString": "8a31aa9ace6268707d6a0213fdf4bd9a4231fc4fec35338998a38b5334723d84f3c46d55c6ff9104aba7bde3e38b46cd35415233a45b898ad465829ec6e3c86d0f5a45255b5fef90d256e8db2a3bcbba66858f9cdea27fe6bc9cfbfe2e4eca09bb6d4d55df818226c6bdb9dab30f31522a273883c88ffb850eaaba4771dff31013c9967e133f399633cab20cc4e252cc",
-    "Expected": "reject",
-    "Comment": "Instance validation fails because scalar index 1 appears in no equation, so its column is the identity (check 10); the proof satisfies the verification equations, so rejection must come from instance validation."
+    "Expected": "accept",
+    "Comment": "The instance and proof are accepted even though scalar index 1 appears in no equation."
   },
   {
     "Id": "sigma-protocols/bls12381/discrete_logarithm/batchable/E1b",
-    "BaseId": "sigma-protocols/bls12381/discrete_logarithm/batchable",
     "Function": "SigmaProof",
     "Ciphersuite": "sigma-proofs_Shake128_BLS12381",
     "Flavor": "batchable",
     "Tag": "instance_unconstrained_scalar-DSFS-with-sigma-proofs_Shake128_BLS12381",
     "Instance": "0100000001000000030000000000000000000000000000000000000000000000000000000000000000000001020000000000000001000000000000000000000000000000000000000000000000000000000000000000000102000000020000000000000000000000000000000000000000000000000000000000000000000001a52f63244810b5e28b235f33df487fce15bc509eac539e19275e1a0c1ae36de179fa412292007a1d6df975de5b8ca0a6a62b428f90a014557c5744b69c6303d0db7a9c876dd15743738b432a9dd1cfad79790d101eedee3bb441bccd262db1c0",
     "NargString": "8a31aa9ace6268707d6a0213fdf4bd9a4231fc4fec35338998a38b5334723d84f3c46d55c6ff9104aba7bde3e38b46cd35415233a45b898ad465829ec6e3c86d0f5a45255b5fef90d256e8db2a3bcbba66858f9cdea27fe6bc9cfbfe2e4eca09bb6d4d55df818226c6bdb9dab30f31532a273883c88ffb850eaaba4771dff31013c9967e133f399633cab20cc4e252cc",
-    "Expected": "reject",
-    "Comment": "Instance validation fails on the same instance, here with the unconstrained `response[1]` perturbed."
+    "Expected": "accept",
+    "Comment": "Since scalar index 1 is not available, it will be easy to produce valid proofs from an initial one."
   },
   {
     "Id": "sigma-protocols/bls12381/discrete_logarithm/batchable/E2",
-    "BaseId": "sigma-protocols/bls12381/discrete_logarithm/batchable",
     "Function": "SigmaProof",
     "Ciphersuite": "sigma-proofs_Shake128_BLS12381",
     "Flavor": "batchable",
     "Tag": "instance_trivial_equation-DSFS-with-sigma-proofs_Shake128_BLS12381",
     "Instance": "01000000020000000200000000000000000000000000000000000000000000000000000000000000000000010300000000000000000000000000000000000000000000000000000000000000000000010100000000000000010000000000000000000000000000000000000000000000000000000000000000000001b8d20484960f1741eabb4d0dd0c43e72931d646c09440bf1880a1720daaa3308e763466177aa88c313f8a9ad1e406c0e98d20484960f1741eabb4d0dd0c43e72931d646c09440bf1880a1720daaa3308e763466177aa88c313f8a9ad1e406c0e",
     "NargString": "8bf4a4e7cca2a2f88859d0b012289500a49db0b5e4e5df3d778248435ed8b51d0fb3ca489c9f45e8811bb4cc8d0096f96ad6f36b97912382f39758d4e9f591a8c1d24c1f3d42a2535161c7b7a9c556a3",
-    "Expected": "reject",
-    "Comment": "Instance validation fails if the image terms X + (-X) sum to the identity (check 9)."
+    "Expected": "accept",
+    "Comment": "The instance and proof are accepted when the image terms X + (-X) sum to the identity."
   },
   {
     "Id": "sigma-protocols/bls12381/discrete_logarithm/batchable/E3",
-    "BaseId": "sigma-protocols/bls12381/discrete_logarithm/batchable",
     "Function": "SigmaProof",
     "Ciphersuite": "sigma-proofs_Shake128_BLS12381",
     "Flavor": "batchable",
     "Tag": "instance_identity_element-DSFS-with-sigma-proofs_Shake128_BLS12381",
     "Instance": "0100000001000000030000000000000000000000000000000000000000000000000000000000000000000001020000000000000001000000000000000000000000000000000000000000000000000000000000000000000101000000020000000000000000000000000000000000000000000000000000000000000000000001c00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000b8722b4b2a3cc66976d848739df2bfb66ae371da496a1e239add4646c35c8b8758409ad4b6312b74d4a98bb83284cb87",
     "NargString": "adc1c8943d8bfa5ab165ff1ed2c0f45f71567a404849da3e0b9fbd37266681c1089d6d9b33116aebdab2972d0cb6db130e30cc66fcdf68ad4c1738b178949d2613d1da71694e047813cc6ae1fca5233927cda7474b204eb305b1a34bd03641e02c6d7bfc0ebb26b1ad58c6721af9c04d",
-    "Expected": "reject",
-    "Comment": "The identity at element index 2 decodes successfully. Instance validation fails because scalar index 1 has an identity effective base in every equation (check 10)."
+    "Expected": "accept",
+    "Comment": "The instance and proof are accepted with an identity at element index 2 and an identity effective base for scalar index 1."
   },
   {
     "Id": "sigma-protocols/bls12381/discrete_logarithm/batchable/E4",

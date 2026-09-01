@@ -11,7 +11,7 @@ use spongefish::{Narg, SessionId};
 
 use sigma_proofs::codec::{GroupCodec, ScalarCodec};
 use sigma_proofs::compressed::Compressed;
-use sigma_proofs::linear_relation::{Instance, Sum};
+use sigma_proofs::linear_relation::{Equation, Instance, Sum};
 use sigma_proofs::{LinearRelation, ProverRng};
 
 type S = <G as Group>::Scalar;
@@ -60,6 +60,36 @@ fn multiple_equations_are_squashed() {
             "n = {n}, equations = {equations}"
         );
     }
+}
+
+#[test]
+fn unused_scalar_slots_are_projected_out() {
+    let one = S::ONE;
+    let equation = Equation {
+        image: vec![(0, one)],
+        terms: vec![(2, 0, one)],
+    };
+    let instance = Instance::new(vec![G::generator()], vec![equation]).unwrap();
+    let witness = vec![S::from(7u64), S::from(8u64), one];
+
+    let (proof, ()) = Narg::prove::<Compressed<G>>(&SESSION, &instance, &witness).unwrap();
+    assert!(Narg::verify::<Compressed<G>>(&SESSION, &instance, &proof).is_ok());
+    assert_eq!(proof.len(), G::element_len() + S::scalar_len());
+}
+
+#[test]
+#[cfg(target_pointer_width = "64")]
+fn a_large_sparse_scalar_index_does_not_drive_verifier_allocation() {
+    let one = S::ONE;
+    let equation = Equation {
+        image: vec![(0, one)],
+        terms: vec![(u32::MAX, 0, one)],
+    };
+    let instance = Instance::new(vec![G::generator()], vec![equation]).unwrap();
+
+    // The verifier reaches squashing before it reads the proof. This small
+    // input must reject without allocating `num_scalars()` group elements.
+    assert!(Narg::verify::<Compressed<G>>(&SESSION, &instance, &[]).is_err());
 }
 
 /// The round count is `⌈log2(n)⌉` for every `n`, not only for the powers of
