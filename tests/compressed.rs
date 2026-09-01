@@ -66,10 +66,10 @@ fn multiple_equations_are_squashed() {
 fn unused_scalar_slots_are_projected_out() {
     let one = S::ONE;
     let equation = Equation {
-        image: vec![(0, one)],
-        terms: vec![(2, 0, one)],
+        image: vec![(1, one)],
+        terms: vec![(2, 1, one)],
     };
-    let instance = Instance::new(vec![G::generator()], vec![equation]).unwrap();
+    let instance = Instance::<G>::new(vec![], vec![equation]).unwrap();
     let witness = vec![S::from(7u64), S::from(8u64), one];
 
     let (proof, ()) = Narg::prove::<Compressed<G>>(&SESSION, &instance, &witness).unwrap();
@@ -82,10 +82,10 @@ fn unused_scalar_slots_are_projected_out() {
 fn a_large_sparse_scalar_index_does_not_drive_verifier_allocation() {
     let one = S::ONE;
     let equation = Equation {
-        image: vec![(0, one)],
-        terms: vec![(u32::MAX, 0, one)],
+        image: vec![(1, one)],
+        terms: vec![(u32::MAX, 1, one)],
     };
-    let instance = Instance::new(vec![G::generator()], vec![equation]).unwrap();
+    let instance = Instance::<G>::new(vec![], vec![equation]).unwrap();
 
     // The verifier reaches squashing before it reads the proof. This small
     // input must reject without allocating `num_scalars()` group elements.

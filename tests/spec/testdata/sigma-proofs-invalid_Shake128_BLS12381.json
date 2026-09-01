@@ -1,6 +1,7 @@
 [
   {
     "Id": "sigma-protocols/bls12381/discrete_logarithm/batchable/A1",
+    "BaseId": "sigma-protocols/bls12381/discrete_logarithm/batchable",
     "Function": "SigmaProof",
     "Ciphersuite": "sigma-proofs_Shake128_BLS12381",
     "Flavor": "batchable",
@@ -155,7 +156,6 @@
   },
   {
     "Id": "sigma-protocols/bls12381/discrete_logarithm/batchable/E1",
-    "BaseId": "sigma-protocols/bls12381/discrete_logarithm/batchable",
     "Function": "SigmaProof",
     "Ciphersuite": "sigma-proofs_Shake128_BLS12381",
     "Flavor": "batchable",

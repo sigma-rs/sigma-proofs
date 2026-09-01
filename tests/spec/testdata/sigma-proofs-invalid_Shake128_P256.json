@@ -1,6 +1,7 @@
 [
   {
     "Id": "sigma-protocols/p256/discrete_logarithm/batchable/A1",
+    "BaseId": "sigma-protocols/p256/discrete_logarithm/batchable",
     "Function": "SigmaProof",
     "Ciphersuite": "sigma-proofs_Shake128_P256",
     "Flavor": "batchable",
@@ -167,7 +168,6 @@
   },
   {
     "Id": "sigma-protocols/p256/discrete_logarithm/batchable/E1",
-    "BaseId": "sigma-protocols/p256/discrete_logarithm/batchable",
     "Function": "SigmaProof",
     "Ciphersuite": "sigma-proofs_Shake128_P256",
     "Flavor": "batchable",

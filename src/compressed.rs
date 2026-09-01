@@ -148,7 +148,7 @@ where
 
         for (row, equation) in self.equations().iter().enumerate() {
             // `row` indexes `weights`, which was built with one entry per
-            // equation, and check 4 bounds `element_index`.
+            // equation, and check 2 bounds `element_index`.
             #[allow(clippy::indexing_slicing)]
             for &(scalar_index, element_index, coeff) in &equation.terms {
                 let base = *self

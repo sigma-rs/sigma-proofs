@@ -9,7 +9,7 @@ use sigma_proofs::LinearRelation;
 /// instance data, spliced into two functions with different error types.
 fn instance_step(fail: bool) -> Result<(), InvalidInstance> {
     if fail {
-        return Err(InvalidInstance::check(1, "the statement has no content"));
+        return Err(InvalidInstance::new("invalid instance"));
     }
     Ok(())
 }
@@ -34,10 +34,8 @@ fn an_instance_error_reaches_both_sides_through_question_mark() {
 
 #[test]
 fn the_verifier_verdict_carries_no_diagnostic() {
-    let detailed = InvalidInstance::check(7, "element 0 is not the generator");
-    assert!(detailed
-        .to_string()
-        .contains("element 0 is not the generator"));
+    let detailed = InvalidInstance::check(1, "count exceeds 2^32");
+    assert!(detailed.to_string().contains("count exceeds 2^32"));
 
     // The conversion is the boundary the message does not cross: the verdict
     // on a statement the verifier could not validate is the same value as the

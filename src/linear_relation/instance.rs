@@ -29,6 +29,7 @@ use crate::msm::MultiScalarMul;
 /// - `terms` (the right-hand side) is the list of
 ///   `(scalar_index, element_index, coeff)` triples, each contributing
 ///   `coeff * witness[scalar_index] * element(element_index)`.
+///
 /// Either list may be empty, in which case that side evaluates to the identity.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Equation<G: PrimeGroup> {
@@ -52,7 +53,7 @@ impl<G: PrimeGroup> Equation<G> {
     ///
     /// # Panics
     ///
-    /// The indices come from a validated instance: check 4 bounds element
+    /// The indices come from a validated instance: check 2 bounds element
     /// indices, and `num_scalars()` is defined from the largest scalar index.
     /// Panics if `weights` is shorter than the former or `response` than the
     /// latter; the callers check the response length, which is the one that
@@ -216,27 +217,27 @@ where
     fn validate(&self) -> Result<(Vec<G>, usize, Vec<EvaluationPlan<G>>), InvalidInstance> {
         let num_elements = self.elements.len();
 
-        // Check 3: counts fit in u32 (indices are u32 by construction).
+        // Check 1: counts fit in u32 (indices are u32 by construction).
         if u32::try_from(self.equations.len()).is_err() || u32::try_from(num_elements).is_err() {
-            return Err(InvalidInstance::check(3, "count exceeds 2^32"));
+            return Err(InvalidInstance::check(1, "count exceeds 2^32"));
         }
 
         let mut element_used = alloc::vec![false; num_elements];
         let mut max_scalar: Option<u32> = None;
         for equation in &self.equations {
-            // Check 3 (counts per equation).
+            // Check 1 (counts per equation).
             if u32::try_from(equation.image.len()).is_err()
                 || u32::try_from(equation.terms.len()).is_err()
             {
-                return Err(InvalidInstance::check(3, "term count exceeds 2^32"));
+                return Err(InvalidInstance::check(1, "term count exceeds 2^32"));
             }
-            // Check 4: every element index references a group element.
+            // Check 2: every element index references a group element.
             for &(element_index, _) in &equation.image {
                 let slot = element_used
                     .get_mut(element_index as usize)
                     .ok_or_else(|| {
                         InvalidInstance::check(
-                            4,
+                            2,
                             format!("image element index {element_index} out of range"),
                         )
                     })?;
@@ -247,7 +248,7 @@ where
                     .get_mut(element_index as usize)
                     .ok_or_else(|| {
                         InvalidInstance::check(
-                            4,
+                            2,
                             format!("term element index {element_index} out of range"),
                         )
                     })?;
@@ -256,11 +257,11 @@ where
             }
         }
 
-        // Check 5: every element other than the identity and generator appears
+        // Check 3: every element other than the identity and generator appears
         // in at least one equation.
         if let Some(unused) = element_used.iter().skip(2).position(|used| !used) {
             return Err(InvalidInstance::check(
-                5,
+                3,
                 format!("group element {} is not used by any equation", unused + 2),
             ));
         }
@@ -271,7 +272,7 @@ where
                 .ok()
                 .and_then(|maximum| maximum.checked_add(1))
                 .ok_or_else(|| {
-                    InvalidInstance::check(3, "scalar count exceeds addressable size")
+                    InvalidInstance::check(1, "scalar count exceeds addressable size")
                 })?,
         };
 
