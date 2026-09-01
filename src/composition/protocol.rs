@@ -84,11 +84,7 @@ where
                 return Ok(ComposedCommitment::Simple(elems));
             }
             InstanceNode::Claim(_) => {
-                // Claim carve-out: admit the identity (see
-                // `serialize_commitment_tree`); canonicity is still enforced.
-                return Ok(ComposedCommitment::Claim(
-                    G::deserialize_element_allowing_identity(reader)?,
-                ));
+                return Ok(ComposedCommitment::Claim(G::deserialize_element(reader)?));
             }
             InstanceNode::And(ps) | InstanceNode::Or(ps) => ps,
             InstanceNode::Threshold(_, ps) => ps,
@@ -175,26 +171,9 @@ where
     G: PrimeGroup + ConstantTimeEq + ConditionallySelectable + MultiScalarMul + GroupCodec,
     G::Scalar: ScalarCodec + ConditionallySelectable,
 {
-    /// The identity is a legal commitment on exactly the claim rows (a true
-    /// claim commits to it), so the walk carries the carve-out rather than the
-    /// codec. The commitment tree names its own rows, so this needs the
-    /// relation no more than the encoding does.
-    fn is_valid_commitment(&self, commitment: &ComposedCommitment<G>) -> bool {
-        fn encodable<G>(commitment: &ComposedCommitment<G>) -> bool
-        where
-            G: PrimeGroup + ConditionallySelectable + MultiScalarMul + GroupCodec,
-            G::Scalar: ScalarCodec + ConditionallySelectable,
-        {
-            match commitment {
-                ComposedCommitment::Simple(elems) => {
-                    !elems.iter().any(|elem| elem.is_identity().into())
-                }
-                ComposedCommitment::Branches(cs) => cs.iter().all(encodable),
-                ComposedCommitment::Claim(_) => true,
-            }
-        }
-
-        encodable(commitment)
+    /// Every canonically encoded group element is a valid commitment.
+    fn is_valid_commitment(&self, _commitment: &ComposedCommitment<G>) -> bool {
+        true
     }
 
     fn serialize_commitment(&self, commitment: &ComposedCommitment<G>) -> Vec<u8> {

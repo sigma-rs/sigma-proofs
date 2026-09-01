@@ -47,8 +47,8 @@
 //!
 //! - Writing a prover message hands spongefish [`NargCodec`]'s serializer, so
 //!   the bytes are absorbed and appended in the one call that produces them.
-//!   The serializers are total; proving rejection-samples against
-//!   [`NargCodec::is_valid_commitment`] before encoding.
+//!   The serializers are total; proving samples until
+//!   [`NargCodec::is_valid_commitment`] accepts before encoding.
 //! - Reading one is directed by the instance, and
 //!   [`NargDeserialize`][spongefish::NargDeserialize] is a function of the
 //!   type alone. The shape — how many elements, which branches — comes from
@@ -169,10 +169,8 @@ where
     G: PrimeGroup + MultiScalarMul + GroupCodec,
     G::Scalar: ScalarCodec,
 {
-    fn is_valid_commitment(&self, commitment: &Vec<G>) -> bool {
-        !commitment
-            .iter()
-            .any(|element| element.is_identity().into())
+    fn is_valid_commitment(&self, _commitment: &Vec<G>) -> bool {
+        true
     }
 
     fn serialize_commitment(&self, commitment: &Vec<G>) -> Vec<u8> {
@@ -196,8 +194,7 @@ where
 }
 
 /// Draws a prover commitment until its relation-directed wire encoding is
-/// valid. For the built-in prime-order protocols rejection occurs only when a
-/// random commitment lands on the identity, with negligible probability.
+/// valid. Every commitment of the built-in prime-order protocols is valid.
 fn sample_valid_commitment<P>(
     instance: &P,
     witness: &P::Witness,
@@ -398,9 +395,7 @@ where
 /// already-derived session identifier.
 ///
 /// Recomputes the commitment from `(challenge, response)` via the simulator,
-/// then re-derives the challenge and accepts only on a match. A simulated
-/// commitment containing the identity fails serialization (step 7 of the
-/// specification), maintaining consistency with group deserialization.
+/// then re-derives the challenge and accepts only on a match.
 pub fn verify_compact_with<H, P>(
     session_id: &SessionId,
     instance: &P,
@@ -419,8 +414,6 @@ where
     }
 
     let commitment = instance.simulate_commitment(&challenge, &response)?;
-    // Step 7: the batchable flavor rejects these encodings when it parses the
-    // transmitted commitment, and this one has no parse to reject them in.
     if !instance.is_valid_commitment(&commitment) {
         return Err(VerificationError);
     }

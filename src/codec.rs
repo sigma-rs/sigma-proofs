@@ -5,8 +5,8 @@
 //! draft-irtf-cfrg-sigma-protocols, plus the `DecodeField` uniform decoding of
 //! draft-irtf-cfrg-fiat-shamir used for challenges and nonce sampling.
 //!
-//! Internally, codecs rely on [`GroupEncoding`][group::GroupEncoding], with identity
-//! rejection in both directions, and scalars are encoded big-endian `I2OSP` regardless
+//! Internally, codecs rely on [`GroupEncoding`][group::GroupEncoding], including its
+//! fixed-length identity encoding, and scalars are encoded big-endian `I2OSP` regardless
 //! of the field's native representation. The specification's ciphersuites are
 //! `sigma-proofs_Shake128_P256` and `sigma-proofs_Shake128_BLS12381`; other
 //! prime-order groups use the same generic codecs under their own
@@ -23,11 +23,10 @@ use ff::PrimeField;
 use group::prime::PrimeGroup;
 use spongefish::{NargReader, VerificationError, VerificationResult};
 
-/// Canonical, identity-rejecting byte codec for group elements.
+/// Canonical byte codec for group elements.
 ///
-/// Serialization and deserialization are defined only on non-identity
-/// elements: serialization fails on the identity, and deserialization rejects
-/// invalid or non-canonical encodings and any encoding of the identity.
+/// Serialization includes the identity. Deserialization rejects invalid or
+/// non-canonical encodings.
 pub trait GroupCodec: PrimeGroup {
     /// `Ne`: the byte length of one serialized element.
     fn element_len() -> usize {
@@ -36,36 +35,23 @@ pub trait GroupCodec: PrimeGroup {
             .len()
     }
 
-    /// Appends the canonical encoding of `self` to `out`; fails on the identity.
+    /// Appends the canonical encoding of `self` to `out`.
     fn serialize_element(&self, out: &mut Vec<u8>) -> VerificationResult<()> {
-        if self.is_identity().into() {
-            return Err(VerificationError);
-        }
         self.serialize_element_allowing_identity(out);
         Ok(())
     }
 
     /// Reads one element from the front of `reader`.
     fn deserialize_element(reader: &mut NargReader<'_>) -> VerificationResult<Self> {
-        let element = Self::deserialize_element_allowing_identity(reader)?;
-        match element.is_identity().into() {
-            true => Err(VerificationError),
-            false => Ok(element),
-        }
+        Self::deserialize_element_allowing_identity(reader)
     }
 
-    /// [`serialize_element`][GroupCodec::serialize_element] without the
-    /// identity rejection, and so infallible.
+    /// Infallible primitive used by the batched serialization path.
     fn serialize_element_allowing_identity(&self, out: &mut Vec<u8>) {
         out.extend_from_slice(self.to_bytes().as_ref());
     }
 
-    /// [`deserialize_element`][GroupCodec::deserialize_element] without the
-    /// identity rejection.
-    ///
-    /// See
-    /// [`serialize_element_allowing_identity`][GroupCodec::serialize_element_allowing_identity]
-    /// for when this applies.
+    /// Primitive used by curves that need a ciphersuite-specific decoder.
     fn deserialize_element_allowing_identity(
         reader: &mut NargReader<'_>,
     ) -> VerificationResult<Self> {
@@ -75,21 +61,16 @@ pub trait GroupCodec: PrimeGroup {
         Option::<Self>::from(Self::from_bytes(&repr)).ok_or(VerificationError)
     }
 
-    /// Appends the canonical encodings of `elements`, in order; fails on the
-    /// identity, having written nothing.
+    /// Appends the canonical encodings of `elements`, in order.
     ///
     /// Equivalent to [`serialize_element`][GroupCodec::serialize_element] in a
     /// loop, and required to produce identical bytes.
     fn serialize_elements(elements: &[Self], out: &mut Vec<u8>) -> VerificationResult<()> {
-        if elements.iter().any(|element| element.is_identity().into()) {
-            return Err(VerificationError);
-        }
         Self::serialize_elements_allowing_identity(elements, out);
         Ok(())
     }
 
-    /// [`serialize_elements`][GroupCodec::serialize_elements] without the
-    /// identity rejection, and so infallible.
+    /// Infallible primitive used by curves with a batched encoding path.
     ///
     /// This is the method a curve overrides, and the one both encoding paths
     /// run through. Curves whose encoding is a projective-to-affine conversion
@@ -154,7 +135,7 @@ mod bls12_381_impl {
 //
 // `serialize_elements_allowing_identity` is worth overriding for one of the
 // two, and the two curves differ because their crates do. `serialize_elements`
-// is not overridden by anyone: it rejects, then delegates, so a curve gets its
+// is not overridden by anyone: it delegates, so a curve gets its
 // batch form on both paths from the one override below.
 //
 // k256 implements `group::Curve` with a
@@ -223,8 +204,8 @@ impl GroupCodec for k256::ProjectivePoint {
 
         // `k256`'s `batch_normalize` unwraps a batch inversion, and the
         // inversion has no solution for an empty slice, so it panics there.
-        // The empty case is reachable: an instance whose only group element is
-        // the generator serializes `elements[1..]`, which is empty.
+        // The empty case is reachable: an instance with no statement elements
+        // serializes an empty `elements` list.
         if elements.is_empty() {
             return;
         }
@@ -452,6 +433,7 @@ fn wide_reduce<F: PrimeField>(bytes: &[u8]) -> F {
 mod tests {
     use super::GroupCodec;
     use alloc::{vec, vec::Vec};
+    use spongefish::NargReader;
 
     /// [`GroupCodec::serialize_elements`] is documented to produce exactly what
     /// [`GroupCodec::serialize_element`] in a loop produces, and the curves
@@ -484,9 +466,9 @@ mod tests {
         }
     }
 
-    /// The batched form rejects the identity wherever it appears, exactly as
-    /// the element-wise form does, and writes nothing when it rejects.
-    fn batched_rejects_identity<G: GroupCodec>() {
+    /// Identity encodings use the same public element-wise and batched paths
+    /// as every other point, and decode back to the identity.
+    fn identity_roundtrips<G: GroupCodec>() {
         let point = G::generator() * G::Scalar::from(7u64);
         for slice in [
             vec![G::identity()],
@@ -494,9 +476,15 @@ mod tests {
             vec![point, G::identity()],
             vec![point, G::identity(), point],
         ] {
-            let mut out = Vec::new();
-            assert!(G::serialize_elements(&slice, &mut out).is_err());
-            assert!(out.is_empty());
+            let mut encoded = Vec::new();
+            assert!(G::serialize_elements(&slice, &mut encoded).is_ok());
+
+            let mut reader = NargReader::new(&encoded);
+            let decoded = (0..slice.len())
+                .map(|_| G::deserialize_element(&mut reader))
+                .collect::<Result<Vec<_>, _>>();
+            assert_eq!(decoded.ok().as_deref(), Some(slice.as_slice()));
+            assert!(reader.is_empty());
         }
     }
 
@@ -535,7 +523,7 @@ mod tests {
             fn $name() {
                 batched_matches_loop::<$group>();
                 batched_matches_loop_with_identity::<$group>();
-                batched_rejects_identity::<$group>();
+                identity_roundtrips::<$group>();
             }
         };
     }

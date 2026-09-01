@@ -205,24 +205,30 @@ impl<G: PrimeGroup> Default for LinearRelation<G> {
 impl<G: PrimeGroup> LinearRelation<G> {
     /// Create a new empty [`LinearRelation`].
     ///
-    /// Element index `0` is reserved for the group generator (per the
-    /// specification's representation, `elements[0]` is `G::generator()` in
-    /// every instance) and is assigned on construction; use
-    /// [`LinearRelation::generator`] to reference it in equations.
+    /// Element indices `0` and `1` are reserved for the identity and group
+    /// generator, respectively, and are assigned on construction.
     pub fn new() -> Self {
         let mut relation = Self {
             linear_map: LinearMap::new(),
             image: Vec::new(),
         };
+        let identity_var = relation.allocate_element();
+        debug_assert_eq!(identity_var.0, 0);
+        relation.set_element(identity_var, G::identity());
         let generator_var = relation.allocate_element();
-        debug_assert_eq!(generator_var.0, 0);
+        debug_assert_eq!(generator_var.0, 1);
         relation.set_element(generator_var, G::generator());
         relation
     }
 
-    /// The variable referencing the group generator, fixed at element index `0`.
-    pub fn generator(&self) -> GroupVar<G> {
+    /// The variable referencing the identity, fixed at element index `0`.
+    pub fn identity(&self) -> GroupVar<G> {
         GroupVar(0, PhantomData)
+    }
+
+    /// The variable referencing the group generator, fixed at element index `1`.
+    pub fn generator(&self) -> GroupVar<G> {
+        GroupVar(1, PhantomData)
     }
 
     /// Adds a new equation to the statement of the form:
@@ -420,16 +426,14 @@ impl<G: PrimeGroup> LinearRelation<G> {
     ///   stripped; a false one fails compilation, since the statement is
     ///   false.
     /// - Group elements no longer used by any remaining equation are dropped
-    ///   and the indices are re-packed in allocation order (the generator
-    ///   keeps index 0). A statement already satisfying the specification's
-    ///   checks is left byte-for-byte unchanged.
+    ///   and the indices are re-packed in allocation order (the identity and
+    ///   generator keep indices 0 and 1). A statement already satisfying the
+    ///   specification's checks is left byte-for-byte unchanged.
     /// - If no equation remains, compilation produces the valid empty
     ///   relation.
     ///
-    /// Identity elements in the remaining statement stay rejected (check 8),
-    /// as does everything else the specification's `ValidateInstance`
-    /// (checks 1-10) rejects; unassigned elements fail unless normalization
-    /// dropped them.
+    /// The result is checked by the specification's `ValidateInstance`;
+    /// unassigned elements fail unless normalization dropped them.
     pub fn compile(&self) -> Result<Instance<G>, InvalidInstance>
     where
         G: MultiScalarMul + GroupCodec,
@@ -491,6 +495,7 @@ impl<G: PrimeGroup> LinearRelation<G> {
         // Drop elements no remaining equation uses, keeping allocation order.
         let mut used = BTreeSet::new();
         used.insert(0u32);
+        used.insert(1u32);
         for equation in &equations {
             used.extend(
                 equation
@@ -526,6 +531,7 @@ impl<G: PrimeGroup> LinearRelation<G> {
 
         let elements = used
             .iter()
+            .skip(2)
             .map(|&old_index| {
                 self.linear_map
                     .group_elements

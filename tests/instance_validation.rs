@@ -48,8 +48,8 @@ mod instance_validation {
     #[test]
     #[allow(non_snake_case)]
     fn test_zero_image() {
-        // 0 = x * G: the identity appears both as a statement element
-        // (check 8) and as an image (check 9). Rejected.
+        // 0 = x * G: the identity statement element is valid, but the image
+        // still fails check 9.
         let mut relation = LinearRelation::<G>::new();
         let [var_x] = relation.allocate_scalars();
         let [var_G] = relation.allocate_elements();
@@ -57,7 +57,7 @@ mod instance_validation {
         relation.set_element(var_G, G::generator());
         relation.set_element(var_X, G::identity());
         let err = Instance::try_from(&relation).unwrap_err();
-        assert_eq!(err.check, Some(8));
+        assert_eq!(err.check, Some(9));
 
         // 0 = 0*x*C: same, with a zero-coefficient witness term. The zero
         // coefficient makes the scalar's effective base the identity in its
@@ -106,19 +106,34 @@ mod instance_validation {
     #[test]
     fn empty_equation_sides_are_well_formed() {
         let empty_terms = Equation {
-            image: vec![(0, Scalar::from(1u64))],
+            image: vec![(1, Scalar::from(1u64))],
             terms: vec![],
         };
-        assert!(Instance::new(vec![G::generator()], vec![empty_terms]).is_ok());
+        assert!(Instance::<G>::new(vec![], vec![empty_terms]).is_ok());
 
         // An empty image denotes the identity. It is syntactically valid and
         // reaches the separate identity-image check.
         let empty_image = Equation {
             image: vec![],
-            terms: vec![(0, 0, Scalar::from(1u64))],
+            terms: vec![(0, 1, Scalar::from(1u64))],
         };
-        let err = Instance::new(vec![G::generator()], vec![empty_image]).unwrap_err();
+        let err =
+            Instance::<G>::new(vec![], vec![empty_image]).unwrap_err();
         assert_eq!(err.check, Some(9));
+    }
+
+    #[test]
+    fn identity_statement_element_roundtrips() {
+        let one = Scalar::from(1u64);
+        let equation = Equation {
+            image: vec![(1, one), (2, one)],
+            terms: vec![(0, 1, one)],
+        };
+        let instance = Instance::new(vec![G::identity()], vec![equation]).unwrap();
+        let encoded = instance.serialize();
+        let decoded = Instance::<G>::deserialize(&encoded).unwrap();
+        assert_eq!(decoded.elements(), instance.elements());
+        assert_eq!(decoded.serialize(), encoded);
     }
 
     #[test]
@@ -176,15 +191,12 @@ mod instance_validation {
         let B = G::generator();
         let C = -x * A - y * B;
 
-        // The equation 0 = x*A + y*B + C has a non-trivial solution, but the
-        // identity is a statement element, which the specification rejects
-        // (check 8): an equation whose image evaluates to the identity is
-        // satisfied by the all-zero witness and attests nothing.
+        // The identity is a valid statement element. Constant terms cross to
+        // the image, so this compiles to -C = x*A + y*B.
         linear_relation.set_elements([(Z_var, G::identity()), (A_var, A), (B_var, B), (C_var, C)]);
-        assert_eq!(linear_relation.compile().unwrap_err().check, Some(8));
+        assert!(linear_relation.compile().is_ok());
 
-        // Replacing the identity with a real image element makes the
-        // relation valid: Z = x*A + y*B + C with Z = x*A + y*B + C.
+        // A non-identity image element remains valid too.
         let mut linear_relation = LinearRelation::new();
         let [x_var, y_var] = linear_relation.allocate_scalars();
         let [Z_var, A_var, B_var, C_var] = linear_relation.allocate_elements();

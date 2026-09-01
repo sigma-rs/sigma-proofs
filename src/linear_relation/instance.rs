@@ -24,10 +24,10 @@ use crate::msm::MultiScalarMul;
 /// combinations of the instance's group elements:
 ///
 /// - `image` (the left-hand side) is the list of `(element_index, coeff)`
-///   pairs; the image element is `sum(coeff * elements[element_index])`.
+///   pairs; the image element is `sum(coeff * element(element_index))`.
 /// - `terms` (the right-hand side) is the list of
 ///   `(scalar_index, element_index, coeff)` triples, each contributing
-///   `coeff * witness[scalar_index] * elements[element_index]`.
+///   `coeff * witness[scalar_index] * element(element_index)`.
 /// Either list may be empty, in which case that side evaluates to the identity.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Equation<G: PrimeGroup> {
@@ -116,9 +116,10 @@ fn clear_scalar_groups(scalar_slots: &mut [u32], grouped_scalars: &mut Vec<u32>)
 /// [`LinearRelation`][super::LinearRelation] of
 /// draft-irtf-cfrg-sigma-protocols, Section "Representation".
 ///
-/// It contains a list of group elements (with the group generator fixed at index `0`)
-/// and a list of equations whose image and right-hand-side terms carry explicit scalar
-/// coefficients.
+/// It contains a list of group elements with indices starting at `2` and a
+/// list of equations whose image and right-hand-side terms carry explicit
+/// scalar coefficients. The identity and group generator have implicit
+/// indices `0` and `1`.
 ///
 /// The only ways to obtain an `Instance` are
 /// [`Instance::new`] (used by
@@ -128,8 +129,9 @@ fn clear_scalar_groups(scalar_slots: &mut [u32], grouped_scalars: &mut Vec<u32>)
 /// satisfies the same acceptance criteria regardless of how it was built.
 #[derive(Clone)]
 pub struct Instance<G: PrimeGroup> {
-    /// The group elements of the statement.
-    /// Note: `elements[0]` is the group generator.
+    /// The logical group-element vector used internally for direct indexing.
+    /// Its first two entries materialize the implicit identity and generator;
+    /// [`Instance::elements`] exposes only the remaining statement elements.
     elements: Vec<G>,
     /// The equations of the statement.
     equations: Vec<Equation<G>>,
@@ -158,7 +160,7 @@ impl<G: PrimeGroup> core::fmt::Debug for Instance<G> {
     fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         formatter
             .debug_struct("Instance")
-            .field("elements", &self.elements)
+            .field("elements", &self.elements())
             .field("equations", &self.equations)
             .field("image", &self.image)
             .field("label", &self.label)
@@ -174,10 +176,22 @@ where
     /// Build an instance from its parts, running the specification's
     /// `ValidateInstance`.
     ///
-    /// `elements[0]` must be the group generator.
+    /// The supplied `elements` have logical element indices starting at `2`;
+    /// the identity and group generator at indices `0` and `1` are implicit.
     pub fn new(elements: Vec<G>, equations: Vec<Equation<G>>) -> Result<Self, InvalidInstance> {
+        let num_elements = elements
+            .len()
+            .checked_add(2)
+            .ok_or_else(|| InvalidInstance::check(1, "count exceeds 2^32"))?;
+        if u32::try_from(num_elements).is_err() {
+            return Err(InvalidInstance::check(1, "count exceeds 2^32"));
+        }
+        let mut logical_elements = Vec::with_capacity(num_elements);
+        logical_elements.push(G::identity());
+        logical_elements.push(G::generator());
+        logical_elements.extend(elements);
         let mut instance = Self {
-            elements,
+            elements: logical_elements,
             equations,
             image: Vec::new(),
             num_scalars: 0,
@@ -188,9 +202,6 @@ where
         instance.image = image;
         instance.num_scalars = num_scalars;
         instance.evaluation_plans = evaluation_plans;
-        // Only after validation: `serialize` may not be called on an instance
-        // whose elements have not been checked against the identity (check 8).
-        //
         // Always serialized, never taken from the caller — including in
         // [`Instance::deserialize`], whose input is an encoding of this very
         // instance. Adopting those bytes would save one serialization and
@@ -254,12 +265,12 @@ where
             }
         }
 
-        // Check 5: every element other than the generator (index 0) appears in
-        // at least one equation.
-        if let Some(unused) = element_used.iter().skip(1).position(|used| !used) {
+        // Check 5: every element other than the identity and generator appears
+        // in at least one equation.
+        if let Some(unused) = element_used.iter().skip(2).position(|used| !used) {
             return Err(InvalidInstance::check(
                 5,
-                format!("group element {} is not used by any equation", unused + 1),
+                format!("group element {} is not used by any equation", unused + 2),
             ));
         }
 
@@ -272,24 +283,6 @@ where
                 10,
                 "a scalar has an identity effective base in every equation",
             ));
-        }
-
-        // Check 7: elements[0] is the group generator.
-        if self.elements.first() != Some(&G::generator()) {
-            return Err(InvalidInstance::check(
-                7,
-                "elements[0] must be the group generator",
-            ));
-        }
-
-        // Check 8: no element is the identity.
-        for (i, element) in self.elements.iter().enumerate() {
-            if element.is_identity().into() {
-                return Err(InvalidInstance::check(
-                    8,
-                    format!("group element {i} is the identity"),
-                ));
-            }
         }
 
         // Check 9: no image element is the identity.
@@ -421,9 +414,15 @@ where
 }
 
 impl<G: PrimeGroup> Instance<G> {
-    /// The group elements of the statement (`elements[0]` is the generator).
+    /// The group elements of the statement. Their logical element indices
+    /// start at `2`; the identity and generator are implicit.
     pub fn elements(&self) -> &[G] {
-        &self.elements
+        &self.elements[2..]
+    }
+
+    /// Returns the group element at a logical element index.
+    pub fn element(&self, element_index: usize) -> Option<&G> {
+        self.elements.get(element_index)
     }
 
     /// The equations of the statement.
@@ -437,7 +436,8 @@ impl<G: PrimeGroup> Instance<G> {
         &self.image
     }
 
-    /// `num_elements(instance)`.
+    /// `num_elements(instance)`, including the two implicit elements.
+    /// This is `2 + self.elements().len()`.
     pub fn num_elements(&self) -> usize {
         self.elements.len()
     }
@@ -551,9 +551,9 @@ where
     /// Encodes, in order: the equation count, then for each equation its image
     /// terms and right-hand-side terms (each list preceded by its count, with
     /// 4-byte little-endian counts and indices and ciphersuite-encoded scalar
-    /// coefficients), followed by the serialization of `elements[1..]` (the
-    /// generator at index `0` is never serialized). The encoding is
-    /// unambiguous and prefix-free.
+    /// coefficients), followed by the serialization of `elements` (the
+    /// identity and generator at indices `0` and `1` are implicit).
+    /// The encoding is unambiguous and prefix-free.
     pub fn serialize(&self) -> Vec<u8> {
         let mut out = Vec::new();
         let le = repr_is_le::<G::Scalar>();
@@ -571,23 +571,23 @@ where
                 serialize_scalar_le(coeff, le, &mut out);
             }
         }
-        G::serialize_elements_allowing_identity(&self.elements[1..], &mut out);
+        G::serialize_elements_allowing_identity(self.elements(), &mut out);
         out
     }
 
     /// The inverse of [`Instance::serialize`], followed by `ValidateInstance`.
     ///
-    /// Fails on trailing bytes, non-canonical scalar or group encodings, any
-    /// encoding of the identity element, and any instance that fails the
-    /// specification's validation checks — the same acceptance criteria as
-    /// construction via [`LinearRelation::compile`][super::LinearRelation::compile].
+    /// Fails on trailing bytes, non-canonical scalar or group encodings, and
+    /// any instance that fails the specification's validation checks — the
+    /// same acceptance criteria as construction via
+    /// [`LinearRelation::compile`][super::LinearRelation::compile].
     pub fn deserialize(data: &[u8]) -> Result<Self, InvalidInstance> {
         let mut reader = NargReader::new(data);
         let le = repr_is_le::<G::Scalar>();
 
         let num_equations = read_u32(&mut reader, "equation count")?;
         let mut equations = Vec::new();
-        let mut max_element_index = 0u32;
+        let mut max_element_index = 1u32;
         for _ in 0..num_equations {
             let num_image_terms = read_u32(&mut reader, "image term count")?;
             let mut image = Vec::new();
@@ -609,8 +609,9 @@ where
             equations.push(Equation { image, terms });
         }
 
-        // The generator (index 0) is implicit; elements 1..=max are serialized.
-        let num_serialized = max_element_index as usize;
+        // The identity and generator (indices 0 and 1) are implicit;
+        // elements 2..=max are serialized.
+        let num_serialized = max_element_index as usize - 1;
         let expected = num_serialized
             .checked_mul(G::element_len())
             .ok_or_else(|| InvalidInstance::new("group element section too large"))?;
@@ -621,9 +622,8 @@ where
             )));
         }
 
-        let mut elements = Vec::with_capacity(num_serialized + 1);
-        elements.push(G::generator());
-        for i in 1..=num_serialized {
+        let mut elements = Vec::with_capacity(num_serialized);
+        for i in 2..=max_element_index as usize {
             let element = G::deserialize_element(&mut reader)
                 .map_err(|_| InvalidInstance::new(format!("invalid group element at index {i}")))?;
             elements.push(element);
@@ -736,7 +736,7 @@ mod tests {
                 .terms
                 .iter()
                 .map(|&(s, e, coefficient)| {
-                    instance.elements()[e as usize] * (coefficient * scalars[s as usize])
+                    *instance.element(e as usize).unwrap() * (coefficient * scalars[s as usize])
                 })
                 .sum::<G>();
             assert_eq!(instance.map(&scalars), vec![direct]);

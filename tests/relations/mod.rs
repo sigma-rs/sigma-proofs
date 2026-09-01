@@ -273,7 +273,7 @@ pub fn bbs_blind_commitment<G: PrimeGroup + MultiScalarMul<Scalar: ScalarCodec> 
 
     // Match Sage's allocation order: allocate all elements in the same order
     let [var_Q_2, var_J_1, var_J_2, var_J_3] = relation.allocate_elements();
-    let var_C = relation.allocate_element(); // Allocate var_C separately, giving it index 4
+    let var_C = relation.allocate_element(); // Allocate var_C separately, giving it index 5
 
     // Now append the equation separately (like Sage's append_equation)
     relation.append_equation(
@@ -327,9 +327,8 @@ pub fn simple_subtractions<G: PrimeGroup + MultiScalarMul<Scalar: ScalarCodec> +
 ) -> Return<G> {
     let [x] = core::array::from_fn(|_| <G as group::Group>::Scalar::sample(rng));
     let B = random_elem(rng);
-    // Shift by 2 so that instances built with a fixed witness x = 1 (as in
-    // the constant-time tests) do not put the identity in the statement,
-    // which instance validation rejects (check 8).
+    // Shift by 2 to keep the fixed-witness constant-time test distinct from
+    // the unshifted relation.
     let X = B * (x - G::Scalar::from(2));
 
     let mut linear_relation = LinearRelation::<G>::new();

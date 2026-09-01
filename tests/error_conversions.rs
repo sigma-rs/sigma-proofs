@@ -34,8 +34,10 @@ fn an_instance_error_reaches_both_sides_through_question_mark() {
 
 #[test]
 fn the_verifier_verdict_carries_no_diagnostic() {
-    let detailed = InvalidInstance::check(8, "element 3 is the identity");
-    assert!(detailed.to_string().contains("element 3 is the identity"));
+    let detailed = InvalidInstance::check(7, "element 0 is not the generator");
+    assert!(detailed
+        .to_string()
+        .contains("element 0 is not the generator"));
 
     // The conversion is the boundary the message does not cross: the verdict
     // on a statement the verifier could not validate is the same value as the

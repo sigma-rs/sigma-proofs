@@ -151,7 +151,9 @@ where
             // wherever there is a term to index it with.
             #[allow(clippy::indexing_slicing)]
             for &(scalar_index, element_index, coeff) in &equation.terms {
-                let base = self.elements()[element_index as usize];
+                let base = *self
+                    .element(element_index as usize)
+                    .expect("validated element index");
                 generators[scalar_index as usize] += base * (coeff * weights[row]);
             }
         }
