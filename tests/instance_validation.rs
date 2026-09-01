@@ -9,7 +9,7 @@ mod instance_validation {
     use curve25519_dalek::scalar::Scalar;
     use group::Group;
     use sigma_proofs::codec::ScalarCodec;
-    use sigma_proofs::linear_relation::{Instance, LinearRelation};
+    use sigma_proofs::linear_relation::{Equation, Instance, LinearRelation};
     use sigma_proofs::{
         prove_batchable, prove_compact, verify_batchable, verify_compact, ProverRng,
     };
@@ -101,6 +101,24 @@ mod instance_validation {
         let var_C = relation.allocate_eq(var_B * Scalar::from(1u64));
         relation.set_elements([(var_B, G::generator()), (var_C, G::generator())]);
         assert_eq!(Instance::try_from(&relation).unwrap().num_equations(), 0);
+    }
+
+    #[test]
+    fn empty_equation_sides_are_well_formed() {
+        let empty_terms = Equation {
+            image: vec![(0, Scalar::from(1u64))],
+            terms: vec![],
+        };
+        assert!(Instance::new(vec![G::generator()], vec![empty_terms]).is_ok());
+
+        // An empty image denotes the identity. It is syntactically valid and
+        // reaches the separate identity-image check.
+        let empty_image = Equation {
+            image: vec![],
+            terms: vec![(0, 0, Scalar::from(1u64))],
+        };
+        let err = Instance::new(vec![G::generator()], vec![empty_image]).unwrap_err();
+        assert_eq!(err.check, Some(9));
     }
 
     #[test]

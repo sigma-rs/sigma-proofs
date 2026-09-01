@@ -28,6 +28,7 @@ use crate::msm::MultiScalarMul;
 /// - `terms` (the right-hand side) is the list of
 ///   `(scalar_index, element_index, coeff)` triples, each contributing
 ///   `coeff * witness[scalar_index] * elements[element_index]`.
+/// Either list may be empty, in which case that side evaluates to the identity.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Equation<G: PrimeGroup> {
     /// The image terms `(element_index, coeff)`.
@@ -220,13 +221,6 @@ where
         let mut max_scalar: Option<u32> = None;
         let mut total_terms: usize = 0;
         for equation in &self.equations {
-            // Check 2: non-empty image and terms lists.
-            if equation.image.is_empty() || equation.terms.is_empty() {
-                return Err(InvalidInstance::check(
-                    2,
-                    "every equation must have non-empty image and terms",
-                ));
-            }
             // Check 3 (counts per equation).
             if u32::try_from(equation.image.len()).is_err()
                 || u32::try_from(equation.terms.len()).is_err()
