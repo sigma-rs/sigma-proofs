@@ -104,35 +104,55 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)', 'cfg(docsrs)'] }
 
 [[test]]
 name = "dudect"
-required-features = ["std"]
+required-features = ["std", "curve25519-dalek", "k256", "p256"]
 
 [[test]]
 name = "test_composition"
-required-features = ["std"]
+required-features = ["std", "curve25519-dalek"]
 
 [[test]]
 name = "test_relations"
-required-features = ["std"]
+required-features = ["std", "bls12_381", "curve25519-dalek", "k256", "p256"]
 
 [[test]]
 name = "instance_validation"
-required-features = ["std"]
+required-features = ["std", "curve25519-dalek"]
 
 [[test]]
 name = "test_batch_verification"
-required-features = ["std"]
+required-features = ["std", "bls12_381"]
 
 [[test]]
 name = "compressed"
-required-features = ["std"]
+required-features = ["std", "curve25519-dalek"]
 
 [[test]]
 name = "property"
-required-features = ["std"]
+required-features = ["std", "curve25519-dalek"]
 
 [[test]]
 name = "spec_vectors"
-required-features = ["std"]
+required-features = ["std", "bls12_381", "p256"]
+
+[[test]]
+name = "error_conversions"
+required-features = ["std", "curve25519-dalek"]
+
+[[test]]
+name = "narg_codec_extension"
+required-features = ["std", "curve25519-dalek"]
+
+[[test]]
+name = "prover_totality"
+required-features = ["std", "curve25519-dalek"]
+
+[[test]]
+name = "relation_ergonomics"
+required-features = ["std", "curve25519-dalek"]
+
+[[test]]
+name = "vacuous_composition"
+required-features = ["std", "curve25519-dalek"]
 
 [[example]]
 name = "schnorr"
