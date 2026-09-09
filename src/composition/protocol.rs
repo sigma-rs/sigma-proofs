@@ -24,7 +24,7 @@ use crate::codec::{
     deserialize_scalars, repr_is_le, serialize_scalar_le, serialize_scalars_into, GroupCodec,
     ScalarCodec,
 };
-use crate::errors::{InvalidWitness, ProverResult};
+use crate::errors::InvalidWitness;
 use crate::fiat_shamir::NargCodec;
 use crate::linear_relation::Instance;
 use crate::traits::{SigmaProtocol, SigmaProtocolSimulator};
@@ -353,7 +353,7 @@ where
         &self,
         witness: &ComposedWitness<G>,
         rng: &mut PrivateRng<impl DuplexSpongeInit<U = u8>>,
-    ) -> ProverResult<(ComposedCommitment<G>, ComposedProverState<G>)> {
+    ) -> core::result::Result<(ComposedCommitment<G>, ComposedProverState<G>), InvalidWitness> {
         match (self.node(), witness) {
             (InstanceNode::Simple(p), ComposedWitness::Simple(w)) => {
                 Self::prover_commit_simple(p, w, rng)
@@ -378,7 +378,7 @@ where
         protocol: &Instance<G>,
         witness: &[G::Scalar],
         rng: &mut PrivateRng<impl DuplexSpongeInit<U = u8>>,
-    ) -> ProverResult<(ComposedCommitment<G>, ComposedProverState<G>)> {
+    ) -> core::result::Result<(ComposedCommitment<G>, ComposedProverState<G>), InvalidWitness> {
         protocol.prover_commit(witness, rng).map(|(c, s)| {
             (
                 ComposedCommitment::Simple(c),
@@ -391,7 +391,7 @@ where
         instance: &Instance<G>,
         state: <Instance<G> as SigmaProtocol>::ProverState,
         challenge: &<Instance<G> as SigmaProtocol>::Challenge,
-    ) -> ProverResult<ComposedResponse<G>> {
+    ) -> core::result::Result<ComposedResponse<G>, InvalidWitness> {
         instance
             .prover_response(state, challenge)
             .map(ComposedResponse::Simple)
@@ -401,7 +401,7 @@ where
         protocols: &[ComposedInstance<G>],
         witnesses: &[ComposedWitness<G>],
         rng: &mut PrivateRng<impl DuplexSpongeInit<U = u8>>,
-    ) -> ProverResult<(ComposedCommitment<G>, ComposedProverState<G>)> {
+    ) -> core::result::Result<(ComposedCommitment<G>, ComposedProverState<G>), InvalidWitness> {
         if protocols.len() != witnesses.len() {
             return Err(InvalidWitness);
         }
@@ -425,12 +425,12 @@ where
         instances: &[ComposedInstance<G>],
         prover_state: Vec<ComposedProverState<G>>,
         challenge: &ComposedChallenge<G>,
-    ) -> ProverResult<ComposedResponse<G>> {
+    ) -> core::result::Result<ComposedResponse<G>, InvalidWitness> {
         if instances.len() != prover_state.len() {
             return Err(InvalidWitness);
         }
 
-        let responses: ProverResult<Vec<_>> = instances
+        let responses: core::result::Result<Vec<_>, InvalidWitness> = instances
             .iter()
             .zip_eq(prover_state)
             .map(|(p, s)| p.prover_response(s, challenge))
@@ -443,7 +443,7 @@ where
         instances: &[ComposedInstance<G>],
         witnesses: &[ComposedWitness<G>],
         rng: &mut PrivateRng<impl DuplexSpongeInit<U = u8>>,
-    ) -> ProverResult<(ComposedCommitment<G>, ComposedProverState<G>)>
+    ) -> core::result::Result<(ComposedCommitment<G>, ComposedProverState<G>), InvalidWitness>
     where
         G: ConditionallySelectable,
     {
@@ -491,7 +491,7 @@ where
         instances: &[ComposedInstance<G>],
         prover_states: Vec<ComposedBranchProverState<G>>,
         challenge: &ComposedChallenge<G>,
-    ) -> ProverResult<ComposedResponse<G>> {
+    ) -> core::result::Result<ComposedResponse<G>, InvalidWitness> {
         let mut result_challenges = Vec::with_capacity(instances.len());
         let mut result_responses = Vec::with_capacity(instances.len());
 
@@ -539,7 +539,7 @@ where
         instances: &[ComposedInstance<G>],
         witnesses: &[ComposedWitness<G>],
         rng: &mut PrivateRng<impl DuplexSpongeInit<U = u8>>,
-    ) -> ProverResult<(ComposedCommitment<G>, ComposedProverState<G>)>
+    ) -> core::result::Result<(ComposedCommitment<G>, ComposedProverState<G>), InvalidWitness>
     where
         G: ConditionallySelectable,
     {
@@ -599,7 +599,7 @@ where
         instances: &[ComposedInstance<G>],
         prover_states: Vec<ComposedBranchProverState<G>>,
         challenge: &ComposedChallenge<G>,
-    ) -> ProverResult<ComposedResponse<G>> {
+    ) -> core::result::Result<ComposedResponse<G>, InvalidWitness> {
         if threshold == 0 || threshold > instances.len() || instances.len() != prover_states.len() {
             return Err(InvalidWitness);
         }
@@ -687,7 +687,7 @@ where
         &self,
         witness: &Self::Witness,
         rng: &mut PrivateRng<impl DuplexSpongeInit<U = u8>>,
-    ) -> ProverResult<(Self::Commitment, Self::ProverState)> {
+    ) -> core::result::Result<(Self::Commitment, Self::ProverState), InvalidWitness> {
         // Unprovable statements are rejected here at the root, and only
         // here; nested branches commit tolerantly so an enclosing
         // composition can carry them as simulated branches.
@@ -701,7 +701,7 @@ where
         &self,
         state: Self::ProverState,
         challenge: &Self::Challenge,
-    ) -> ProverResult<Self::Response> {
+    ) -> core::result::Result<Self::Response, InvalidWitness> {
         match (self.node(), state) {
             (InstanceNode::Simple(instance), ComposedProverState::Simple(state)) => {
                 Self::prover_response_simple(instance, state, challenge)

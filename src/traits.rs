@@ -4,7 +4,7 @@
 //! traits, 3-message interactive proof systems with special soundness and
 //! special honest-verifier zero-knowledge.
 
-use crate::errors::{ProverResult, VerificationResult};
+use crate::errors::{InvalidWitness, VerificationResult};
 use spongefish::{DuplexSpongeInit, PrivateRng};
 
 pub type Transcript<P> = (
@@ -37,14 +37,14 @@ pub trait SigmaProtocol {
         &self,
         witness: &Self::Witness,
         rng: &mut PrivateRng<impl DuplexSpongeInit<U = u8>>,
-    ) -> ProverResult<(Self::Commitment, Self::ProverState)>;
+    ) -> core::result::Result<(Self::Commitment, Self::ProverState), InvalidWitness>;
 
     /// The response message of the Sigma Protocol.
     fn prover_response(
         &self,
         state: Self::ProverState,
         challenge: &Self::Challenge,
-    ) -> ProverResult<Self::Response>;
+    ) -> core::result::Result<Self::Response, InvalidWitness>;
 
     /// The verifier of the Sigma Protocol.
     fn verifier(

@@ -3,7 +3,7 @@ use core::cell::Cell;
 use curve25519_dalek::{RistrettoPoint as G, Scalar};
 use group::Group;
 use sigma_proofs::codec::{GroupCodec, ScalarCodec};
-use sigma_proofs::errors::{ProverResult, VerificationResult};
+use sigma_proofs::errors::{InvalidWitness, VerificationResult};
 use sigma_proofs::traits::SigmaProtocol;
 use sigma_proofs::{
     derive_session_id, prove_batchable_with, verify_batchable, DuplexSpongeInit, NargCodec,
@@ -28,7 +28,7 @@ impl SigmaProtocol for RetryCodec {
         &self,
         _witness: &Self::Witness,
         _rng: &mut PrivateRng<impl DuplexSpongeInit<U = u8>>,
-    ) -> ProverResult<(Self::Commitment, Self::ProverState)> {
+    ) -> core::result::Result<(Self::Commitment, Self::ProverState), InvalidWitness> {
         let attempt = self.attempts.get();
         self.attempts.set(attempt + 1);
         let commitment = match attempt {
@@ -42,7 +42,7 @@ impl SigmaProtocol for RetryCodec {
         &self,
         _state: Self::ProverState,
         _challenge: &Self::Challenge,
-    ) -> ProverResult<Self::Response> {
+    ) -> core::result::Result<Self::Response, InvalidWitness> {
         Ok(Scalar::ZERO)
     }
 

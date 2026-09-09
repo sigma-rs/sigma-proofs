@@ -7,7 +7,7 @@
 //! of [Maurer09](https://crypto-test.ethz.ch/publications/files/Maurer09.pdf).
 
 use crate::codec::{GroupCodec, ScalarCodec};
-use crate::errors::{InvalidWitness, ProverResult, VerificationError, VerificationResult};
+use crate::errors::{InvalidWitness, VerificationError, VerificationResult};
 use crate::linear_relation::Instance;
 use crate::traits::{SigmaProtocol, SigmaProtocolSimulator, Transcript};
 use crate::MultiScalarMul;
@@ -45,7 +45,7 @@ where
         &self,
         witness: &Self::Witness,
         rng: &mut PrivateRng<impl DuplexSpongeInit<U = u8>>,
-    ) -> ProverResult<(Self::Commitment, Self::ProverState)> {
+    ) -> core::result::Result<(Self::Commitment, Self::ProverState), InvalidWitness> {
         if witness.len() != self.num_scalars() {
             return Err(InvalidWitness);
         }
@@ -67,7 +67,7 @@ where
         &self,
         prover_state: Self::ProverState,
         challenge: &Self::Challenge,
-    ) -> ProverResult<Self::Response> {
+    ) -> core::result::Result<Self::Response, InvalidWitness> {
         let (nonces, witness) = (&prover_state.nonces, &prover_state.witness);
         if witness.len() != self.num_scalars() || nonces.len() != self.num_scalars() {
             return Err(InvalidWitness);

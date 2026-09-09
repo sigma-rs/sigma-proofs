@@ -76,7 +76,7 @@ use crate::codec::{
     deserialize_elements, deserialize_scalars, serialize_elements_allowing_identity,
     serialize_scalars, GroupCodec, ScalarCodec,
 };
-use crate::errors::{ProverResult, VerificationError, VerificationResult};
+use crate::errors::{InvalidWitness, VerificationError, VerificationResult};
 use crate::linear_relation::Instance;
 use crate::traits::{SigmaProtocol, SigmaProtocolSimulator};
 use crate::{MultiScalarMul, StdHash};
@@ -199,7 +199,7 @@ fn sample_valid_commitment<P>(
     instance: &P,
     witness: &P::Witness,
     rng: &mut PrivateRng<impl DuplexSpongeInit<U = u8>>,
-) -> ProverResult<(P::Commitment, P::ProverState)>
+) -> core::result::Result<(P::Commitment, P::ProverState), InvalidWitness>
 where
     P: NargCodec,
 {
@@ -220,7 +220,11 @@ where
 /// The prover randomness is a [`PrivateRng`] seeded from OS entropy. Use
 /// [`prove_batchable_with`] to choose the sponge, the session identifier, and
 /// the randomness yourself.
-pub fn prove_batchable<P>(tag: &[u8], instance: &P, witness: &P::Witness) -> ProverResult<Vec<u8>>
+pub fn prove_batchable<P>(
+    tag: &[u8],
+    instance: &P,
+    witness: &P::Witness,
+) -> core::result::Result<Vec<u8>, InvalidWitness>
 where
     P: NargCodec,
     P::Challenge: ScalarCodec,
@@ -243,7 +247,7 @@ pub fn prove_batchable_with<H, P>(
     instance: &P,
     witness: &P::Witness,
     rng: &mut PrivateRng<impl DuplexSpongeInit<U = u8>>,
-) -> ProverResult<Vec<u8>>
+) -> core::result::Result<Vec<u8>, InvalidWitness>
 where
     H: DuplexSpongeInit<U = u8>,
     P: NargCodec,
@@ -340,7 +344,11 @@ where
 /// The prover randomness is a [`PrivateRng`] seeded from OS entropy. Use
 /// [`prove_compact_with`] to choose the sponge, the session identifier, and
 /// the randomness yourself.
-pub fn prove_compact<P>(tag: &[u8], instance: &P, witness: &P::Witness) -> ProverResult<Vec<u8>>
+pub fn prove_compact<P>(
+    tag: &[u8],
+    instance: &P,
+    witness: &P::Witness,
+) -> core::result::Result<Vec<u8>, InvalidWitness>
 where
     P: NargCodec + SigmaProtocolSimulator,
     P::Challenge: ScalarCodec,
@@ -363,7 +371,7 @@ pub fn prove_compact_with<H, P>(
     instance: &P,
     witness: &P::Witness,
     rng: &mut PrivateRng<impl DuplexSpongeInit<U = u8>>,
-) -> ProverResult<Vec<u8>>
+) -> core::result::Result<Vec<u8>, InvalidWitness>
 where
     H: DuplexSpongeInit<U = u8>,
     P: NargCodec + SigmaProtocolSimulator,

@@ -43,9 +43,6 @@ impl InvalidInstance {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct InvalidWitness;
 
-/// A result produced by a prover operation.
-pub type ProverResult<T> = core::result::Result<T, InvalidWitness>;
-
 /// A result produced by instance construction or validation.
 pub type InstanceResult<T> = core::result::Result<T, InvalidInstance>;
 
