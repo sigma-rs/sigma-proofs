@@ -566,14 +566,17 @@ where
 
         let mut commitments = Vec::with_capacity(instances.len());
         let mut prover_states = Vec::with_capacity(instances.len());
-        for (i, (instance, witness)) in instances.iter().zip_eq(witnesses.iter()).enumerate() {
+        for ((instance, witness), &use_simulator) in instances
+            .iter()
+            .zip_eq(witnesses.iter())
+            .zip_eq(use_simulator_flags.iter())
+        {
             let (commitment, prover_state) = instance.prover_commit_tolerant(witness, rng)?;
 
             let (simulated_commitment, simulated_challenge, simulated_response) = instance
                 .simulate_transcript(rng)
                 .map_err(|_| InvalidWitness)?;
 
-            let use_simulator = use_simulator_flags[i];
             let commitment = ComposedCommitment::conditional_select(
                 &commitment,
                 &simulated_commitment,
@@ -650,8 +653,11 @@ where
 
         let mut responses = Vec::with_capacity(instances.len());
 
-        for (i, (instance, prover_state)) in instances.iter().zip_eq(prover_states).enumerate() {
-            let poly_challenge = expanded_challenges[i];
+        for ((instance, prover_state), &poly_challenge) in instances
+            .iter()
+            .zip_eq(prover_states)
+            .zip_eq(expanded_challenges.iter())
+        {
             let challenge = G::Scalar::conditional_select(
                 &poly_challenge,
                 &prover_state.simulated_challenge,

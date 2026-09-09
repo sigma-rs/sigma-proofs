@@ -12,6 +12,14 @@ pub(super) fn threshold_x<F: PrimeField>(index: usize) -> F {
 }
 
 /// Multiply a polynomial by a constant
+///
+/// # Panics
+///
+/// Never: `out` is allocated one longer than `coeffs`, so both `i` and
+/// `i + 1` are in range for every index the loop produces. Zipping would say
+/// that without indexing, but the two sequences differ in length by one on
+/// purpose, and a length mismatch is what `zip_eq` is here to reject.
+#[allow(clippy::indexing_slicing)]
 fn poly_mul_linear<F: Field>(coeffs: &[F], constant: F) -> Vec<F> {
     let mut out = vec![F::ZERO; coeffs.len() + 1];
     for (i, coeff) in coeffs.iter().enumerate() {

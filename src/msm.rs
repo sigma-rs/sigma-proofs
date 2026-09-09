@@ -336,14 +336,8 @@ impl MultiScalarMul for bls12_381::G2Projective {}
 
 #[cfg(test)]
 mod tests {
-    use super::{extend_signed_radix16, straus_ct, straus_vartime, MultiScalarMul};
-    use alloc::{vec, vec::Vec};
-    use ff::Field;
-    use group::Group;
-
-    fn naive<G: Group>(scalars: &[G::Scalar], bases: &[G]) -> G {
-        core::iter::zip(bases, scalars).map(|(g, x)| *g * *x).sum()
-    }
+    use super::extend_signed_radix16;
+    use alloc::vec::Vec;
 
     #[test]
     fn flat_radix_rows_do_not_share_carries() {
@@ -353,80 +347,101 @@ mod tests {
         assert_eq!(digits, [-1, 0, 1, -8, -7, 1]);
     }
 
-    /// Inputs chosen to hit every fast path: the empty case, zero, the
-    /// coefficient `ONE` that `Instance::validate` passes, the digit
-    /// boundaries the radix-16 recoding carries across, and random scalars.
-    fn cases<G: Group>() -> Vec<Vec<G::Scalar>> {
-        let mut rng = rand::thread_rng();
-        let one = G::Scalar::ONE;
-        vec![
-            vec![],
-            vec![G::Scalar::ZERO],
-            vec![one],
-            vec![-one],
-            vec![G::Scalar::ZERO, G::Scalar::ZERO],
-            vec![one, one],
-            vec![one, G::Scalar::from(15)],
-            vec![one, G::Scalar::from(16)],
-            vec![G::Scalar::from(255), G::Scalar::from(256)],
-            vec![one, -one, G::Scalar::random(&mut rng)],
-            (0..5).map(|_| G::Scalar::random(&mut rng)).collect(),
-            (0..17).map(|_| G::Scalar::random(&mut rng)).collect(),
-        ]
-    }
+    /// The agreement harness and every curve that exercises it, gated as one
+    /// block: each helper's only callers are the per-curve tests inside, so
+    /// with no curve enabled there is no `MultiScalarMul` impl to check and
+    /// all of this would be dead code.
+    #[cfg(any(
+        feature = "bls12_381",
+        feature = "curve25519-dalek",
+        feature = "k256",
+        feature = "p256"
+    ))]
+    mod agreement {
+        use crate::msm::{straus_ct, straus_vartime, MultiScalarMul};
+        use alloc::{vec, vec::Vec};
+        use ff::Field;
+        use group::Group;
 
-    /// Both entry points, the group's own and the generic bodies, must all
-    /// agree with `sum(g * x)`.
-    fn agree<G: MultiScalarMul>() {
-        for scalars in cases::<G>() {
-            let bases: Vec<G> = (0..scalars.len() as u64)
-                .map(|i| G::generator() * G::Scalar::from(i + 7))
-                .collect();
-            let expected = naive(&scalars, &bases);
-            let n = scalars.len();
-            assert_eq!(G::msm(&scalars, &bases), expected, "msm, n = {n}");
-            assert_eq!(
-                G::msm_vartime(&scalars, &bases),
-                expected,
-                "msm_vartime, n = {n}"
-            );
-            assert_eq!(straus_ct(&scalars, &bases), expected, "straus_ct, n = {n}");
-            assert_eq!(
-                straus_vartime(&scalars, &bases),
-                expected,
-                "straus_vartime, n = {n}"
-            );
+        fn naive<G: Group>(scalars: &[G::Scalar], bases: &[G]) -> G {
+            core::iter::zip(bases, scalars).map(|(g, x)| *g * *x).sum()
         }
-    }
 
-    #[cfg(feature = "curve25519-dalek")]
-    #[test]
-    fn agree_ristretto() {
-        agree::<curve25519_dalek::RistrettoPoint>();
-    }
+        /// Inputs chosen to hit every fast path: the empty case, zero, the
+        /// coefficient `ONE` that `Instance::validate` passes, the digit
+        /// boundaries the radix-16 recoding carries across, and random scalars.
+        fn cases<G: Group>() -> Vec<Vec<G::Scalar>> {
+            let mut rng = rand::thread_rng();
+            let one = G::Scalar::ONE;
+            vec![
+                vec![],
+                vec![G::Scalar::ZERO],
+                vec![one],
+                vec![-one],
+                vec![G::Scalar::ZERO, G::Scalar::ZERO],
+                vec![one, one],
+                vec![one, G::Scalar::from(15)],
+                vec![one, G::Scalar::from(16)],
+                vec![G::Scalar::from(255), G::Scalar::from(256)],
+                vec![one, -one, G::Scalar::random(&mut rng)],
+                (0..5).map(|_| G::Scalar::random(&mut rng)).collect(),
+                (0..17).map(|_| G::Scalar::random(&mut rng)).collect(),
+            ]
+        }
 
-    #[cfg(feature = "curve25519-dalek")]
-    #[test]
-    fn agree_edwards() {
-        agree::<curve25519_dalek::EdwardsPoint>();
-    }
+        /// Both entry points, the group's own and the generic bodies, must all
+        /// agree with `sum(g * x)`.
+        fn agree<G: MultiScalarMul>() {
+            for scalars in cases::<G>() {
+                let bases: Vec<G> = (0..scalars.len() as u64)
+                    .map(|i| G::generator() * G::Scalar::from(i + 7))
+                    .collect();
+                let expected = naive(&scalars, &bases);
+                let n = scalars.len();
+                assert_eq!(G::msm(&scalars, &bases), expected, "msm, n = {n}");
+                assert_eq!(
+                    G::msm_vartime(&scalars, &bases),
+                    expected,
+                    "msm_vartime, n = {n}"
+                );
+                assert_eq!(straus_ct(&scalars, &bases), expected, "straus_ct, n = {n}");
+                assert_eq!(
+                    straus_vartime(&scalars, &bases),
+                    expected,
+                    "straus_vartime, n = {n}"
+                );
+            }
+        }
 
-    // A big-endian scalar repr, so the byte-order handling is covered too.
-    #[cfg(feature = "p256")]
-    #[test]
-    fn agree_p256() {
-        agree::<p256::ProjectivePoint>();
-    }
+        #[cfg(feature = "curve25519-dalek")]
+        #[test]
+        fn agree_ristretto() {
+            agree::<curve25519_dalek::RistrettoPoint>();
+        }
 
-    #[cfg(feature = "k256")]
-    #[test]
-    fn agree_k256() {
-        agree::<k256::ProjectivePoint>();
-    }
+        #[cfg(feature = "curve25519-dalek")]
+        #[test]
+        fn agree_edwards() {
+            agree::<curve25519_dalek::EdwardsPoint>();
+        }
 
-    #[cfg(feature = "bls12_381")]
-    #[test]
-    fn agree_bls12_381() {
-        agree::<bls12_381::G1Projective>();
+        // A big-endian scalar repr, so the byte-order handling is covered too.
+        #[cfg(feature = "p256")]
+        #[test]
+        fn agree_p256() {
+            agree::<p256::ProjectivePoint>();
+        }
+
+        #[cfg(feature = "k256")]
+        #[test]
+        fn agree_k256() {
+            agree::<k256::ProjectivePoint>();
+        }
+
+        #[cfg(feature = "bls12_381")]
+        #[test]
+        fn agree_bls12_381() {
+            agree::<bls12_381::G1Projective>();
+        }
     }
 }

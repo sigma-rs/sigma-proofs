@@ -41,6 +41,14 @@ impl<T: ConditionallySelectable> ConditionallySelectable for Evaluation<T> {
     }
 }
 
+// The three functions below are the oblivious compaction kernel. Every index
+// is fixed by the recursion — `n` is halved down from a power of two and the
+// loop counters run to those halves — so none of them can depend on a witness
+// or on anything off the wire. They index rather than look up fallibly on
+// purpose: an `Option` here is a branch, and a branch on a secret-dependent
+// path is the one thing this module exists to avoid. The bounds are checked
+// instead by the `debug_assert!`s below and by the Kani harnesses.
+#[allow(clippy::indexing_slicing)]
 fn conditional_swap_point<T: ConditionallySelectable>(
     points: &mut [T],
     left: usize,
@@ -63,6 +71,7 @@ fn conditional_swap_point<T: ConditionallySelectable>(
     }
 }
 
+#[allow(clippy::indexing_slicing)]
 fn oroffcompact_points<T: ConditionallySelectable>(
     points: &mut [T],
     marks: &[Choice],
@@ -104,6 +113,7 @@ fn oroffcompact_points<T: ConditionallySelectable>(
 }
 
 /// Moves the marked entries of `points` to the front obliviously.
+#[allow(clippy::indexing_slicing)]
 pub(super) fn oblivious_compact_points<T: ConditionallySelectable>(
     points: &mut [T],
     marks: &[Choice],

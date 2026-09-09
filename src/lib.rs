@@ -18,13 +18,9 @@
 #![doc(html_logo_url = "https://mmaker.github.io/sigma-rs/")]
 #![deny(unused_variables)]
 #![deny(unused_mut)]
-#![deny(clippy::indexing_slicing)]
-// Panic policy (docs/threat-model.md §2.1). The verifier must be total on
-// arbitrary byte strings, so the ways of aborting that carry no information
-// about *why* are banned outright. `assert!` and `unreachable!` remain
-// available for invariants that hold by construction; each use is expected to
-// say which invariant, and to be reachable only from data the caller supplies,
-// never from a NARG string.
+// Panic policy (docs/threat-model.md §2.1). The verifier must never panic.
+// `assert!` and `unreachable!` remain available for invariants that hold by
+// construction, but out-of-bounds indexing is denied.
 //
 // The MSM module opts out because its indexing bounds come from the loop
 // structure and rewriting them as fallible lookups obscures the arithmetic
@@ -33,6 +29,7 @@
 #![cfg_attr(
     not(test),
     deny(
+        clippy::indexing_slicing,
         clippy::panic,
         clippy::todo,
         clippy::unimplemented,

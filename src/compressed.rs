@@ -154,8 +154,9 @@ where
 
         for (row, equation) in self.equations().iter().enumerate() {
             // `row` indexes `weights`, which was built with one entry per
-            // equation, and check 2 bounds `element_index`.
-            #[allow(clippy::indexing_slicing)]
+            // equation, and check 2 bounds `element_index` — so `element`
+            // cannot return `None` here.
+            #[allow(clippy::indexing_slicing, clippy::expect_used)]
             for &(scalar_index, element_index, coeff) in &equation.terms {
                 let base = *self
                     .element(element_index as usize)

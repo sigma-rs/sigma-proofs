@@ -284,6 +284,11 @@ where
 
     /// Compile the wire-format term triples into the bases used to evaluate
     /// the linear map. Grouping is driven entirely by public instance data.
+    ///
+    /// # Panics
+    ///
+    /// Panics if an element index is out of range.
+    #[allow(clippy::indexing_slicing)]
     fn compile_evaluation_plans(&self) -> Vec<EvaluationPlan<G>> {
         let mut scalar_slots = BTreeMap::new();
         let mut grouped_scalars = Vec::new();
@@ -335,6 +340,11 @@ where
     }
 
     /// Evaluate each equation's left-hand side (coefficients are public).
+    ///
+    /// # Panics
+    ///
+    /// Panics if an image element index is out of range.
+    #[allow(clippy::indexing_slicing)]
     fn compute_image(&self) -> Vec<G> {
         self.equations
             .iter()
@@ -353,6 +363,7 @@ where
 impl<G: PrimeGroup> Instance<G> {
     /// The group elements of the statement. Their logical element indices
     /// start at `2`; the identity and generator are implicit.
+    #[allow(clippy::indexing_slicing)]
     pub fn elements(&self) -> &[G] {
         &self.elements[2..]
     }
@@ -432,6 +443,14 @@ impl<G: PrimeGroup + MultiScalarMul> Instance<G> {
 
     /// Materialize one row of the public execution plan with the supplied
     /// scalars. Its width depends on the instance, never on scalar values.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `equation_index` is past the equation count, or if `scalars`
+    /// is shorter than `num_scalars()`. Element indices are bounded by check
+    /// 2; the scalars are the caller's witness, and the callers check its
+    /// length — that is the one of the two that comes off the wire.
+    #[allow(clippy::indexing_slicing)]
     pub(crate) fn evaluation_pairs(
         &self,
         equation_index: usize,

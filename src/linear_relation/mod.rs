@@ -54,6 +54,9 @@ impl<G: PrimeGroup> GroupMap<G> {
     /// # Panics
     ///
     /// Panics if the given assignment conflicts with the existing assignment.
+    /// The indexing does not: the branch above either grew the map past
+    /// `var.0` or established that it was already long enough.
+    #[allow(clippy::indexing_slicing)]
     pub fn assign_element(&mut self, var: GroupVar<G>, element: G) {
         if self.0.len() <= var.0 {
             self.0.resize(var.0 + 1, None);
@@ -511,6 +514,9 @@ impl<G: PrimeGroup> LinearRelation<G> {
                 )
             })
             .collect();
+        // `used` was collected from these same equations just above, so
+        // `remap` has a key for every index they carry.
+        #[allow(clippy::indexing_slicing)]
         for equation in &mut equations {
             for (element_index, _) in &mut equation.image {
                 *element_index = remap[element_index];

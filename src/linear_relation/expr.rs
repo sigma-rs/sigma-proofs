@@ -35,6 +35,11 @@ pub enum ScalarTerm<G> {
 impl<G: PrimeGroup> ScalarTerm<G> {
     // NOTE: This function is private intentionally as it would be replaced if a ScalarMap struct
     // were to be added.
+    //
+    // Panics if `scalars` is shorter than the largest allocated scalar
+    // variable. The only caller checks the length against `num_scalars`,
+    // which is defined from that variable, before evaluating any term.
+    #[allow(clippy::indexing_slicing)]
     pub(super) fn value(self, scalars: &[G::Scalar]) -> G::Scalar {
         match self {
             Self::Var(var) => scalars[var.0],
