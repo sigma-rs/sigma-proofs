@@ -74,7 +74,7 @@ subtle = { version = "2.6.1", default-features = false }
 # crates' `crypto-bigint`, with `spongefish` enabling its own `zeroize` by
 # default. Gating it here saved no dependency — only the `ScalarCodec` bound,
 # and a feature that narrows a blanket impl is not additive.
-zeroize = { version = "1.8", default-features = false, features = ["alloc"] }
+zeroize = { version = "1.8", default-features = false, features = ["alloc", "zeroize_derive"] }
 
 [dev-dependencies]
 anyhow = "1.0.100"

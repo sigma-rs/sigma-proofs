@@ -14,28 +14,18 @@ use crate::MultiScalarMul;
 use alloc::vec::Vec;
 use itertools::Itertools;
 use spongefish::{DuplexSpongeInit, Encoding, PrivateRng};
+use zeroize::ZeroizeOnDrop;
 
 use group::prime::PrimeGroup;
 
 /// The prover's secrets between the two prover moves.
+#[derive(ZeroizeOnDrop)]
 pub struct ProverState<G: PrimeGroup>
 where
     G::Scalar: ScalarCodec,
 {
     nonces: Vec<G::Scalar>,
     witness: Vec<G::Scalar>,
-}
-
-// `Vec::zeroize` rather than a `for` loop assigning `ZERO`, as `zeroize` performs volatile
-// writes with a fence that it may not remove.
-impl<G: PrimeGroup> Drop for ProverState<G>
-where
-    G::Scalar: ScalarCodec,
-{
-    fn drop(&mut self) {
-        zeroize::Zeroize::zeroize(&mut self.nonces);
-        zeroize::Zeroize::zeroize(&mut self.witness);
-    }
 }
 
 impl<G> SigmaProtocol for Instance<G>
