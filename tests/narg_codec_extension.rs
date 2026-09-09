@@ -3,7 +3,7 @@ use core::cell::Cell;
 use curve25519_dalek::{RistrettoPoint as G, Scalar};
 use group::Group;
 use sigma_proofs::codec::{GroupCodec, ScalarCodec};
-use sigma_proofs::errors::{InvalidWitness, VerificationResult};
+use sigma_proofs::errors::{InvalidWitness, VerificationError};
 use sigma_proofs::traits::SigmaProtocol;
 use sigma_proofs::{
     derive_session_id, prove_batchable_with, verify_batchable, DuplexSpongeInit, NargCodec,
@@ -51,7 +51,7 @@ impl SigmaProtocol for RetryCodec {
         _commitment: &Self::Commitment,
         _challenge: &Self::Challenge,
         _response: &Self::Response,
-    ) -> VerificationResult<()> {
+    ) -> Result<(), VerificationError> {
         Ok(())
     }
 
@@ -80,14 +80,14 @@ impl NargCodec for RetryCodec {
     fn deserialize_commitment(
         &self,
         reader: &mut NargReader<'_>,
-    ) -> VerificationResult<Self::Commitment> {
+    ) -> Result<Self::Commitment, VerificationError> {
         G::deserialize_element(reader)
     }
 
     fn deserialize_response(
         &self,
         reader: &mut NargReader<'_>,
-    ) -> VerificationResult<Self::Response> {
+    ) -> Result<Self::Response, VerificationError> {
         Scalar::deserialize_scalar(reader)
     }
 }

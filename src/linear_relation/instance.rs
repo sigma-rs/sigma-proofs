@@ -549,23 +549,25 @@ where
         // The identity and generator (indices 0 and 1) are implicit;
         // elements 2..=max are serialized.
         let num_serialized = max_element_index as usize - 1;
-        let expected = num_serialized
-            .checked_mul(G::element_len())
-            .ok_or_else(|| InvalidInstance::new("group element section too large"))?;
-        if reader.remaining_len() != expected {
-            return Err(InvalidInstance::new(format!(
-                "expected {expected} bytes of group elements, got {}",
-                reader.remaining_len()
-            )));
-        }
-
-        let mut elements = Vec::with_capacity(num_serialized);
+        // `max_element_index` is read from `data`, so it cannot size the
+        // allocation: the hint is capped and the `Vec` grows as elements
+        // actually parse. The loop is bounded anyway, because every element
+        // consumes `element_len()` bytes and a read past the end fails.
+        let mut elements = Vec::with_capacity(usize::min(num_serialized, 64));
         for i in 2..=max_element_index as usize {
             let element = G::deserialize_element(&mut reader)
                 .map_err(|_| InvalidInstance::new(format!("invalid group element at index {i}")))?;
             elements.push(element);
         }
-        debug_assert!(reader.is_empty());
+        // Nothing follows the group-element section. A short section already
+        // failed above, in the element that ran off the end; trailing bytes
+        // have to be rejected here, or an instance would have more than one
+        // encoding.
+        if !reader.is_empty() {
+            return Err(InvalidInstance::new(
+                "trailing bytes after the group element section",
+            ));
+        }
 
         Self::new(elements, equations)
     }

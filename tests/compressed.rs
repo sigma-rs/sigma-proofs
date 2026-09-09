@@ -54,9 +54,10 @@ fn multiple_equations_are_squashed() {
     // These cases exercise squashing different numbers of rows instead.
     for (n, equations) in [(2usize, 2usize), (5, 2), (9, 3)] {
         let (instance, witness) = relation(n, equations, &mut rng);
-        let (proof, ()) = Narg::prove::<Compressed<G>>(&SESSION, &instance, &witness).unwrap();
+        let (proof, ()) =
+            Narg::prove_with_session_id::<Compressed<G>>(&SESSION, &instance, &witness).unwrap();
         assert!(
-            Narg::verify::<Compressed<G>>(&SESSION, &instance, &proof).is_ok(),
+            Narg::verify_with_session_id::<Compressed<G>>(&SESSION, &instance, &proof).is_ok(),
             "n = {n}, equations = {equations}"
         );
     }
@@ -72,8 +73,9 @@ fn unused_scalar_slots_are_projected_out() {
     let instance = Instance::<G>::new(vec![], vec![equation]).unwrap();
     let witness = vec![S::from(7u64), S::from(8u64), one];
 
-    let (proof, ()) = Narg::prove::<Compressed<G>>(&SESSION, &instance, &witness).unwrap();
-    assert!(Narg::verify::<Compressed<G>>(&SESSION, &instance, &proof).is_ok());
+    let (proof, ()) =
+        Narg::prove_with_session_id::<Compressed<G>>(&SESSION, &instance, &witness).unwrap();
+    assert!(Narg::verify_with_session_id::<Compressed<G>>(&SESSION, &instance, &proof).is_ok());
     assert_eq!(proof.len(), G::element_len() + S::scalar_len());
 }
 
@@ -89,7 +91,7 @@ fn a_large_sparse_scalar_index_does_not_drive_verifier_allocation() {
 
     // The verifier reaches squashing before it reads the proof. This small
     // input must reject without allocating `num_scalars()` group elements.
-    assert!(Narg::verify::<Compressed<G>>(&SESSION, &instance, &[]).is_err());
+    assert!(Narg::verify_with_session_id::<Compressed<G>>(&SESSION, &instance, &[]).is_err());
 }
 
 /// The round count is `⌈log2(n)⌉` for every `n`, not only for the powers of
@@ -101,7 +103,8 @@ fn the_round_count_is_the_ceiling_of_the_logarithm() {
     let mut rng = ProverRng::from_os_entropy();
     for n in 1usize..=17 {
         let (instance, witness) = relation(n, 1, &mut rng);
-        let (proof, ()) = Narg::prove::<Compressed<G>>(&SESSION, &instance, &witness).unwrap();
+        let (proof, ()) =
+            Narg::prove_with_session_id::<Compressed<G>>(&SESSION, &instance, &witness).unwrap();
 
         // The nonce commitment, two elements per fold round, and the opening.
         let rounds = n.next_power_of_two().trailing_zeros() as usize;
@@ -111,7 +114,7 @@ fn the_round_count_is_the_ceiling_of_the_logarithm() {
             "n = {n}"
         );
         assert!(
-            Narg::verify::<Compressed<G>>(&SESSION, &instance, &proof).is_ok(),
+            Narg::verify_with_session_id::<Compressed<G>>(&SESSION, &instance, &proof).is_ok(),
             "n = {n}"
         );
     }
@@ -129,10 +132,12 @@ fn the_opening_is_blinded() {
     let mut rng = ProverRng::from_os_entropy();
     let (instance, witness) = relation(1, 1, &mut rng);
 
-    let (proof, ()) = Narg::prove::<Compressed<G>>(&SESSION, &instance, &witness).unwrap();
-    let (again, ()) = Narg::prove::<Compressed<G>>(&SESSION, &instance, &witness).unwrap();
-    assert!(Narg::verify::<Compressed<G>>(&SESSION, &instance, &proof).is_ok());
-    assert!(Narg::verify::<Compressed<G>>(&SESSION, &instance, &again).is_ok());
+    let (proof, ()) =
+        Narg::prove_with_session_id::<Compressed<G>>(&SESSION, &instance, &witness).unwrap();
+    let (again, ()) =
+        Narg::prove_with_session_id::<Compressed<G>>(&SESSION, &instance, &witness).unwrap();
+    assert!(Narg::verify_with_session_id::<Compressed<G>>(&SESSION, &instance, &proof).is_ok());
+    assert!(Narg::verify_with_session_id::<Compressed<G>>(&SESSION, &instance, &again).is_ok());
     assert_ne!(proof, again, "each proof draws its own nonces");
 
     let mut encoded = Vec::new();
@@ -157,9 +162,12 @@ fn a_wrong_witness_does_not_verify() {
         // build the equation is never evaluated on that side and the prover
         // emits a NARG string that the verifier then rejects. What must never
         // happen is an accepted proof.
-        match Narg::prove::<Compressed<G>>(&SESSION, &instance, &witness) {
+        match Narg::prove_with_session_id::<Compressed<G>>(&SESSION, &instance, &witness) {
             Ok((proof, ())) => {
-                assert!(Narg::verify::<Compressed<G>>(&SESSION, &instance, &proof).is_err())
+                assert!(
+                    Narg::verify_with_session_id::<Compressed<G>>(&SESSION, &instance, &proof)
+                        .is_err()
+                )
             }
             // `cfg!` folds to a constant, which is the point: on a release
             // build this arm must be unreachable, and clippy would rather see
@@ -177,13 +185,14 @@ fn the_proof_is_bound_to_its_session_and_instance() {
     let mut rng = ProverRng::from_os_entropy();
     let (instance, witness) = relation(8, 1, &mut rng);
     let (other, _) = relation(8, 1, &mut rng);
-    let (proof, ()) = Narg::prove::<Compressed<G>>(&SESSION, &instance, &witness).unwrap();
+    let (proof, ()) =
+        Narg::prove_with_session_id::<Compressed<G>>(&SESSION, &instance, &witness).unwrap();
 
     let mut elsewhere = *SESSION.as_bytes();
     elsewhere[0] ^= 1;
     let elsewhere = SessionId::from_bytes(elsewhere);
-    assert!(Narg::verify::<Compressed<G>>(&elsewhere, &instance, &proof).is_err());
-    assert!(Narg::verify::<Compressed<G>>(&SESSION, &other, &proof).is_err());
+    assert!(Narg::verify_with_session_id::<Compressed<G>>(&elsewhere, &instance, &proof).is_err());
+    assert!(Narg::verify_with_session_id::<Compressed<G>>(&SESSION, &other, &proof).is_err());
 }
 
 /// §2.1: no byte string makes the verifier panic, and none but the honest
@@ -192,14 +201,15 @@ fn the_proof_is_bound_to_its_session_and_instance() {
 fn corrupted_proofs_are_rejected_without_panicking() {
     let mut rng = ProverRng::from_os_entropy();
     let (instance, witness) = relation(8, 2, &mut rng);
-    let (proof, ()) = Narg::prove::<Compressed<G>>(&SESSION, &instance, &witness).unwrap();
-    assert!(Narg::verify::<Compressed<G>>(&SESSION, &instance, &proof).is_ok());
+    let (proof, ()) =
+        Narg::prove_with_session_id::<Compressed<G>>(&SESSION, &instance, &witness).unwrap();
+    assert!(Narg::verify_with_session_id::<Compressed<G>>(&SESSION, &instance, &proof).is_ok());
 
     for i in 0..proof.len() * 8 {
         let mut corrupted = proof.clone();
         corrupted[i / 8] ^= 1 << (i % 8);
         assert!(
-            Narg::verify::<Compressed<G>>(&SESSION, &instance, &corrupted).is_err(),
+            Narg::verify_with_session_id::<Compressed<G>>(&SESSION, &instance, &corrupted).is_err(),
             "should reject: bit {i} flipped"
         );
     }
@@ -207,17 +217,17 @@ fn corrupted_proofs_are_rejected_without_panicking() {
     // Truncations, extensions, and arbitrary strings, including the ones that
     // are not a whole number of elements long.
     for len in 0..=proof.len() {
-        let _ = Narg::verify::<Compressed<G>>(&SESSION, &instance, &proof[..len]);
+        let _ = Narg::verify_with_session_id::<Compressed<G>>(&SESSION, &instance, &proof[..len]);
     }
     for extra in 1..=8 {
         let mut extended = proof.clone();
         extended.extend(core::iter::repeat_n(0u8, extra));
         assert!(
-            Narg::verify::<Compressed<G>>(&SESSION, &instance, &extended).is_err(),
+            Narg::verify_with_session_id::<Compressed<G>>(&SESSION, &instance, &extended).is_err(),
             "trailing bytes must be rejected"
         );
     }
     for bytes in [vec![], vec![0u8; 1], vec![0xff; 200], vec![0x05; 33]] {
-        let _ = Narg::verify::<Compressed<G>>(&SESSION, &instance, &bytes);
+        let _ = Narg::verify_with_session_id::<Compressed<G>>(&SESSION, &instance, &bytes);
     }
 }

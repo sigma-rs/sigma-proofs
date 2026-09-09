@@ -8,8 +8,8 @@
 //! use curve25519_dalek::{RistrettoPoint as G, Scalar};
 //! use group::Group;
 //! use sigma_proofs::compressed::Compressed;
-//! use sigma_proofs::LinearRelation;
-//! use spongefish::{derive_session_id, Narg, StdHash};
+//! use sigma_proofs::{LinearRelation, StdHash};
+//! use spongefish::{derive_session_id, Narg};
 //!
 //! let witness = vec![Scalar::from(3u64), Scalar::from(5u64)];
 //! let mut relation = LinearRelation::<G>::new();
@@ -20,8 +20,10 @@
 //!
 //! let session_id = derive_session_id::<StdHash>(b"my-application compressed");
 //! let (narg_string, ()) =
-//!     Narg::prove::<Compressed<G>>(&session_id, &instance, &witness).unwrap();
-//! Narg::verify::<Compressed<G>>(&session_id, &instance, &narg_string).unwrap();
+//!     Narg::prove_with_session_id::<Compressed<G>>(&session_id, &instance, &witness)
+//!         .unwrap();
+//! Narg::verify_with_session_id::<Compressed<G>>(&session_id, &instance, &narg_string)
+//!     .unwrap();
 //! ```
 //!
 //! [`Argument`]: spongefish::Argument
@@ -41,7 +43,7 @@ use ff::Field;
 use group::prime::PrimeGroup;
 use spongefish::{
     Argument, ByteArray, Decoding, Encoding, NargDeserialize, NargReader, Transcript,
-    VerificationError, VerificationResult, Witness,
+    VerificationError, Witness,
 };
 
 use crate::codec::{deserialize_elements, deserialize_scalars, GroupCodec, ScalarCodec};
@@ -81,7 +83,9 @@ impl<G: GroupCodec, const N: usize> Encoding<[u8]> for RoundMessage<G, N> {
 }
 
 impl<G: GroupCodec, const N: usize> NargDeserialize for RoundMessage<G, N> {
-    fn deserialize_from_narg(reader: &mut NargReader<'_>) -> VerificationResult<Self> {
+    type Error = VerificationError;
+
+    fn deserialize_from_narg(reader: &mut NargReader<'_>) -> Result<Self, Self::Error> {
         let elements = deserialize_elements::<G>(reader, N)?;
         match <[G; N]>::try_from(elements) {
             Ok(elements) => Ok(Self(elements)),
@@ -103,7 +107,9 @@ impl<F: ScalarCodec> Encoding<[u8]> for Opening<F> {
 }
 
 impl<F: ScalarCodec> NargDeserialize for Opening<F> {
-    fn deserialize_from_narg(reader: &mut NargReader<'_>) -> VerificationResult<Self> {
+    type Error = VerificationError;
+
+    fn deserialize_from_narg(reader: &mut NargReader<'_>) -> Result<Self, Self::Error> {
         let scalars = deserialize_scalars::<F>(reader, 1)?;
         match scalars.first() {
             Some(&scalar) => Ok(Self(scalar)),
@@ -229,7 +235,7 @@ where
         transcript: &mut T,
         instance: &Instance<G>,
         witness: Witness<&Self::Witness>,
-    ) -> VerificationResult<()> {
+    ) -> Result<(), VerificationError> {
         // Squash first into ann inner-product.
         let Challenge(squash) = transcript.verifier_message::<Challenge<G::Scalar>>();
         let mut statement = instance.squash(squash);
@@ -269,7 +275,7 @@ where
                 .map(|z| RoundMessage(cross_terms::<G>(z, &statement.generators, half)));
             let RoundMessage([a, b]) = transcript.prover_message(message)?;
 
-            let Challenge(x) = transcript.verifier_message::<Challenge<G::Scalar>>();
+            let Challenge(x) = transcript.verifier_message();
 
             response = response.map(|mut z| {
                 fold_scalars(&mut z, half, x);

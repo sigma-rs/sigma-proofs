@@ -10,7 +10,7 @@ use spongefish::{DuplexSpongeInit, VerifierState};
 
 use super::{NargCodec, PrefixFree, SessionId, SqueezeChallenge};
 use crate::codec::{GroupCodec, ScalarCodec};
-use crate::errors::{VerificationError, VerificationResult};
+use crate::errors::VerificationError;
 use crate::linear_relation::Instance;
 use crate::traits::SigmaProtocol;
 use crate::{MultiScalarMul, StdHash};
@@ -27,7 +27,7 @@ const BATCH_VERIFY_TAG: &[u8] = b"irtf-cfrg-sigma-protocols/batch-verify";
 /// this is the one entry point that takes session identifiers rather than
 /// tags. Derive each with [`derive_session_id::<StdHash>`][crate::derive_session_id]
 /// ([module documentation][super]).
-pub fn verify_batch<G>(batch: &[(&SessionId, &Instance<G>, &[u8])]) -> VerificationResult<()>
+pub fn verify_batch<G>(batch: &[(&SessionId, &Instance<G>, &[u8])]) -> Result<(), VerificationError>
 where
     G: PrimeGroup + MultiScalarMul + GroupCodec,
     G::Scalar: ScalarCodec,
@@ -58,7 +58,7 @@ where
 #[allow(clippy::indexing_slicing)]
 pub fn verify_batch_with<H, G>(
     batch: &[(&SessionId, &Instance<G>, &[u8])],
-) -> VerificationResult<()>
+) -> Result<(), VerificationError>
 where
     H: DuplexSpongeInit<U = u8>,
     G: PrimeGroup + MultiScalarMul + GroupCodec,

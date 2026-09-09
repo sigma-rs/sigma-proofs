@@ -4,7 +4,7 @@
 //! traits, 3-message interactive proof systems with special soundness and
 //! special honest-verifier zero-knowledge.
 
-use crate::errors::{InvalidWitness, VerificationResult};
+use crate::errors::{InvalidWitness, VerificationError};
 use spongefish::{DuplexSpongeInit, PrivateRng};
 
 pub type Transcript<P> = (
@@ -52,7 +52,7 @@ pub trait SigmaProtocol {
         commitment: &Self::Commitment,
         challenge: &Self::Challenge,
         response: &Self::Response,
-    ) -> VerificationResult<()>;
+    ) -> Result<(), VerificationError>;
 
     /// The verifier with one extra challenge for statistical verification.
     ///
@@ -70,7 +70,7 @@ pub trait SigmaProtocol {
         challenge: &Self::Challenge,
         response: &Self::Response,
         _randomness: &Self::Challenge,
-    ) -> VerificationResult<()> {
+    ) -> Result<(), VerificationError> {
         self.verifier(commitment, challenge, response)
     }
 
@@ -93,11 +93,11 @@ pub trait SigmaProtocolSimulator: SigmaProtocol {
         &self,
         challenge: &Self::Challenge,
         response: &Self::Response,
-    ) -> VerificationResult<Self::Commitment>;
+    ) -> Result<Self::Commitment, VerificationError>;
 
     /// Simulates a full Sigma Protocol transcript.
     fn simulate_transcript(
         &self,
         rng: &mut PrivateRng<impl DuplexSpongeInit<U = u8>>,
-    ) -> VerificationResult<Transcript<Self>>;
+    ) -> Result<Transcript<Self>, VerificationError>;
 }

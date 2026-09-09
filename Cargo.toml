@@ -67,7 +67,7 @@ group = "0.13.0"
 itertools = { version = "0.15", default-features = false }
 k256 = { workspace = true, features = ["arithmetic", "alloc"], optional = true }
 p256 = { workspace = true, features = ["arithmetic"], optional = true }
-spongefish = { version = "0.7" }
+spongefish = { git = "https://github.com/arkworks-rs/spongefish", branch = "mu/draft-v3" }
 subtle = { version = "2.6.1", default-features = false }
 # Not optional: `zeroize` is already an unconditional part of the dependency
 # graph, reached through `spongefish`'s digest stack and through the curve

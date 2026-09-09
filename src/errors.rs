@@ -46,8 +46,8 @@ pub struct InvalidWitness;
 /// A result produced by instance construction or validation.
 pub type InstanceResult<T> = core::result::Result<T, InvalidInstance>;
 
-/// The opaque verification error and result used by spongefish transcripts.
-pub use spongefish::{VerificationError, VerificationResult};
+/// The opaque verification error used by spongefish transcripts.
+pub use spongefish::VerificationError;
 
 /// A statement the prover cannot validate is one it cannot prove.
 ///

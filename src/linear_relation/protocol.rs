@@ -7,7 +7,7 @@
 //! of [Maurer09](https://crypto-test.ethz.ch/publications/files/Maurer09.pdf).
 
 use crate::codec::{GroupCodec, ScalarCodec};
-use crate::errors::{InvalidWitness, VerificationError, VerificationResult};
+use crate::errors::{InvalidWitness, VerificationError};
 use crate::linear_relation::Instance;
 use crate::traits::{SigmaProtocol, SigmaProtocolSimulator, Transcript};
 use crate::MultiScalarMul;
@@ -88,7 +88,7 @@ where
         commitment: &Self::Commitment,
         challenge: &Self::Challenge,
         response: &Self::Response,
-    ) -> VerificationResult<()> {
+    ) -> Result<(), VerificationError> {
         if commitment.len() != self.num_equations() || response.len() != self.num_scalars() {
             return Err(VerificationError);
         }
@@ -118,7 +118,7 @@ where
         challenge: &Self::Challenge,
         response: &Self::Response,
         randomness: &Self::Challenge,
-    ) -> VerificationResult<()> {
+    ) -> Result<(), VerificationError> {
         use ff::Field;
 
         if commitment.len() != self.num_equations() || response.len() != self.num_scalars() {
@@ -183,7 +183,7 @@ where
     fn simulate_transcript(
         &self,
         rng: &mut PrivateRng<impl DuplexSpongeInit<U = u8>>,
-    ) -> VerificationResult<Transcript<Self>> {
+    ) -> Result<Transcript<Self>, VerificationError> {
         let response = self.simulate_response(rng);
         let challenge = G::Scalar::sample(rng);
         let commitment = self.simulate_commitment(&challenge, &response)?;
@@ -197,7 +197,7 @@ where
         &self,
         challenge: &Self::Challenge,
         response: &Self::Response,
-    ) -> VerificationResult<Self::Commitment> {
+    ) -> Result<Self::Commitment, VerificationError> {
         if response.len() != self.num_scalars() {
             return Err(VerificationError);
         }

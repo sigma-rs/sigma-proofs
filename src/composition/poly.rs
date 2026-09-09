@@ -5,7 +5,7 @@ use ff::{Field, PrimeField};
 use itertools::Itertools;
 
 use super::ct::Evaluation;
-use crate::errors::{VerificationError, VerificationResult};
+use crate::errors::VerificationError;
 
 pub(super) fn threshold_x<F: PrimeField>(index: usize) -> F {
     F::from((index + 1) as u64)
@@ -24,7 +24,7 @@ fn poly_mul_linear<F: Field>(coeffs: &[F], constant: F) -> Vec<F> {
 /// Perform lagrange interpolation of `points`
 pub(super) fn interpolate_polynomial<F: Field>(
     points: &[Evaluation<F>],
-) -> VerificationResult<Vec<F>> {
+) -> Result<Vec<F>, VerificationError> {
     if points.is_empty() {
         return Err(VerificationError);
     }
@@ -69,7 +69,7 @@ pub(super) fn expand_threshold_challenges<F: PrimeField>(
     total: usize,
     challenge: F,
     compressed_challenges: &[F],
-) -> VerificationResult<Vec<F>> {
+) -> Result<Vec<F>, VerificationError> {
     if threshold == 0 || threshold > total {
         return Err(VerificationError);
     }

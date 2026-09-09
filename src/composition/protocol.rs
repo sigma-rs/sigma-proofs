@@ -9,7 +9,7 @@ use ff::Field;
 use group::prime::PrimeGroup;
 use itertools::Itertools;
 use spongefish::{DuplexSpongeInit, PrivateRng};
-use spongefish::{NargReader, VerificationError, VerificationResult};
+use spongefish::{NargReader, VerificationError};
 use subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
 
 use super::ct::{count_choices, oblivious_compact_points, simulator_flags, Evaluation};
@@ -75,12 +75,12 @@ where
     fn deserialize_commitment_tree(
         &self,
         reader: &mut NargReader<'_>,
-    ) -> VerificationResult<ComposedCommitment<G>> {
+    ) -> Result<ComposedCommitment<G>, VerificationError> {
         let branches = match self.node() {
             InstanceNode::Simple(instance) => {
                 let elems = (0..instance.num_equations())
                     .map(|_| G::deserialize_element(reader))
-                    .collect::<VerificationResult<Vec<_>>>()?;
+                    .collect::<Result<Vec<_>, VerificationError>>()?;
                 return Ok(ComposedCommitment::Simple(elems));
             }
             InstanceNode::Claim(_) => {
@@ -93,7 +93,7 @@ where
             branches
                 .iter()
                 .map(|p| p.deserialize_commitment_tree(reader))
-                .collect::<VerificationResult<Vec<_>>>()?,
+                .collect::<Result<Vec<_>, VerificationError>>()?,
         ))
     }
 
@@ -126,7 +126,7 @@ where
     fn deserialize_response_tree(
         &self,
         reader: &mut NargReader<'_>,
-    ) -> VerificationResult<ComposedResponse<G>> {
+    ) -> Result<ComposedResponse<G>, VerificationError> {
         // As in `deserialize_commitment_tree`, the branch-carrying variants
         // share one walk. `AND` carries no challenge shares of its own; `OR`
         // and `THRESHOLD` differ only in how many they carry, and those come
@@ -156,7 +156,7 @@ where
     fn deserialize_branch_responses(
         branches: &[Self],
         reader: &mut NargReader<'_>,
-    ) -> VerificationResult<Vec<ComposedResponse<G>>> {
+    ) -> Result<Vec<ComposedResponse<G>>, VerificationError> {
         branches
             .iter()
             .map(|p| p.deserialize_response_tree(reader))
@@ -191,14 +191,14 @@ where
     fn deserialize_commitment(
         &self,
         reader: &mut NargReader<'_>,
-    ) -> VerificationResult<ComposedCommitment<G>> {
+    ) -> Result<ComposedCommitment<G>, VerificationError> {
         self.deserialize_commitment_tree(reader)
     }
 
     fn deserialize_response(
         &self,
         reader: &mut NargReader<'_>,
-    ) -> VerificationResult<ComposedResponse<G>> {
+    ) -> Result<ComposedResponse<G>, VerificationError> {
         self.deserialize_response_tree(reader)
     }
 }
@@ -244,7 +244,7 @@ where
         &self,
         challenge: &ComposedChallenge<G>,
         shares: &[ComposedChallenge<G>],
-    ) -> VerificationResult<Vec<ComposedChallenge<G>>> {
+    ) -> Result<Vec<ComposedChallenge<G>>, VerificationError> {
         match self.node() {
             InstanceNode::Or(branches) => {
                 if branches.len().checked_sub(1) != Some(shares.len()) {
@@ -726,7 +726,7 @@ where
         commitment: &Self::Commitment,
         challenge: &Self::Challenge,
         response: &Self::Response,
-    ) -> VerificationResult<()> {
+    ) -> Result<(), VerificationError> {
         match (self.node(), commitment, response) {
             (
                 InstanceNode::Simple(p),
@@ -856,7 +856,7 @@ where
         &self,
         challenge: &Self::Challenge,
         response: &Self::Response,
-    ) -> VerificationResult<Self::Commitment> {
+    ) -> Result<Self::Commitment, VerificationError> {
         let commitment = match (self.node(), response) {
             (InstanceNode::Simple(p), ComposedResponse::Simple(r)) => {
                 ComposedCommitment::Simple(p.simulate_commitment(challenge, r)?)
@@ -869,7 +869,7 @@ where
                     .iter()
                     .zip_eq(rs)
                     .map(|(p, r)| p.simulate_commitment(challenge, r))
-                    .collect::<VerificationResult<Vec<_>>>()?;
+                    .collect::<Result<Vec<_>, VerificationError>>()?;
                 ComposedCommitment::Branches(commitments)
             }
             (
@@ -885,7 +885,7 @@ where
                     .zip_eq(&challenges)
                     .zip_eq(rs)
                     .map(|((p, ch), r)| p.simulate_commitment(ch, r))
-                    .collect::<VerificationResult<Vec<_>>>()?;
+                    .collect::<Result<Vec<_>, VerificationError>>()?;
                 ComposedCommitment::Branches(commitments)
             }
             (InstanceNode::Claim(pairs), ComposedResponse::Claim) => {
@@ -933,7 +933,7 @@ where
     fn simulate_transcript(
         &self,
         rng: &mut PrivateRng<impl DuplexSpongeInit<U = u8>>,
-    ) -> VerificationResult<(Self::Commitment, Self::Challenge, Self::Response)> {
+    ) -> Result<(Self::Commitment, Self::Challenge, Self::Response), VerificationError> {
         match self.node() {
             InstanceNode::Simple(p) => {
                 let (c, ch, r) = p.simulate_transcript(rng)?;

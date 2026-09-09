@@ -76,7 +76,7 @@ use crate::codec::{
     deserialize_elements, deserialize_scalars, serialize_elements_allowing_identity,
     serialize_scalars, GroupCodec, ScalarCodec,
 };
-use crate::errors::{InvalidWitness, VerificationError, VerificationResult};
+use crate::errors::{InvalidWitness, VerificationError};
 use crate::linear_relation::Instance;
 use crate::traits::{SigmaProtocol, SigmaProtocolSimulator};
 use crate::{MultiScalarMul, StdHash};
@@ -133,13 +133,13 @@ pub trait NargCodec: SigmaProtocol {
     fn deserialize_commitment(
         &self,
         reader: &mut NargReader<'_>,
-    ) -> VerificationResult<Self::Commitment>;
+    ) -> Result<Self::Commitment, VerificationError>;
 
     /// Deserialization function for the response message.
     fn deserialize_response(
         &self,
         reader: &mut NargReader<'_>,
-    ) -> VerificationResult<Self::Response>;
+    ) -> Result<Self::Response, VerificationError>;
 }
 
 /// Squeezing a challenge, stated once for both sides of the transcript.
@@ -181,14 +181,17 @@ where
         serialize_scalars(response)
     }
 
-    fn deserialize_commitment(&self, reader: &mut NargReader<'_>) -> VerificationResult<Vec<G>> {
+    fn deserialize_commitment(
+        &self,
+        reader: &mut NargReader<'_>,
+    ) -> Result<Vec<G>, VerificationError> {
         deserialize_elements(reader, self.num_equations())
     }
 
     fn deserialize_response(
         &self,
         reader: &mut NargReader<'_>,
-    ) -> VerificationResult<Vec<G::Scalar>> {
+    ) -> Result<Vec<G::Scalar>, VerificationError> {
         deserialize_scalars(reader, self.num_scalars())
     }
 }
@@ -292,7 +295,11 @@ where
 /// check. Parsing walks the relation in lockstep with the buffer: the
 /// verifier knows the shape, and nothing shape-related is read from the
 /// untrusted bytes.
-pub fn verify_batchable<P>(tag: &[u8], instance: &P, narg_string: &[u8]) -> VerificationResult<()>
+pub fn verify_batchable<P>(
+    tag: &[u8],
+    instance: &P,
+    narg_string: &[u8],
+) -> Result<(), VerificationError>
 where
     P: NargCodec,
     P::Challenge: ScalarCodec,
@@ -307,7 +314,7 @@ pub fn verify_batchable_with<H, P>(
     session_id: &SessionId,
     instance: &P,
     narg_string: &[u8],
-) -> VerificationResult<()>
+) -> Result<(), VerificationError>
 where
     H: DuplexSpongeInit<U = u8>,
     P: NargCodec,
@@ -390,7 +397,11 @@ where
 
 /// Verifies a compact NARG string with [`StdHash`], deriving its session
 /// identifier from `tag`.
-pub fn verify_compact<P>(tag: &[u8], instance: &P, narg_string: &[u8]) -> VerificationResult<()>
+pub fn verify_compact<P>(
+    tag: &[u8],
+    instance: &P,
+    narg_string: &[u8],
+) -> Result<(), VerificationError>
 where
     P: NargCodec + SigmaProtocolSimulator,
     P::Challenge: ScalarCodec,
@@ -408,7 +419,7 @@ pub fn verify_compact_with<H, P>(
     session_id: &SessionId,
     instance: &P,
     narg_string: &[u8],
-) -> VerificationResult<()>
+) -> Result<(), VerificationError>
 where
     H: DuplexSpongeInit<U = u8>,
     P: NargCodec + SigmaProtocolSimulator,

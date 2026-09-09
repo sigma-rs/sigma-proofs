@@ -21,7 +21,7 @@ use alloc::vec::Vec;
 
 use ff::PrimeField;
 use group::prime::PrimeGroup;
-use spongefish::{NargReader, VerificationError, VerificationResult};
+use spongefish::{NargReader, VerificationError};
 
 /// Canonical byte codec for group elements.
 ///
@@ -36,13 +36,13 @@ pub trait GroupCodec: PrimeGroup {
     }
 
     /// Appends the canonical encoding of `self` to `out`.
-    fn serialize_element(&self, out: &mut Vec<u8>) -> VerificationResult<()> {
+    fn serialize_element(&self, out: &mut Vec<u8>) -> Result<(), VerificationError> {
         self.serialize_element_allowing_identity(out);
         Ok(())
     }
 
     /// Reads one element from the front of `reader`.
-    fn deserialize_element(reader: &mut NargReader<'_>) -> VerificationResult<Self> {
+    fn deserialize_element(reader: &mut NargReader<'_>) -> Result<Self, VerificationError> {
         Self::deserialize_element_allowing_identity(reader)
     }
 
@@ -54,10 +54,11 @@ pub trait GroupCodec: PrimeGroup {
     /// Primitive used by curves that need a ciphersuite-specific decoder.
     fn deserialize_element_allowing_identity(
         reader: &mut NargReader<'_>,
-    ) -> VerificationResult<Self> {
+    ) -> Result<Self, VerificationError> {
         let mut repr = <Self as group::GroupEncoding>::Repr::default();
         let len = repr.as_ref().len();
-        repr.as_mut().copy_from_slice(reader.take(len)?);
+        repr.as_mut()
+            .copy_from_slice(reader.take(len).ok_or(VerificationError)?);
         Option::<Self>::from(Self::from_bytes(&repr)).ok_or(VerificationError)
     }
 
@@ -65,7 +66,7 @@ pub trait GroupCodec: PrimeGroup {
     ///
     /// Equivalent to [`serialize_element`][GroupCodec::serialize_element] in a
     /// loop, and required to produce identical bytes.
-    fn serialize_elements(elements: &[Self], out: &mut Vec<u8>) -> VerificationResult<()> {
+    fn serialize_elements(elements: &[Self], out: &mut Vec<u8>) -> Result<(), VerificationError> {
         Self::serialize_elements_allowing_identity(elements, out);
         Ok(())
     }
@@ -174,9 +175,9 @@ macro_rules! sec1_deserialize {
     () => {
         fn deserialize_element_allowing_identity(
             reader: &mut NargReader<'_>,
-        ) -> VerificationResult<Self> {
+        ) -> Result<Self, VerificationError> {
             let mut repr = <Self as group::GroupEncoding>::Repr::default();
-            let bytes = reader.take(Self::element_len())?;
+            let bytes = reader.take(Self::element_len()).ok_or(VerificationError)?;
             // `00` is the identity, which this method admits by contract;
             // `02` and `03` are the compressed-point tags. Everything
             // else, `05` included, is not an encoding this crate emits.
@@ -258,7 +259,7 @@ pub trait ScalarCodec: PrimeField + zeroize::Zeroize {
     fn serialize_scalar(&self, out: &mut Vec<u8>);
 
     /// Reads one canonical scalar from the front of `reader`.
-    fn deserialize_scalar(reader: &mut NargReader<'_>) -> VerificationResult<Self>;
+    fn deserialize_scalar(reader: &mut NargReader<'_>) -> Result<Self, VerificationError>;
 
     /// `DecodeField(buf, p, 1)`: little-endian wide reduction of
     /// [`challenge_len()`][ScalarCodec::challenge_len] uniform bytes.
@@ -297,7 +298,7 @@ impl<F: PrimeField + zeroize::Zeroize> ScalarCodec for F {
         serialize_scalar_le(self, repr_is_le::<F>(), out);
     }
 
-    fn deserialize_scalar(reader: &mut NargReader<'_>) -> VerificationResult<Self> {
+    fn deserialize_scalar(reader: &mut NargReader<'_>) -> Result<Self, VerificationError> {
         deserialize_scalar_le(reader, repr_is_le::<F>())
     }
 }
@@ -321,10 +322,11 @@ pub(crate) fn serialize_scalar_le<F: PrimeField>(scalar: &F, le: bool, out: &mut
 pub(crate) fn deserialize_scalar_le<F: PrimeField>(
     reader: &mut NargReader<'_>,
     le: bool,
-) -> VerificationResult<F> {
+) -> Result<F, VerificationError> {
     let mut repr = F::Repr::default();
     let len = repr.as_ref().len();
-    repr.as_mut().copy_from_slice(reader.take(len)?);
+    repr.as_mut()
+        .copy_from_slice(reader.take(len).ok_or(VerificationError)?);
     if le {
         repr.as_mut().reverse();
     }
@@ -365,7 +367,7 @@ pub(crate) fn serialize_scalars_into<F: ScalarCodec>(scalars: &[F], out: &mut Ve
 pub(crate) fn deserialize_elements<G: GroupCodec>(
     reader: &mut NargReader<'_>,
     n: usize,
-) -> VerificationResult<Vec<G>> {
+) -> Result<Vec<G>, VerificationError> {
     (0..n).map(|_| G::deserialize_element(reader)).collect()
 }
 
@@ -375,11 +377,7 @@ pub(crate) fn deserialize_elements<G: GroupCodec>(
 pub(crate) fn deserialize_scalars<F: ScalarCodec>(
     reader: &mut NargReader<'_>,
     n: usize,
-) -> VerificationResult<Vec<F>> {
-    let expected = n.checked_mul(F::scalar_len()).ok_or(VerificationError)?;
-    if reader.remaining_len() < expected {
-        return Err(VerificationError);
-    }
+) -> Result<Vec<F>, VerificationError> {
     let le = repr_is_le::<F>();
     (0..n).map(|_| deserialize_scalar_le(reader, le)).collect()
 }
