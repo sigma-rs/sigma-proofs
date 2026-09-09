@@ -33,7 +33,7 @@ fn relation_evaluation_requires_the_exact_witness_length() {
         assert!(relation.linear_map.evaluate(witness).is_err());
         assert!(relation.compute_image(witness).is_err());
     }
-    assert!(relation.image().is_err());
+    assert!(relation.compile().is_err());
 }
 
 #[test]
@@ -52,7 +52,7 @@ fn preassigned_images_are_checked_not_overwritten() {
     relation.allocate_eq_with(wrong_public_key, x * relation.generator());
 
     assert!(relation.compute_image(&witness).is_err());
-    assert_eq!(relation.image().unwrap(), vec![wrong_public_key]);
+    assert_eq!(relation.compile().unwrap().image(), &[wrong_public_key]);
 }
 
 #[test]
@@ -66,5 +66,5 @@ fn image_assignment_is_transactional() {
     assert!(relation
         .compute_image(&[Scalar::from(1u64), Scalar::from(2u64)])
         .is_err());
-    assert!(relation.image().is_err());
+    assert!(relation.compile().is_err());
 }

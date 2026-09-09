@@ -397,15 +397,6 @@ impl<G: PrimeGroup> LinearRelation<G> {
         Ok(instance)
     }
 
-    /// Returns the current group elements corresponding to the image variables.
-    // TODO: Should this return GroupMap?
-    pub fn image(&self) -> Result<Vec<G>, InvalidInstance> {
-        self.image
-            .iter()
-            .map(|&var| self.linear_map.group_elements.get(var))
-            .collect()
-    }
-
     /// Compile this relation into a validated [`Instance`] — the single gate
     /// through which provers and verifiers accept a statement.
     ///
