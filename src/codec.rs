@@ -398,7 +398,11 @@ pub(crate) fn repr_is_le<F: PrimeField>() -> bool {
     // Both operands come from the field type, never from a proof.
     let le = bytes.first() == Some(&1);
     assert!(
-        le != (bytes.last() == Some(&1)),
+        if le {
+            bytes.last() == Some(&0)
+        } else {
+            bytes.last() == Some(&1)
+        },
         "scalar representation is neither little- nor big-endian"
     );
     le
