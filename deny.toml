@@ -67,3 +67,10 @@ deny = [
 unknown-registry = "deny"
 unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+# Temporary, and the only git source in the tree: this draft tracks
+# `spongefish` at `mu/draft-v3`, which implements the same revision of
+# draft-irtf-cfrg-fiat-shamir that this crate targets and is not released
+# yet. Drop this entry, and the `git`/`branch` keys in `Cargo.toml`, once
+# there is a `spongefish` release to depend on -- a git dependency cannot be
+# published to crates.io, so this crate cannot be released before then either.
+allow-git = ["https://github.com/arkworks-rs/spongefish"]
