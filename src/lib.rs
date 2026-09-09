@@ -18,6 +18,7 @@
 #![doc(html_logo_url = "https://mmaker.github.io/sigma-rs/")]
 #![deny(unused_variables)]
 #![deny(unused_mut)]
+#![deny(clippy::indexing_slicing)]
 // Panic policy (docs/threat-model.md §2.1). The verifier must be total on
 // arbitrary byte strings, so the ways of aborting that carry no information
 // about *why* are banned outright. `assert!` and `unreachable!` remain
@@ -25,12 +26,10 @@
 // say which invariant, and to be reachable only from data the caller supplies,
 // never from a NARG string.
 //
-// `indexing_slicing` is deliberately not denied crate-wide: it would fire ~60
-// times inside the multi-scalar-multiplication and constant-time kernels,
-// where the bounds come from the loop structure and rewriting them as fallible
-// lookups obscures the arithmetic without proving anything. Those modules are
-// covered instead by the overflow-checked CI job and by the Kani harnesses.
-// It *is* denied on the modules that parse untrusted bytes, at their tops.
+// The MSM module opts out because its indexing bounds come from the loop
+// structure and rewriting them as fallible lookups obscures the arithmetic
+// without proving anything. It is covered instead by the overflow-checked CI
+// job and by the Kani harnesses.
 #![cfg_attr(
     not(test),
     deny(

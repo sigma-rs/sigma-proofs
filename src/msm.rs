@@ -1,3 +1,5 @@
+#![allow(clippy::indexing_slicing)]
+
 use alloc::vec::Vec;
 
 use group::Group;
