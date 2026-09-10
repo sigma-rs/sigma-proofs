@@ -88,7 +88,7 @@ sha2 = { workspace = true }
 spongefish = { version = "0.7", features = ["curve25519-dalek", "p256", "bls12_381", "std"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
-core_affinity2 = "0.15.4"
+core_affinity2 = "0.16.0"
 
 [[test]]
 name = "dudect"
