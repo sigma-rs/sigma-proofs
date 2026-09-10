@@ -36,25 +36,15 @@ pub trait GroupCodec: PrimeGroup {
     }
 
     /// Appends the canonical encoding of `self` to `out`.
-    fn serialize_element(&self, out: &mut Vec<u8>) -> Result<(), VerificationError> {
-        self.serialize_element_allowing_identity(out);
-        Ok(())
-    }
-
-    /// Reads one element from the front of `reader`.
-    fn deserialize_element(reader: &mut NargReader<'_>) -> Result<Self, VerificationError> {
-        Self::deserialize_element_allowing_identity(reader)
-    }
-
-    /// Infallible primitive used by the batched serialization path.
-    fn serialize_element_allowing_identity(&self, out: &mut Vec<u8>) {
+    fn serialize_element(&self, out: &mut Vec<u8>) {
         out.extend_from_slice(self.to_bytes().as_ref());
     }
 
-    /// Primitive used by curves that need a ciphersuite-specific decoder.
-    fn deserialize_element_allowing_identity(
-        reader: &mut NargReader<'_>,
-    ) -> Result<Self, VerificationError> {
+    /// Reads one element from the front of `reader`.
+    ///
+    /// Curves whose crate accepts more than one encoding of an element
+    /// override this to reject the extra forms.
+    fn deserialize_element(reader: &mut NargReader<'_>) -> Result<Self, VerificationError> {
         let mut repr = <Self as group::GroupEncoding>::Repr::default();
         let len = repr.as_ref().len();
         repr.as_mut()
@@ -65,24 +55,16 @@ pub trait GroupCodec: PrimeGroup {
     /// Appends the canonical encodings of `elements`, in order.
     ///
     /// Equivalent to [`serialize_element`][GroupCodec::serialize_element] in a
-    /// loop, and required to produce identical bytes.
-    fn serialize_elements(elements: &[Self], out: &mut Vec<u8>) -> Result<(), VerificationError> {
-        Self::serialize_elements_allowing_identity(elements, out);
-        Ok(())
-    }
-
-    /// Infallible primitive used by curves with a batched encoding path.
-    ///
-    /// This is the method a curve overrides, and the one both encoding paths
-    /// run through. Curves whose encoding is a projective-to-affine conversion
-    /// override it to amortize the field inversion across the whole slice.
-    /// That is the only reason it exists: on BLS12-381 G1 one compression is
-    /// an inversion (17.1 µs) and the batched form costs one inversion for the
-    /// slice, which is an order of magnitude on the instance label. Curves
-    /// whose encoding is already cheap keep the default loop.
-    fn serialize_elements_allowing_identity(elements: &[Self], out: &mut Vec<u8>) {
+    /// loop, and required to produce identical bytes. Curves whose encoding
+    /// is a projective-to-affine conversion override it to amortize the field
+    /// inversion across the whole slice. That is the only reason it exists:
+    /// on BLS12-381 G1 one compression is an inversion (17.1 µs) and the
+    /// batched form costs one inversion for the slice, which is an order of
+    /// magnitude on the instance label. Curves whose encoding is already
+    /// cheap keep the default loop.
+    fn serialize_elements(elements: &[Self], out: &mut Vec<u8>) {
         for element in elements {
-            element.serialize_element_allowing_identity(out);
+            element.serialize_element(out);
         }
     }
 }
@@ -117,7 +99,7 @@ mod bls12_381_impl {
     macro_rules! batched {
         ($proj:ty, $affine:ty) => {
             impl GroupCodec for $proj {
-                fn serialize_elements_allowing_identity(elements: &[Self], out: &mut Vec<u8>) {
+                fn serialize_elements(elements: &[Self], out: &mut Vec<u8>) {
                     let mut affine = vec![<$affine>::identity(); elements.len()];
                     Self::batch_normalize(elements, &mut affine);
                     for point in &affine {
@@ -134,10 +116,8 @@ mod bls12_381_impl {
 
 // The SEC1 curves. Two notes, one per overridden method.
 //
-// `serialize_elements_allowing_identity` is worth overriding for one of the
-// two, and the two curves differ because their crates do. `serialize_elements`
-// is not overridden by anyone: it delegates, so a curve gets its
-// batch form on both paths from the one override below.
+// `serialize_elements` is worth overriding for one of the two, and the two
+// curves differ because their crates do.
 //
 // k256 implements `group::Curve` with a
 // real batched normalization (one inversion for the slice), so it takes the
@@ -173,12 +153,10 @@ mod bls12_381_impl {
 #[cfg(any(feature = "k256", feature = "p256"))]
 macro_rules! sec1_deserialize {
     () => {
-        fn deserialize_element_allowing_identity(
-            reader: &mut NargReader<'_>,
-        ) -> Result<Self, VerificationError> {
+        fn deserialize_element(reader: &mut NargReader<'_>) -> Result<Self, VerificationError> {
             let mut repr = <Self as group::GroupEncoding>::Repr::default();
             let bytes = reader.take(Self::element_len()).ok_or(VerificationError)?;
-            // `00` is the identity, which this method admits by contract;
+            // `00` is the identity, which the codec admits;
             // `02` and `03` are the compressed-point tags. Everything
             // else, `05` included, is not an encoding this crate emits.
             // Matched through `first()` so that a zero-length element
@@ -199,7 +177,7 @@ macro_rules! sec1_deserialize {
 impl GroupCodec for k256::ProjectivePoint {
     sec1_deserialize!();
 
-    fn serialize_elements_allowing_identity(elements: &[Self], out: &mut Vec<u8>) {
+    fn serialize_elements(elements: &[Self], out: &mut Vec<u8>) {
         use alloc::vec;
         use group::{Curve, GroupEncoding};
 
@@ -336,13 +314,13 @@ pub(crate) fn deserialize_scalar_le<F: PrimeField>(
 /// Concatenates the encodings of `elements`.
 ///
 /// This is the prover's commitment and the batchable NARG's element run, so it
-/// goes through [`GroupCodec::serialize_elements_allowing_identity`] and gets
+/// goes through [`GroupCodec::serialize_elements`] and gets
 /// whatever batch form the curve has. Encodability is settled before the
 /// bytes are produced, by
 /// [`NargCodec::is_valid_commitment`][crate::fiat_shamir::NargCodec::is_valid_commitment].
-pub(crate) fn serialize_elements_allowing_identity<G: GroupCodec>(elements: &[G]) -> Vec<u8> {
+pub(crate) fn serialize_elements<G: GroupCodec>(elements: &[G]) -> Vec<u8> {
     let mut out = Vec::new();
-    G::serialize_elements_allowing_identity(elements, &mut out);
+    G::serialize_elements(elements, &mut out);
     out
 }
 
@@ -457,14 +435,11 @@ mod tests {
             let (slice, _) = points.split_at(n);
 
             let mut batched = Vec::new();
-            assert!(
-                G::serialize_elements(slice, &mut batched).is_ok(),
-                "n = {n}"
-            );
+            G::serialize_elements(slice, &mut batched);
 
             let mut looped = Vec::new();
             for point in slice {
-                assert!(point.serialize_element(&mut looped).is_ok(), "n = {n}");
+                point.serialize_element(&mut looped);
             }
 
             assert_eq!(batched, looped, "n = {n}");
@@ -483,7 +458,7 @@ mod tests {
             vec![point, G::identity(), point],
         ] {
             let mut encoded = Vec::new();
-            assert!(G::serialize_elements(&slice, &mut encoded).is_ok());
+            G::serialize_elements(&slice, &mut encoded);
 
             let mut reader = NargReader::new(&encoded);
             let decoded = (0..slice.len())
@@ -494,10 +469,10 @@ mod tests {
         }
     }
 
-    /// The identity-admitting form is the one the curves override, so its
-    /// batched projective-to-affine conversion is the one that now meets
-    /// identity points — on the claim rows of a composed commitment, where the
-    /// identity is legal, and on any slice reaching it before
+    /// The batched form is the one the curves override, so its
+    /// projective-to-affine conversion is the one that meets identity points:
+    /// on the claim rows of a composed commitment, where the identity is
+    /// legal, and on any slice reaching it before
     /// [`NargCodec::is_valid_commitment`][crate::fiat_shamir::NargCodec::is_valid_commitment]
     /// has ruled. A `batch_normalize` that mishandled a zero `z` would encode
     /// those rows differently from the element-wise form, and silently.
@@ -511,11 +486,11 @@ mod tests {
             vec![G::identity(), G::identity()],
         ] {
             let mut batched = Vec::new();
-            G::serialize_elements_allowing_identity(&slice, &mut batched);
+            G::serialize_elements(&slice, &mut batched);
 
             let mut looped = Vec::new();
             for point in &slice {
-                point.serialize_element_allowing_identity(&mut looped);
+                point.serialize_element(&mut looped);
             }
 
             assert_eq!(batched, looped);

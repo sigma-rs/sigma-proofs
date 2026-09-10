@@ -77,7 +77,7 @@ impl<F: ScalarCodec> Decoding<[u8]> for Challenge<F> {
 impl<G: GroupCodec, const N: usize> Encoding<[u8]> for RoundMessage<G, N> {
     fn encode(&self) -> impl AsRef<[u8]> {
         let mut out = Vec::new();
-        G::serialize_elements_allowing_identity(&self.0, &mut out);
+        G::serialize_elements(&self.0, &mut out);
         out
     }
 }

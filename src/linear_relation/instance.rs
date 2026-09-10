@@ -527,7 +527,7 @@ where
                 serialize_scalar_le(coeff, le, &mut out);
             }
         }
-        G::serialize_elements_allowing_identity(self.elements(), &mut out);
+        G::serialize_elements(self.elements(), &mut out);
         out
     }
 

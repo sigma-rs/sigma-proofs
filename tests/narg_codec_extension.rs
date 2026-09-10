@@ -67,7 +67,7 @@ impl NargCodec for RetryCodec {
 
     fn serialize_commitment(&self, commitment: &Self::Commitment) -> Vec<u8> {
         let mut out = Vec::new();
-        commitment.serialize_element_allowing_identity(&mut out);
+        commitment.serialize_element(&mut out);
         out
     }
 

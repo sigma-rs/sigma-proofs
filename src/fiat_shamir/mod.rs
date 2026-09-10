@@ -73,8 +73,8 @@
 //! verifies only under the tag it was produced for.
 
 use crate::codec::{
-    deserialize_elements, deserialize_scalars, serialize_elements_allowing_identity,
-    serialize_scalars, GroupCodec, ScalarCodec,
+    deserialize_elements, deserialize_scalars, serialize_elements, serialize_scalars, GroupCodec,
+    ScalarCodec,
 };
 use crate::errors::{InvalidWitness, VerificationError};
 use crate::linear_relation::Instance;
@@ -174,7 +174,7 @@ where
     }
 
     fn serialize_commitment(&self, commitment: &Vec<G>) -> Vec<u8> {
-        serialize_elements_allowing_identity(commitment)
+        serialize_elements(commitment)
     }
 
     fn serialize_response(&self, response: &Vec<G::Scalar>) -> Vec<u8> {

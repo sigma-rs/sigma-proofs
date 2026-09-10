@@ -58,14 +58,14 @@ where
     fn serialize_commitment_tree(commitment: &ComposedCommitment<G>, out: &mut Vec<u8>) {
         match commitment {
             ComposedCommitment::Simple(elems) => {
-                G::serialize_elements_allowing_identity(elems, out);
+                G::serialize_elements(elems, out);
             }
             ComposedCommitment::Branches(cs) => {
                 for c in cs {
                     Self::serialize_commitment_tree(c, out);
                 }
             }
-            ComposedCommitment::Claim(elem) => elem.serialize_element_allowing_identity(out),
+            ComposedCommitment::Claim(elem) => elem.serialize_element(out),
         }
     }
 
