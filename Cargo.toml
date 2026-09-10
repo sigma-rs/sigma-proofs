@@ -78,7 +78,7 @@ hex = "0.4"
 hex-literal = { workspace = true }
 k256 = { workspace = true, features = ["arithmetic"] }
 p256 = { workspace = true, features = ["arithmetic"] }
-rand = "0.8.5"
+rand = "0.10.0"
 rand_chacha = { version = "0.3.1" }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
