@@ -208,6 +208,10 @@ impl GroupCodec for p256::ProjectivePoint {
 /// The wire encoding is big-endian `I2OSP` (see the [module docs][self]);
 /// deserialization rejects values outside the canonical range `[0, p)`.
 ///
+/// The scalar's `PrimeField` representation must encode its canonical integer
+/// as fixed-width little- or big-endian bytes. This is an additional assumption
+/// beyond `PrimeField`, checked for the scalar types supported by this crate.
+///
 /// # Zeroize
 ///
 /// The [`Zeroize`][zeroize::Zeroize] bound is what lets the prover wipe the
@@ -363,23 +367,27 @@ pub(crate) fn deserialize_scalars<F: ScalarCodec>(
 /// Whether the field's canonical representation is little-endian, probed by
 /// encoding `1`.
 ///
-/// Assumes the representation is a plain little- or big-endian fixed-width
-/// integer encoding, which holds for every `PrimeField` implementation in the
-/// `group` ecosystem.
+/// Requires a plain little- or big-endian fixed-width encoding of the canonical
+/// integer, as used by the supported scalar types. `PrimeField` alone does not
+/// guarantee this layout: checking `1` is only a sanity check, not a proof that
+/// every value uses it. Tests cover byte and limb boundaries for supported types.
+///
+/// Panics if the encoding of `1` does not match either expected layout.
 pub(crate) fn repr_is_le<F: PrimeField>() -> bool {
-    let repr = F::ONE.to_repr();
-    let bytes = repr.as_ref();
-    // `first`/`last` rather than indexing: an empty representation would
-    // otherwise underflow `len() - 1` before the assertion could report it.
-    // Both operands come from the field type, never from a proof.
+    one_repr_is_le(F::ONE.to_repr().as_ref())
+}
+
+fn one_repr_is_le(bytes: &[u8]) -> bool {
+    // These bytes come from the field type, never from a proof. Iterators avoid
+    // indexing an empty representation; for a single byte, both orders agree.
     let le = bytes.first() == Some(&1);
     assert!(
         if le {
-            bytes.last() == Some(&0)
+            bytes.iter().skip(1).all(|&byte| byte == 0)
         } else {
-            bytes.last() == Some(&1)
+            bytes.last() == Some(&1) && bytes.iter().rev().skip(1).all(|&byte| byte == 0)
         },
-        "scalar representation is neither little- nor big-endian"
+        "scalar representation is inconclusive"
     );
     le
 }
@@ -404,6 +412,30 @@ fn wide_reduce<F: PrimeField>(bytes: &[u8]) -> F {
     acc
 }
 
+#[cfg(test)]
+mod repr_tests {
+    use super::one_repr_is_le;
+
+    #[test]
+    fn recognizes_integer_one() {
+        assert!(one_repr_is_le(&[1]));
+        assert!(one_repr_is_le(&[1, 0, 0]));
+        assert!(!one_repr_is_le(&[0, 0, 1]));
+    }
+
+    #[test]
+    #[should_panic(expected = "scalar representation is inconclusive")]
+    fn rejects_nonzero_little_endian_padding() {
+        one_repr_is_le(&[1, 42, 0]);
+    }
+
+    #[test]
+    #[should_panic(expected = "scalar representation is inconclusive")]
+    fn rejects_nonzero_big_endian_padding() {
+        one_repr_is_le(&[0, 42, 1]);
+    }
+}
+
 // Without a curve feature there is no `GroupCodec` implementor to test.
 #[cfg(all(
     test,
@@ -415,9 +447,36 @@ fn wide_reduce<F: PrimeField>(bytes: &[u8]) -> F {
     )
 ))]
 mod tests {
-    use super::GroupCodec;
+    use super::{repr_is_le, GroupCodec};
     use alloc::{vec, vec::Vec};
+    use ff::PrimeField;
     use spongefish::NargReader;
+
+    fn scalar_integer_encoding<F: PrimeField>(le: bool) {
+        assert_eq!(repr_is_le::<F>(), le);
+        // A byte boundary and distinct bytes spanning multiple limbs.
+        for value in [0, 1, 256, 0x1020_3040_5060_7080_90a0_b0c0_d0e0_f001u128] {
+            let mut repr = F::from_u128(value).to_repr();
+            if !le {
+                repr.as_mut().reverse();
+            }
+            let mut expected = value.to_le_bytes().to_vec();
+            expected.resize(repr.as_ref().len(), 0);
+            assert_eq!(repr.as_ref(), expected);
+        }
+    }
+
+    #[test]
+    fn supported_scalar_representations() {
+        #[cfg(feature = "curve25519-dalek")]
+        scalar_integer_encoding::<curve25519_dalek::Scalar>(true);
+        #[cfg(feature = "bls12_381")]
+        scalar_integer_encoding::<bls12_381::Scalar>(true);
+        #[cfg(feature = "k256")]
+        scalar_integer_encoding::<k256::Scalar>(false);
+        #[cfg(feature = "p256")]
+        scalar_integer_encoding::<p256::Scalar>(false);
+    }
 
     /// [`GroupCodec::serialize_elements`] is documented to produce exactly what
     /// [`GroupCodec::serialize_element`] in a loop produces, and the curves

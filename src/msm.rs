@@ -16,8 +16,9 @@ use crate::codec::repr_is_le;
 /// result = Σ (scalar[i] * point[i])
 /// ```
 ///
-/// Both methods have generic defaults that work for any [`Group`], so a group
-/// opts in with an empty impl:
+/// Both methods have generic defaults for groups whose scalar `PrimeField`
+/// representation encodes the canonical integer as fixed-width little- or
+/// big-endian bytes. Such a group opts in with an empty impl:
 ///
 /// ```text
 /// impl MultiScalarMul for MyGroup {}
