@@ -4,9 +4,13 @@ on:
   push:
     paths:
       - 'tests/spec/testdata/sigma-proofs_*.json'
+      - 'tests/spec/testdata/sigma-proofs-invalid_*.json'
+      - '.github/workflows/test-vectors.yml'
   pull_request:
     paths:
       - 'tests/spec/testdata/sigma-proofs_*.json'
+      - 'tests/spec/testdata/sigma-proofs-invalid_*.json'
+      - '.github/workflows/test-vectors.yml'
   workflow_dispatch:
   schedule:
     - cron: '0 0 * * 0'
