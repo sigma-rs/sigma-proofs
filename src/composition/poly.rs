@@ -11,7 +11,7 @@ pub(super) fn threshold_x<F: PrimeField>(index: usize) -> F {
     F::from((index + 1) as u64)
 }
 
-/// Multiply a polynomial by a constant
+/// Multiply a polynomial by `x + constant`.
 ///
 /// # Panics
 ///
@@ -20,7 +20,7 @@ pub(super) fn threshold_x<F: PrimeField>(index: usize) -> F {
 /// that without indexing, but the two sequences differ in length by one on
 /// purpose, and a length mismatch is what `zip_eq` is here to reject.
 #[allow(clippy::indexing_slicing)]
-fn poly_mul_linear<F: Field>(coeffs: &[F], constant: F) -> Vec<F> {
+pub(super) fn poly_mul_linear<F: Field>(coeffs: &[F], constant: F) -> Vec<F> {
     let mut out = vec![F::ZERO; coeffs.len() + 1];
     for (i, coeff) in coeffs.iter().enumerate() {
         out[i] += *coeff * constant;
@@ -78,7 +78,7 @@ pub(super) fn expand_threshold_challenges<F: PrimeField>(
     challenge: F,
     compressed_challenges: &[F],
 ) -> Result<Vec<F>, VerificationError> {
-    if threshold == 0 || threshold > total {
+    if threshold > total {
         return Err(VerificationError);
     }
 
@@ -116,11 +116,12 @@ mod tests {
 
     /// The prover may expand the polynomial it already interpolated instead
     /// of re-interpolating the compressed wire representation.  Pin that
-    /// equivalence across constant and non-constant threshold polynomials.
+    /// equivalence across constant and non-constant threshold polynomials,
+    /// down to the zero threshold whose polynomial is free at every branch.
     #[test]
     fn direct_expansion_matches_wire_reconstruction() {
-        for total in 1..=12 {
-            for threshold in 1..=total {
+        for total in 0..=12 {
+            for threshold in 0..=total {
                 let degree = total - threshold;
                 let coeffs = (0..=degree)
                     .map(|i| Scalar::from((i as u64 + 1).pow(3)))

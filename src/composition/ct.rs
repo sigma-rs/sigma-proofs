@@ -374,7 +374,7 @@ mod verification {
     fn simulator_flag_count_is_fixed<const N: usize>() {
         let valid: [bool; N] = kani::any();
         let threshold: usize = kani::any();
-        kani::assume(threshold >= 1 && threshold <= N);
+        kani::assume(threshold <= N);
 
         let flags = simulator_flags(&choices(&valid), threshold);
 

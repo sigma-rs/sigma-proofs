@@ -25,7 +25,7 @@ mod protocol;
 ///
 /// Composition nodes are validated when they are constructed: an OR node
 /// contains at least one branch, a threshold node with `n` branches has a
-/// threshold in `1..=n`, and a claim node carries at least one term. An AND
+/// threshold in `0..=n`, and a claim node carries at least one term. An AND
 /// node may be empty: the empty conjunction is true, like the empty relation,
 /// and every branch of it is simulatable. The representation is private so
 /// those invariants also hold recursively and cannot be bypassed with an enum
@@ -71,15 +71,18 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedInstance<
 
     /// The threshold relation over the given relations.
     ///
-    /// For `n` branches, the threshold must be in `1..=n`.
+    /// For `n` branches, the threshold must be in `0..=n`. A threshold of
+    /// zero is trivially true, whatever the branches; its proofs simulate
+    /// every branch and transmit every branch challenge. In particular the
+    /// 0-of-0 threshold, like the empty AND, has an empty NARG string.
     pub fn threshold<T: Into<ComposedInstance<G>>>(
         threshold: usize,
         relations: impl IntoIterator<Item = T>,
     ) -> Result<Self, InvalidInstance> {
-        let branches = Self::nonempty_branches("threshold", relations)?;
-        if threshold == 0 || threshold > branches.len() {
+        let branches = relations.into_iter().map(Into::into).collect::<Vec<_>>();
+        if threshold > branches.len() {
             return Err(InvalidInstance::new(
-                "threshold must be between one and the number of branches",
+                "threshold must not exceed the number of branches",
             ));
         }
         Ok(Self(InstanceNode::Threshold(threshold, branches)))

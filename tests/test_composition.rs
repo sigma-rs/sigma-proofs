@@ -109,3 +109,31 @@ fn empty_and_is_trivially_true() {
         assert_proofs_verify(&relation, &witness);
     }
 }
+
+/// A threshold of zero is trivially true: it proves with no valid witness,
+/// alone and as a branch, and the 0-of-0 threshold has an empty NARG string.
+#[test]
+fn zero_threshold_is_trivially_true() {
+    let mut rng = ProverRng::from_os_entropy();
+    let (instance, witness) = discrete_logarithm::<G>(&mut rng);
+    let wrong = wrong_witness(witness.len(), &mut rng);
+
+    let empty = ComposedInstance::<G>::threshold(0, Vec::<ComposedInstance<G>>::new()).unwrap();
+    let empty_witness = ComposedWitness::<G>::threshold(Vec::<ComposedWitness<G>>::new());
+    assert!(prove_batchable(BATCH_TAG, &empty, &empty_witness)
+        .unwrap()
+        .is_empty());
+    assert_proofs_verify(&empty, &empty_witness);
+
+    let relation = ComposedInstance::threshold(0, [instance.clone(), instance.clone()]).unwrap();
+    let relation_witness = ComposedWitness::threshold([wrong.clone(), wrong.clone()]);
+    assert_proofs_verify(&relation, &relation_witness);
+
+    // Provable from either side of an OR: through the zero threshold with
+    // no witness at all, or through the leaf with the threshold simulated.
+    let relation = ComposedInstance::or([relation, instance.into()]).unwrap();
+    for leaf in [wrong, witness] {
+        let relation_witness = ComposedWitness::or([relation_witness.clone(), leaf.into()]);
+        assert_proofs_verify(&relation, &relation_witness);
+    }
+}

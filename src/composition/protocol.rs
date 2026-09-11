@@ -142,10 +142,10 @@ where
                 return Ok(ComposedResponse::And(responses));
             }
             InstanceNode::Or(ps) => (ps, ps.len().checked_sub(1).ok_or(VerificationError)?),
-            InstanceNode::Threshold(threshold, ps) => match *threshold {
-                0 => return Err(VerificationError),
-                t => (ps, ps.len().checked_sub(t).ok_or(VerificationError)?),
-            },
+            InstanceNode::Threshold(threshold, ps) => (
+                ps,
+                ps.len().checked_sub(*threshold).ok_or(VerificationError)?,
+            ),
         };
         let challenges = deserialize_scalars(reader, challenge_count)?;
         let responses = Self::deserialize_branch_responses(branches, reader)?;
@@ -235,9 +235,7 @@ where
     /// written: an OR shares additively, so the untransmitted last share is
     /// whatever the others leave over, and a threshold shares through the
     /// degree-`(n - t)` polynomial pinned at `P(0) = challenge`. Both reject a
-    /// share count the relation does not call for — which is the whole of what
-    /// the callers used to check for themselves, in two spellings that had
-    /// drifted (only one of them rejected a zero threshold).
+    /// share count the relation does not call for.
     ///
     /// Public data throughout: these are the transmitted shares.
     fn expand_shares(
@@ -313,7 +311,7 @@ where
                 InstanceNode::Threshold(threshold, instances),
                 ComposedWitness::Threshold(witnesses),
             ) => {
-                if *threshold == 0 || instances.len() != witnesses.len() {
+                if instances.len() != witnesses.len() {
                     return Choice::from(0);
                 }
                 let valid_witnesses = instances
@@ -543,7 +541,7 @@ where
     where
         G: ConditionallySelectable,
     {
-        if instances.len() != witnesses.len() || threshold == 0 || threshold > instances.len() {
+        if instances.len() != witnesses.len() || threshold > instances.len() {
             return Err(InvalidWitness);
         }
 
@@ -603,7 +601,7 @@ where
         prover_states: Vec<ComposedBranchProverState<G>>,
         challenge: &ComposedChallenge<G>,
     ) -> core::result::Result<ComposedResponse<G>, InvalidWitness> {
-        if threshold == 0 || threshold > instances.len() || instances.len() != prover_states.len() {
+        if threshold > instances.len() || instances.len() != prover_states.len() {
             return Err(InvalidWitness);
         }
         let degree = instances.len() - threshold;
@@ -920,7 +918,7 @@ where
                 ComposedResponse::Shares(challenges, Self::simulate_branch_responses(ps, rng))
             }
             InstanceNode::Threshold(threshold, ps) => {
-                if *threshold == 0 || *threshold > ps.len() {
+                if *threshold > ps.len() {
                     return ComposedResponse::Shares(Vec::new(), Vec::new());
                 }
 
@@ -974,7 +972,7 @@ where
                 ))
             }
             InstanceNode::Threshold(threshold, ps) => {
-                if *threshold == 0 || *threshold > ps.len() {
+                if *threshold > ps.len() {
                     return Err(VerificationError);
                 }
                 let shares = Self::sample_shares(ps.len() - *threshold, rng);

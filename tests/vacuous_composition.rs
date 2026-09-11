@@ -42,7 +42,6 @@ fn invalid_compositions_are_rejected_at_construction() {
 
     assert!(ComposedInstance::<G>::or(Vec::<ComposedInstance<G>>::new()).is_err());
     assert!(ComposedInstance::<G>::threshold(1, Vec::<ComposedInstance<G>>::new()).is_err());
-    assert!(ComposedInstance::threshold(0, [instance.clone()]).is_err());
     assert!(ComposedInstance::threshold(2, [instance]).is_err());
     // The empty sum is the identity, so an empty claim holds unconditionally.
     assert!(ComposedInstance::<G>::claim([]).is_err());
