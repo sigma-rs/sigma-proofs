@@ -415,16 +415,14 @@ impl<G: PrimeGroup> LinearRelation<G> {
     /// before validation — deterministically, so a prover and a verifier
     /// building the same relation serialize the same instance:
     ///
-    /// - A term-free (constant) equation is a public claim, not a
-    ///   sigma-protocol statement: it is evaluated here. A true one is
-    ///   stripped; a false one fails compilation, since the statement is
-    ///   false.
-    /// - Group elements no longer used by any remaining equation are dropped
-    ///   and the indices are re-packed in allocation order (the identity and
-    ///   generator keep indices 0 and 1). A statement already satisfying the
-    ///   specification's checks is left byte-for-byte unchanged.
-    /// - If no equation remains, compilation produces the valid empty
-    ///   relation.
+    /// - Public equations with no witness terms are preserved, whether true
+    ///   or false. Falsity does not make an instance structurally invalid, and
+    ///   a false equation must remain simulatable inside OR/threshold proofs.
+    /// - Unused group elements are dropped and indices are re-packed in
+    ///   allocation order (the identity and generator keep indices 0 and 1).
+    ///   A statement already satisfying the specification's checks is left
+    ///   byte-for-byte unchanged.
+    /// - A relation with no equations compiles to the valid empty instance.
     ///
     /// The result is checked by the specification's `ValidateInstance`;
     /// unassigned elements fail unless normalization dropped them.
@@ -462,31 +460,10 @@ impl<G: PrimeGroup> LinearRelation<G> {
                     ScalarTerm::Unit => image.push((element_index, -weighted.weight)),
                 }
             }
-            if terms.is_empty() {
-                // Constant equation: evaluate the public claim instead of
-                // shipping it (see the normalization notes above).
-                let (coeffs, points): (Vec<_>, Vec<_>) = image
-                    .iter()
-                    .map(|&(element_index, coeff)| {
-                        self.linear_map
-                            .group_elements
-                            .get(GroupVar(element_index as usize, PhantomData))
-                            .map(|element| (coeff, element))
-                    })
-                    .collect::<Result<Vec<_>, _>>()?
-                    .into_iter()
-                    .unzip();
-                if !bool::from(G::msm_vartime(&coeffs, &points).is_identity()) {
-                    return Err(InvalidInstance::new(
-                        "term-free equation does not hold: the statement is false",
-                    ));
-                }
-                continue;
-            }
             equations.push(instance::Equation { image, terms });
         }
 
-        // Drop elements no remaining equation uses, keeping allocation order.
+        // Drop elements no equation uses, keeping allocation order.
         let mut used = BTreeSet::new();
         used.insert(0u32);
         used.insert(1u32);

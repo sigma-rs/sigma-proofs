@@ -9,7 +9,9 @@ mod instance_validation {
     use curve25519_dalek::scalar::Scalar;
     use group::Group;
     use sigma_proofs::codec::ScalarCodec;
+    use sigma_proofs::composition::{ComposedInstance, ComposedWitness};
     use sigma_proofs::linear_relation::{Equation, Instance, LinearRelation};
+    use sigma_proofs::traits::{SigmaProtocol, SigmaProtocolSimulator};
     use sigma_proofs::{
         prove_batchable, prove_compact, verify_batchable, verify_compact, ProverRng,
     };
@@ -104,13 +106,16 @@ mod instance_validation {
         verify_compact(b"empty relation CMPT", &instance, &compact).unwrap();
 
         // An equation whose right-hand side carries no witness scalar is a
-        // public claim, evaluated at compilation. A true one is stripped and
-        // leaves the empty relation.
+        // public claim. Compilation preserves it, even when it is true.
         let mut relation = LinearRelation::<G>::new();
         let var_B = relation.allocate_element();
         let var_C = relation.allocate_eq(var_B * Scalar::from(1u64));
         relation.set_elements([(var_B, G::generator()), (var_C, G::generator())]);
-        assert_eq!(Instance::try_from(&relation).unwrap().num_equations(), 0);
+        let instance = Instance::try_from(&relation).unwrap();
+        assert_eq!(instance.num_equations(), 1);
+        assert_eq!(instance.num_scalars(), 0);
+        assert!(instance.equations()[0].terms.is_empty());
+        assert!(bool::from(instance.is_witness_valid(&[])));
     }
 
     #[test]
@@ -173,20 +178,25 @@ mod instance_validation {
         let C = B * pub_scalar + A * Scalar::from(3u64);
         let X = G::generator() * Scalar::from(4u64);
 
-        // Relations without witness scalars are all-constant equations,
-        // evaluated at compilation: these do not hold, so compilation fails
-        // (the statement is false), without any specification check number.
+        // False public equations are well-formed instances with no witness
+        // scalars, just like their true counterparts.
         let mut linear_relation = LinearRelation::<G>::new();
         let B_var = linear_relation.allocate_element();
         let C_var = linear_relation.allocate_eq(B_var);
         linear_relation.set_elements([(B_var, B), (C_var, C)]);
-        assert_eq!(linear_relation.compile().unwrap_err().check, None);
+        let instance = linear_relation.compile().unwrap();
+        assert_eq!(instance.num_equations(), 1);
+        assert_eq!(instance.num_scalars(), 0);
+        assert!(!bool::from(instance.is_witness_valid(&[])));
 
         let mut linear_relation = LinearRelation::<G>::new();
         let [B_var, A_var] = linear_relation.allocate_elements();
         let X_var = linear_relation.allocate_eq(B_var * pub_scalar + A_var * Scalar::from(3u64));
         linear_relation.set_elements([(B_var, B), (A_var, A), (X_var, X)]);
-        assert_eq!(linear_relation.compile().unwrap_err().check, None);
+        let instance = linear_relation.compile().unwrap();
+        assert_eq!(instance.num_equations(), 1);
+        assert_eq!(instance.num_scalars(), 0);
+        assert!(!bool::from(instance.is_witness_valid(&[])));
 
         // With a witness term present, constant terms are fine: they cross to
         // the image with their coefficient negated and every element stays
@@ -199,6 +209,90 @@ mod instance_validation {
             .allocate_eq(B_var * x_var + B_var * pub_scalar + A_var * Scalar::from(3u64));
         linear_relation.set_elements([(B_var, B), (A_var, A), (X_var, X)]);
         assert!(linear_relation.compile().is_ok());
+    }
+
+    #[test]
+    fn public_equations_preserve_truth_and_support_simulation() {
+        for holds in [false, true] {
+            let mut relation = LinearRelation::<G>::new();
+            let image = G::generator() * Scalar::from(if holds { 1u64 } else { 2u64 });
+            relation.allocate_eq_with(image, relation.generator());
+            let instance = relation.compile().unwrap();
+            assert_eq!(instance.num_equations(), 1);
+            assert_eq!(instance.num_scalars(), 0);
+            assert!(instance.equations()[0].terms.is_empty());
+            assert_eq!(bool::from(instance.is_witness_valid(&[])), holds);
+
+            let decoded = Instance::<G>::deserialize(&instance.serialize()).unwrap();
+            assert_eq!(decoded.serialize(), instance.serialize());
+            assert_eq!(decoded.equations(), instance.equations());
+            let batchable = prove_batchable(b"public equation DSFS", &instance, &[]).unwrap();
+            assert_eq!(
+                verify_batchable(b"public equation DSFS", &decoded, &batchable).is_ok(),
+                holds,
+            );
+            let compact = prove_compact(b"public equation CMPT", &instance, &[]).unwrap();
+            assert_eq!(
+                verify_compact(b"public equation CMPT", &decoded, &compact).is_ok(),
+                holds,
+            );
+
+            // A false relation still admits a simulated transcript for a
+            // chosen challenge, which is what OR and threshold branches need.
+            let challenge = Scalar::from(7u64);
+            let response = vec![];
+            let commitment = instance.simulate_commitment(&challenge, &response).unwrap();
+            instance
+                .verifier(&commitment, &challenge, &response)
+                .unwrap();
+        }
+    }
+
+    #[test]
+    fn false_public_equations_compose_with_true_branches() {
+        let mut public = LinearRelation::<G>::new();
+        public.allocate_eq_with(G::identity(), public.generator());
+        let public = public.compile().unwrap();
+        let secret = Scalar::from(42u64);
+        let mut dlog = LinearRelation::<G>::new();
+        let x = dlog.allocate_scalar();
+        dlog.allocate_eq_with(G::generator() * secret, x * dlog.generator());
+        let dlog = dlog.compile().unwrap();
+        let branches = [public, dlog];
+        let witnesses = [vec![], vec![secret]];
+        for (instance, witness, holds) in [
+            (
+                ComposedInstance::or(branches.clone()).unwrap(),
+                ComposedWitness::or(witnesses.clone()),
+                true,
+            ),
+            (
+                ComposedInstance::threshold(1, branches.clone()).unwrap(),
+                ComposedWitness::threshold(witnesses.clone()),
+                true,
+            ),
+            (
+                ComposedInstance::threshold(2, branches.clone()).unwrap(),
+                ComposedWitness::threshold(witnesses.clone()),
+                false,
+            ),
+            (
+                ComposedInstance::and(branches).unwrap(),
+                ComposedWitness::and(witnesses),
+                false,
+            ),
+        ] {
+            let batchable = prove_batchable(b"public branch DSFS", &instance, &witness).unwrap();
+            assert_eq!(
+                verify_batchable(b"public branch DSFS", &instance, &batchable).is_ok(),
+                holds
+            );
+            let compact = prove_compact(b"public branch CMPT", &instance, &witness).unwrap();
+            assert_eq!(
+                verify_compact(b"public branch CMPT", &instance, &compact).is_ok(),
+                holds
+            );
+        }
     }
 
     #[test]
