@@ -1,7 +1,53 @@
 use curve25519_dalek::{RistrettoPoint as G, Scalar};
 use group::Group;
 
-use sigma_proofs::LinearRelation;
+use sigma_proofs::{
+    linear_relation::{GroupVar, ScalarVar, Sum, Weighted},
+    LinearRelation,
+};
+
+#[test]
+fn iterator_sums_support_the_output_type_of_addition() {
+    // This is the inference rule used by sigma-compiler's sum_vec helper.
+    fn sum<T: core::ops::Add>(terms: impl IntoIterator<Item = T>) -> T::Output
+    where
+        T::Output: core::iter::Sum<T>,
+    {
+        terms.into_iter().sum()
+    }
+
+    fn assert_same_terms<T: PartialEq + core::fmt::Debug>(
+        actual: Sum<Weighted<T, Scalar>>,
+        expected: Sum<Weighted<T, Scalar>>,
+    ) {
+        for (actual, expected) in itertools::zip_eq(actual.terms(), expected.terms()) {
+            assert_eq!(actual.term, expected.term);
+            assert_eq!(actual.weight, expected.weight);
+        }
+    }
+
+    let mut relation = LinearRelation::<G>::new();
+    let [x, y] = relation.allocate_scalars();
+    let a = relation.generator();
+    let b = relation.allocate_element();
+    let two = Scalar::from(2u64);
+    let three = Scalar::from(3u64);
+
+    assert_same_terms(sum([x, y, x]), x + y + x);
+    assert_same_terms(sum([x * two, y * three]), x * two + y * three);
+    assert_same_terms(sum([a, b]), a + b);
+    assert_same_terms(sum([x * a, y * b]), x * a + y * b);
+    assert_same_terms(sum([a * two, b * three]), a * two + b * three);
+    assert_same_terms(
+        sum([x * a * two, y * b * three]),
+        x * a * two + y * b * three,
+    );
+
+    assert!(sum(core::iter::empty::<ScalarVar<G>>()).terms().is_empty());
+    assert!(sum(core::iter::empty::<GroupVar<G>>()).terms().is_empty());
+    let unchanged: Sum<ScalarVar<G>> = [x, y, x].into_iter().sum();
+    assert_eq!(unchanged.terms(), &[x, y, x]);
+}
 
 #[test]
 fn equation_with_value_has_the_same_wire_representation() {

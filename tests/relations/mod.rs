@@ -2,7 +2,7 @@ use group::{ff::Field, prime::PrimeGroup, Group};
 
 use sigma_proofs::{
     codec::{GroupCodec, ScalarCodec},
-    linear_relation::{Instance, LinearRelation, Sum},
+    linear_relation::{Instance, LinearCombination, LinearRelation},
     DuplexSpongeInit, MultiScalarMul, PrivateRng,
 };
 
@@ -183,10 +183,10 @@ pub fn range_instance_generation<
         var_G * G::Scalar::from(range.start)
             + (0..bases.len())
                 .map(|i| (vars_b[i] * var_G) * G::Scalar::from(bases[i]))
-                .sum::<Sum<_>>()
+                .sum::<LinearCombination<G>>()
             + (0..bases.len())
                 .map(|i| (vars_s[i] * var_H) * G::Scalar::from(bases[i]))
-                .sum::<Sum<_>>(),
+                .sum::<LinearCombination<G>>(),
     );
     // `var_Ds[i]` are bit commitments.
     for i in 0..bases.len() {

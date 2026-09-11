@@ -33,7 +33,7 @@ use sigma_proofs::{
     codec::ScalarCodec,
     composition::{ComposedInstance, ComposedWitness},
     derive_session_id,
-    linear_relation::{Instance, Sum},
+    linear_relation::{Instance, LinearCombination},
     prove_compact_with,
     traits::SigmaProtocolSimulator,
     DuplexSpongeInit, LinearRelation, NargCodec, PrivateRng, ProverRng, StdHash,
@@ -133,7 +133,7 @@ fn wide_relation<const WIDTH: usize>(
     rng: &mut PrivateRng<impl DuplexSpongeInit<U = u8>>,
 ) -> (Instance<G>, Vec<Scalar>) {
     let mut rel = LinearRelation::<G>::new();
-    let constraint: Sum<_> = (0..WIDTH)
+    let constraint: LinearCombination<G> = (0..WIDTH)
         .map(|_| rel.allocate_scalar() * rel.allocate_element_with(relations::random_elem(rng)))
         .sum();
     let _ = rel.allocate_eq(constraint);

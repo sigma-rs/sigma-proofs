@@ -11,7 +11,7 @@ use spongefish::{Narg, SessionId};
 
 use sigma_proofs::codec::{GroupCodec, ScalarCodec};
 use sigma_proofs::compressed::Compressed;
-use sigma_proofs::linear_relation::{Equation, Instance, Sum};
+use sigma_proofs::linear_relation::{Equation, Instance, LinearCombination};
 use sigma_proofs::{LinearRelation, ProverRng};
 
 type S = <G as Group>::Scalar;
@@ -32,7 +32,7 @@ fn relation(n: usize, equations: usize, rng: &mut ProverRng) -> (Instance<G>, Ve
     // is used and `num_scalars` is `n`.
     let per = n.div_ceil(equations);
     for chunk in scalars.chunks(per) {
-        let lc: Sum<_> = chunk
+        let lc: LinearCombination<G> = chunk
             .iter()
             .map(|x| {
                 let i = scalars.iter().position(|s| s == x).expect("allocated");

@@ -50,6 +50,8 @@ whole public API changed. This is a near-total rewrite tracking the current Fiat
 
 ### Fixed
 
+- Iterator summation accepts terms convertible to the target `Sum<T>` term type,
+  so a symbolic sum can use the same output type as addition.
 - Nested composition now proved incorrectly: `Or(Or(A, B), Or(C, D))` would fail to prove and only top-level or branches would work.
 - Threshold witness counting is now closer to constant-time.
 - `LinearRelation::compute_image` now returns an error for wrong-length or conflicting witnesses

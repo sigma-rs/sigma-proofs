@@ -71,12 +71,15 @@ impl<T> Sum<T> {
     }
 }
 
-impl<T> core::iter::Sum<T> for Sum<T> {
-    /// Sums an iterator of `T` into a `Sum<T>`.
+impl<T, U: Into<T>> core::iter::Sum<U> for Sum<T> {
+    /// Sums an iterator into a `Sum<T>`, converting each term in order.
+    ///
+    /// Specify the target term type when it cannot be inferred, for example
+    /// `sum::<LinearCombination<G>>()` for a relation's right-hand side.
     fn sum<I>(iter: I) -> Self
     where
-        I: Iterator<Item = T>,
+        I: Iterator<Item = U>,
     {
-        Self(iter.collect())
+        Self(iter.map(Into::into).collect())
     }
 }
