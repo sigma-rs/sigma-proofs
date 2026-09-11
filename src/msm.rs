@@ -86,27 +86,27 @@ pub fn straus_vartime<G: Group>(scalars: &[G::Scalar], bases: &[G]) -> G {
         .iter()
         .map(|scalar| {
             let mut repr = scalar.to_repr();
-            if le {
+            if !le {
                 repr.as_mut().reverse();
             }
             repr
         })
         .collect();
 
-    // Start at the most significant byte that any scalar actually uses, and
-    // build each table only as far as the largest window digit that occurs.
+    // Skip unused high bytes and build each table only as far as the largest
+    // window digit that occurs.
     // Instance coefficients are usually the literal 1, and paying 15 point
     // additions and 64 doublings for `base * 1` is what made `compile` slow.
     let len = scalar_bytes[0].as_ref().len();
-    let start = (0..len)
-        .find(|&i| scalar_bytes.iter().any(|b| b.as_ref()[i] != 0))
-        .unwrap_or(len);
+    let end = (0..len)
+        .rfind(|&i| scalar_bytes.iter().any(|b| b.as_ref()[i] != 0))
+        .map_or(0, |i| i + 1);
 
     let tables: Vec<Vec<G>> = bases
         .iter()
         .zip_eq(&scalar_bytes)
         .map(|(base, bytes)| {
-            let top = bytes.as_ref()[start..]
+            let top = bytes.as_ref()[..end]
                 .iter()
                 .map(|b| (b & 0x0f).max(b >> 4))
                 .max()
@@ -123,7 +123,7 @@ pub fn straus_vartime<G: Group>(scalars: &[G::Scalar], bases: &[G]) -> G {
         .collect();
 
     let mut acc = G::identity();
-    for i in start..len {
+    for i in (0..end).rev() {
         for shift in [4u8, 0u8] {
             for _ in 0..4 {
                 acc = acc.double();
@@ -361,7 +361,7 @@ mod tests {
     mod agreement {
         use crate::msm::{straus_ct, straus_vartime, MultiScalarMul};
         use alloc::{vec, vec::Vec};
-        use ff::Field;
+        use ff::{Field, PrimeField};
         use group::Group;
 
         fn naive<G: Group>(scalars: &[G::Scalar], bases: &[G]) -> G {
@@ -384,6 +384,13 @@ mod tests {
                 vec![one, G::Scalar::from(15)],
                 vec![one, G::Scalar::from(16)],
                 vec![G::Scalar::from(255), G::Scalar::from(256)],
+                // Unequal byte lengths, interior zeros, and a 64-bit limb boundary.
+                vec![
+                    G::Scalar::from(0x0102_0304_0506_0708),
+                    G::Scalar::ZERO,
+                    G::Scalar::from_u128((1u128 << 64) + 1),
+                ],
+                vec![G::Scalar::from_u128(1u128 << 120), G::Scalar::from(256)],
                 vec![one, -one, G::Scalar::random(&mut rng)],
                 (0..5).map(|_| G::Scalar::random(&mut rng)).collect(),
                 (0..17).map(|_| G::Scalar::random(&mut rng)).collect(),
