@@ -6,7 +6,7 @@ use curve25519_dalek::ristretto::RistrettoPoint as G;
 use group::Group;
 use sigma_proofs::composition::{ComposedInstance, ComposedWitness};
 use sigma_proofs::errors::InvalidWitness;
-use sigma_proofs::{prove_batchable, verify_batchable, ProverRng};
+use sigma_proofs::{prove_batchable, prove_compact, verify_batchable, verify_compact, ProverRng};
 
 #[allow(dead_code)]
 mod relations;
@@ -15,6 +15,7 @@ use relations::*;
 type Scalar = <G as Group>::Scalar;
 
 const TAG: &[u8] = b"prover totality tests DSFS";
+const COMPACT_TAG: &[u8] = b"prover totality tests CMPT";
 
 fn invalidate(mut witness: Vec<Scalar>) -> Vec<Scalar> {
     witness[0] += Scalar::from(1u64);
@@ -24,6 +25,9 @@ fn invalidate(mut witness: Vec<Scalar>) -> Vec<Scalar> {
 fn assert_never_verifies(relation: &ComposedInstance<G>, witness: &ComposedWitness<G>) {
     if let Ok(proof) = prove_batchable(TAG, relation, witness) {
         assert!(verify_batchable(TAG, relation, &proof).is_err());
+    }
+    if let Ok(proof) = prove_compact(COMPACT_TAG, relation, witness) {
+        assert!(verify_compact(COMPACT_TAG, relation, &proof).is_err());
     }
 }
 
@@ -51,6 +55,24 @@ fn a_threshold_short_of_its_quorum_never_verifies() {
 }
 
 #[test]
+fn empty_false_compositions_never_verify() {
+    let cases = [
+        (
+            ComposedInstance::<G>::or(Vec::<ComposedInstance<G>>::new()).unwrap(),
+            ComposedWitness::<G>::or(Vec::<ComposedWitness<G>>::new()),
+        ),
+        (
+            ComposedInstance::<G>::threshold(1, Vec::<ComposedInstance<G>>::new()).unwrap(),
+            ComposedWitness::<G>::threshold(Vec::<ComposedWitness<G>>::new()),
+        ),
+    ];
+
+    for (relation, witness) in cases {
+        assert_never_verifies(&relation, &witness);
+    }
+}
+
+#[test]
 fn a_mismatched_witness_tree_is_rejected() {
     let mut rng = ProverRng::from_os_entropy();
     let (relation, witness) = discrete_logarithm::<G>(&mut rng);
@@ -61,4 +83,22 @@ fn a_mismatched_witness_tree_is_rejected() {
         prove_batchable(TAG, &relation, &witness),
         Err(InvalidWitness)
     ));
+}
+
+#[test]
+fn ordinary_claim_rejects_empty_composition_witnesses() {
+    let relation = ComposedInstance::<G>::claim([(Scalar::from(0u64), G::generator())]).unwrap();
+    for witness in [
+        ComposedWitness::Or(Vec::new()),
+        ComposedWitness::Threshold(Vec::new()),
+    ] {
+        assert!(matches!(
+            prove_batchable(TAG, &relation, &witness),
+            Err(InvalidWitness)
+        ));
+        assert!(matches!(
+            prove_compact(COMPACT_TAG, &relation, &witness),
+            Err(InvalidWitness)
+        ));
+    }
 }

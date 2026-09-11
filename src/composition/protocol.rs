@@ -76,6 +76,9 @@ where
         &self,
         reader: &mut NargReader<'_>,
     ) -> Result<ComposedCommitment<G>, VerificationError> {
+        if self.is_trivially_false() {
+            return Ok(ComposedCommitment::Claim(G::deserialize_element(reader)?));
+        }
         let branches = match self.node() {
             InstanceNode::Simple(instance) => {
                 let elems = (0..instance.num_equations())
@@ -97,9 +100,9 @@ where
         ))
     }
 
-    /// Serializes a response by walking the message tree: OR nodes carry their
-    /// first `n - 1` challenge shares, threshold nodes their `n - threshold`
-    /// compressed shares, each via the scalar codec.
+    /// Serializes a response by walking the message tree: nondegenerate OR
+    /// nodes carry their first `n - 1` challenge shares, threshold nodes their
+    /// `n - threshold` compressed shares, each via the scalar codec.
     ///
     /// Total for the same reason
     /// [`serialize_commitment_tree`][Self::serialize_commitment_tree] is, and
@@ -127,6 +130,9 @@ where
         &self,
         reader: &mut NargReader<'_>,
     ) -> Result<ComposedResponse<G>, VerificationError> {
+        if self.is_trivially_false() {
+            return Ok(ComposedResponse::Claim);
+        }
         // As in `deserialize_commitment_tree`, the branch-carrying variants
         // share one walk. `AND` carries no challenge shares of its own; `OR`
         // and `THRESHOLD` differ only in how many they carry, and those come
@@ -208,6 +214,29 @@ where
     G: PrimeGroup + ConstantTimeEq + ConditionallySelectable + MultiScalarMul + GroupCodec,
     G::Scalar: ScalarCodec + ConditionallySelectable,
 {
+    /// Whether this is one of the accepted composition shapes whose formula
+    /// is false without inspecting a branch.
+    fn is_trivially_false(&self) -> bool {
+        match self.node() {
+            InstanceNode::Or(branches) => branches.is_empty(),
+            InstanceNode::Threshold(threshold, branches) => branches.is_empty() && *threshold > 0,
+            _ => false,
+        }
+    }
+
+    /// The verification equation used only for trivially false composition
+    /// nodes. It is the false public claim `generator == identity`, but the
+    /// instance itself remains encoded as its original OR or threshold node.
+    fn verify_trivially_false(
+        commitment: &G,
+        challenge: &ComposedChallenge<G>,
+    ) -> Result<(), VerificationError> {
+        match bool::from((*commitment + G::generator() * challenge).is_identity()) {
+            true => Ok(()),
+            false => Err(VerificationError),
+        }
+    }
+
     /// One simulated response per branch, in branch order — the walk every
     /// composite arm of the simulator starts from.
     fn simulate_branch_responses<H: DuplexSpongeInit<U = u8>>(
@@ -218,14 +247,6 @@ where
             .iter()
             .map(|branch| branch.simulate_response(&mut *rng))
             .collect()
-    }
-
-    /// The transmitted challenge shares of a simulated OR or threshold node.
-    fn sample_shares<H: DuplexSpongeInit<U = u8>>(
-        count: usize,
-        rng: &mut PrivateRng<H>,
-    ) -> Vec<ComposedChallenge<G>> {
-        (0..count).map(|_| G::Scalar::sample(rng)).collect()
     }
 
     /// The per-branch challenges of an OR or threshold node, recovered from
@@ -352,6 +373,21 @@ where
         witness: &ComposedWitness<G>,
         rng: &mut PrivateRng<impl DuplexSpongeInit<U = u8>>,
     ) -> core::result::Result<(ComposedCommitment<G>, ComposedProverState<G>), InvalidWitness> {
+        if self.is_trivially_false() {
+            let witness_matches = matches!(
+                (self.node(), witness),
+                (InstanceNode::Or(_), ComposedWitness::Or(witnesses))
+                    | (InstanceNode::Threshold(_, _), ComposedWitness::Threshold(witnesses))
+                    if witnesses.is_empty()
+            );
+            return match witness_matches {
+                true => Ok((
+                    ComposedCommitment::Claim(G::identity()),
+                    ComposedProverState::Claim,
+                )),
+                false => Err(InvalidWitness),
+            };
+        }
         match (self.node(), witness) {
             (InstanceNode::Simple(p), ComposedWitness::Simple(w)) => {
                 Self::prover_commit_simple(p, w, rng)
@@ -706,6 +742,12 @@ where
         state: Self::ProverState,
         challenge: &Self::Challenge,
     ) -> core::result::Result<Self::Response, InvalidWitness> {
+        if self.is_trivially_false() {
+            return match state {
+                ComposedProverState::Claim => Ok(ComposedResponse::Claim),
+                _ => Err(InvalidWitness),
+            };
+        }
         match (self.node(), state) {
             (InstanceNode::Simple(instance), ComposedProverState::Simple(state)) => {
                 Self::prover_response_simple(instance, state, challenge)
@@ -731,6 +773,14 @@ where
         challenge: &Self::Challenge,
         response: &Self::Response,
     ) -> Result<(), VerificationError> {
+        if self.is_trivially_false() {
+            return match (commitment, response) {
+                (ComposedCommitment::Claim(commitment), ComposedResponse::Claim) => {
+                    Self::verify_trivially_false(commitment, challenge)
+                }
+                _ => Err(VerificationError),
+            };
+        }
         match (self.node(), commitment, response) {
             (
                 InstanceNode::Simple(p),
@@ -861,6 +911,14 @@ where
         challenge: &Self::Challenge,
         response: &Self::Response,
     ) -> Result<Self::Commitment, VerificationError> {
+        if self.is_trivially_false() {
+            return match response {
+                ComposedResponse::Claim => {
+                    Ok(ComposedCommitment::Claim(-(G::generator() * challenge)))
+                }
+                _ => Err(VerificationError),
+            };
+        }
         let commitment = match (self.node(), response) {
             (InstanceNode::Simple(p), ComposedResponse::Simple(r)) => {
                 ComposedCommitment::Simple(p.simulate_commitment(challenge, r)?)
@@ -906,6 +964,9 @@ where
         &self,
         rng: &mut PrivateRng<impl DuplexSpongeInit<U = u8>>,
     ) -> Self::Response {
+        if self.is_trivially_false() {
+            return ComposedResponse::Claim;
+        }
         match self.node() {
             InstanceNode::Simple(p) => ComposedResponse::Simple(p.simulate_response(rng)),
             InstanceNode::And(ps) => {
@@ -938,62 +999,9 @@ where
         &self,
         rng: &mut PrivateRng<impl DuplexSpongeInit<U = u8>>,
     ) -> Result<(Self::Commitment, Self::Challenge, Self::Response), VerificationError> {
-        match self.node() {
-            InstanceNode::Simple(p) => {
-                let (c, ch, r) = p.simulate_transcript(rng)?;
-                Ok((
-                    ComposedCommitment::Simple(c),
-                    ch,
-                    ComposedResponse::Simple(r),
-                ))
-            }
-            // Each composite arm draws its own randomness and then hands the
-            // result to `simulate_commitment`, which solves every branch's
-            // verification row for its commitment.
-            InstanceNode::And(ps) => {
-                let challenge = G::Scalar::sample(rng);
-                let response = ComposedResponse::And(Self::simulate_branch_responses(ps, rng));
-                Ok((
-                    self.simulate_commitment(&challenge, &response)?,
-                    challenge,
-                    response,
-                ))
-            }
-            InstanceNode::Or(ps) => {
-                let share_count = ps.len().checked_sub(1).ok_or(VerificationError)?;
-                let shares = Self::sample_shares(share_count, rng);
-                let challenge = G::Scalar::sample(rng);
-                let response =
-                    ComposedResponse::Shares(shares, Self::simulate_branch_responses(ps, rng));
-                Ok((
-                    self.simulate_commitment(&challenge, &response)?,
-                    challenge,
-                    response,
-                ))
-            }
-            InstanceNode::Threshold(threshold, ps) => {
-                if *threshold > ps.len() {
-                    return Err(VerificationError);
-                }
-                let shares = Self::sample_shares(ps.len() - *threshold, rng);
-                let responses = Self::simulate_branch_responses(ps, rng);
-                let challenge = G::Scalar::sample(rng);
-                let response = ComposedResponse::Shares(shares, responses);
-                Ok((
-                    self.simulate_commitment(&challenge, &response)?,
-                    challenge,
-                    response,
-                ))
-            }
-            InstanceNode::Claim(_) => {
-                let challenge = G::Scalar::sample(rng);
-                let response = ComposedResponse::Claim;
-                Ok((
-                    self.simulate_commitment(&challenge, &response)?,
-                    challenge,
-                    response,
-                ))
-            }
-        }
+        let response = self.simulate_response(rng);
+        let challenge = G::Scalar::sample(rng);
+        let commitment = self.simulate_commitment(&challenge, &response)?;
+        Ok((commitment, challenge, response))
     }
 }

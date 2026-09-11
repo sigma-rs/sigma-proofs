@@ -43,6 +43,10 @@ whole public API changed. This is a near-total rewrite tracking the current Fiat
 - `ComposedInstance::and` accepts an empty branch list, and
   `ComposedInstance::threshold` a threshold of zero. Both are trivially true;
   the empty AND and the 0-of-0 threshold have empty NARG strings.
+- Empty ORs and positive thresholds over no branches are accepted as
+  trivially false statements. Their internal proof protocol remains
+  simulatable inside a larger composition without changing their instance
+  encoding.
 
 ### Fixed
 

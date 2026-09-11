@@ -2,6 +2,7 @@ use curve25519_dalek::ristretto::RistrettoPoint as G;
 use group::Group;
 use sigma_proofs::codec::ScalarCodec;
 use sigma_proofs::composition::{ComposedInstance, ComposedWitness};
+use sigma_proofs::traits::{SigmaProtocol, SigmaProtocolSimulator};
 use sigma_proofs::{prove_batchable, prove_compact, verify_batchable, verify_compact, ProverRng};
 
 #[allow(dead_code)]
@@ -125,6 +126,10 @@ fn zero_threshold_is_trivially_true() {
         .is_empty());
     assert_proofs_verify(&empty, &empty_witness);
 
+    let one_branch = ComposedInstance::threshold(0, [instance.clone()]).unwrap();
+    let one_branch_witness = ComposedWitness::threshold([wrong.clone()]);
+    assert_proofs_verify(&one_branch, &one_branch_witness);
+
     let relation = ComposedInstance::threshold(0, [instance.clone(), instance.clone()]).unwrap();
     let relation_witness = ComposedWitness::threshold([wrong.clone(), wrong.clone()]);
     assert_proofs_verify(&relation, &relation_witness);
@@ -135,5 +140,137 @@ fn zero_threshold_is_trivially_true() {
     for leaf in [wrong, witness] {
         let relation_witness = ComposedWitness::or([relation_witness.clone(), leaf.into()]);
         assert_proofs_verify(&relation, &relation_witness);
+    }
+}
+
+/// A positive threshold over no branches, and therefore an empty OR, is a
+/// false statement. It can still be simulated as a false branch of an OR.
+#[test]
+fn empty_false_compositions_are_supported() {
+    let mut rng = ProverRng::from_os_entropy();
+    let (instance, witness) = discrete_logarithm::<G>(&mut rng);
+
+    let false_threshold =
+        ComposedInstance::<G>::threshold(1, Vec::<ComposedInstance<G>>::new()).unwrap();
+    let false_threshold_witness = ComposedWitness::<G>::threshold(Vec::<ComposedWitness<G>>::new());
+    let batchable = prove_batchable(BATCH_TAG, &false_threshold, &false_threshold_witness).unwrap();
+    assert!(!batchable.is_empty());
+    assert!(verify_batchable(BATCH_TAG, &false_threshold, &batchable).is_err());
+    let compact = prove_compact(COMPACT_TAG, &false_threshold, &false_threshold_witness).unwrap();
+    assert!(!compact.is_empty());
+    assert!(verify_compact(COMPACT_TAG, &false_threshold, &compact).is_err());
+
+    let threshold_encoding = false_threshold.encode_instance().as_ref().to_vec();
+    assert!(threshold_encoding.starts_with(b"sigma-proofs composition THRESHOLD"));
+    let other_false_threshold =
+        ComposedInstance::<G>::threshold(2, Vec::<ComposedInstance<G>>::new()).unwrap();
+    assert_ne!(
+        threshold_encoding,
+        other_false_threshold.encode_instance().as_ref()
+    );
+
+    let relation = ComposedInstance::or([false_threshold, instance.clone().into()]).unwrap();
+    let relation_witness = ComposedWitness::or([false_threshold_witness, witness.clone().into()]);
+    assert_proofs_verify(&relation, &relation_witness);
+
+    let empty_or = ComposedInstance::<G>::or(Vec::<ComposedInstance<G>>::new()).unwrap();
+    let empty_or_encoding = empty_or.encode_instance().as_ref().to_vec();
+    assert!(empty_or_encoding.starts_with(b"sigma-proofs composition OR"));
+    assert_ne!(threshold_encoding, empty_or_encoding);
+    let relation = ComposedInstance::or([empty_or, instance.into()]).unwrap();
+    // The public enum variant and the convenience constructor must agree.
+    for empty_or_witness in [
+        ComposedWitness::<G>::or(Vec::<ComposedWitness<G>>::new()),
+        ComposedWitness::Or(Vec::new()),
+    ] {
+        let relation_witness = ComposedWitness::or([empty_or_witness, witness.clone().into()]);
+        assert_proofs_verify(&relation, &relation_witness);
+    }
+}
+
+#[test]
+fn proofs_bind_empty_false_statement_structure() {
+    let mut rng = ProverRng::from_os_entropy();
+    let (instance, witness) = discrete_logarithm::<G>(&mut rng);
+    let cases = [
+        (
+            ComposedInstance::<G>::or(Vec::<ComposedInstance<G>>::new()).unwrap(),
+            ComposedWitness::Or(Vec::new()),
+        ),
+        (
+            ComposedInstance::<G>::threshold(1, Vec::<ComposedInstance<G>>::new()).unwrap(),
+            ComposedWitness::Threshold(Vec::new()),
+        ),
+        (
+            ComposedInstance::<G>::threshold(2, Vec::<ComposedInstance<G>>::new()).unwrap(),
+            ComposedWitness::Threshold(Vec::new()),
+        ),
+        (
+            ComposedInstance::claim([(Scalar::from(1u64), G::generator())]).unwrap(),
+            ComposedWitness::Claim,
+        ),
+    ]
+    .map(|(branch, branch_witness)| {
+        (
+            ComposedInstance::or([branch, instance.clone().into()]).unwrap(),
+            ComposedWitness::or([branch_witness, witness.clone().into()]),
+        )
+    });
+
+    for (i, (relation, witness)) in cases.iter().enumerate() {
+        let batchable = prove_batchable(BATCH_TAG, relation, witness).unwrap();
+        let compact = prove_compact(COMPACT_TAG, relation, witness).unwrap();
+        for (j, (other, _)) in cases.iter().enumerate() {
+            assert_eq!(
+                verify_batchable(BATCH_TAG, other, &batchable).is_ok(),
+                i == j
+            );
+            assert_eq!(verify_compact(COMPACT_TAG, other, &compact).is_ok(), i == j);
+        }
+    }
+}
+
+#[test]
+fn empty_threshold_encoding_bounds() {
+    let boundary =
+        ComposedInstance::<G>::threshold(u32::MAX as usize, Vec::<ComposedInstance<G>>::new())
+            .unwrap();
+    assert!(boundary
+        .encode_instance()
+        .as_ref()
+        .starts_with(b"sigma-proofs composition THRESHOLD"));
+    #[cfg(target_pointer_width = "64")]
+    assert!(ComposedInstance::<G>::threshold(
+        u32::MAX as usize + 1,
+        Vec::<ComposedInstance<G>>::new()
+    )
+    .is_err());
+}
+
+#[test]
+fn simulated_transcripts_verify_for_every_node_shape() {
+    let mut rng = ProverRng::from_os_entropy();
+    let (instance, _) = discrete_logarithm::<G>(&mut rng);
+    let empty_or = ComposedInstance::<G>::or(Vec::<ComposedInstance<G>>::new()).unwrap();
+    let false_threshold =
+        ComposedInstance::<G>::threshold(2, Vec::<ComposedInstance<G>>::new()).unwrap();
+    let nodes = [
+        instance.clone().into(),
+        ComposedInstance::and([instance.clone()]).unwrap(),
+        ComposedInstance::<G>::and(Vec::<ComposedInstance<G>>::new()).unwrap(),
+        ComposedInstance::or([instance.clone()]).unwrap(),
+        empty_or.clone(),
+        ComposedInstance::threshold(0, [instance.clone()]).unwrap(),
+        ComposedInstance::<G>::threshold(0, Vec::<ComposedInstance<G>>::new()).unwrap(),
+        ComposedInstance::threshold(1, [instance.clone(), instance.clone()]).unwrap(),
+        false_threshold.clone(),
+        ComposedInstance::claim([(Scalar::from(0u64), G::generator())]).unwrap(),
+        ComposedInstance::claim([(Scalar::from(1u64), G::generator())]).unwrap(),
+        ComposedInstance::and([empty_or.clone(), false_threshold.clone()]).unwrap(),
+        ComposedInstance::threshold(1, [empty_or, false_threshold, instance.into()]).unwrap(),
+    ];
+    for node in nodes {
+        let (commitment, challenge, response) = node.simulate_transcript(&mut rng).unwrap();
+        node.verifier(&commitment, &challenge, &response).unwrap();
     }
 }

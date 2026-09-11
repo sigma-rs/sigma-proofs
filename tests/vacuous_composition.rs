@@ -36,12 +36,10 @@ fn short_witnesses_are_errors_not_panics() {
 }
 
 #[test]
-fn invalid_compositions_are_rejected_at_construction() {
+fn invalid_nonempty_compositions_are_rejected_at_construction() {
     let mut rng = ProverRng::from_os_entropy();
     let (instance, _) = discrete_logarithm::<G>(&mut rng);
 
-    assert!(ComposedInstance::<G>::or(Vec::<ComposedInstance<G>>::new()).is_err());
-    assert!(ComposedInstance::<G>::threshold(1, Vec::<ComposedInstance<G>>::new()).is_err());
     assert!(ComposedInstance::threshold(2, [instance]).is_err());
     // The empty sum is the identity, so an empty claim holds unconditionally.
     assert!(ComposedInstance::<G>::claim([]).is_err());

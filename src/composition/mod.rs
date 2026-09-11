@@ -23,13 +23,16 @@ mod protocol;
 /// A protocol proving knowledge of a witness for a composition of linear
 /// relations, generalizing [`Instance`] with AND/OR links.
 ///
-/// Composition nodes are validated when they are constructed: an OR node
-/// contains at least one branch, a threshold node with `n` branches has a
-/// threshold in `0..=n`, and a claim node carries at least one term. An AND
-/// node may be empty: the empty conjunction is true, like the empty relation,
-/// and every branch of it is simulatable. The representation is private so
-/// those invariants also hold recursively and cannot be bypassed with an enum
-/// variant constructor.
+/// A nonempty threshold node with `n` branches has a threshold in `0..=n`,
+/// and a claim node carries at least one term.
+///
+/// An AND node may be empty: the empty conjunction is true, like the empty relation.
+///
+/// Empty ORs and positive thresholds over no branches are false, but remain simulatable as
+/// branches of an enclosing composition.
+///
+/// The representation is private so those invariants also hold recursively and
+/// cannot be bypassed with an enum variant constructor.
 #[derive(Clone)]
 pub struct ComposedInstance<G: PrimeGroup>(InstanceNode<G>);
 
@@ -61,28 +64,36 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedInstance<
 
     /// The OR of the given relations.
     ///
-    /// Returns an error if the iterator is empty.
+    /// The empty OR is the trivially false statement. Its proof protocol is
+    /// still simulatable as a branch of an enclosing composition.
     pub fn or<T: Into<ComposedInstance<G>>>(
         relations: impl IntoIterator<Item = T>,
     ) -> Result<Self, InvalidInstance> {
-        let branches = Self::nonempty_branches("OR", relations)?;
+        let branches = relations.into_iter().map(Into::into).collect::<Vec<_>>();
         Ok(Self(InstanceNode::Or(branches)))
     }
 
     /// The threshold relation over the given relations.
     ///
-    /// For `n` branches, the threshold must be in `0..=n`. A threshold of
-    /// zero is trivially true, whatever the branches; its proofs simulate
+    /// For nonempty branches, the threshold must be in `0..=n`. A threshold
+    /// of zero is trivially true, whatever the branches; its proofs simulate
     /// every branch and transmit every branch challenge. In particular the
-    /// 0-of-0 threshold, like the empty AND, has an empty NARG string.
+    /// 0-of-0 threshold, like the empty AND, has an empty NARG string. A
+    /// positive threshold over no branches is trivially false, but its proof
+    /// protocol remains simulatable as a branch of an enclosing composition.
     pub fn threshold<T: Into<ComposedInstance<G>>>(
         threshold: usize,
         relations: impl IntoIterator<Item = T>,
     ) -> Result<Self, InvalidInstance> {
         let branches = relations.into_iter().map(Into::into).collect::<Vec<_>>();
-        if threshold > branches.len() {
+        if threshold > branches.len() && !branches.is_empty() {
             return Err(InvalidInstance::new(
                 "threshold must not exceed the number of branches",
+            ));
+        }
+        if u32::try_from(threshold).is_err() {
+            return Err(InvalidInstance::new(
+                "threshold must fit the instance encoding",
             ));
         }
         Ok(Self(InstanceNode::Threshold(threshold, branches)))
@@ -101,19 +112,6 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedInstance<
             ));
         }
         Ok(Self(InstanceNode::Claim(pairs)))
-    }
-
-    fn nonempty_branches<T: Into<ComposedInstance<G>>>(
-        kind: &str,
-        relations: impl IntoIterator<Item = T>,
-    ) -> Result<Vec<Self>, InvalidInstance> {
-        let branches = relations.into_iter().map(Into::into).collect::<Vec<_>>();
-        if branches.is_empty() {
-            return Err(InvalidInstance::new(alloc::format!(
-                "{kind} relation must have at least one branch"
-            )));
-        }
-        Ok(branches)
     }
 
     pub(super) fn node(&self) -> &InstanceNode<G> {
@@ -141,10 +139,12 @@ where
 
 /// The prover's commitment, shaped like the relation that produced it.
 ///
-/// AND, OR, and threshold nodes commit identically — one commitment per
-/// branch, in branch order — so they share a variant. Nothing reads the node
-/// kind off a commitment: the relation directs every walk over this tree, and
-/// carrying a tag would only create a disagreement that cannot arise.
+/// Nondegenerate AND, OR, and threshold nodes commit identically — one
+/// commitment per branch, in branch order — so they share a variant. Nothing
+/// reads the node kind off a commitment: the relation directs every walk over
+/// this tree, and carrying a tag would only create a disagreement that cannot
+/// arise. Trivially false composition nodes reuse `Claim`'s one-element proof
+/// shape internally, without changing their instance encoding.
 #[derive(Clone)]
 pub enum ComposedCommitment<G>
 where
@@ -154,6 +154,8 @@ where
     Simple(Vec<G>),
     /// One commitment per branch of an AND, OR, or threshold node.
     Branches(Vec<ComposedCommitment<G>>),
+    /// A public claim, or the internal commitment for a trivially false
+    /// composition node.
     Claim(G),
 }
 
@@ -192,6 +194,7 @@ where
     /// The branches of an OR or threshold node, which share out the challenge
     /// and so hold a simulated transcript beside the real one.
     Shares(Vec<ComposedBranchProverState<G>>),
+    /// A public claim, or a trivially false composition node.
     Claim,
 }
 
@@ -217,10 +220,10 @@ where
 
 /// The prover's response, shaped like the relation that produced it.
 ///
-/// OR and threshold nodes both transmit challenge shares ahead of their branch
-/// responses — `n - 1` of them for an OR, `n - t` for a threshold — and differ
-/// only in how many, which the relation says. An AND node transmits none, so
-/// it keeps a variant of its own rather than an always-empty share vector.
+/// OR and threshold nodes both transmit challenge shares as a part of their responses,
+/// `n - 1` of them for an OR, `n - t` for a threshold.
+///
+/// Trivially false composition nodes reuse `Claim`'s empty response internally.
 #[derive(Clone)]
 pub enum ComposedResponse<G>
 where
@@ -232,6 +235,7 @@ where
     /// The transmitted challenge shares of an OR or threshold node, then one
     /// response per branch.
     Shares(Vec<ComposedChallenge<G>>, Vec<ComposedResponse<G>>),
+    /// A public claim
     Claim,
 }
 
