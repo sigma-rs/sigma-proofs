@@ -5,8 +5,8 @@ use divan::Bencher;
 use group::Group;
 use sigma_proofs::linear_relation::LinearCombination;
 use sigma_proofs::{
-    derive_session_id, prove_batchable_with, verify_batchable_with, Instance, LinearRelation,
-    ProverRng, StdHash,
+    derive_session_id, prove_batchable_with, verify_batchable_with, DefaultHash, Instance,
+    LinearRelation, ProverRng,
 };
 
 const TERM_COUNTS: &[usize] = &[1, 4, 16, 64];
@@ -40,10 +40,10 @@ fn repeated_scalar_relation(terms: usize) -> (Instance<G>, [Scalar; 1]) {
 #[divan::bench(args = TERM_COUNTS)]
 fn prove_repeated_scalar(bencher: Bencher, terms: usize) {
     let (instance, witness) = repeated_scalar_relation(terms);
-    let session_id = derive_session_id::<StdHash>(TAG);
+    let session_id = derive_session_id::<DefaultHash>(TAG);
     let mut rng = ProverRng::from_seed([7u8; 32]);
     bencher.counter(terms).bench_local(|| {
-        prove_batchable_with::<StdHash, _>(
+        prove_batchable_with::<DefaultHash, _>(
             &session_id,
             black_box(&instance),
             black_box(&witness),
@@ -56,8 +56,8 @@ fn prove_repeated_scalar(bencher: Bencher, terms: usize) {
 #[divan::bench(args = TERM_COUNTS)]
 fn verify_repeated_scalar(bencher: Bencher, terms: usize) {
     let (instance, witness) = repeated_scalar_relation(terms);
-    let session_id = derive_session_id::<StdHash>(TAG);
-    let proof = prove_batchable_with::<StdHash, _>(
+    let session_id = derive_session_id::<DefaultHash>(TAG);
+    let proof = prove_batchable_with::<DefaultHash, _>(
         &session_id,
         &instance,
         &witness,
@@ -65,7 +65,7 @@ fn verify_repeated_scalar(bencher: Bencher, terms: usize) {
     )
     .unwrap();
     bencher.counter(terms).bench(|| {
-        verify_batchable_with::<StdHash, _>(
+        verify_batchable_with::<DefaultHash, _>(
             &session_id,
             black_box(&instance),
             black_box(proof.as_slice()),

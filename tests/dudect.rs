@@ -36,7 +36,7 @@ use sigma_proofs::{
     linear_relation::{Instance, LinearCombination},
     prove_compact_with,
     traits::SigmaProtocolSimulator,
-    DuplexSpongeInit, LinearRelation, NargCodec, PrivateRng, ProverRng, StdHash,
+    DefaultHash, DuplexSpongeInit, LinearRelation, NargCodec, PrivateRng, ProverRng,
 };
 
 use crate::stats::{ct_stats, CtSummary};
@@ -261,9 +261,9 @@ where
         ProverRng::from_os_entropy().fill_bytes(&mut seed);
         ProverRng::from_seed(seed)
     };
-    let session_id = derive_session_id::<StdHash>(b"sigma-proofs dudect test CMPT");
+    let session_id = derive_session_id::<DefaultHash>(b"sigma-proofs dudect test CMPT");
     let start = Instant::now();
-    let _ = black_box(prove_compact_with::<StdHash, _>(
+    let _ = black_box(prove_compact_with::<DefaultHash, _>(
         &session_id,
         &rel,
         std::borrow::Borrow::borrow(&wit),

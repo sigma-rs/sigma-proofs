@@ -62,13 +62,10 @@ pub use fiat_shamir::{
 };
 pub use linear_relation::{Instance, LinearRelation};
 pub use msm::MultiScalarMul;
-pub use spongefish::{DuplexSpongeInit, PrivateRng};
+pub use spongefish::{DefaultHash, DuplexSpongeInit, PrivateRng};
 
 /// The prover's random number generator.
 ///
 /// Seed from OS entropy via [`PrivateRng::from_os_entropy`] or a fixed seed
 /// [`PrivateRng::from_seed`] for tests.
 pub type ProverRng = PrivateRng;
-
-/// The default duplex sponge is TurboSHAKE128 (RFC 9861).
-pub type StdHash = spongefish::instantiations::TurboShake128;

@@ -6,8 +6,8 @@ use sigma_proofs::codec::{GroupCodec, ScalarCodec};
 use sigma_proofs::errors::{InvalidWitness, VerificationError};
 use sigma_proofs::traits::SigmaProtocol;
 use sigma_proofs::{
-    derive_session_id, prove_batchable_with, verify_batchable, DuplexSpongeInit, NargCodec,
-    PrivateRng, ProverRng, StdHash,
+    derive_session_id, prove_batchable_with, verify_batchable, DefaultHash, DuplexSpongeInit,
+    NargCodec, PrivateRng, ProverRng,
 };
 use spongefish::NargReader;
 
@@ -100,8 +100,9 @@ fn an_invalid_commitment_is_resampled_without_becoming_an_api_error() {
     };
     let mut rng = ProverRng::from_seed([7u8; 32]);
 
-    let session_id = derive_session_id::<StdHash>(TAG);
-    let proof = prove_batchable_with::<StdHash, _>(&session_id, &relation, &(), &mut rng).unwrap();
+    let session_id = derive_session_id::<DefaultHash>(TAG);
+    let proof =
+        prove_batchable_with::<DefaultHash, _>(&session_id, &relation, &(), &mut rng).unwrap();
 
     assert_eq!(relation.attempts.get(), 2);
     verify_batchable(TAG, &relation, &proof).unwrap();

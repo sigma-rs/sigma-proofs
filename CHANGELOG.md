@@ -9,11 +9,12 @@ whole public API changed. This is a near-total rewrite tracking the current Fiat
 
 ### Breaking
 
+- The default transcript hash is re-exported as `DefaultHash` from spongefish.
 - Ported to the new `spongefish` API. Group and scalar codecs live in the new `codec` module as extension traits.
 - Dependencies removed: `elliptic-curve`, `rand_core` (and the `rand` feature).
 - Proving and verification are free functions:
   `prove_batchable`, `prove_compact`, `verify_batchable`, `verify_compact`, `verify_batch`.
-  Each takes a tag, uses `StdHash`, and seeds the prover's randomness from OS
+  Each takes a tag, uses `DefaultHash`, and seeds the prover's randomness from OS
   entropy; each has a single `_with` counterpart taking the transcript sponge,
   an already-derived session identifier, and — for the provers — the randomness.
 - Session identifiers are deferred to the application-layer.

@@ -8,7 +8,7 @@
 //! use curve25519_dalek::{RistrettoPoint as G, Scalar};
 //! use group::Group;
 //! use sigma_proofs::compressed::Compressed;
-//! use sigma_proofs::{LinearRelation, StdHash};
+//! use sigma_proofs::{LinearRelation, DefaultHash};
 //! use spongefish::{derive_session_id, Narg};
 //!
 //! let witness = vec![Scalar::from(3u64), Scalar::from(5u64)];
@@ -18,7 +18,7 @@
 //! relation.allocate_eq(x * relation.generator() + y * h);
 //! let instance = relation.compile_with_witness(&witness).unwrap();
 //!
-//! let session_id = derive_session_id::<StdHash>(b"my-application compressed");
+//! let session_id = derive_session_id::<DefaultHash>(b"my-application compressed");
 //! let (narg_string, ()) =
 //!     Narg::prove_with_session_id::<Compressed<G>>(&session_id, &instance, &witness)
 //!         .unwrap();

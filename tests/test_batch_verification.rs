@@ -5,7 +5,7 @@ use bls12_381::G1Projective as G;
 use relations::*;
 use sigma_proofs::linear_relation::Instance;
 use sigma_proofs::{
-    derive_session_id, prove_batchable, verify_batch, verify_batchable, ProverRng, StdHash,
+    derive_session_id, prove_batchable, verify_batch, verify_batchable, DefaultHash, ProverRng,
 };
 
 const TAG: &[u8] = b"batch verification tests DSFS";
@@ -24,7 +24,7 @@ fn mixed_batch_verifies() {
         &pedersen_commitment,
         &nested_affine_relation,
     ];
-    let session_id = derive_session_id::<StdHash>(TAG);
+    let session_id = derive_session_id::<DefaultHash>(TAG);
     let proof_data = samplers
         .iter()
         .flat_map(|sample| {
@@ -47,7 +47,7 @@ fn mixed_batch_verifies() {
 fn batch_and_individual_verification_reject_the_same_tampering() {
     let mut rng = ProverRng::from_os_entropy();
     let (instance, witness): (Instance<G>, _) = dleq(&mut rng);
-    let session_id = derive_session_id::<StdHash>(TAG);
+    let session_id = derive_session_id::<DefaultHash>(TAG);
     let good = prove_batchable(TAG, &instance, &witness).unwrap();
     let mut tampered = good.clone();
     tampered[0] ^= 1;
@@ -66,8 +66,8 @@ fn batch_rejects_a_proof_with_the_wrong_session_or_instance() {
     let (instance, witness) = discrete_logarithm::<G>(&mut rng);
     let (other_instance, _) = discrete_logarithm::<G>(&mut rng);
     let proof = prove_batchable(TAG, &instance, &witness).unwrap();
-    let session_id = derive_session_id::<StdHash>(TAG);
-    let other_session_id = derive_session_id::<StdHash>(b"other batch verification tag DSFS");
+    let session_id = derive_session_id::<DefaultHash>(TAG);
+    let other_session_id = derive_session_id::<DefaultHash>(b"other batch verification tag DSFS");
 
     assert!(verify_batch(&[(&other_session_id, &instance, proof.as_slice())]).is_err());
     assert!(verify_batch(&[(&session_id, &other_instance, proof.as_slice())]).is_err());
@@ -77,7 +77,7 @@ fn batch_rejects_a_proof_with_the_wrong_session_or_instance() {
 fn batch_rejects_trailing_bytes() {
     let mut rng = ProverRng::from_os_entropy();
     let (instance, witness) = discrete_logarithm::<G>(&mut rng);
-    let session_id = derive_session_id::<StdHash>(TAG);
+    let session_id = derive_session_id::<DefaultHash>(TAG);
     let mut proof = prove_batchable(TAG, &instance, &witness).unwrap();
     proof.push(0);
 

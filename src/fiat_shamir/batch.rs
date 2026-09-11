@@ -13,26 +13,26 @@ use crate::codec::{GroupCodec, ScalarCodec};
 use crate::errors::VerificationError;
 use crate::linear_relation::Instance;
 use crate::traits::SigmaProtocol;
-use crate::{MultiScalarMul, StdHash};
+use crate::{DefaultHash, MultiScalarMul};
 
 /// The tag of the batching sponge for batch verification
 /// (Section "Batch verification").
 const BATCH_VERIFY_TAG: &[u8] = b"irtf-cfrg-sigma-protocols/batch-verify";
 
-/// Batch verification of batchable NARG strings with [`StdHash`] (Section
+/// Batch verification of batchable NARG strings with [`DefaultHash`] (Section
 /// "Batch verification"): each entry is
 /// `(session_id, instance, narg_string)`.
 ///
 /// A batch is heterogeneous — its entries may come from unrelated tags — so
 /// this is the one entry point that takes session identifiers rather than
-/// tags. Derive each with [`derive_session_id::<StdHash>`][crate::derive_session_id]
+/// tags. Derive each with [`derive_session_id::<DefaultHash>`][crate::derive_session_id]
 /// ([module documentation][super]).
 pub fn verify_batch<G>(batch: &[(&SessionId, &Instance<G>, &[u8])]) -> Result<(), VerificationError>
 where
     G: PrimeGroup + MultiScalarMul + GroupCodec,
     G::Scalar: ScalarCodec,
 {
-    verify_batch_with::<StdHash, G>(batch)
+    verify_batch_with::<DefaultHash, G>(batch)
 }
 
 /// [`verify_batch`] with a caller-selected transcript sponge.

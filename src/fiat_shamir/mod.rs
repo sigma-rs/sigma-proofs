@@ -11,7 +11,7 @@
 //! [`ComposedInstance`][crate::composition::ComposedInstance] alike.
 //!
 //! The application-facing entry points take a tag and use
-//! [`StdHash`], deriving the [`SessionId`] internally and seeding the prover's
+//! [`DefaultHash`], deriving the [`SessionId`] internally and seeding the prover's
 //! randomness from OS entropy. Their `_with` variants make every one of those
 //! choices the caller's: the transcript sponge, an already-derived identifier,
 //! and — when proving — the randomness. They serve registered ciphersuites,
@@ -27,7 +27,7 @@
 //! second identifier from an identifier's raw bytes.
 //!
 //! The transcript follows draft-irtf-cfrg-fiat-shamir over a duplex sponge:
-//! [`StdHash`] for the application-facing functions, or the
+//! [`DefaultHash`] for the application-facing functions, or the
 //! caller's `H` in the explicit variants. Use
 //! [`Shake128`][spongefish::instantiations::Shake128] for the
 //! specification's registered ciphersuites. The sponge is seeded with the
@@ -79,7 +79,7 @@ use crate::codec::{
 use crate::errors::{InvalidWitness, VerificationError};
 use crate::linear_relation::Instance;
 use crate::traits::{SigmaProtocol, SigmaProtocolSimulator};
-use crate::{MultiScalarMul, StdHash};
+use crate::{DefaultHash, MultiScalarMul};
 use alloc::vec::Vec;
 use group::prime::PrimeGroup;
 use spongefish::PrivateRng;
@@ -214,7 +214,7 @@ where
     }
 }
 
-/// Generates a batchable NARG string with [`StdHash`].
+/// Generates a batchable NARG string with [`DefaultHash`].
 ///
 /// The session identifier is derived from `tag`. The tag must contain the
 /// `DSFS` flavor marker and ciphersuite identifier
@@ -232,12 +232,12 @@ where
     P: NargCodec,
     P::Challenge: ScalarCodec,
 {
-    let session_id = derive_session_id::<StdHash>(tag);
-    prove_batchable_with::<StdHash, P>(
+    let session_id = derive_session_id::<DefaultHash>(tag);
+    prove_batchable_with::<DefaultHash, P>(
         &session_id,
         instance,
         witness,
-        &mut PrivateRng::<StdHash>::from_os_entropy(),
+        &mut PrivateRng::<DefaultHash>::from_os_entropy(),
     )
 }
 
@@ -287,7 +287,7 @@ where
     state.challenge::<P::Challenge>()
 }
 
-/// Verifies a batchable NARG string with [`StdHash`], deriving its session
+/// Verifies a batchable NARG string with [`DefaultHash`], deriving its session
 /// identifier from `tag`.
 ///
 /// Instance validity is enforced by construction; the NARG string length is
@@ -304,8 +304,8 @@ where
     P: NargCodec,
     P::Challenge: ScalarCodec,
 {
-    let session_id = derive_session_id::<StdHash>(tag);
-    verify_batchable_with::<StdHash, P>(&session_id, instance, narg_string)
+    let session_id = derive_session_id::<DefaultHash>(tag);
+    verify_batchable_with::<DefaultHash, P>(&session_id, instance, narg_string)
 }
 
 /// [`verify_batchable`] with a caller-selected transcript sponge and an
@@ -342,7 +342,7 @@ where
     instance.verifier_with_randomness(&commitment, &challenge, &response, &randomness)
 }
 
-/// Generates a compact NARG string with [`StdHash`].
+/// Generates a compact NARG string with [`DefaultHash`].
 ///
 /// The session identifier is derived from `tag`. The tag must contain the
 /// `CMPT` flavor marker and ciphersuite
@@ -360,12 +360,12 @@ where
     P: NargCodec + SigmaProtocolSimulator,
     P::Challenge: ScalarCodec,
 {
-    let session_id = derive_session_id::<StdHash>(tag);
-    prove_compact_with::<StdHash, P>(
+    let session_id = derive_session_id::<DefaultHash>(tag);
+    prove_compact_with::<DefaultHash, P>(
         &session_id,
         instance,
         witness,
-        &mut PrivateRng::<StdHash>::from_os_entropy(),
+        &mut PrivateRng::<DefaultHash>::from_os_entropy(),
     )
 }
 
@@ -395,7 +395,7 @@ where
     Ok(narg_string)
 }
 
-/// Verifies a compact NARG string with [`StdHash`], deriving its session
+/// Verifies a compact NARG string with [`DefaultHash`], deriving its session
 /// identifier from `tag`.
 pub fn verify_compact<P>(
     tag: &[u8],
@@ -406,8 +406,8 @@ where
     P: NargCodec + SigmaProtocolSimulator,
     P::Challenge: ScalarCodec,
 {
-    let session_id = derive_session_id::<StdHash>(tag);
-    verify_compact_with::<StdHash, P>(&session_id, instance, narg_string)
+    let session_id = derive_session_id::<DefaultHash>(tag);
+    verify_compact_with::<DefaultHash, P>(&session_id, instance, narg_string)
 }
 
 /// [`verify_compact`] with a caller-selected transcript sponge and an
