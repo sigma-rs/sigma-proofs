@@ -40,7 +40,6 @@ fn invalid_compositions_are_rejected_at_construction() {
     let mut rng = ProverRng::from_os_entropy();
     let (instance, _) = discrete_logarithm::<G>(&mut rng);
 
-    assert!(ComposedInstance::<G>::and(Vec::<ComposedInstance<G>>::new()).is_err());
     assert!(ComposedInstance::<G>::or(Vec::<ComposedInstance<G>>::new()).is_err());
     assert!(ComposedInstance::<G>::threshold(1, Vec::<ComposedInstance<G>>::new()).is_err());
     assert!(ComposedInstance::threshold(0, [instance.clone()]).is_err());

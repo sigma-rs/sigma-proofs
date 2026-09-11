@@ -82,3 +82,30 @@ fn threshold_with_exact_quorum_proves_and_verifies() {
     let witness = ComposedWitness::threshold([a_witness, b_witness, wrong_c]);
     assert_proofs_verify(&relation, &witness);
 }
+
+/// The empty AND is the trivially true statement: it proves and verifies at
+/// the root with an empty NARG string, and simulates as a branch of an
+/// enclosing composition.
+#[test]
+fn empty_and_is_trivially_true() {
+    let mut rng = ProverRng::from_os_entropy();
+    let (instance, witness) = discrete_logarithm::<G>(&mut rng);
+    let wrong = wrong_witness(witness.len(), &mut rng);
+
+    let empty = ComposedInstance::<G>::and(Vec::<ComposedInstance<G>>::new()).unwrap();
+    let empty_witness = ComposedWitness::<G>::and(Vec::<ComposedWitness<G>>::new());
+    assert!(prove_batchable(BATCH_TAG, &empty, &empty_witness)
+        .unwrap()
+        .is_empty());
+    assert_proofs_verify(&empty, &empty_witness);
+
+    // Provable from either side: through the empty AND with no witness for
+    // the leaf, or through the leaf with the empty AND simulated.
+    let relation = ComposedInstance::or([empty, instance.into()]).unwrap();
+    for witness in [
+        ComposedWitness::or([empty_witness.clone(), wrong.into()]),
+        ComposedWitness::or([empty_witness, witness.into()]),
+    ] {
+        assert_proofs_verify(&relation, &witness);
+    }
+}

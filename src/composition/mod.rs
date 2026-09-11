@@ -23,11 +23,13 @@ mod protocol;
 /// A protocol proving knowledge of a witness for a composition of linear
 /// relations, generalizing [`Instance`] with AND/OR links.
 ///
-/// Composition nodes are validated when they are constructed: AND and OR
-/// nodes contain at least one branch, a threshold node with `n` branches has
-/// a threshold in `1..=n`, and a claim node carries at least one term. The
-/// representation is private so those invariants also hold recursively and
-/// cannot be bypassed with an enum variant constructor.
+/// Composition nodes are validated when they are constructed: an OR node
+/// contains at least one branch, a threshold node with `n` branches has a
+/// threshold in `1..=n`, and a claim node carries at least one term. An AND
+/// node may be empty: the empty conjunction is true, like the empty relation,
+/// and every branch of it is simulatable. The representation is private so
+/// those invariants also hold recursively and cannot be bypassed with an enum
+/// variant constructor.
 #[derive(Clone)]
 pub struct ComposedInstance<G: PrimeGroup>(InstanceNode<G>);
 
@@ -48,11 +50,12 @@ pub(super) enum InstanceNode<G: PrimeGroup> {
 impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedInstance<G> {
     /// The AND of the given relations.
     ///
-    /// Returns an error if the iterator is empty.
+    /// The empty AND is the trivially true statement; it is accepted, and
+    /// its proofs carry no commitment and no response.
     pub fn and<T: Into<ComposedInstance<G>>>(
         relations: impl IntoIterator<Item = T>,
     ) -> Result<Self, InvalidInstance> {
-        let branches = Self::nonempty_branches("AND", relations)?;
+        let branches = relations.into_iter().map(Into::into).collect();
         Ok(Self(InstanceNode::And(branches)))
     }
 

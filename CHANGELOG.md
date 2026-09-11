@@ -40,6 +40,8 @@ whole public API changed. This is a near-total rewrite tracking the current Fiat
 - Negative ("invalid") test vectors for P-256 and BLS12-381.
 - `LinearRelation::allocate_eq_with` and `compile_with_witness` shortcuts for building public and
   prover-derived statements without intermediate element assignment steps.
+- `ComposedInstance::and` accepts an empty branch list: the empty AND is the
+  trivially true statement, and its NARG string is empty.
 
 ### Fixed
 
