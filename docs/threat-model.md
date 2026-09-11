@@ -46,7 +46,7 @@ Cache eviction, power analysis, and spectre-class of attacks are not in scope. N
 
 | Claim | Evidence |
 | --- | --- |
-| Memory safety | No `unsafe`; Miri over the unit tests on each curve, nightly |
+| Memory safety | `unsafe_code` denied across workspace targets and forbidden in library code outside Kani's narrowly scoped tracing exception; Miri over the unit tests on each curve, nightly |
 | Verifier totality (§2.1) | Tests that a corrupted proof must be rejected, never accepted, never a panic. `clippy::panic`/`unwrap_used` denied crate-wide; `indexing_slicing` denied on the parsing modules. CI for  |
 | Spec conformance | Test vectors from draft-irtf-cfrg-sigma-protocols (P-256, BLS12-381) checksummed against upstream |
 | MSM correctness | Tests for all four paths (constant-time and variable-time, generic and per-curve) agree with `sum(base * scalar)` |

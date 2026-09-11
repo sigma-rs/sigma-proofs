@@ -14,6 +14,8 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+// Kani's single-threaded trace helper is the only permitted unsafe code.
+#![cfg_attr(not(kani), forbid(unsafe_code))]
 #![allow(non_snake_case)]
 #![doc(html_logo_url = "https://mmaker.github.io/sigma-rs/")]
 #![deny(unused_variables)]

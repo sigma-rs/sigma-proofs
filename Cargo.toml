@@ -45,6 +45,10 @@ p256 = { version = "0.13", default-features = false }
 sha2 = { version = "0.11", default-features = false }
 sha3 = { version = "=0.11.0-rc.9", default-features = false }
 
+[workspace.lints.rust]
+unsafe_code = "deny"
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)', 'cfg(docsrs)'] }
+
 [features]
 # Include commonly used curved in default features.
 # Increases the default compile times, but makes the crate just-work for most users.
@@ -96,11 +100,8 @@ sha2 = { workspace = true }
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 core_affinity2 = "0.15.4"
 
-[lints.rust]
-# `kani` is set by `cargo kani`, which builds the model-checking harnesses in
-# `src/composition/ct.rs`; `docsrs` is set by docs.rs. Neither is a Cargo
-# feature, so both have to be declared or every build warns about them.
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)', 'cfg(docsrs)'] }
+[lints]
+workspace = true
 
 [[test]]
 name = "dudect"
