@@ -23,16 +23,12 @@ mod protocol;
 /// A protocol proving knowledge of a witness for a composition of linear
 /// relations, generalizing [`Instance`] with AND/OR links.
 ///
-/// A nonempty threshold node with `n` branches has a threshold in `0..=n`,
-/// and a claim node carries at least one term.
+/// Empty ANDs and empty claims are true, like the empty relation.
 ///
-/// An AND node may be empty: the empty conjunction is true, like the empty relation.
+/// Empty ORs and thresholds exceeding the number of branches are false, but
+/// remain simulatable as branches of an enclosing composition.
 ///
-/// Empty ORs and positive thresholds over no branches are false, but remain simulatable as
-/// branches of an enclosing composition.
-///
-/// The representation is private so those invariants also hold recursively and
-/// cannot be bypassed with an enum variant constructor.
+/// The representation is private so constructor checks cannot be bypassed.
 #[derive(Clone)]
 pub struct ComposedInstance<G: PrimeGroup>(InstanceNode<G>);
 
@@ -75,22 +71,17 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedInstance<
 
     /// The threshold relation over the given relations.
     ///
-    /// For nonempty branches, the threshold must be in `0..=n`. A threshold
-    /// of zero is trivially true, whatever the branches; its proofs simulate
-    /// every branch and transmit every branch challenge. In particular the
+    /// A threshold of zero is trivially true, whatever the branches; its proofs
+    /// simulate every branch and transmit every branch challenge. In particular the
     /// 0-of-0 threshold, like the empty AND, has an empty NARG string. A
-    /// positive threshold over no branches is trivially false, but its proof
-    /// protocol remains simulatable as a branch of an enclosing composition.
+    /// threshold exceeding the number of branches is trivially false, but
+    /// remains simulatable as a branch of an enclosing composition. The
+    /// threshold must fit in `u32` for the instance encoding.
     pub fn threshold<T: Into<ComposedInstance<G>>>(
         threshold: usize,
         relations: impl IntoIterator<Item = T>,
     ) -> Result<Self, InvalidInstance> {
         let branches = relations.into_iter().map(Into::into).collect::<Vec<_>>();
-        if threshold > branches.len() && !branches.is_empty() {
-            return Err(InvalidInstance::new(
-                "threshold must not exceed the number of branches",
-            ));
-        }
         if u32::try_from(threshold).is_err() {
             return Err(InvalidInstance::new(
                 "threshold must fit the instance encoding",
@@ -102,15 +93,10 @@ impl<G: PrimeGroup + ConstantTimeEq + ConditionallySelectable> ComposedInstance<
     /// The public claim `sum(coeff * elem) == identity` over the given
     /// `(coeff, elem)` pairs.
     ///
-    /// Returns an error if the iterator is empty: the empty sum is the
-    /// identity, so such a branch would hold whatever the public values are.
+    /// An empty iterator represents the trivially true claim: the empty sum
+    /// is the identity.
     pub fn claim(pairs: impl IntoIterator<Item = (G::Scalar, G)>) -> Result<Self, InvalidInstance> {
         let pairs = pairs.into_iter().collect::<Vec<_>>();
-        if pairs.is_empty() {
-            return Err(InvalidInstance::new(
-                "claim relation must have at least one term",
-            ));
-        }
         Ok(Self(InstanceNode::Claim(pairs)))
     }
 

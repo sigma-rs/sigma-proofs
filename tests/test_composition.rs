@@ -143,6 +143,61 @@ fn zero_threshold_is_trivially_true() {
     }
 }
 
+#[test]
+fn empty_claim_is_trivially_true() {
+    let mut rng = ProverRng::from_os_entropy();
+    let (instance, witness) = discrete_logarithm::<G>(&mut rng);
+    let empty = ComposedInstance::<G>::claim([]).unwrap();
+    assert_proofs_verify(&empty, &ComposedWitness::Claim);
+
+    // A real empty claim needs no secret; it can also be simulated when a
+    // preceding branch has a valid witness.
+    let relation = ComposedInstance::or([instance.clone().into(), empty.clone()]).unwrap();
+    for secret in [witness.clone(), wrong_witness(witness.len(), &mut rng)] {
+        assert_proofs_verify(
+            &relation,
+            &ComposedWitness::or([secret.into(), ComposedWitness::Claim]),
+        );
+    }
+    let relation = ComposedInstance::and([empty, instance.into()]).unwrap();
+    assert_proofs_verify(
+        &relation,
+        &ComposedWitness::and([ComposedWitness::Claim, witness.into()]),
+    );
+}
+
+#[test]
+fn thresholds_above_branch_count_are_false_and_simulatable() {
+    let mut rng = ProverRng::from_os_entropy();
+    let (instance, witness) = discrete_logarithm::<G>(&mut rng);
+    for count in [1, 2] {
+        for threshold in [count + 1, u32::MAX as usize] {
+            let impossible =
+                ComposedInstance::threshold(threshold, vec![instance.clone(); count]).unwrap();
+            let impossible_witness = ComposedWitness::threshold(vec![witness.clone(); count]);
+            let batchable = prove_batchable(BATCH_TAG, &impossible, &impossible_witness).unwrap();
+            assert!(verify_batchable(BATCH_TAG, &impossible, &batchable).is_err());
+            let compact = prove_compact(COMPACT_TAG, &impossible, &impossible_witness).unwrap();
+            assert!(verify_compact(COMPACT_TAG, &impossible, &compact).is_err());
+
+            let branches = [impossible, instance.clone().into()];
+            let witnesses = [impossible_witness, witness.clone().into()];
+            for (relation, witness) in [
+                (
+                    ComposedInstance::or(branches.clone()).unwrap(),
+                    ComposedWitness::or(witnesses.clone()),
+                ),
+                (
+                    ComposedInstance::threshold(1, branches).unwrap(),
+                    ComposedWitness::threshold(witnesses),
+                ),
+            ] {
+                assert_proofs_verify(&relation, &witness);
+            }
+        }
+    }
+}
+
 /// A positive threshold over no branches, and therefore an empty OR, is a
 /// false statement. It can still be simulated as a false branch of an OR.
 #[test]
@@ -189,9 +244,10 @@ fn empty_false_compositions_are_supported() {
 }
 
 #[test]
-fn proofs_bind_empty_false_statement_structure() {
+fn proofs_bind_trivially_false_statement_structure() {
     let mut rng = ProverRng::from_os_entropy();
     let (instance, witness) = discrete_logarithm::<G>(&mut rng);
+    let (other_instance, other_witness) = discrete_logarithm::<G>(&mut rng);
     let cases = [
         (
             ComposedInstance::<G>::or(Vec::<ComposedInstance<G>>::new()).unwrap(),
@@ -208,6 +264,18 @@ fn proofs_bind_empty_false_statement_structure() {
         (
             ComposedInstance::claim([(Scalar::from(1u64), G::generator())]).unwrap(),
             ComposedWitness::Claim,
+        ),
+        (
+            ComposedInstance::threshold(2, [instance.clone()]).unwrap(),
+            ComposedWitness::threshold([witness.clone()]),
+        ),
+        (
+            ComposedInstance::threshold(3, [instance.clone()]).unwrap(),
+            ComposedWitness::threshold([witness.clone()]),
+        ),
+        (
+            ComposedInstance::threshold(2, [other_instance]).unwrap(),
+            ComposedWitness::threshold([other_witness]),
         ),
     ]
     .map(|(branch, branch_witness)| {
@@ -263,6 +331,8 @@ fn simulated_transcripts_verify_for_every_node_shape() {
         ComposedInstance::threshold(0, [instance.clone()]).unwrap(),
         ComposedInstance::<G>::threshold(0, Vec::<ComposedInstance<G>>::new()).unwrap(),
         ComposedInstance::threshold(1, [instance.clone(), instance.clone()]).unwrap(),
+        ComposedInstance::threshold(2, [instance.clone()]).unwrap(),
+        ComposedInstance::claim([]).unwrap(),
         false_threshold.clone(),
         ComposedInstance::claim([(Scalar::from(0u64), G::generator())]).unwrap(),
         ComposedInstance::claim([(Scalar::from(1u64), G::generator())]).unwrap(),

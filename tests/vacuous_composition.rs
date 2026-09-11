@@ -4,7 +4,7 @@
 use curve25519_dalek::ristretto::RistrettoPoint as G;
 use sigma_proofs::composition::{ComposedInstance, ComposedWitness};
 use sigma_proofs::errors::InvalidWitness;
-use sigma_proofs::{prove_batchable, ProverRng};
+use sigma_proofs::{prove_batchable, prove_compact, ProverRng};
 
 #[allow(dead_code)]
 mod relations;
@@ -36,11 +36,23 @@ fn short_witnesses_are_errors_not_panics() {
 }
 
 #[test]
-fn invalid_nonempty_compositions_are_rejected_at_construction() {
+fn impossible_thresholds_reject_mismatched_witness_shapes() {
     let mut rng = ProverRng::from_os_entropy();
-    let (instance, _) = discrete_logarithm::<G>(&mut rng);
-
-    assert!(ComposedInstance::threshold(2, [instance]).is_err());
-    // The empty sum is the identity, so an empty claim holds unconditionally.
-    assert!(ComposedInstance::<G>::claim([]).is_err());
+    let (instance, witness) = discrete_logarithm::<G>(&mut rng);
+    let relation = ComposedInstance::threshold(2, [instance]).unwrap();
+    for witness in [
+        ComposedWitness::threshold(Vec::<ComposedWitness<G>>::new()),
+        ComposedWitness::threshold([witness.clone(), witness.clone()]),
+        ComposedWitness::or([witness]),
+        ComposedWitness::Claim,
+    ] {
+        assert!(matches!(
+            prove_batchable(BATCH_TAG, &relation, &witness),
+            Err(InvalidWitness)
+        ));
+        assert!(matches!(
+            prove_compact(b"vacuous composition tests CMPT", &relation, &witness),
+            Err(InvalidWitness)
+        ));
+    }
 }

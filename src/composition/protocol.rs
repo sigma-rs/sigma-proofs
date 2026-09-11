@@ -219,7 +219,7 @@ where
     fn is_trivially_false(&self) -> bool {
         match self.node() {
             InstanceNode::Or(branches) => branches.is_empty(),
-            InstanceNode::Threshold(threshold, branches) => branches.is_empty() && *threshold > 0,
+            InstanceNode::Threshold(threshold, branches) => *threshold > branches.len(),
             _ => false,
         }
     }
@@ -376,9 +376,9 @@ where
         if self.is_trivially_false() {
             let witness_matches = matches!(
                 (self.node(), witness),
-                (InstanceNode::Or(_), ComposedWitness::Or(witnesses))
-                    | (InstanceNode::Threshold(_, _), ComposedWitness::Threshold(witnesses))
-                    if witnesses.is_empty()
+                (InstanceNode::Or(branches), ComposedWitness::Or(witnesses))
+                    | (InstanceNode::Threshold(_, branches), ComposedWitness::Threshold(witnesses))
+                    if branches.len() == witnesses.len()
             );
             return match witness_matches {
                 true => Ok((
@@ -979,10 +979,6 @@ where
                 ComposedResponse::Shares(challenges, Self::simulate_branch_responses(ps, rng))
             }
             InstanceNode::Threshold(threshold, ps) => {
-                if *threshold > ps.len() {
-                    return ComposedResponse::Shares(Vec::new(), Vec::new());
-                }
-
                 let degree = ps.len() - *threshold;
                 let compressed_challenges: Vec<G::Scalar> =
                     (0..degree).map(|_| G::Scalar::sample(rng)).collect();
