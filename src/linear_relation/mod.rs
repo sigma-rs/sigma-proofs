@@ -415,14 +415,12 @@ impl<G: PrimeGroup> LinearRelation<G> {
     /// before validation — deterministically, so a prover and a verifier
     /// building the same relation serialize the same instance:
     ///
-    /// - Public equations with no witness terms are preserved, whether true
-    ///   or false. Falsity does not make an instance structurally invalid, and
-    ///   a false equation must remain simulatable inside OR/threshold proofs.
-    /// - Unused group elements are dropped and indices are re-packed in
-    ///   allocation order (the identity and generator keep indices 0 and 1).
-    ///   A statement already satisfying the specification's checks is left
-    ///   byte-for-byte unchanged.
-    /// - A relation with no equations compiles to the valid empty instance.
+    /// Unused group elements are dropped and indices are re-packed in
+    /// allocation order (the identity and generator keep indices 0 and 1).
+    /// A statement already satisfying the specification's checks is left
+    /// byte-for-byte unchanged.
+    ///
+    /// A relation with no equations compiles to the valid empty instance.
     ///
     /// The result is checked by the specification's `ValidateInstance`;
     /// unassigned elements fail unless normalization dropped them.
