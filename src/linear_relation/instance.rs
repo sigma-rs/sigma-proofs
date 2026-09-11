@@ -168,7 +168,8 @@ where
     G::Scalar: ScalarCodec,
 {
     /// Build an instance from its parts, running the specification's
-    /// `ValidateInstance`.
+    /// `ValidateInstance`, then precomputing the image, evaluation plans, and
+    /// canonical encoding.
     ///
     /// The supplied `elements` have logical element indices starting at `2`;
     /// the identity and group generator at indices `0` and `1` are implicit.
@@ -192,10 +193,10 @@ where
             evaluation_plans: Vec::new(),
             label: Vec::new(),
         };
-        let (image, num_scalars, evaluation_plans) = instance.validate()?;
-        instance.image = image;
-        instance.num_scalars = num_scalars;
-        instance.evaluation_plans = evaluation_plans;
+        instance.num_scalars = instance.validate()?;
+        // Group computations use the element indices checked above.
+        instance.image = instance.compute_image();
+        instance.evaluation_plans = instance.compile_evaluation_plans();
         // Always serialized, never taken from the caller — including in
         // [`Instance::deserialize`], whose input is an encoding of this very
         // instance. Adopting those bytes would save one serialization and
@@ -209,12 +210,12 @@ where
         Ok(instance)
     }
 
-    /// `ValidateInstance` of the specification. Errors carry the number of
-    /// the failed check.
-    /// Returns the computed image, scalar count, and effective-base execution
-    /// plan, all cached by the constructor.
-    #[allow(clippy::type_complexity)]
-    fn validate(&self) -> Result<(Vec<G>, usize, Vec<EvaluationPlan<G>>), InvalidInstance> {
+    /// Validates the instance using the specification's validation criteria.
+    ///
+    /// Returns the checked witness scalar count, derived while scanning the
+    /// term indices. Image computation and evaluation-plan compilation are
+    /// separate constructor steps, performed only after these checks pass.
+    fn validate(&self) -> Result<usize, InvalidInstance> {
         let num_elements = self.elements.len();
 
         // Check 1: counts fit in u32 (indices are u32 by construction).
@@ -276,10 +277,7 @@ where
                 })?,
         };
 
-        let image = self.compute_image();
-        let evaluation_plans = self.compile_evaluation_plans();
-
-        Ok((image, num_scalars, evaluation_plans))
+        Ok(num_scalars)
     }
 
     /// Compile the wire-format term triples into the bases used to evaluate
