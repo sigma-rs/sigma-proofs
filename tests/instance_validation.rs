@@ -8,10 +8,14 @@ mod instance_validation {
     use curve25519_dalek::ristretto::RistrettoPoint as G;
     use curve25519_dalek::scalar::Scalar;
     use group::Group;
+    use sigma_proofs::codec::ScalarCodec;
+    use sigma_proofs::composition::{ComposedInstance, ComposedWitness};
+    use sigma_proofs::linear_relation::{Equation, Instance, LinearRelation};
+    use sigma_proofs::traits::{SigmaProtocol, SigmaProtocolSimulator};
     use sigma_proofs::{
-        errors::Error,
-        linear_relation::{CanonicalLinearRelation, LinearRelation},
+        prove_batchable, prove_compact, verify_batchable, verify_compact, ProverRng,
     };
+    use spongefish::Encoding;
 
     #[test]
     fn test_unassigned_group_vars() {
@@ -30,195 +34,323 @@ mod instance_validation {
         relation.append_equation(var_x_g, var_x * var_g);
 
         // Try to convert to canonical form - should fail
-        let result = CanonicalLinearRelation::try_from(&relation);
+        let result = Instance::try_from(&relation);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn unassigned_equation_output_is_rejected() {
+        let mut relation = LinearRelation::<G>::new();
+        let x = relation.allocate_scalar();
+        relation.allocate_eq(x * relation.generator());
+
+        assert!(relation.compile().is_err());
     }
 
     #[test]
     #[allow(non_snake_case)]
     fn test_zero_image() {
-        // Create a linear relation with zero elements in the image
-        // 0 = x * G (which is invalid)
+        // M != 0 and Y = 0: the zero witness satisfies 0 = x * G.
         let mut relation = LinearRelation::<G>::new();
         let [var_x] = relation.allocate_scalars();
         let [var_G] = relation.allocate_elements();
         let var_X = relation.allocate_eq(var_G * var_x);
         relation.set_element(var_G, G::generator());
         relation.set_element(var_X, G::identity());
-        let result = CanonicalLinearRelation::try_from(&relation);
-        assert!(result.is_err());
+        let instance = Instance::try_from(&relation).unwrap();
+        let proof = prove_batchable(
+            b"nonzero map, zero image DSFS",
+            &instance,
+            &[Scalar::from(0u64)],
+        )
+        .unwrap();
+        verify_batchable(b"nonzero map, zero image DSFS", &instance, &proof).unwrap();
 
-        // Create a trivially valid linear relation with zero elements in the image
-        // 0 = 0*B
-        let mut relation = LinearRelation::<G>::new();
-        let [var_B] = relation.allocate_elements();
-        let var_X = relation.allocate_eq(var_B * Scalar::from(0u64));
-        relation.set_element(var_B, G::generator());
-        relation.set_element(var_X, G::identity());
-        let result = CanonicalLinearRelation::try_from(&relation);
-        assert!(result.is_ok());
-
-        // Create a valid linear relation with zero elements in the image
-        // 0 = 0*x*C
+        // M = 0 and Y = 0: a zero coefficient makes every witness valid.
         let mut relation = LinearRelation::<G>::new();
         let [var_x] = relation.allocate_scalars();
         let [var_C] = relation.allocate_elements();
         let var_X = relation.allocate_eq(var_C * var_x * Scalar::from(0u64));
         relation.set_element(var_C, G::generator());
         relation.set_element(var_X, G::identity());
-        let result = CanonicalLinearRelation::try_from(&relation);
-        assert!(result.is_ok());
+        let instance = Instance::try_from(&relation).unwrap();
+        let proof = prove_batchable(
+            b"zero map, zero image DSFS",
+            &instance,
+            &[Scalar::from(42u64)],
+        )
+        .unwrap();
+        verify_batchable(b"zero map, zero image DSFS", &instance, &proof).unwrap();
     }
 
     #[test]
     #[allow(non_snake_case)]
-    pub fn test_degenerate_equation() {
-        // This relation should fail for two reasons:
-        // 1. because var_B is not assigned
-        let mut relation = LinearRelation::<G>::new();
-        let x = relation.allocate_scalar();
-        let var_B = relation.allocate_element();
-        let var_X = relation.allocate_eq((x + (-Scalar::ONE)) * var_B + (-var_B));
-        relation.set_element(var_X, G::identity());
-        assert!(CanonicalLinearRelation::try_from(&relation).is_err());
-
-        // 2. because var_X is not assigned
-        let mut relation = LinearRelation::<G>::new();
-        let x = relation.allocate_scalar();
-        let var_B = relation.allocate_element();
-        let _var_X = relation.allocate_eq((x + (-Scalar::ONE)) * var_B + (-var_B));
-        relation.set_element(var_B, G::generator());
-        assert!(CanonicalLinearRelation::try_from(&relation).is_err());
-    }
-
-    #[test]
-    fn test_inconsistent_equation_count() {
-        // Create a relation with mismatched equations and image elements
-        let mut relation = LinearRelation::<G>::new();
-        let [var_x] = relation.allocate_scalars();
-        let [var_g, var_h] = relation.allocate_elements();
-        relation.set_elements([
-            (var_g, G::generator()),
-            (var_h, G::generator() * Scalar::from(2u64)),
-        ]);
-
-        // Add two equations but only one image element
-        let var_img_1 = relation.allocate_eq(var_x * var_g + var_h);
-        relation.allocate_eq(var_x * var_h + var_g);
-        relation.set_element(var_g, G::generator());
-        relation.set_element(var_h, G::generator() * Scalar::from(2u64));
-        relation.set_element(var_img_1, G::generator() * Scalar::from(3u64));
-        assert!(relation.canonical().is_err());
-    }
-
-    #[test]
-    #[allow(non_snake_case)]
-    fn test_empty_string() {
-        let rng = &mut rand::thread_rng();
+    fn test_empty_relation_and_constant_equation() {
+        // A relation with no equations compiles to the valid empty instance.
         let relation = LinearRelation::<G>::new();
-        let nizk = relation.into_nizk(b"test_session").unwrap();
-        let narg_string = nizk.prove_batchable(&vec![], rng).unwrap();
-        assert!(narg_string.is_empty());
+        let instance = relation.compile().unwrap();
+        assert_eq!(instance.num_equations(), 0);
+        assert_eq!(instance.num_scalars(), 0);
+        assert_eq!(instance.image(), []);
+        let serialized = instance.serialize();
+        assert_eq!(
+            Instance::<G>::deserialize(&serialized).unwrap().serialize(),
+            serialized
+        );
 
+        let batchable = prove_batchable(b"empty relation DSFS", &instance, &[]).unwrap();
+        assert!(batchable.is_empty());
+        verify_batchable(b"empty relation DSFS", &instance, &batchable).unwrap();
+
+        let compact = prove_compact(b"empty relation CMPT", &instance, &[]).unwrap();
+        verify_compact(b"empty relation CMPT", &instance, &compact).unwrap();
+
+        // An equation whose right-hand side carries no witness scalar is a
+        // public claim. Compilation preserves it, even when it is true.
         let mut relation = LinearRelation::<G>::new();
         let var_B = relation.allocate_element();
         let var_C = relation.allocate_eq(var_B * Scalar::from(1u64));
         relation.set_elements([(var_B, G::generator()), (var_C, G::generator())]);
-        assert!(CanonicalLinearRelation::try_from(&relation).is_ok());
+        let instance = Instance::try_from(&relation).unwrap();
+        assert_eq!(instance.num_equations(), 1);
+        assert_eq!(instance.num_scalars(), 0);
+        assert!(instance.equations()[0].terms.is_empty());
+        assert!(bool::from(instance.is_witness_valid(&[])));
+    }
+
+    #[test]
+    fn empty_equation_sides_are_well_formed() {
+        let empty_terms = Equation {
+            image: vec![(1, Scalar::from(1u64))],
+            terms: vec![],
+        };
+        assert!(Instance::<G>::new(vec![], vec![empty_terms]).is_ok());
+
+        // An empty image denotes the identity.
+        let empty_image = Equation {
+            image: vec![],
+            terms: vec![(0, 1, Scalar::from(1u64))],
+        };
+        assert!(Instance::<G>::new(vec![], vec![empty_image]).is_ok());
+    }
+
+    #[test]
+    fn unused_scalar_indices_are_supported() {
+        let one = Scalar::from(1u64);
+        let equation = Equation {
+            image: vec![(1, one)],
+            terms: vec![(2, 1, one)],
+        };
+        let instance = Instance::<G>::new(vec![], vec![equation]).unwrap();
+        assert_eq!(instance.num_scalars(), 3);
+
+        let encoded = instance.serialize();
+        let decoded = Instance::<G>::deserialize(&encoded).unwrap();
+        assert_eq!(decoded.num_scalars(), 3);
+        assert_eq!(decoded.equations(), instance.equations());
+        assert_eq!(decoded.serialize(), encoded);
+
+        let witness = [Scalar::from(7u64), Scalar::from(8u64), one];
+        let proof = prove_batchable(b"unused scalars DSFS", &instance, &witness).unwrap();
+        verify_batchable(b"unused scalars DSFS", &instance, &proof).unwrap();
+    }
+
+    #[test]
+    fn identity_statement_element_roundtrips() {
+        let one = Scalar::from(1u64);
+        let equation = Equation {
+            image: vec![(1, one), (2, one)],
+            terms: vec![(0, 1, one)],
+        };
+        let instance = Instance::new(vec![G::identity()], vec![equation]).unwrap();
+        let encoded = instance.serialize();
+        let decoded = Instance::<G>::deserialize(&encoded).unwrap();
+        assert_eq!(decoded.elements(), instance.elements());
+        assert_eq!(decoded.serialize(), encoded);
     }
 
     #[test]
     #[allow(non_snake_case)]
     fn test_statement_without_witness() {
-        let rng = &mut rand::thread_rng();
-
         let pub_scalar = Scalar::from(42u64);
         let A = G::generator();
         let B = G::generator() * Scalar::from(42u64);
         let C = B * pub_scalar + A * Scalar::from(3u64);
-
         let X = G::generator() * Scalar::from(4u64);
 
-        // The following relation is trivially invalid.
-        // That is, we know that no witness will ever satisfy it.
+        // False public equations are well-formed instances with no witness
+        // scalars, just like their true counterparts.
         let mut linear_relation = LinearRelation::<G>::new();
         let B_var = linear_relation.allocate_element();
         let C_var = linear_relation.allocate_eq(B_var);
         linear_relation.set_elements([(B_var, B), (C_var, C)]);
-        let nizk = linear_relation.into_nizk(b"test_session").unwrap();
-        assert!(matches!(
-            nizk.verify_batchable(&nizk.prove_batchable(&vec![], rng).unwrap())
-                .unwrap_err(),
-            Error::VerificationFailure
-        ));
+        let instance = linear_relation.compile().unwrap();
+        assert_eq!(instance.num_equations(), 1);
+        assert_eq!(instance.num_scalars(), 0);
+        assert!(!bool::from(instance.is_witness_valid(&[])));
 
-        // Also in this case, we know that no witness will ever satisfy the relation.
-        // X != B * pub_scalar + A * 3
         let mut linear_relation = LinearRelation::<G>::new();
         let [B_var, A_var] = linear_relation.allocate_elements();
         let X_var = linear_relation.allocate_eq(B_var * pub_scalar + A_var * Scalar::from(3u64));
         linear_relation.set_elements([(B_var, B), (A_var, A), (X_var, X)]);
-        assert!(matches!(
-            nizk.verify_batchable(&nizk.prove_batchable(&vec![], rng).unwrap())
-                .unwrap_err(),
-            Error::VerificationFailure
-        ));
+        let instance = linear_relation.compile().unwrap();
+        assert_eq!(instance.num_equations(), 1);
+        assert_eq!(instance.num_scalars(), 0);
+        assert!(!bool::from(instance.is_witness_valid(&[])));
 
-        // The following relation is valid and should pass.
-        let mut linear_relation = LinearRelation::<G>::new();
-        let B_var = linear_relation.allocate_element();
-        let C_var = linear_relation.allocate_eq(B_var);
-        linear_relation.set_elements([(B_var, B), (C_var, B)]);
-        assert!(linear_relation.canonical().is_ok());
-
-        // The following relation is valid and should pass.
-        // C = B * pub_scalar + A * 3
-        let mut linear_relation = LinearRelation::<G>::new();
-        let [B_var, A_var] = linear_relation.allocate_elements();
-        let C_var = linear_relation.allocate_eq(B_var * pub_scalar + A_var * Scalar::from(3u64));
-        linear_relation.set_elements([(B_var, B), (A_var, A), (C_var, C)]);
-        assert!(linear_relation.canonical().is_ok());
-
-        // The following relation is for
+        // With a witness term present, constant terms are fine: they cross to
+        // the image with their coefficient negated and every element stays
+        // individually bound.
         // X = B * x + B * pub_scalar + A * 3
-        // and should be considered a valid instance.
         let mut linear_relation = LinearRelation::<G>::new();
         let x_var = linear_relation.allocate_scalar();
         let [B_var, A_var] = linear_relation.allocate_elements();
         let X_var = linear_relation
             .allocate_eq(B_var * x_var + B_var * pub_scalar + A_var * Scalar::from(3u64));
         linear_relation.set_elements([(B_var, B), (A_var, A), (X_var, X)]);
-        assert!(linear_relation.canonical().is_ok());
+        assert!(linear_relation.compile().is_ok());
+    }
+
+    #[test]
+    fn public_equations_preserve_truth_and_support_simulation() {
+        for holds in [false, true] {
+            let mut relation = LinearRelation::<G>::new();
+            let image = G::generator() * Scalar::from(if holds { 1u64 } else { 2u64 });
+            relation.allocate_eq_with(image, relation.generator());
+            let instance = relation.compile().unwrap();
+            assert_eq!(instance.num_equations(), 1);
+            assert_eq!(instance.num_scalars(), 0);
+            assert!(instance.equations()[0].terms.is_empty());
+            assert_eq!(bool::from(instance.is_witness_valid(&[])), holds);
+
+            let decoded = Instance::<G>::deserialize(&instance.serialize()).unwrap();
+            assert_eq!(decoded.serialize(), instance.serialize());
+            assert_eq!(decoded.equations(), instance.equations());
+            let batchable = prove_batchable(b"public equation DSFS", &instance, &[]).unwrap();
+            assert_eq!(
+                verify_batchable(b"public equation DSFS", &decoded, &batchable).is_ok(),
+                holds,
+            );
+            let compact = prove_compact(b"public equation CMPT", &instance, &[]).unwrap();
+            assert_eq!(
+                verify_compact(b"public equation CMPT", &decoded, &compact).is_ok(),
+                holds,
+            );
+
+            // A false relation still admits a simulated transcript for a
+            // chosen challenge, which is what OR and threshold branches need.
+            let challenge = Scalar::from(7u64);
+            let response = vec![];
+            let commitment = instance.simulate_commitment(&challenge, &response).unwrap();
+            instance
+                .verifier(&commitment, &challenge, &response)
+                .unwrap();
+        }
+    }
+
+    #[test]
+    fn false_public_equations_compose_with_true_branches() {
+        let mut public = LinearRelation::<G>::new();
+        public.allocate_eq_with(G::identity(), public.generator());
+        let public = public.compile().unwrap();
+        let secret = Scalar::from(42u64);
+        let mut dlog = LinearRelation::<G>::new();
+        let x = dlog.allocate_scalar();
+        dlog.allocate_eq_with(G::generator() * secret, x * dlog.generator());
+        let dlog = dlog.compile().unwrap();
+        let branches = [public, dlog];
+        let witnesses = [vec![], vec![secret]];
+        for (instance, witness, holds) in [
+            (
+                ComposedInstance::or(branches.clone()).unwrap(),
+                ComposedWitness::or(witnesses.clone()),
+                true,
+            ),
+            (
+                ComposedInstance::threshold(1, branches.clone()).unwrap(),
+                ComposedWitness::threshold(witnesses.clone()),
+                true,
+            ),
+            (
+                ComposedInstance::threshold(2, branches.clone()).unwrap(),
+                ComposedWitness::threshold(witnesses.clone()),
+                false,
+            ),
+            (
+                ComposedInstance::and(branches).unwrap(),
+                ComposedWitness::and(witnesses),
+                false,
+            ),
+        ] {
+            let batchable = prove_batchable(b"public branch DSFS", &instance, &witness).unwrap();
+            assert_eq!(
+                verify_batchable(b"public branch DSFS", &instance, &batchable).is_ok(),
+                holds
+            );
+            let compact = prove_compact(b"public branch CMPT", &instance, &witness).unwrap();
+            assert_eq!(
+                verify_compact(b"public branch CMPT", &instance, &compact).is_ok(),
+                holds
+            );
+        }
     }
 
     #[test]
     #[allow(non_snake_case)]
     fn test_statement_with_trivial_image() {
-        let mut rng = rand::thread_rng();
+        let mut rng = ProverRng::from_os_entropy();
         let mut linear_relation = LinearRelation::new();
 
         let [x_var, y_var] = linear_relation.allocate_scalars();
         let [Z_var, A_var, B_var, C_var] = linear_relation.allocate_elements();
         linear_relation.append_equation(Z_var, x_var * A_var + y_var * B_var + C_var);
 
-        let [x, y] = [Scalar::random(&mut rng), Scalar::random(&mut rng)];
-        let Z = G::identity();
-        let A = G::random(&mut rng);
+        let [x, y] = core::array::from_fn(|_| <G as group::Group>::Scalar::sample(&mut rng));
+        let A = {
+            let [t] = core::array::from_fn(|_| <G as group::Group>::Scalar::sample(&mut rng));
+            G::generator() * t
+        };
         let B = G::generator();
         let C = -x * A - y * B;
 
-        // The equation 0 = x*A + y*B + C
-        // Has a non-trivial solution.
-        linear_relation.set_elements([(Z_var, Z), (A_var, A), (B_var, B), (C_var, C)]);
-        assert!(linear_relation.canonical().is_ok());
+        // The identity is a valid statement element. Constant terms cross to
+        // the image, so this compiles to -C = x*A + y*B.
+        linear_relation.set_elements([(Z_var, G::identity()), (A_var, A), (B_var, B), (C_var, C)]);
+        assert!(linear_relation.compile().is_ok());
 
-        // Adding more non-trivial statements does not affect the validity of the relation.
-        let F_var = linear_relation.allocate_element();
-        let f_var = linear_relation.allocate_scalar();
-        linear_relation.append_equation(F_var, f_var * A_var);
-        let f = Scalar::random(&mut rng);
-        let F = A * f;
-        linear_relation.set_elements([(F_var, F), (A_var, A)]);
-        assert!(linear_relation.canonical().is_ok());
+        // A non-identity image element remains valid too.
+        let mut linear_relation = LinearRelation::new();
+        let [x_var, y_var] = linear_relation.allocate_scalars();
+        let [Z_var, A_var, B_var, C_var] = linear_relation.allocate_elements();
+        linear_relation.append_equation(Z_var, x_var * A_var + y_var * B_var + C_var);
+        let C = {
+            let [t] = core::array::from_fn(|_| <G as group::Group>::Scalar::sample(&mut rng));
+            G::generator() * t
+        };
+        let Z = A * x + B * y + C;
+        linear_relation.set_elements([(Z_var, Z), (A_var, A), (B_var, B), (C_var, C)]);
+        assert!(linear_relation.compile().is_ok());
+    }
+
+    /// The cached encoding must be canonical on every path that
+    /// produces an `Instance`, since it is what the transcript absorbs.
+    #[test]
+    fn encoding_is_canonical() {
+        let mut rng = ProverRng::from_os_entropy();
+        let mut relation = LinearRelation::<G>::new();
+        let [var_x, var_r] = relation.allocate_scalars();
+        let [var_g, var_h] = relation.allocate_elements();
+        relation.allocate_eq(var_g * var_x + var_h * var_r);
+        relation.set_elements([
+            (var_g, G::generator()),
+            (var_h, G::generator() * Scalar::sample(&mut rng)),
+        ]);
+        let witness = [Scalar::sample(&mut rng), Scalar::sample(&mut rng)];
+        let compiled = relation.compile_with_witness(&witness).unwrap();
+        assert_eq!(compiled.encode().as_ref(), compiled.serialize());
+
+        let parsed = Instance::<G>::deserialize(&compiled.serialize()).unwrap();
+        assert_eq!(parsed.encode().as_ref(), parsed.serialize());
+        assert_eq!(parsed.encode().as_ref(), compiled.encode().as_ref());
     }
 }

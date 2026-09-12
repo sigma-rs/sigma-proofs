@@ -4,9 +4,13 @@ on:
   push:
     paths:
       - 'tests/spec/testdata/sigma-proofs_*.json'
+      - 'tests/spec/testdata/sigma-proofs-invalid_*.json'
+      - '.github/workflows/test-vectors.yml'
   pull_request:
     paths:
       - 'tests/spec/testdata/sigma-proofs_*.json'
+      - 'tests/spec/testdata/sigma-proofs-invalid_*.json'
+      - '.github/workflows/test-vectors.yml'
   workflow_dispatch:
   schedule:
     - cron: '0 0 * * 0'
@@ -23,7 +27,9 @@ jobs:
 
           for vector in \
             sigma-proofs_Shake128_BLS12381.json \
-            sigma-proofs_Shake128_P256.json
+            sigma-proofs_Shake128_P256.json \
+            sigma-proofs-invalid_Shake128_BLS12381.json \
+            sigma-proofs-invalid_Shake128_P256.json
           do
             curl -sL "$upstream_base/$vector" -o "/tmp/$vector"
             [ "$(sha256sum "$vector_dir/$vector" | cut -d' ' -f1)" = "$(sha256sum "/tmp/$vector" | cut -d' ' -f1)" ] || exit 1

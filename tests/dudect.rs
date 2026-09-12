@@ -28,17 +28,15 @@ use std::{
 use curve25519_dalek::{RistrettoPoint as G, Scalar};
 
 use rand::Rng;
-use rand_chacha::{rand_core::SeedableRng, ChaCha12Rng};
-use rand_core::{
-    impls::{next_u32_via_fill, next_u64_via_fill},
-    CryptoRng, CryptoRngCore, Error, RngCore,
-};
 use serial_test::serial;
 use sigma_proofs::{
-    composition::{ComposedRelation, ComposedWitness},
-    linear_relation::{CanonicalLinearRelation, Sum},
-    traits::{ScalarRng, SigmaProtocol, SigmaProtocolSimulator},
-    LinearRelation, Nizk,
+    codec::ScalarCodec,
+    composition::{ComposedInstance, ComposedWitness},
+    derive_session_id,
+    linear_relation::{Instance, LinearCombination},
+    prove_compact_with,
+    traits::SigmaProtocolSimulator,
+    DefaultHash, DuplexSpongeInit, LinearRelation, NargCodec, PrivateRng, ProverRng,
 };
 
 use crate::stats::{ct_stats, CtSummary};
@@ -54,74 +52,99 @@ static SAMPLES: LazyLock<usize> = LazyLock::new(|| match std::env::var("DUDECT_S
     Err(std::env::VarError::NotUnicode(_)) => panic!("DUDECT_SAMPLES env var is not unicode"),
 });
 
-mod relation_ct_tests {
-    use super::*;
+/// The relation tests, instantiated once per curve.
+///
+/// The curve matters here, and it did not use to. `MultiScalarMul::msm` --
+/// the constant-time multi-scalar multiplication that `prover_commit` runs
+/// over the witness and the prover's nonces -- is a *per-curve* impl, so each
+/// curve below exercises a different body and all three are needed:
+///
+/// - **Ristretto** dispatches to curve25519-dalek's `multiscalar_mul`.
+/// - **k256** dispatches to `lincomb_ext`. Both of these move the guarantee
+///   into a dependency, which is precisely why they are tested here rather
+///   than taken on trust.
+/// - **P-256** is the curve that runs the crate's own generic body, and it
+///   stands in for every group taking the default: p256 and both BLS12-381
+///   groups, which is what the standards-track consumers use.
+macro_rules! relation_ct_tests {
+    ($mod_name:ident, $group:ty) => {
+        mod $mod_name {
+            use super::*;
 
-    macro_rules! relation_ct_test {
-        ($name:ident) => {
+            type C = $group;
+
+            macro_rules! relation_ct_test {
+                ($name:ident) => {
+                    #[test]
+                    #[serial]
+                    fn $name() {
+                        set_core_affinity().ok();
+                        let stats = compare::<Instance<C>>(
+                            stringify!($name),
+                            relations::$name.distribution(&mut ProverRng::from_os_entropy()),
+                            relations::$name.distribution(&mut fixed_rng()),
+                        );
+                        println!("test {}: {stats}", stringify!($name));
+                        assert!(stats.max_t.abs() < T_VALUE_THRESHOLD);
+                    }
+                };
+            }
+
+            relation_ct_test!(discrete_logarithm);
+            relation_ct_test!(shifted_dlog);
+            relation_ct_test!(dleq);
+            relation_ct_test!(shifted_dleq);
+            relation_ct_test!(pedersen_commitment);
+            relation_ct_test!(twisted_pedersen_commitment);
+            relation_ct_test!(pedersen_commitment_equality);
+            relation_ct_test!(bbs_blind_commitment);
+            relation_ct_test!(test_range);
+            relation_ct_test!(weird_linear_combination);
+            relation_ct_test!(simple_subtractions);
+            relation_ct_test!(subtractions_with_shift);
+            relation_ct_test!(cmz_wallet_spend_relation);
+            relation_ct_test!(nested_affine_relation);
+            relation_ct_test!(elgamal_subtraction);
+
+            /// Baseline noise for this curve: one distribution against
+            /// itself. The tests above are likely to be false positives
+            /// whenever this one fails.
             #[test]
             #[serial]
-            fn $name() {
+            fn baseline() {
                 set_core_affinity().ok();
-                let stats = compare::<CanonicalLinearRelation<G>>(
-                    stringify!($name),
-                    relations::$name.distribution(&mut rand::thread_rng()),
-                    relations::$name.distribution(&mut FixedRng),
+                let stats = compare::<Instance<C>>(
+                    "baseline",
+                    relations::pedersen_commitment.distribution(&mut ProverRng::from_os_entropy()),
+                    relations::pedersen_commitment.distribution(&mut ProverRng::from_os_entropy()),
                 );
-                println!("test {}: {stats}", stringify!($name));
+                println!("baseline: {stats}");
                 assert!(stats.max_t.abs() < T_VALUE_THRESHOLD);
             }
-        };
-    }
-
-    relation_ct_test!(discrete_logarithm);
-    relation_ct_test!(shifted_dlog);
-    relation_ct_test!(dleq);
-    relation_ct_test!(shifted_dleq);
-    relation_ct_test!(pedersen_commitment);
-    relation_ct_test!(twisted_pedersen_commitment);
-    relation_ct_test!(pedersen_commitment_equality);
-    relation_ct_test!(bbs_blind_commitment);
-    relation_ct_test!(test_range);
-    relation_ct_test!(weird_linear_combination);
-    relation_ct_test!(simple_subtractions);
-    relation_ct_test!(subtractions_with_shift);
-    relation_ct_test!(cmz_wallet_spend_relation);
-    relation_ct_test!(nested_affine_relation);
-    relation_ct_test!(elgamal_subtraction);
+        }
+    };
 }
 
-/// Test to establish a baseline noise on a given system, other tests are likely to fail with false
-/// positives as well.
-#[test]
-#[serial]
-fn baseline() {
-    set_core_affinity().ok();
-    let stats = compare::<CanonicalLinearRelation<G>>(
-        "baseline",
-        relations::pedersen_commitment.distribution(&mut rand::thread_rng()),
-        relations::pedersen_commitment.distribution(&mut rand::thread_rng()),
-    );
-    println!("baseline: {stats}");
-    assert!(stats.max_t.abs() < T_VALUE_THRESHOLD);
-}
+relation_ct_tests!(ristretto, curve25519_dalek::RistrettoPoint);
+relation_ct_tests!(p256, ::p256::ProjectivePoint);
+relation_ct_tests!(k256, ::k256::ProjectivePoint);
 
 fn wide_relation<const WIDTH: usize>(
-    rng: &mut impl CryptoRngCore,
-) -> (CanonicalLinearRelation<G>, Vec<Scalar>) {
+    rng: &mut PrivateRng<impl DuplexSpongeInit<U = u8>>,
+) -> (Instance<G>, Vec<Scalar>) {
     let mut rel = LinearRelation::<G>::new();
-    let constraint: Sum<_> = (0..WIDTH)
+    let constraint: LinearCombination<G> = (0..WIDTH)
         .map(|_| rel.allocate_scalar() * rel.allocate_element_with(relations::random_elem(rng)))
         .sum();
     let _ = rel.allocate_eq(constraint);
 
-    let wit = G::random_scalars::<WIDTH>(rng);
-    rel.compute_image(&wit).unwrap();
-    (rel.try_into().unwrap(), wit.to_vec())
+    let wit: [Scalar; WIDTH] = core::array::from_fn(|_| Scalar::sample(rng));
+    let instance = rel.compile_with_witness(&wit).unwrap();
+    (instance, wit.to_vec())
 }
 
 /// Create two OR composition instances, one with the left branch false and one with the right
-/// branch false, along with the used of [FixedRng] to check for basic constant-timedness.
+/// branch false, along with a fixed-seed rng to check for basic constant-timedness.
 #[test]
 #[serial]
 fn test_ct_or_composition() {
@@ -129,15 +152,15 @@ fn test_ct_or_composition() {
     let stats = compare(
         "test_ct_or_composition",
         or(relations::pedersen_commitment, falsify(wide_relation::<16>))
-            .distribution(&mut rand::thread_rng()),
+            .distribution(&mut ProverRng::from_os_entropy()),
         or(falsify(relations::pedersen_commitment), wide_relation::<16>)
-            .distribution(&mut FixedRng),
+            .distribution(&mut fixed_rng()),
     );
     println!("test_composition: {stats}");
     assert!(stats.max_t.abs() < T_VALUE_THRESHOLD);
 }
 
-fn compare<P: SigmaProtocol<Challenge = Scalar> + SigmaProtocolSimulator>(
+fn compare<P: NizkProver>(
     name: &str,
     mut left: impl InstanceDist<Protocol = P>,
     mut right: impl InstanceDist<Protocol = P>,
@@ -201,49 +224,58 @@ fn dump_samples(name: &str, left: &[u64], right: &[u64]) {
     }
 }
 
-/// Time the call to [Nizk::prove_compact] with the given relation and witness.
-#[inline(never)]
-fn time_prove<P>((rel, wit): (P, P::Witness)) -> Duration
+/// The relations this harness times.
+///
+/// [`SigmaProtocol::Witness`] is unsized for the linear relation (it is the
+/// slice `[Scalar]`), but the timing distributions hand witnesses around by
+/// value, so each relation names its owned form here.
+trait NizkProver: NargCodec<Challenge: ScalarCodec> + SigmaProtocolSimulator + Sized {
+    type OwnedWitness: std::borrow::Borrow<Self::Witness>;
+}
+
+impl<C> NizkProver for Instance<C>
 where
-    P: SigmaProtocol<Challenge = Scalar> + SigmaProtocolSimulator,
+    C: group::prime::PrimeGroup
+        + sigma_proofs::MultiScalarMul<Scalar: ScalarCodec>
+        + sigma_proofs::codec::GroupCodec,
+{
+    type OwnedWitness = Vec<C::Scalar>;
+}
+
+impl NizkProver for ComposedInstance<G> {
+    type OwnedWitness = ComposedWitness<G>;
+}
+
+/// Time the call to [`prove_compact_with`] with the given relation and
+/// witness.
+#[inline(never)]
+fn time_prove<P>((rel, wit): (P, P::OwnedWitness)) -> Duration
+where
+    P: NizkProver,
 {
     // NOTE: Creating a new RNG here was found to be important, compared to using `rand::thread_rng`
     // directly, when the instance generation uses `rand::thread_rng`. Otherwise caching behavior
     // leads to false positive timing variance.
-    let mut rng = ChaCha12Rng::from_rng(rand::thread_rng()).unwrap();
-    let nizk = Nizk::new(b"sigma-proofs-dudect-test", rel);
-
+    let mut rng = {
+        let mut seed = [0u8; 32];
+        ProverRng::from_os_entropy().fill_bytes(&mut seed);
+        ProverRng::from_seed(seed)
+    };
+    let session_id = derive_session_id::<DefaultHash>(b"sigma-proofs dudect test CMPT");
     let start = Instant::now();
-    let _ = black_box(nizk.prove_compact(&wit, &mut rng));
+    let _ = black_box(prove_compact_with::<DefaultHash, _>(
+        &session_id,
+        &rel,
+        std::borrow::Borrow::borrow(&wit),
+        &mut rng,
+    ));
     start.elapsed()
 }
 
-/// A [TestRng] implementation that returns random values for group elements, but always returns a
-/// fixed value for scalars. Used with [relations], this generates statements with fixed-value
-/// witnesses.
-struct FixedRng;
-
-impl CryptoRng for FixedRng {}
-
-impl RngCore for FixedRng {
-    fn next_u32(&mut self) -> u32 {
-        next_u32_via_fill(self)
-    }
-
-    fn next_u64(&mut self) -> u64 {
-        next_u64_via_fill(self)
-    }
-
-    fn fill_bytes(&mut self, dest: &mut [u8]) {
-        // Always returns ONE assuming the dest is interpreted as a big-endian number.
-        dest.fill(0);
-        dest[dest.len() - 1] = 0x01;
-    }
-
-    fn try_fill_bytes(&mut self, dst: &mut [u8]) -> Result<(), Error> {
-        self.fill_bytes(dst);
-        Ok(())
-    }
+/// A fixed-seed [ProverRng]: every call replays the same stream, so witnesses
+/// built from it are fixed across dudect measurement classes.
+fn fixed_rng() -> ProverRng {
+    ProverRng::from_seed([1u8; 32])
 }
 
 /// Set the current thread's core affinity to a random core.
@@ -274,14 +306,26 @@ trait FalsifyWitness {
     fn falsify(self) -> Self;
 }
 
-impl FalsifyWitness for Vec<Scalar> {
-    fn falsify(self) -> Self {
-        // Assumes that the zero-witness is false for all relations.
-        // This is not strictly true, since you can have trivial relation for which the zero
-        // witness if valid.
-        (0..self.len()).map(|_| Scalar::ZERO).collect()
-    }
+// One impl per scalar field rather than a blanket over `Field`: a blanket
+// would overlap the `Vec<ComposedWitness<G>>` impl below, since coherence
+// cannot see that `ComposedWitness` is not a field.
+macro_rules! falsify_scalars {
+    ($scalar:ty) => {
+        impl FalsifyWitness for Vec<$scalar> {
+            fn falsify(self) -> Self {
+                // Assumes that the zero-witness is false for all relations.
+                // This is not strictly true, since you can have trivial relation for which the
+                // zero witness if valid.
+                (0..self.len())
+                    .map(|_| <$scalar as group::ff::Field>::ZERO)
+                    .collect()
+            }
+        }
+    };
 }
+
+falsify_scalars!(Scalar);
+falsify_scalars!(::p256::Scalar);
 
 impl FalsifyWitness for ComposedWitness<G> {
     fn falsify(self) -> Self {
@@ -290,6 +334,8 @@ impl FalsifyWitness for ComposedWitness<G> {
             ComposedWitness::And(items) => ComposedWitness::And(items.falsify()),
             ComposedWitness::Or(items) => ComposedWitness::Or(items.falsify()),
             ComposedWitness::Threshold(items) => ComposedWitness::Threshold(items.falsify()),
+            // Claim truth is public, not witness-dependent.
+            ComposedWitness::Claim => ComposedWitness::Claim,
         }
     }
 }
@@ -304,7 +350,7 @@ impl FalsifyWitness for Vec<ComposedWitness<G>> {
 /// composition to create false branches.
 fn falsify<R: ?Sized, F: InstanceFn<R>>(f: F) -> impl InstanceFn<R, Protocol = F::Protocol>
 where
-    <F::Protocol as SigmaProtocol>::Witness: FalsifyWitness,
+    <F::Protocol as NizkProver>::OwnedWitness: FalsifyWitness,
 {
     move |rng| {
         let (rel, wit) = f(rng);
@@ -312,29 +358,29 @@ where
     }
 }
 
-fn or<R: ?Sized, FL, FR>(left: FL, right: FR) -> impl InstanceFn<R, Protocol = ComposedRelation<G>>
+fn or<R: ?Sized, FL, FR>(left: FL, right: FR) -> impl InstanceFn<R, Protocol = ComposedInstance<G>>
 where
     FL: InstanceFn<R>,
     FR: InstanceFn<R>,
-    FL::Protocol: Into<ComposedRelation<G>>,
-    FR::Protocol: Into<ComposedRelation<G>>,
-    <FL::Protocol as SigmaProtocol>::Witness: Into<ComposedWitness<G>>,
-    <FR::Protocol as SigmaProtocol>::Witness: Into<ComposedWitness<G>>,
+    FL::Protocol: Into<ComposedInstance<G>>,
+    FR::Protocol: Into<ComposedInstance<G>>,
+    <FL::Protocol as NizkProver>::OwnedWitness: Into<ComposedWitness<G>>,
+    <FR::Protocol as NizkProver>::OwnedWitness: Into<ComposedWitness<G>>,
 {
     move |rng| {
         let (left_rel, left_wit) = left(rng);
         let (right_rel, right_wit) = right(rng);
         (
-            ComposedRelation::or([left_rel.into(), right_rel.into()]),
+            ComposedInstance::or([left_rel.into(), right_rel.into()]).unwrap(),
             ComposedWitness::or([left_wit.into(), right_wit.into()]),
         )
     }
 }
 
 trait InstanceFn<R: ?Sized>:
-    Fn(&mut R) -> (Self::Protocol, <Self::Protocol as SigmaProtocol>::Witness)
+    Fn(&mut R) -> (Self::Protocol, <Self::Protocol as NizkProver>::OwnedWitness)
 {
-    type Protocol: SigmaProtocol<Challenge = Scalar> + SigmaProtocolSimulator;
+    type Protocol: NizkProver;
 
     fn distribution(self, rng: &mut R) -> impl InstanceDist<Protocol = Self::Protocol>
     where
@@ -344,22 +390,22 @@ trait InstanceFn<R: ?Sized>:
     }
 }
 
-trait InstanceDist: FnMut() -> (Self::Protocol, <Self::Protocol as SigmaProtocol>::Witness) {
-    type Protocol: SigmaProtocol<Challenge = Scalar> + SigmaProtocolSimulator;
+trait InstanceDist: FnMut() -> (Self::Protocol, <Self::Protocol as NizkProver>::OwnedWitness) {
+    type Protocol: NizkProver;
 }
 
 impl<R: ?Sized, F, P> InstanceFn<R> for F
 where
-    P: SigmaProtocol<Challenge = Scalar> + SigmaProtocolSimulator,
-    F: Fn(&mut R) -> (P, P::Witness),
+    P: NizkProver,
+    F: Fn(&mut R) -> (P, P::OwnedWitness),
 {
     type Protocol = P;
 }
 
 impl<F, P> InstanceDist for F
 where
-    P: SigmaProtocol<Challenge = Scalar> + SigmaProtocolSimulator,
-    F: FnMut() -> (P, P::Witness),
+    P: NizkProver,
+    F: FnMut() -> (P, P::OwnedWitness),
 {
     type Protocol = P;
 }

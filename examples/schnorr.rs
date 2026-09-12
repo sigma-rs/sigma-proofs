@@ -1,69 +1,41 @@
-//! Example: Schnorr proof of knowledge.
+//! Compact Schnorr proof of knowledge.
 //!
-//! This example demonstrates how to prove knowledge of a discrete logarithm using `sigma-rs`.
-//!
-//! The prover convinces a verifier that it knows a secret $x$ such that: $$P = x \cdot G$$
-//!
-//! where $G$ is a generator of a prime-order group $\mathbb{G}$ and $P$ is a public group element.
+//! The prover convinces a verifier that it knows `x` such that `P = x * G`.
 
 use curve25519_dalek::scalar::Scalar;
 use curve25519_dalek::RistrettoPoint;
 use group::Group;
-use rand::rngs::OsRng;
+use sigma_proofs::codec::ScalarCodec;
+use sigma_proofs::{prove_compact, verify_compact};
+use sigma_proofs::{LinearRelation, ProverRng};
 
-use sigma_proofs::errors::Error;
-use sigma_proofs::LinearRelation;
+/// The `CMPT` marker separates compact proofs from other NARG flavors.
+const TAG: &[u8] = b"sigma-proofs-example CMPT";
 
-type ProofResult<T> = Result<T, Error>;
-
-/// Create a discrete logarithm relation for the given public key P
+/// Create the discrete logarithm relation `P = x * G` for the given public key `P`.
 #[allow(non_snake_case)]
-fn create_relation(P: RistrettoPoint) -> LinearRelation<RistrettoPoint> {
+fn dlog_relation(P: RistrettoPoint) -> LinearRelation<RistrettoPoint> {
     let mut relation = LinearRelation::new();
-
     let x = relation.allocate_scalar();
-    let G = relation.allocate_element();
-    let P_var = relation.allocate_eq(x * G);
-    relation.set_element(G, RistrettoPoint::generator());
-    relation.set_element(P_var, P);
-
+    relation.allocate_eq_with(P, x * relation.generator());
     relation
 }
 
-/// Prove knowledge of the discrete logarithm: given witness x and public key P,
-/// generate a proof that P = x * G
 #[allow(non_snake_case)]
-fn prove(x: Scalar, P: RistrettoPoint) -> ProofResult<Vec<u8>> {
-    let nizk = create_relation(P).into_nizk(b"sigma-proofs-example");
-    nizk?.prove_batchable(&vec![x], &mut OsRng)
-}
+fn main() -> anyhow::Result<()> {
+    // Private key (witness) and public key (statement).
+    let x = Scalar::sample(&mut ProverRng::from_os_entropy());
+    let P = RistrettoPoint::generator() * x;
+    println!("Public key P: {}", hex::encode(P.compress().as_bytes()));
 
-/// Verify a proof of knowledge of discrete logarithm for the given public key P
-#[allow(non_snake_case)]
-fn verify(P: RistrettoPoint, proof: &[u8]) -> ProofResult<()> {
-    let nizk = create_relation(P).into_nizk(b"sigma-proofs-example");
-    nizk?.verify_batchable(proof)
-}
+    // The same compiled statement is what both sides agree on.
+    let statement = dlog_relation(P).compile()?;
 
-#[allow(non_snake_case)]
-fn main() {
-    let x = Scalar::random(&mut OsRng); // Private key (witness)
-    let P = RistrettoPoint::generator() * x; // Public key (statement)
+    let proof = prove_compact(TAG, &statement, &[x])?;
+    println!("Proof (hex): {}", hex::encode(&proof));
 
-    println!("Generated new key pair:");
-    println!("Public key P: {:?}", hex::encode(P.compress().as_bytes()));
+    verify_compact(TAG, &statement, &proof)?;
+    println!("✓ Proof verified successfully!");
 
-    match prove(x, P) {
-        Ok(proof) => {
-            println!("Proof generated successfully:");
-            println!("Proof (hex): {}", hex::encode(&proof));
-
-            // Verify the proof
-            match verify(P, &proof) {
-                Ok(()) => println!("✓ Proof verified successfully!"),
-                Err(e) => println!("✗ Proof verification failed: {e:?}"),
-            }
-        }
-        Err(e) => println!("✗ Failed to generate proof: {e:?}"),
-    }
+    Ok(())
 }

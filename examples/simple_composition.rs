@@ -1,100 +1,63 @@
 //! OR-proof composition example.
+//!
+//! The prover convinces a verifier that it knows *either* $x_1$ with
+//! $P_1 = x_1 G$, *or* $x_2$ with $P_2 = x_2 G$ and $Q = x_2 H$ — without
+//! revealing which. Here only $x_2$ is known.
 
-use curve25519_dalek::ristretto::RistrettoPoint;
+use curve25519_dalek::ristretto::RistrettoPoint as G;
 use curve25519_dalek::scalar::Scalar;
 use group::Group;
-use rand::rngs::OsRng;
+use sigma_proofs::codec::ScalarCodec;
 use sigma_proofs::{
-    composition::{ComposedRelation, ComposedWitness},
-    errors::Error,
-    LinearRelation,
+    composition::{ComposedInstance, ComposedWitness},
+    prove_batchable, verify_batchable, LinearRelation, ProverRng,
 };
 
-type G = RistrettoPoint;
-type ProofResult<T> = Result<T, Error>;
+/// The application's tag, carrying the `DSFS` flavor marker required of
+/// batchable NARG strings.
+const TAG: &[u8] = b"or_proof_example DSFS";
 
-/// Create an OR relation between two statements:
-/// 1. Knowledge of discrete log: P1 = x1 * G
-/// 2. Knowledge of DLEQ: (P2 = x2 * G, Q = x2 * H)
+/// The OR of a discrete logarithm `P1 = x1 * G` and a DLEQ `(P2 = x2 * G, Q = x2 * H)`.
 #[allow(non_snake_case)]
-fn create_relation(P1: G, P2: G, Q: G, H: G) -> ComposedRelation<G> {
-    // First relation: discrete logarithm P1 = x1 * G
-    let mut rel1 = LinearRelation::<G>::new();
-    let x1 = rel1.allocate_scalar();
-    let G1 = rel1.allocate_element();
-    let P1_var = rel1.allocate_eq(x1 * G1);
-    rel1.set_element(G1, G::generator());
-    rel1.set_element(P1_var, P1);
+fn or_relation(P1: G, P2: G, Q: G, H: G) -> anyhow::Result<ComposedInstance<G>> {
+    // Left branch: discrete logarithm.
+    let mut dlog = LinearRelation::<G>::new();
+    let x1 = dlog.allocate_scalar();
+    dlog.allocate_eq_with(P1, x1 * dlog.generator());
 
-    // Second relation: DLEQ (P2 = x2 * G, Q = x2 * H)
-    let mut rel2 = LinearRelation::<G>::new();
-    let x2 = rel2.allocate_scalar();
-    let G2 = rel2.allocate_element();
-    let H_var = rel2.allocate_element();
-    let P2_var = rel2.allocate_eq(x2 * G2);
-    let Q_var = rel2.allocate_eq(x2 * H_var);
-    rel2.set_element(G2, G::generator());
-    rel2.set_element(H_var, H);
-    rel2.set_element(P2_var, P2);
-    rel2.set_element(Q_var, Q);
+    // Right branch: equality of discrete logarithms in bases G and H.
+    let mut dleq = LinearRelation::<G>::new();
+    let x2 = dleq.allocate_scalar();
+    let H_var = dleq.allocate_element_with(H);
+    dleq.allocate_eq_with(P2, x2 * dleq.generator());
+    dleq.allocate_eq_with(Q, x2 * H_var);
 
-    // Compose into OR protocol
-    ComposedRelation::or([rel1.canonical().unwrap(), rel2.canonical().unwrap()])
+    Ok(ComposedInstance::or([dlog.compile()?, dleq.compile()?])?)
 }
 
-/// Prove knowledge of one of the witnesses (we know x2 for the DLEQ)
 #[allow(non_snake_case)]
-fn prove(P1: G, x2: Scalar, H: G) -> ProofResult<Vec<u8>> {
-    // Compute public values
+fn main() -> anyhow::Result<()> {
+    let mut rng = ProverRng::from_os_entropy();
+    let [x1, x2, h] = core::array::from_fn(|_| Scalar::sample(&mut rng));
+
+    let H = G::generator() * h;
+    let P1 = G::generator() * x1; // x1 is never handed to the prover
     let P2 = G::generator() * x2;
     let Q = H * x2;
 
-    let instance = create_relation(P1, P2, Q, H);
-    // Create OR witness with branch 1 being the real one (index 1)
-    let witness = ComposedWitness::Or(vec![
-        ComposedWitness::Simple(vec![Scalar::from(0u64)]),
-        ComposedWitness::Simple(vec![x2]),
-    ]);
-    let nizk = instance.into_nizk(b"or_proof_example");
+    println!("OR-proof example: proving knowledge of x1 OR x2 (we only know x2)");
 
-    nizk.prove_batchable(&witness, &mut OsRng)
-}
+    // The same composed statement is what both sides agree on.
+    let statement = or_relation(P1, P2, Q, H)?;
+    // Branch 1 is the real one; branch 0 is simulated, so its witness slot is
+    // an ignored placeholder.
+    let witness = ComposedWitness::<G>::or([vec![Scalar::ZERO], vec![x2]]);
 
-/// Verify an OR proof given the public values
-#[allow(non_snake_case)]
-fn verify(P1: G, P2: G, Q: G, H: G, proof: &[u8]) -> ProofResult<()> {
-    let protocol = create_relation(P1, P2, Q, H);
-    let nizk = protocol.into_nizk(b"or_proof_example");
+    let proof = prove_batchable(TAG, &statement, &witness)?;
+    println!("Proof (hex): {}", hex::encode(&proof));
 
-    nizk.verify_batchable(proof)
-}
+    verify_batchable(TAG, &statement, &proof)?;
+    println!("✓ Proof verified successfully!");
 
-#[allow(non_snake_case)]
-fn main() {
-    // Setup: We don't know x1, but we do know x2
-    let x1 = Scalar::random(&mut OsRng);
-    let x2 = Scalar::random(&mut OsRng);
-    let H = G::random(&mut OsRng);
-
-    // Compute public values
-    let P1 = G::generator() * x1; // We don't actually know x1 in the proof
-    let P2 = G::generator() * x2; // We know x2
-    let Q = H * x2; // Q = x2 * H
-
-    println!("OR-proof example: Proving knowledge of x1 OR x2");
-    println!("(We only know x2, not x1)");
-
-    match prove(P1, x2, H) {
-        Ok(proof) => {
-            println!("Proof generated successfully");
-            println!("Proof (hex): {}", hex::encode(&proof));
-
-            // Verify the proof
-            match verify(P1, P2, Q, H, &proof) {
-                Ok(()) => println!("✓ Proof verified successfully!"),
-                Err(e) => println!("✗ Proof verification failed: {e:?}"),
-            }
-        }
-        Err(e) => println!("✗ Failed to generate proof: {e:?}"),
-    }
+    Ok(())
 }

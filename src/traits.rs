@@ -1,140 +1,103 @@
-//! Generic interface for 3-message Sigma protocols.
+//! Generic interface for Sigma Protocols.
 //!
-//! This module defines the [`SigmaProtocol`] and [`SigmaProtocolSimulator`] traits,
-//! used to describe interactive zero-knowledge proofs of knowledge,
-//! such as Schnorr proofs, that follow the 3-message Sigma protocol structure.
+//! This module defines the [`SigmaProtocol`] and [`SigmaProtocolSimulator`]
+//! traits, 3-message interactive proof systems with special soundness and
+//! special honest-verifier zero-knowledge.
 
-use crate::errors::Result;
-use alloc::vec::Vec;
-use group::Group;
-use rand_core::CryptoRngCore;
-use spongefish::{Decoding, Encoding, NargDeserialize, NargSerialize};
-
-/// An automatic trait helper for sampling group scalars from an RNG.
-///
-/// This trait is implemented for all types implementing [`group::Group`]
-/// and its Scalar field implements [`spongefish::Decoding`].
-/// Passing any cryptographically-secure random number generator (CSRNG) is
-/// recommended for creating proofs.
-pub trait ScalarRng: Group
-where
-    <Self as Group>::Scalar: Decoding<[u8]>,
-{
-    fn random_scalars<const N: usize>(rng: &mut impl CryptoRngCore) -> [Self::Scalar; N];
-    fn random_scalars_vec(rng: &mut impl CryptoRngCore, n: usize) -> Vec<Self::Scalar>;
-}
+use crate::errors::{InvalidWitness, VerificationError};
+use spongefish::{DuplexSpongeInit, PrivateRng};
 
 pub type Transcript<P> = (
-    Vec<<P as SigmaProtocol>::Commitment>,
+    <P as SigmaProtocol>::Commitment,
     <P as SigmaProtocol>::Challenge,
-    Vec<<P as SigmaProtocol>::Response>,
+    <P as SigmaProtocol>::Response,
 );
 
 /// A trait defining the behavior of a generic Sigma protocol.
-///
-/// A Sigma protocol is a 3-message proof protocol where a prover can convince
-/// a verifier of knowledge of a witness for a given public statement
-/// without revealing the witness.
-///
-/// ## Associated Types
-/// - `Commitment`: The prover's initial commitment.
-/// - `ProverState`: The prover's internal state needed to compute a response.
-/// - `Response`: The prover's response to a verifier's challenge.
-/// - `Witness`: The prover's secret knowledge.
-/// - `Challenge`: The verifier's challenge value.
-///
-///  ## Minimal Implementation
-/// Types implementing [`SigmaProtocol`] must define:
-/// - `prover_commit` — Generates a commitment and internal state.
-/// - `prover_response` — Computes a response to a challenge.
-/// - `verifier` — Verifies a full transcript `(commitment, challenge, response)`.
-///
-/// ## Serialization
-/// Implementors must also provide methods for serialization and deserialization
-/// of each component of the proof.
-/// Required methods:
-/// - `serialize_commitment` / `deserialize_commitment`
-/// - `serialize_challenge` / `deserialize_challenge`
-/// - `serialize_response` / `deserialize_response`
-///
-/// These functions should encode/decode each component into/from a compact binary format.
-///
-/// ## Identification
-/// To allow transcript hash binding and protocol distinction,
-/// implementors must provide:
-/// - `protocol_identifier` — A fixed byte identifier of the protocol.
-/// - `instance_label` — A label specific to the instance being proven.
 pub trait SigmaProtocol {
-    type Commitment: Encoding<[u8]> + NargSerialize + NargDeserialize;
-    type Challenge: Decoding<[u8]>;
-    type Response: Encoding<[u8]> + NargSerialize + NargDeserialize;
+    /// The prover's commitment.
+    type Commitment;
+    /// The verifier challenge.
+    type Challenge;
+    /// The prover's response.
+    type Response;
+    /// The prover's (private) internal state.
     type ProverState;
-    type Witness;
+    /// Taken by reference throughout, so it may be unsized.
+    type Witness: ?Sized;
 
-    /// First step of the protocol. Given the witness and RNG, this generates:
+    /// The commitment message of the Sigma Protocol. It generates:
+    ///
     /// - A public commitment to send to the verifier.
     /// - The internal state to use when computing the response.
+    ///
+    /// A non-interactive codec may reject a negligible subset of this
+    /// distribution and ask the prover to sample again.
     fn prover_commit(
         &self,
         witness: &Self::Witness,
-        rng: &mut impl CryptoRngCore,
-    ) -> Result<(Vec<Self::Commitment>, Self::ProverState)>;
+        rng: &mut PrivateRng<impl DuplexSpongeInit<U = u8>>,
+    ) -> core::result::Result<(Self::Commitment, Self::ProverState), InvalidWitness>;
 
-    /// Computes the prover's response to a challenge based on the prover state.
+    /// The response message of the Sigma Protocol.
     fn prover_response(
         &self,
         state: Self::ProverState,
         challenge: &Self::Challenge,
-    ) -> Result<Vec<Self::Response>>;
+    ) -> core::result::Result<Self::Response, InvalidWitness>;
 
-    /// Final step of the protocol: checks that the commitment, challenge, and response form a valid transcript.
-    ///
-    /// Returns:
-    /// - `Ok(())` if the transcript is valid.
-    /// - `Err(())` otherwise.
+    /// The verifier of the Sigma Protocol.
     fn verifier(
         &self,
-        commitment: &[Self::Commitment],
+        commitment: &Self::Commitment,
         challenge: &Self::Challenge,
-        response: &[Self::Response],
-    ) -> Result<()>;
+        response: &Self::Response,
+    ) -> Result<(), VerificationError>;
 
-    fn commitment_len(&self) -> usize;
+    /// The verifier with one extra challenge for statistical verification.
+    ///
+    /// When checking several independent equations, the verifier may collapse
+    /// them into a single random linear combination. By default this just runs
+    /// the verifier.
+    ///
+    /// # Safety
+    ///
+    /// For verification to be secure, the `_randomness` input MUST be drawn uniformly at random by the verifier,
+    /// after seeing all the transcript.
+    fn verifier_with_randomness(
+        &self,
+        commitment: &Self::Commitment,
+        challenge: &Self::Challenge,
+        response: &Self::Response,
+        _randomness: &Self::Challenge,
+    ) -> Result<(), VerificationError> {
+        self.verifier(commitment, challenge, response)
+    }
 
-    fn response_len(&self) -> usize;
-
-    fn protocol_identifier(&self) -> [u8; 64];
-
-    fn instance_label(&self) -> impl AsRef<[u8]>;
+    fn encode_instance(&self) -> impl AsRef<[u8]>;
 }
 
-/// A trait defining the behavior of a Sigma protocol for which simulation of transcripts is necessary.
+/// The simulator for the Sigma Protocol.
 ///
-/// Every Sigma protocol can be simulated, but in practice, this is primarily used
-/// for proving security properties (zero-knowledge, soundness, etc.).
-///
-/// Some protocols (e.g. OR compositions) require simulation capabilities during actual proof generation.
-///
-/// ## Minimal Implementation
-/// Types implementing [`SigmaProtocolSimulator`] must define:
-/// - `simulate_proof`
-/// - `simulate_transcript`
+/// An extension trait for a [`SigmaProtocol`] that is used by OR composition
+/// and compact proof verification.
 pub trait SigmaProtocolSimulator: SigmaProtocol {
-    /// Generates a random response (e.g. for simulation or OR composition).
-    ///
-    /// Typically used to simulate a proof without a witness.
-    fn simulate_response(&self, rng: &mut impl CryptoRngCore) -> Vec<Self::Response>;
+    /// Similate a response message.
+    fn simulate_response(
+        &self,
+        rng: &mut PrivateRng<impl DuplexSpongeInit<U = u8>>,
+    ) -> Self::Response;
 
-    /// Simulates a commitment for which ('commitment', 'challenge', 'response') is a valid transcript.
-    ///
-    /// This function allows to omit commitment in compact proofs of the type ('challenge', 'response').
+    /// Simulates a commitment message.
     fn simulate_commitment(
         &self,
         challenge: &Self::Challenge,
-        response: &[Self::Response],
-    ) -> Result<Vec<Self::Commitment>>;
+        response: &Self::Response,
+    ) -> Result<Self::Commitment, VerificationError>;
 
-    /// Generates a full simulated proof transcript (commitment, challenge, response)
-    /// without requiring knowledge of a witness.
-    fn simulate_transcript(&self, rng: &mut impl CryptoRngCore) -> Result<Transcript<Self>>;
+    /// Simulates a full Sigma Protocol transcript.
+    fn simulate_transcript(
+        &self,
+        rng: &mut PrivateRng<impl DuplexSpongeInit<U = u8>>,
+    ) -> Result<Transcript<Self>, VerificationError>;
 }

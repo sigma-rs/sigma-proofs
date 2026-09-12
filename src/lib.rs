@@ -1,86 +1,71 @@
-//! # Σ-rs: Sigma Protocols in Rust
+//! A Rust library for zero-knowledge proofs built from Sigma protocols.
 //!
-//! **Σ-rs** is a Rust library for constructing zero-knowledge proofs using Sigma protocols (Σ-protocols).
-//! It allows proving knowledge of secret data without revealing the data itself.
-//!
-//! ---
-//!
-//! ## What are Sigma Protocols?
-//!
-//! Sigma protocols are interactive cryptographic protocols that allow a prover to convince
-//! a verifier they know a secret (like a private key) without revealing the secret itself.
-//! They follow a simple three-step pattern: commitment, challenge, response.
-//!
-//! ---
-//!
-//! ## Basic Usage
-//!
-//! ```rust
-//! # #[cfg(feature = "curve25519-dalek")] {
-//! # use curve25519_dalek::ristretto::RistrettoPoint;
-//! # use curve25519_dalek::scalar::Scalar;
-//! # use group::Group;
-//! let mut instance = sigma_proofs::LinearRelation::new();
-//! let mut rng = rand::thread_rng();
-//!
-//! // Define the statement:
-//! // Prove knowledge of (x, r) such that C = x·G + r·H (Pedersen commitment)
-//! let [var_x, var_r] = instance.allocate_scalars();
-//! let [var_G, var_H] = instance.allocate_elements();
-//! instance.allocate_eq(var_G * var_x + var_H * var_r);
-//! instance.set_elements([(var_G, RistrettoPoint::generator()), (var_H, RistrettoPoint::random(&mut rng))]);
-//!
-//! // Assign the image of the linear map.
-//! let witness = vec![Scalar::random(&mut rng), Scalar::random(&mut rng)];
-//! instance.compute_image(&witness);
-//!
-//! // Create a non-interactive argument for the instance.
-//! let nizk = instance.into_nizk(b"your session identifier").unwrap();
-//! let narg_string: Vec<u8> = nizk.prove_batchable(&witness, &mut rng).unwrap();
-//! // Print the narg string.
-//! println!("{}", hex::encode(narg_string));
-//! # }
-//! ```
-//!
-//! The library provides building blocks for creating zero-knowledge proofs:
-//!
-//! 1. Define your mathematical relation using [`LinearRelation`]
-//! 2. Convert to non-interactive using [`fiat_shamir::Nizk`]
-//! 3. Generate and verify proofs.
-//!
-//! ---
+//! The README's Quick Example is compiled as a doctest and is the canonical
+//! introduction to building, proving, and verifying a relation.
 //!
 //! ## Core Components
 //!
-//! - **[`traits::SigmaProtocol`]**: The fundamental three-move protocol interface
-//! - **[`linear_relation::LinearRelation`]**: Express mathematical relations over groups
-//! - **[`fiat_shamir::Nizk`]**: Convert interactive proofs to standalone proofs
-//! - **[`composition::ComposedRelation`]**: Combine multiple proofs together
-//!
-//! ---
-//!
-//! Σ-rs is designed to be modular, extensible, and easy to integrate into different
-//! groups, protocols depending on sigma protocols, and other proof systems.
+//! - **[`linear_relation::LinearRelation`]**: express relations over groups,
+//!   compiled into a validated [`Instance`]
+//! - **[`composition::ComposedInstance`]**: combine instances with AND/OR
+//! - **[`fiat_shamir`]**: prove and verify, as batchable or compact NARG strings
+//! - **[`traits::SigmaProtocol`]**: the three-move interface both of the above
+//!   implement, and the extension point for new relations
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+// Kani's single-threaded trace helper is the only permitted unsafe code.
+#![cfg_attr(not(kani), forbid(unsafe_code))]
 #![allow(non_snake_case)]
 #![doc(html_logo_url = "https://mmaker.github.io/sigma-rs/")]
 #![deny(unused_variables)]
 #![deny(unused_mut)]
+// Panic policy (docs/threat-model.md §2.1). The verifier must never panic.
+// `assert!` and `unreachable!` remain available for invariants that hold by
+// construction, but out-of-bounds indexing is denied.
+//
+// The MSM module opts out because its indexing bounds come from the loop
+// structure and rewriting them as fallible lookups obscures the arithmetic
+// without proving anything. It is covered instead by the overflow-checked CI
+// job and by the Kani harnesses.
+#![cfg_attr(
+    not(test),
+    deny(
+        clippy::indexing_slicing,
+        clippy::panic,
+        clippy::todo,
+        clippy::unimplemented,
+        clippy::unwrap_used,
+    )
+)]
 
 extern crate alloc;
 
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+struct ReadmeDoctests;
+
+pub mod codec;
 pub mod composition;
+pub mod compressed;
 pub mod errors;
-pub mod group;
+pub mod fiat_shamir;
 pub mod linear_relation;
-pub mod rng;
+/// Implementation of multi-scalar multiplication (MSM) over scalars and points.
+pub mod msm;
 pub mod traits;
 
-pub(crate) mod fiat_shamir;
-pub(crate) mod schnorr_protocol;
+pub use fiat_shamir::{
+    derive_session_id, prove_batchable, prove_batchable_with, prove_compact, prove_compact_with,
+    verify_batch, verify_batch_with, verify_batchable, verify_batchable_with, verify_compact,
+    verify_compact_with, NargCodec, SessionId,
+};
+pub use linear_relation::{Instance, LinearRelation};
+pub use msm::MultiScalarMul;
+pub use spongefish::{DefaultHash, DuplexSpongeInit, PrivateRng};
 
-pub use fiat_shamir::Nizk;
-pub use group::msm::MultiScalarMul;
-pub use linear_relation::LinearRelation;
+/// The prover's random number generator.
+///
+/// Seed from OS entropy via [`PrivateRng::from_os_entropy`] or a fixed seed
+/// [`PrivateRng::from_seed`] for tests.
+pub type ProverRng = PrivateRng;

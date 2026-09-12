@@ -99,7 +99,7 @@ impl<T, F: Field> From<T> for Weighted<T, F> {
 // NOTE: This is implemented directly for each of the key types to avoid collision with the blanket
 // Into impl provided by the standard library.
 macro_rules! impl_from_for_sum {
-    ($($type:ty),+) => {
+    ($($type:ty),+ $(,)?) => {
         $(
         impl<G: Group, T: Into<$type>> From<T> for Sum<$type> {
             fn from(value: T) -> Self {
@@ -134,8 +134,41 @@ impl_from_for_sum!(
     Term<G>,
     Weighted<ScalarVar<G>, G::Scalar>,
     Weighted<GroupVar<G>, G::Scalar>,
-    Weighted<Term<G>, G::Scalar>
+    Weighted<Term<G>, G::Scalar>,
 );
+
+/// Into the scalar algebra's canonical sum.
+///
+/// Spelled out per source type rather than generated from a
+/// `T: Into<Weighted<ScalarTerm<G>, G::Scalar>>` bound the way
+/// `impl_from_for_sum!` does, because the field-element conversion above is
+/// itself blanket over `T: Field`: a bound like that would overlap `Vec<T>`
+/// and `[T; N]`, since nothing rules out a `Field` implemented for those.
+macro_rules! impl_from_for_scalar_sum {
+    ($($source:ty),+ $(,)?) => {
+        $(
+        impl<G: Group> From<$source> for Sum<Weighted<ScalarTerm<G>, G::Scalar>> {
+            fn from(value: $source) -> Self {
+                Sum(vec![value.into()])
+            }
+        }
+        )+
+    };
+}
+
+impl_from_for_scalar_sum!(
+    ScalarVar<G>,
+    ScalarTerm<G>,
+    Weighted<ScalarVar<G>, G::Scalar>,
+    Weighted<ScalarTerm<G>, G::Scalar>,
+);
+
+// NOTE: as above, Rust does not accept an impl over `From<G::Scalar>`.
+impl<T: Field + Into<G::Scalar>, G: Group> From<T> for Sum<Weighted<ScalarTerm<G>, G::Scalar>> {
+    fn from(value: T) -> Self {
+        Sum(vec![Weighted::from(value)])
+    }
+}
 
 impl<T, F: Field> From<Sum<T>> for Sum<Weighted<T, F>> {
     fn from(sum: Sum<T>) -> Self {
@@ -143,16 +176,31 @@ impl<T, F: Field> From<Sum<T>> for Sum<Weighted<T, F>> {
     }
 }
 
-// Manual implementation for ScalarTerm sum conversion
-impl<G: Group> From<ScalarTerm<G>> for Sum<Weighted<ScalarTerm<G>, G::Scalar>> {
-    fn from(value: ScalarTerm<G>) -> Self {
-        Sum(vec![value.into()])
-    }
+/// The remaining routes into a canonical sum: those whose element conversion
+/// changes the term type as well as weighting it, which the blanket above
+/// cannot express. Together with it, every sum an expression can produce
+/// converts to the canonical sum of its algebra, which is what lets
+/// [`Add`][core::ops::Add] be written once per operand in [`super::ops`].
+macro_rules! impl_from_sum_for_sum {
+    ($canonical:ty; $($source:ty),+ $(,)?) => {
+        $(
+        impl<G: Group> From<Sum<$source>> for Sum<$canonical> {
+            fn from(sum: Sum<$source>) -> Self {
+                Self(sum.0.into_iter().map(Into::into).collect())
+            }
+        }
+        )+
+    };
 }
 
-impl<G: Group> From<Sum<Weighted<GroupVar<G>, G::Scalar>>> for Sum<Weighted<Term<G>, G::Scalar>> {
-    fn from(sum: Sum<Weighted<GroupVar<G>, G::Scalar>>) -> Self {
-        let sum = sum.0.into_iter().map(|x| x.into()).collect::<Vec<_>>();
-        Self(sum)
-    }
-}
+impl_from_sum_for_sum!(
+    Weighted<ScalarTerm<G>, G::Scalar>;
+    ScalarVar<G>,
+    Weighted<ScalarVar<G>, G::Scalar>,
+);
+
+impl_from_sum_for_sum!(
+    Weighted<Term<G>, G::Scalar>;
+    GroupVar<G>,
+    Weighted<GroupVar<G>, G::Scalar>,
+);

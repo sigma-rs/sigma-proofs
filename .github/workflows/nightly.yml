@@ -1,0 +1,128 @@
+name: Nightly
+
+# Assurance checks that are too slow, or too statistical, to gate a pull
+# request. Miri takes minutes per curve; the leakage tests are hypothesis
+# tests, and at the sample counts that make them meaningful they would both
+# slow down and occasionally flake the PR pipeline. Running them here keeps
+# the PR signal crisp and still catches regressions within a day.
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+  # So changes to this file can be exercised before they are merged.
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/nightly.yml'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # This crate contains no `unsafe`, so Miri is here to catch undefined
+  # behaviour reached *through* dependencies — curve backends above all — and
+  # to keep that true as they are bumped.
+  miri:
+    name: Miri (${{ matrix.curve }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        curve: [curve25519-dalek, p256, k256, bls12_381]
+    env:
+      RUSTUP_TOOLCHAIN: nightly
+      MIRIFLAGS: "-Zmiri-disable-isolation"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: miri
+      # Unit tests only: the integration suites re-cover the same code paths
+      # at many times the interpreted cost.
+      - run: cargo miri test --lib --locked --no-default-features --features "std,${{ matrix.curve }}"
+
+  # The pull-request run uses 1024 cases per property, which takes under a
+  # second. Here the corruption strategies get enough draws to reach the rarer
+  # shapes — this is the closest thing the suite has to a fuzzer.
+  property:
+    name: Extended property tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      PROPTEST_CASES: "200000"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --locked --release --all-features --test property
+
+  # Bounded model checking of `src/composition/ct.rs`: that the compaction is
+  # the permutation the caller expects, that the marks steer no memory access,
+  # and that a threshold prover simulates exactly `n - t` branches whatever it
+  # holds.
+  #
+  # Kani builds a goto program per harness, so wall clock tracks the harness
+  # count rather than the difficulty of any one proof: run sequentially the
+  # suite takes hours, with `-j` it is under a minute. The job is nightly
+  # because `cargo kani setup` downloads a large toolchain.
+  kani:
+    name: Model checking
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: model-checking/kani-github-action@v1
+        with:
+          # `-j` insists on terse output; it does not change what is checked.
+          args: '-j --output-format=terse'
+
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+      - uses: taiki-e/install-action@cargo-llvm-cov
+      # The floor is a ratchet against regression, set just below the level
+      # the suite currently reaches — not a target. Raise it when the number
+      # rises; never lower it to make a red build green.
+      - name: Measure coverage
+        run: |
+          cargo llvm-cov --workspace --locked --all-features \
+            --ignore-filename-regex '(tests/|benches/|examples/)' \
+            --fail-under-lines 85 \
+            --lcov --output-path lcov.info
+      - name: Summary
+        if: always()
+        run: |
+          cargo llvm-cov report --summary-only \
+            --ignore-filename-regex '(tests/|benches/|examples/)' \
+            >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lcov
+          path: lcov.info
+
+  # The PR pipeline runs these at the 100-sample default, enough to catch a
+  # gross regression. Here they run at a count where the t-statistic means
+  # something. Still a hypothesis test: passing is evidence, not proof
+  # (docs/threat-model.md §6.3).
+  #
+  # Cost scales linearly and the whole suite is ~230s per 5k samples across the
+  # three curves, so 50k is roughly forty minutes — the most that fits
+  # comfortably in a nightly.
+  leakage:
+    name: Timing leakage
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      DUDECT_SAMPLES: "50000"
+      DUDECT_DUMP_SAMPLES: "1"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Run leakage tests
+        run: cargo test --locked --release --test dudect -- --nocapture --test-threads=1
