@@ -7,6 +7,7 @@ use core::fmt;
 
 /// Represents an invalid instance error.
 #[derive(Debug)]
+#[non_exhaustive]
 pub struct InvalidInstance {
     /// The error message describing what's invalid about the instance.
     pub message: String,
