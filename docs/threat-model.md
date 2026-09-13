@@ -44,15 +44,15 @@ Cache eviction, power analysis, and spectre-class of attacks are not in scope. N
 
 ## Assurance measures
 
-| Claim | Evidence |
-| --- | --- |
-| Memory safety | `unsafe_code` denied across workspace targets and forbidden in library code outside Kani's narrowly scoped tracing exception; Miri over the unit tests on each curve, nightly |
-| Verifier totality (§2.1) | Tests that a corrupted proof must be rejected, never accepted, never a panic. `clippy::panic`/`unwrap_used` denied crate-wide; `indexing_slicing` denied on the parsing modules. CI for  |
-| Spec conformance | Test vectors from draft-irtf-cfrg-sigma-protocols (P-256, BLS12-381) checksummed against upstream |
-| MSM correctness | Tests for all four paths (constant-time and variable-time, generic and per-curve) agree with `sum(base * scalar)` |
-| Integer overflow | Full suite re-run in release with `-C overflow-checks=on -C debug-assertions=on`, every pull request |
-| OR and THRESH composition timing | `tests/dudect.rs` (empirical, limited shapes — see §6.3); 100 samples per pull request, 50 000 nightly. Statistical only: nothing here is machine-checked |
+| Claim                                    | Evidence |
+| ---------------------------------------- | -------- |
+| Memory safety                            | `unsafe_code` denied across workspace targets and forbidden in library code outside Kani's narrowly scoped tracing exception; Miri over the unit tests on each curve, nightly |
+| Verifier totality (§2.1)                 | Tests that a corrupted proof must be rejected, never accepted, never a panic. `clippy::panic`/`unwrap_used` denied crate-wide; `indexing_slicing` denied on the parsing modules. CI for  |
+| Spec conformance                         | Test vectors from draft-irtf-cfrg-sigma-protocols (P-256, BLS12-381) checksummed against upstream |
+| MSM correctness                          | Tests for all four paths (constant-time and variable-time, generic and per-curve) agree with `sum(base * scalar)` |
+| Integer overflow                         | Full suite re-run in release with `-C overflow-checks=on -C debug-assertions=on`, every pull request |
+| OR and THRESH composition timing         | `tests/dudect.rs` (empirical, limited shapes — see §6.3); 100 samples per pull request, 50 000 nightly. Statistical only: nothing here is machine-checked |
 | Compaction correctness and obliviousness | Kani, nightly. Exhaustive over every mark pattern, at the branch counts the harnesses name (one through nine, twelve and sixteen): that the compaction is the expected permutation, that the marks steer no memory access, and that a threshold prover simulates exactly `n - t` branches whatever it holds. Proved over MIR, so it constrains this source and not the code LLVM emits from it — a `Choice` select lowered back into a branch stays the business of §6.3 |
-| Portability | CI builds and tests on `wasm32-wasip1` and `no_std` |
-| Witness wiping | Unconditional: `ScalarCodec: Zeroize`, wiped in `WitnessState::drop` and after use in `prover_response`, with the nonces' uniform-byte preimage in `Zeroizing`. Residual exposure enumerated in §6.3 |
-| Supply chain | `cargo-deny` (advisories, licenses, bans, sources) in CI, declared MSRV built and tested separately; `--locked` builds |
+| Portability                              | CI builds and tests on `wasm32-wasip1` and `no_std` |
+| Witness wiping                           | Unconditional: `ScalarCodec: Zeroize`, wiped in `WitnessState::drop` and after use in `prover_response`, with the nonces' uniform-byte preimage in `Zeroizing`. Residual exposure enumerated in §6.3 |
+| Supply chain                             | `cargo-deny` (advisories, licenses, bans, sources) in CI, declared MSRV built and tested separately; `--locked` builds |

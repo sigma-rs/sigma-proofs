@@ -227,12 +227,10 @@ pub trait ScalarCodec: PrimeField + zeroize::Zeroize {
         Self::Repr::default().as_ref().len()
     }
 
-    /// `Ns + 16`: the number of uniform bytes one scalar is decoded from,
-    /// whether squeezed from the transcript as a challenge or drawn from the
-    /// prover's randomness. The 16-byte margin is what makes the wide
-    /// reduction in [`from_uniform_bytes`][ScalarCodec::from_uniform_bytes]
-    /// statistically uniform over `[0, p)`; prover and verifier must squeeze
-    /// this same width, so state it here and nowhere else.
+    /// Challenge length, in bytes, including at least 16 additional bytes for
+    /// a wide reduction. Wide reduction with additional bytes ensures
+    /// negligible bias in
+    /// [`from_uniform_bytes`][ScalarCodec::from_uniform_bytes]
     fn challenge_len() -> usize {
         Self::scalar_len() + 16
     }

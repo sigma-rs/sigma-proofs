@@ -27,8 +27,6 @@ mod protocol;
 ///
 /// Empty ORs and thresholds exceeding the number of branches are false, but
 /// remain simulatable as branches of an enclosing composition.
-///
-/// The representation is private so constructor checks cannot be bypassed.
 #[derive(Clone)]
 pub struct ComposedInstance<G: PrimeGroup>(InstanceNode<G>);
 

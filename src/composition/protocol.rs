@@ -31,10 +31,8 @@ use crate::traits::{SigmaProtocol, SigmaProtocolSimulator};
 use crate::MultiScalarMul;
 
 /// The variant labels opening a composed instance encoding. They share the
-/// `sigma-proofs composition ` prefix and their suffixes start on five
-/// distinct bytes, so no label is a prefix of another and the label is
-/// self-delimiting: the encoding stays prefix-free without a length prefix on
-/// the label itself. `labels_are_prefix_free` pins this.
+/// `sigma-proofs composition ` prefix followed by instance type. These labels
+/// are prefix-free with relation to each other.
 const LABEL_SIMPLE: &[u8] = b"sigma-proofs composition SIMPLE";
 const LABEL_AND: &[u8] = b"sigma-proofs composition AND";
 const LABEL_OR: &[u8] = b"sigma-proofs composition OR";
@@ -46,15 +44,8 @@ where
     G: PrimeGroup + ConstantTimeEq + ConditionallySelectable + MultiScalarMul + GroupCodec,
     G::Scalar: ScalarCodec + ConditionallySelectable,
 {
-    /// Serializes a commitment by walking the message tree: no shape
+    /// Serializes a commitment by walking the message tree. No shape
     /// information is written to the proof bytes.
-    ///
-    /// The relation is not consulted. It used to be, to check that the two
-    /// trees agreed, but every commitment reaching here was built by walking
-    /// this same relation — by `prover_commit`, or by `simulate_commitment`
-    /// over a response that `deserialize_response_tree` shaped from the
-    /// relation — so the check could not fire. Dropping it is what makes the
-    /// encoding total.
     fn serialize_commitment_tree(commitment: &ComposedCommitment<G>, out: &mut Vec<u8>) {
         match commitment {
             ComposedCommitment::Simple(elems) => {
@@ -255,8 +246,8 @@ where
     /// The two sharings differ, and this is the only place that difference is
     /// written: an OR shares additively, so the untransmitted last share is
     /// whatever the others leave over, and a threshold shares through the
-    /// degree-`(n - t)` polynomial pinned at `P(0) = challenge`. Both reject a
-    /// share count the relation does not call for.
+    /// degree-`(n - t)` polynomial pinned at `P(0) = challenge`. Both reject
+    /// incorrect share counts.
     ///
     /// Public data throughout: these are the transmitted shares.
     fn expand_shares(
