@@ -44,9 +44,6 @@ impl InvalidInstance {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct InvalidWitness;
 
-/// A result produced by instance construction or validation.
-pub type InstanceResult<T> = core::result::Result<T, InvalidInstance>;
-
 /// The opaque verification error used by spongefish transcripts.
 pub use spongefish::VerificationError;
 
