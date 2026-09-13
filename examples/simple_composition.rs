@@ -38,10 +38,10 @@ fn or_relation(P1: G, P2: G, Q: G, H: G) -> anyhow::Result<ComposedInstance<G>> 
 #[allow(non_snake_case)]
 fn main() -> anyhow::Result<()> {
     let mut rng = ProverRng::from_os_entropy();
-    let [x1, x2, h] = core::array::from_fn(|_| Scalar::sample(&mut rng));
+    let [x2, h] = core::array::from_fn(|_| Scalar::sample(&mut rng));
 
     let H = G::generator() * h;
-    let P1 = G::generator() * x1; // x1 is never handed to the prover
+    let P1 = G::from_uniform_bytes(&rng.sample()); // P1 has an unknown discrete logarithm
     let P2 = G::generator() * x2;
     let Q = H * x2;
 
