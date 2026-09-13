@@ -79,9 +79,7 @@ fn many_equations() -> LinearRelation<G> {
     relation
 }
 
-/// Constant equations are publicly checked and stripped by `compile`; this is
-/// the normalization-heavy path. A final witness equation keeps the compiled
-/// instance non-empty.
+/// Public equations are preserved by `compile`, including their image sums.
 fn normalization_heavy() -> LinearRelation<G> {
     let mut relation = LinearRelation::<G>::new();
     let element_values = (0..CONSTANT_TERMS)

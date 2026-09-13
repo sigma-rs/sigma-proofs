@@ -1376,6 +1376,7 @@ dependencies = [
  "divan",
  "ff",
  "group",
+ "hash2group",
  "hex",
  "hex-literal",
  "itertools",

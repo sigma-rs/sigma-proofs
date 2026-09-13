@@ -13,10 +13,10 @@ use group::Group;
 use hash2group::{rfc9380::ExpandMsgXmd, FromHash};
 use itertools::Itertools;
 use sha2::Sha256;
-use sigma_proofs::linear_relation::Sum;
+use sigma_proofs::linear_relation::LinearCombination;
 use sigma_proofs::{
-    derive_session_id, prove_batchable_with, verify_batchable_with, LinearRelation, ProverRng,
-    StdHash,
+    derive_session_id, prove_batchable_with, verify_batchable_with, DefaultHash, LinearRelation,
+    ProverRng,
 };
 
 const TAG: &[u8] = b"sigma-proofs representative statement benchmarks";
@@ -135,10 +135,10 @@ fn range_statement() -> Fixture {
         generator * Scalar::from(range.start)
             + (0..bases.len())
                 .map(|i| (bits[i] * generator) * Scalar::from(bases[i]))
-                .sum::<Sum<_>>()
+                .sum::<LinearCombination<G>>()
             + (0..bases.len())
                 .map(|i| (blinds[i] * h) * Scalar::from(bases[i]))
-                .sum::<Sum<_>>(),
+                .sum::<LinearCombination<G>>(),
     );
     for i in 0..bases.len() {
         relation.append_equation(bit_commitments[i], bits[i] * generator + blinds[i] * h);
@@ -193,7 +193,7 @@ fn range_statement() -> Fixture {
 
 fn bench_prove(bencher: Bencher, fixture: fn() -> Fixture) {
     let Fixture { relation, witness } = fixture();
-    let session_id = derive_session_id::<StdHash>(TAG);
+    let session_id = derive_session_id::<DefaultHash>(TAG);
     let mut rng = ProverRng::from_seed([7u8; 32]);
     bencher
         .with_inputs(|| relation.clone())
@@ -202,7 +202,7 @@ fn bench_prove(bencher: Bencher, fixture: fn() -> Fixture) {
                 .compute_image(black_box(&witness))
                 .unwrap();
             let instance = black_box(&relation).compile().unwrap();
-            prove_batchable_with::<StdHash, _>(
+            prove_batchable_with::<DefaultHash, _>(
                 &session_id,
                 black_box(&instance),
                 black_box(&witness),
@@ -217,10 +217,10 @@ fn bench_verify(bencher: Bencher, fixture: fn() -> Fixture) {
         mut relation,
         witness,
     } = fixture();
-    let session_id = derive_session_id::<StdHash>(TAG);
+    let session_id = derive_session_id::<DefaultHash>(TAG);
     relation.compute_image(&witness).unwrap();
     let instance = relation.compile().unwrap();
-    let proof = prove_batchable_with::<StdHash, _>(
+    let proof = prove_batchable_with::<DefaultHash, _>(
         &session_id,
         &instance,
         &witness,
@@ -231,7 +231,7 @@ fn bench_verify(bencher: Bencher, fixture: fn() -> Fixture) {
         .with_inputs(|| relation.clone())
         .bench_values(|relation| {
             let instance = black_box(&relation).compile().unwrap();
-            verify_batchable_with::<StdHash, _>(
+            verify_batchable_with::<DefaultHash, _>(
                 &session_id,
                 black_box(&instance),
                 black_box(proof.as_slice()),
