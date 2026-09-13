@@ -6,7 +6,7 @@ use core::marker::PhantomData;
 use ff::Field;
 use group::prime::PrimeGroup;
 
-/// An index referencing a scalar variable in a sparse linear combination.
+/// A reference to a scalar variable in a sparse linear combination.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct ScalarVar<G>(pub(super) usize, pub(super) PhantomData<G>);
 
@@ -16,7 +16,7 @@ impl<G> core::hash::Hash for ScalarVar<G> {
     }
 }
 
-/// An index referencing a group element (point) in a sparse linear combination.
+/// A reference to a group element (point) in a sparse linear combination.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct GroupVar<G>(pub(super) usize, pub(super) PhantomData<G>);
 

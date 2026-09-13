@@ -70,9 +70,6 @@ impl From<InvalidInstance> for VerificationError {
     }
 }
 
-// `Display` is written by hand and unconditionally, rather than derived under
-// `std`: the messages are the same either way, and a derive that only exists
-// with a feature on means writing each of them twice.
 impl fmt::Display for InvalidInstance {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Invalid instance: {}", self.message)

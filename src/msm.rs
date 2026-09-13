@@ -27,11 +27,14 @@ use crate::codec::repr_is_le;
 /// The curves behind this crate's curve features already have one; those with
 /// a tuned MSM of their own (Ristretto, k256) override the defaults with it.
 pub trait MultiScalarMul: Group + ConditionallySelectable {
-    /// Computes the MSM with runtime independent of the scalars (Straus'
-    /// interleaved windowed method with signed radix-16 digits and a
-    /// constant-time table lookup).
+    /// Computes the MSM with runtime independent of the scalars.
+    ///
+    /// The default implement uses Straus' interleaved windowed method with
+    /// signed radix-16 digits and a constant-time table lookup.
     ///
     /// Used wherever a scalar may be secret, such as the prover's commitment.
+    /// Runtime may depends on the number of elemements, and may depends on the
+    /// value of the group elemements.
     ///
     /// # Safety
     ///
@@ -47,8 +50,11 @@ pub trait MultiScalarMul: Group + ConditionallySelectable {
         straus_ct(scalars, bases)
     }
 
-    /// Computes the MSM in variable time (Straus' interleaved windowed
-    /// method). Only for public scalars: verification equations, image
+    /// Computes the MSM in variable time.
+    ///
+    /// The default implementation uses Straus' interleaved windowed method.
+    ///
+    /// Only for public scalars: verification equations, image
     /// evaluation, and simulated transcripts.
     ///
     /// # Panics

@@ -23,6 +23,8 @@ pub trait SigmaProtocol {
     type Response;
     /// The prover's (private) internal state.
     type ProverState;
+    /// The prover's private witness for the proven statement.
+    ///
     /// Taken by reference throughout, so it may be unsized.
     type Witness: ?Sized;
 

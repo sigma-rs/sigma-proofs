@@ -119,8 +119,6 @@ pub struct LinearMap<G: PrimeGroup> {
     /// The set of linear combination constraints (equations).
     pub linear_combinations: Vec<LinearCombination<G>>,
     /// The list of group elements referenced in the linear map.
-    ///
-    /// Uninitialized group elements are represented by `None`.
     pub group_elements: GroupMap<G>,
     /// The total number of scalar variables allocated.
     num_scalars: usize,
