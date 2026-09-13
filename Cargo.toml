@@ -182,6 +182,11 @@ name = "statements"
 harness = false
 required-features = ["std", "curve25519-dalek"]
 
+[[bench]]
+name = "relation_compile"
+harness = false
+required-features = ["std", "curve25519-dalek"]
+
 [profile.dev]
 # Makes tests run much faster at the cost of slightly longer builds and worse debug info.
 opt-level = 1
