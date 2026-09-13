@@ -114,6 +114,7 @@ impl<G: PrimeGroup> FromIterator<(GroupVar<G>, G)> for GroupMap<G> {
 /// Scalars and elements are allocated dynamically, and evaluation is by
 /// multi-scalar multiplication.
 #[derive(Clone, Default, Debug)]
+#[non_exhaustive]
 pub struct LinearMap<G: PrimeGroup> {
     /// The set of linear combination constraints (equations).
     pub linear_combinations: Vec<LinearCombination<G>>,
@@ -122,9 +123,9 @@ pub struct LinearMap<G: PrimeGroup> {
     /// Uninitialized group elements are represented by `None`.
     pub group_elements: GroupMap<G>,
     /// The total number of scalar variables allocated.
-    pub num_scalars: usize,
+    num_scalars: usize,
     /// The total number of group element variables allocated.
-    pub num_elements: usize,
+    num_elements: usize,
 }
 
 impl<G: PrimeGroup> LinearMap<G> {
@@ -192,6 +193,7 @@ impl<G: PrimeGroup> LinearMap<G> {
 /// - the group elements and linear equations (the [`LinearMap`] field),
 /// - the [`GroupVar`] indices (`image`) giving the expected output of each constraint.
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub struct LinearRelation<G: PrimeGroup> {
     /// The underlying linear map describing the structure of the statement.
     pub linear_map: LinearMap<G>,
