@@ -46,7 +46,7 @@ use spongefish::{
     VerificationError, Witness,
 };
 
-use crate::codec::{deserialize_elements, deserialize_scalars, GroupCodec, ScalarCodec};
+use crate::codec::{deserialize_elements, GroupCodec, ScalarCodec};
 use crate::linear_relation::Instance;
 use crate::msm::MultiScalarMul;
 
@@ -110,11 +110,7 @@ impl<F: ScalarCodec> NargDeserialize for Opening<F> {
     type Error = VerificationError;
 
     fn deserialize_from_narg(reader: &mut NargReader<'_>) -> Result<Self, Self::Error> {
-        let scalars = deserialize_scalars::<F>(reader, 1)?;
-        match scalars.first() {
-            Some(&scalar) => Ok(Self(scalar)),
-            None => Err(VerificationError),
-        }
+        F::deserialize_scalar(reader).map(Self)
     }
 }
 
