@@ -21,8 +21,9 @@ whole public API changed. This is a near-total rewrite tracking the current Fiat
 - `LinearRelation::compile()` now returns a validated `Instance`, satisfying the draft's representation, serialization, and validation criterias.
 - Prover randomness is always `ProverRng` (`spongefish::PrivateRng`); scalars are
   sampled through the decoder rather than from a `CryptoRngCore`.
-- `SigmaProtocol` no longer carries message serialization, and its transcript
-  types are single-valued; `instance_label` is the draft's `encode[0]`.
+- `NargCodec` handles instance and message serialization. `SigmaProtocol`
+  describes the interactive protocol, and its transcript types are single-valued;
+  `NargCodec::encode_instance` is the draft's `encode[0]`.
 - Composition is bound by instance codecs, drops the indicator bytes, and
   encodes public-claim branches with a constant shape.
 - Module layout reorganized. 

@@ -32,7 +32,7 @@
 //! [`Shake128`][spongefish::instantiations::Shake128] for the
 //! specification's registered ciphersuites. The sponge is seeded with the
 //! session identifier, the serialized instance
-//! ([`SigmaProtocol::encode_instance`]) is the first
+//! ([`NargCodec::encode_instance`]) is the first
 //! absorbed value, prover messages are absorbed as they are serialized, and
 //! the challenge is decoded from
 //! [`challenge_len()`][ScalarCodec::challenge_len] squeezed bytes
@@ -108,12 +108,13 @@ impl Encoding<[u8]> for PrefixFree<'_> {
     }
 }
 
-/// The codecs for sigma protocols over linear relations.
+/// Encodes the instance and prover messages of a Sigma protocol.
 ///
 /// For each fixed instance and message kind, encodings are deterministic,
 /// injective (distinct valid messages have distinct encodings), and prefix-free
-/// (no valid encoding is a proper prefix of another).Deserialization inverts serialization,
-/// consume exactly one message and reject invalid or non-canonical encodings.
+/// (no valid encoding is a proper prefix of another). Deserialization inverts
+/// serialization, consumes exactly one message, and rejects invalid or
+/// non-canonical encodings.
 ///
 /// See [Fiat-Shamir §4.1 (Encoding into byte strings)] and [§6.1
 /// (Serialization)] for the encoding and framing rules. [Sigma Protocols
@@ -124,6 +125,21 @@ impl Encoding<[u8]> for PrefixFree<'_> {
 /// [§6.1 (Serialization)]: https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-fiat-shamir-03#section-6.1
 /// [Sigma Protocols §5.3 (Non-interactive argument string serialization)]: https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-sigma-protocols-03#section-5.3
 pub trait NargCodec: SigmaProtocol {
+    /// Encodes the public instance for binding into the Fiat–Shamir transcript.
+    ///
+    /// The encoding MUST be non-empty, deterministic, injective (distinct instances have
+    /// distinct encodings), and prefix-free (no valid encoding is a proper
+    /// prefix of another).
+    ///
+    /// See [Fiat-Shamir §5.2 (Instance)] and [§8.5 (Instance encoding)] for
+    /// the transcript-binding requirements, and [Sigma Protocols §3.6
+    /// (Serialization)] for the linear-relation encoding.
+    ///
+    /// [Fiat-Shamir §5.2 (Instance)]: https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-fiat-shamir-03#section-5.2
+    /// [§8.5 (Instance encoding)]: https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-fiat-shamir-03#section-8.5
+    /// [Sigma Protocols §3.6 (Serialization)]: https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-sigma-protocols-03#section-3.6
+    fn encode_instance(&self) -> impl AsRef<[u8]>;
+
     /// Serializes a valid commitment with the injective, prefix-free encoding
     /// described in the [trait's requirements][Self].
     fn serialize_commitment(&self, commitment: &Self::Commitment) -> Vec<u8> {
@@ -192,6 +208,11 @@ where
     G: PrimeGroup + MultiScalarMul + GroupCodec,
     G::Scalar: ScalarCodec,
 {
+    /// The encoded instance (`SerializeLinearRelation`).
+    fn encode_instance(&self) -> impl AsRef<[u8]> {
+        self.encode()
+    }
+
     fn serialize_commitment_into(&self, commitment: &Vec<G>, out: &mut Vec<u8>) {
         G::serialize_elements(commitment, out);
     }

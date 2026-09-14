@@ -13,7 +13,7 @@ use crate::traits::{SigmaProtocol, SigmaProtocolSimulator, Transcript};
 use crate::MultiScalarMul;
 use alloc::vec::Vec;
 use itertools::Itertools;
-use spongefish::{DuplexSpongeInit, Encoding, PrivateRng};
+use spongefish::{DuplexSpongeInit, PrivateRng};
 use zeroize::ZeroizeOnDrop;
 
 use group::prime::PrimeGroup;
@@ -155,11 +155,6 @@ where
             true => Ok(()),
             false => Err(VerificationError),
         }
-    }
-
-    /// The encoded instance (`SerializeLinearRelation`).
-    fn encode_instance(&self) -> impl AsRef<[u8]> {
-        self.encode()
     }
 }
 

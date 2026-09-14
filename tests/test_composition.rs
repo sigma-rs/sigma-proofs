@@ -3,7 +3,9 @@ use group::Group;
 use sigma_proofs::codec::ScalarCodec;
 use sigma_proofs::composition::{ComposedInstance, ComposedWitness};
 use sigma_proofs::traits::{SigmaProtocol, SigmaProtocolSimulator};
-use sigma_proofs::{prove_batchable, prove_compact, verify_batchable, verify_compact, ProverRng};
+use sigma_proofs::{
+    prove_batchable, prove_compact, verify_batchable, verify_compact, NargCodec, ProverRng,
+};
 
 #[allow(dead_code)]
 mod relations;

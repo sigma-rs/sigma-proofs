@@ -12,7 +12,6 @@ use super::{NargCodec, PrefixFree, SessionId, SqueezeChallenge};
 use crate::codec::{GroupCodec, ScalarCodec};
 use crate::errors::VerificationError;
 use crate::linear_relation::Instance;
-use crate::traits::SigmaProtocol;
 use crate::{DefaultHash, MultiScalarMul};
 
 /// The tag of the batching sponge for batch verification

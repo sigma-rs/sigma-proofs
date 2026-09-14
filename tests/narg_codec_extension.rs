@@ -56,13 +56,13 @@ impl SigmaProtocol for ExternalCodec {
     ) -> Result<(), VerificationError> {
         Ok(())
     }
-
-    fn encode_instance(&self) -> impl AsRef<[u8]> {
-        b"external-codec"
-    }
 }
 
 impl NargCodec for ExternalCodec {
+    fn encode_instance(&self) -> impl AsRef<[u8]> {
+        b"external-codec"
+    }
+
     fn serialize_commitment_into(&self, commitment: &Self::Commitment, out: &mut Vec<u8>) {
         commitment.serialize_element(out);
     }

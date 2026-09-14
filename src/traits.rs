@@ -76,21 +76,6 @@ pub trait SigmaProtocol {
     ) -> Result<(), VerificationError> {
         self.verifier(commitment, challenge, response)
     }
-
-    /// Encodes the public instance for binding into the Fiat–Shamir transcript.
-    ///
-    /// The encoding MUST be non-empty, deterministic, injective (distinct instances have
-    /// distinct encodings), and prefix-free (no valid encoding is a proper
-    /// prefix of another).
-    ///
-    /// See [Fiat-Shamir §5.2 (Instance)] and [§8.5 (Instance encoding)] for
-    /// the transcript-binding requirements, and [Sigma Protocols §3.6
-    /// (Serialization)] for the linear-relation encoding.
-    ///
-    /// [Fiat-Shamir §5.2 (Instance)]: https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-fiat-shamir-03#section-5.2
-    /// [§8.5 (Instance encoding)]: https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-fiat-shamir-03#section-8.5
-    /// [Sigma Protocols §3.6 (Serialization)]: https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-sigma-protocols-03#section-3.6
-    fn encode_instance(&self) -> impl AsRef<[u8]>;
 }
 
 /// The simulator for the Sigma Protocol.

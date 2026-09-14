@@ -161,13 +161,79 @@ where
     }
 }
 
-/// A composed relation's commitment and response are the roots of the two
-/// trees, so the tree codecs above are the whole wire format.
+/// Binds the composition structure in the instance encoding and uses the
+/// tree codecs above for the commitment and response.
 impl<G> NargCodec for ComposedInstance<G>
 where
     G: PrimeGroup + ConstantTimeEq + ConditionallySelectable + MultiScalarMul + GroupCodec,
     G::Scalar: ScalarCodec + ConditionallySelectable,
 {
+    /// The encoded composed instance.
+    ///
+    /// The composition structure is bound by the encoding itself: the variant
+    /// label (`sigma-proofs composition` followed by `SIMPLE`, `AND`, `OR`,
+    /// `THRESHOLD`, or `CLAIM`), the threshold and branch counts as 4-byte
+    /// little-endian integers, and each sub-instance's label prefixed by its
+    /// 4-byte length. A claim binds its pair count followed by each
+    /// fixed-width `(coeff, elem)` pair, the element in its raw group encoding
+    /// (identity admitted: the label only binds). The encoding is prefix-free,
+    /// so structurally different compositions (and compositions of different
+    /// sub-statements) absorb different bytes.
+    fn encode_instance(&self) -> impl AsRef<[u8]> {
+        fn extend_prefixed(bytes: &mut Vec<u8>, label: impl AsRef<[u8]>) {
+            let label = label.as_ref();
+            let len = u32::try_from(label.len()).expect("label length exceeds 2^32");
+            bytes.extend_from_slice(&len.to_le_bytes());
+            bytes.extend_from_slice(label);
+        }
+
+        fn len_u32(len: usize) -> [u8; 4] {
+            u32::try_from(len)
+                .expect("branch count exceeds 2^32")
+                .to_le_bytes()
+        }
+
+        let mut bytes = Vec::new();
+        match self.node() {
+            InstanceNode::Simple(p) => {
+                bytes.extend_from_slice(LABEL_SIMPLE);
+                extend_prefixed(&mut bytes, p.encode_instance());
+            }
+            InstanceNode::And(ps) => {
+                bytes.extend_from_slice(LABEL_AND);
+                bytes.extend_from_slice(&len_u32(ps.len()));
+                for p in ps {
+                    extend_prefixed(&mut bytes, p.encode_instance());
+                }
+            }
+            InstanceNode::Or(ps) => {
+                bytes.extend_from_slice(LABEL_OR);
+                bytes.extend_from_slice(&len_u32(ps.len()));
+                for p in ps {
+                    extend_prefixed(&mut bytes, p.encode_instance());
+                }
+            }
+            InstanceNode::Threshold(threshold, ps) => {
+                bytes.extend_from_slice(LABEL_THRESHOLD);
+                bytes.extend_from_slice(&len_u32(*threshold));
+                bytes.extend_from_slice(&len_u32(ps.len()));
+                for p in ps {
+                    extend_prefixed(&mut bytes, p.encode_instance());
+                }
+            }
+            InstanceNode::Claim(pairs) => {
+                bytes.extend_from_slice(LABEL_CLAIM);
+                bytes.extend_from_slice(&len_u32(pairs.len()));
+                let le = repr_is_le::<G::Scalar>();
+                for (coeff, elem) in pairs {
+                    serialize_scalar_le(coeff, le, &mut bytes);
+                    bytes.extend_from_slice(elem.to_bytes().as_ref());
+                }
+            }
+        }
+        bytes
+    }
+
     fn serialize_commitment_into(&self, commitment: &ComposedCommitment<G>, out: &mut Vec<u8>) {
         Self::serialize_commitment_tree(commitment, out);
     }
@@ -814,72 +880,6 @@ where
             }
             _ => Err(VerificationError),
         }
-    }
-
-    /// The encoded composed instance.
-    ///
-    /// The composition structure is bound by the encoding itself: the variant
-    /// label (`sigma-proofs composition` followed by `SIMPLE`, `AND`, `OR`,
-    /// `THRESHOLD`, or `CLAIM`), the threshold and branch counts as 4-byte
-    /// little-endian integers, and each sub-instance's label prefixed by its
-    /// 4-byte length. A claim binds its pair count followed by each
-    /// fixed-width `(coeff, elem)` pair, the element in its raw group encoding
-    /// (identity admitted: the label only binds). The encoding is prefix-free,
-    /// so structurally different compositions (and compositions of different
-    /// sub-statements) absorb different bytes.
-    fn encode_instance(&self) -> impl AsRef<[u8]> {
-        fn extend_prefixed(bytes: &mut Vec<u8>, label: impl AsRef<[u8]>) {
-            let label = label.as_ref();
-            let len = u32::try_from(label.len()).expect("label length exceeds 2^32");
-            bytes.extend_from_slice(&len.to_le_bytes());
-            bytes.extend_from_slice(label);
-        }
-
-        fn len_u32(len: usize) -> [u8; 4] {
-            u32::try_from(len)
-                .expect("branch count exceeds 2^32")
-                .to_le_bytes()
-        }
-
-        let mut bytes = Vec::new();
-        match self.node() {
-            InstanceNode::Simple(p) => {
-                bytes.extend_from_slice(LABEL_SIMPLE);
-                extend_prefixed(&mut bytes, p.encode_instance());
-            }
-            InstanceNode::And(ps) => {
-                bytes.extend_from_slice(LABEL_AND);
-                bytes.extend_from_slice(&len_u32(ps.len()));
-                for p in ps {
-                    extend_prefixed(&mut bytes, p.encode_instance());
-                }
-            }
-            InstanceNode::Or(ps) => {
-                bytes.extend_from_slice(LABEL_OR);
-                bytes.extend_from_slice(&len_u32(ps.len()));
-                for p in ps {
-                    extend_prefixed(&mut bytes, p.encode_instance());
-                }
-            }
-            InstanceNode::Threshold(threshold, ps) => {
-                bytes.extend_from_slice(LABEL_THRESHOLD);
-                bytes.extend_from_slice(&len_u32(*threshold));
-                bytes.extend_from_slice(&len_u32(ps.len()));
-                for p in ps {
-                    extend_prefixed(&mut bytes, p.encode_instance());
-                }
-            }
-            InstanceNode::Claim(pairs) => {
-                bytes.extend_from_slice(LABEL_CLAIM);
-                bytes.extend_from_slice(&len_u32(pairs.len()));
-                let le = repr_is_le::<G::Scalar>();
-                for (coeff, elem) in pairs {
-                    serialize_scalar_le(coeff, le, &mut bytes);
-                    bytes.extend_from_slice(elem.to_bytes().as_ref());
-                }
-            }
-        }
-        bytes
     }
 }
 
