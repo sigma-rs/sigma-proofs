@@ -108,28 +108,12 @@ impl Encoding<[u8]> for PrefixFree<'_> {
     }
 }
 
-/// The wire format of a relation's prover messages.
+/// The codecs for sigma protocols over linear relations.
 ///
-/// Serialization is kept out of [`SigmaProtocol`]: it belongs to the NARG
-/// string rather than the interactive protocol. Deserialization is directed
-/// by `self`, so the expected shape is never read from untrusted bytes.
-///
-/// Implementing this on top of [`SigmaProtocol`] is all a relation owes the
-/// non-interactive layer: both NARG flavors and batch verification are written
-/// once against this trait.
-///
-/// For each fixed instance and message kind, encodings MUST be deterministic,
+/// For each fixed instance and message kind, encodings are deterministic,
 /// injective (distinct valid messages have distinct encodings), and prefix-free
-/// (no valid encoding is a proper prefix of another). A fixed message length
-/// determined by the instance satisfies prefix-freeness; variable-length
-/// messages require unambiguous framing. These bytes are absorbed verbatim
-/// into the transcript, so the non-interactive layer adds no framing for you.
-///
-/// Deserialization MUST invert serialization, consume exactly one message,
-/// and reject invalid or non-canonical encodings. Successful prover and
-/// simulator calls must return messages that these serializers can encode.
-/// Bytes belonging to later messages must remain unread; the caller checks
-/// for trailing bytes after the final message.
+/// (no valid encoding is a proper prefix of another).Deserialization inverts serialization,
+/// consume exactly one message and reject invalid or non-canonical encodings.
 ///
 /// See [Fiat-Shamir §4.1 (Encoding into byte strings)] and [§6.1
 /// (Serialization)] for the encoding and framing rules. [Sigma Protocols

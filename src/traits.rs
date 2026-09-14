@@ -81,16 +81,7 @@ pub trait SigmaProtocol {
     ///
     /// The encoding MUST be non-empty, deterministic, injective (distinct instances have
     /// distinct encodings), and prefix-free (no valid encoding is a proper
-    /// prefix of another). It must bind every public value and all structure
-    /// that affects the protocol, including lengths, branch order, and
-    /// thresholds. Variable-length fields need unambiguous framing, such as
-    /// length prefixes; concatenating their bytes alone is insufficient.
-    ///
-    /// Both parties must use the same encoding. Protocols or ciphersuites that
-    /// share a session identifier must also distinguish their instance domains,
-    /// for example with an encoded type tag. The non-interactive layer absorbs
-    /// these bytes verbatim and does not add framing on the implementation's
-    /// behalf.
+    /// prefix of another).
     ///
     /// See [Fiat-Shamir §5.2 (Instance)] and [§8.5 (Instance encoding)] for
     /// the transcript-binding requirements, and [Sigma Protocols §3.6
