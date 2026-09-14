@@ -21,8 +21,8 @@ use super::{
     ComposedProverState, ComposedResponse, ComposedWitness, InstanceNode,
 };
 use crate::codec::{
-    deserialize_scalars, repr_is_le, serialize_scalar_le, serialize_scalars_into, GroupCodec,
-    ScalarCodec,
+    deserialize_scalars, repr_is_le, serialize_scalar_with_endianness, serialize_scalars_into,
+    GroupCodec, ScalarCodec,
 };
 use crate::errors::InvalidWitness;
 use crate::fiat_shamir::NargCodec;
@@ -226,7 +226,7 @@ where
                 bytes.extend_from_slice(&len_u32(pairs.len()));
                 let le = repr_is_le::<G::Scalar>();
                 for (coeff, elem) in pairs {
-                    serialize_scalar_le(coeff, le, &mut bytes);
+                    serialize_scalar_with_endianness(coeff, le, &mut bytes);
                     bytes.extend_from_slice(elem.to_bytes().as_ref());
                 }
             }

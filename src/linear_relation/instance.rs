@@ -14,7 +14,8 @@ use spongefish::{Encoding, NargDeserialize, NargReader};
 use subtle::{Choice, ConstantTimeEq};
 
 use crate::codec::{
-    deserialize_scalar_le, repr_is_le, serialize_scalar_le, GroupCodec, ScalarCodec,
+    deserialize_scalar_with_endianness, repr_is_le, serialize_scalar_with_endianness, GroupCodec,
+    ScalarCodec,
 };
 use crate::errors::InvalidInstance;
 use crate::msm::MultiScalarMul;
@@ -516,13 +517,13 @@ where
             out.extend_from_slice(&(equation.image.len() as u32).to_le_bytes());
             for (element_index, coeff) in &equation.image {
                 out.extend_from_slice(&element_index.to_le_bytes());
-                serialize_scalar_le(coeff, le, &mut out);
+                serialize_scalar_with_endianness(coeff, le, &mut out);
             }
             out.extend_from_slice(&(equation.terms.len() as u32).to_le_bytes());
             for (scalar_index, element_index, coeff) in &equation.terms {
                 out.extend_from_slice(&scalar_index.to_le_bytes());
                 out.extend_from_slice(&element_index.to_le_bytes());
-                serialize_scalar_le(coeff, le, &mut out);
+                serialize_scalar_with_endianness(coeff, le, &mut out);
             }
         }
         G::serialize_elements(self.elements(), &mut out);
@@ -638,7 +639,7 @@ fn read_scalar<G: PrimeGroup>(
 where
     G::Scalar: ScalarCodec,
 {
-    deserialize_scalar_le(reader, le)
+    deserialize_scalar_with_endianness(reader, le)
         .map_err(|_| InvalidInstance::new("invalid scalar coefficient"))
 }
 

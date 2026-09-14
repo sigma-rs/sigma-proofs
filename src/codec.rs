@@ -275,39 +275,45 @@ pub trait ScalarCodec: PrimeField + zeroize::Zeroize {
 
 impl<F: PrimeField + zeroize::Zeroize> ScalarCodec for F {
     fn serialize_scalar(&self, out: &mut Vec<u8>) {
-        serialize_scalar_le(self, repr_is_le::<F>(), out);
+        serialize_scalar_with_endianness(self, repr_is_le::<F>(), out);
     }
 
     fn deserialize_scalar(reader: &mut NargReader<'_>) -> Result<Self, VerificationError> {
-        deserialize_scalar_le(reader, repr_is_le::<F>())
+        deserialize_scalar_with_endianness(reader, repr_is_le::<F>())
     }
 }
 
 /// [`ScalarCodec::serialize_scalar`] with the endianness already probed.
 ///
+/// `repr_is_le` describes the field's native representation; the output is big-endian.
+///
 /// [`repr_is_le`] is itself a `to_repr` call, and only folds to a constant
 /// where the field's implementation is inlinable — on BLS12-381 it is not.
 /// Every loop over scalars therefore probes once and calls this, rather than
 /// paying the probe per scalar.
-pub(crate) fn serialize_scalar_le<F: PrimeField>(scalar: &F, le: bool, out: &mut Vec<u8>) {
+pub(crate) fn serialize_scalar_with_endianness<F: PrimeField>(
+    scalar: &F,
+    repr_is_le: bool,
+    out: &mut Vec<u8>,
+) {
     let mut repr = scalar.to_repr();
-    if le {
+    if repr_is_le {
         repr.as_mut().reverse();
     }
     out.extend_from_slice(repr.as_ref());
 }
 
 /// [`ScalarCodec::deserialize_scalar`] with the endianness already probed. See
-/// [`serialize_scalar_le`].
-pub(crate) fn deserialize_scalar_le<F: PrimeField>(
+/// [`serialize_scalar_with_endianness`].
+pub(crate) fn deserialize_scalar_with_endianness<F: PrimeField>(
     reader: &mut NargReader<'_>,
-    le: bool,
+    repr_is_le: bool,
 ) -> Result<F, VerificationError> {
     let mut repr = F::Repr::default();
     let len = repr.as_ref().len();
     repr.as_mut()
         .copy_from_slice(reader.take(len).ok_or(VerificationError)?);
-    if le {
+    if repr_is_le {
         repr.as_mut().reverse();
     }
     Option::<F>::from(F::from_repr(repr)).ok_or(VerificationError)
@@ -317,7 +323,7 @@ pub(crate) fn deserialize_scalar_le<F: PrimeField>(
 pub(crate) fn serialize_scalars_into<F: ScalarCodec>(scalars: &[F], out: &mut Vec<u8>) {
     let le = repr_is_le::<F>();
     for scalar in scalars {
-        serialize_scalar_le(scalar, le, out);
+        serialize_scalar_with_endianness(scalar, le, out);
     }
 }
 
@@ -339,7 +345,9 @@ pub(crate) fn deserialize_scalars<F: ScalarCodec>(
     n: usize,
 ) -> Result<Vec<F>, VerificationError> {
     let le = repr_is_le::<F>();
-    (0..n).map(|_| deserialize_scalar_le(reader, le)).collect()
+    (0..n)
+        .map(|_| deserialize_scalar_with_endianness(reader, le))
+        .collect()
 }
 
 /// Whether the field's canonical representation is little-endian, probed by
