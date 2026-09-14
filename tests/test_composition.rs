@@ -166,6 +166,131 @@ fn empty_claim_is_trivially_true() {
     );
 }
 
+fn nonempty_claim(is_true: bool) -> ComposedInstance<G> {
+    // 3 * (2G) - 2 * (3G) = 0; changing the second coefficient makes it false.
+    ComposedInstance::claim([
+        (Scalar::from(3u64), G::generator() * Scalar::from(2u64)),
+        (
+            -Scalar::from(if is_true { 2u64 } else { 1 }),
+            G::generator() * Scalar::from(3u64),
+        ),
+    ])
+    .unwrap()
+}
+
+fn assert_proof_acceptance(
+    relation: &ComposedInstance<G>,
+    witness: &ComposedWitness<G>,
+    expected: bool,
+) {
+    let batchable = prove_batchable(BATCH_TAG, relation, witness).unwrap();
+    assert_eq!(
+        verify_batchable(BATCH_TAG, relation, &batchable).is_ok(),
+        expected
+    );
+    let compact = prove_compact(COMPACT_TAG, relation, witness).unwrap();
+    assert_eq!(
+        verify_compact(COMPACT_TAG, relation, &compact).is_ok(),
+        expected
+    );
+}
+
+#[test]
+fn nonempty_claims_accept_exactly_when_the_public_equation_holds() {
+    for is_true in [false, true] {
+        assert_proof_acceptance(&nonempty_claim(is_true), &ComposedWitness::Claim, is_true);
+    }
+}
+
+#[test]
+fn claim_nodes_obey_and_or_and_threshold_truth_tables() {
+    let mut rng = ProverRng::from_seed([17u8; 32]);
+    let (instance, valid_witness) = discrete_logarithm::<G>(&mut rng);
+    let invalid_witness = vec![valid_witness[0] + Scalar::from(1u64)];
+
+    for claim_is_true in [false, true] {
+        for witness_is_valid in [false, true] {
+            for claim_first in [false, true] {
+                let mut branches = [nonempty_claim(claim_is_true), instance.clone().into()];
+                let mut witnesses = [
+                    ComposedWitness::Claim,
+                    if witness_is_valid {
+                        valid_witness.clone().into()
+                    } else {
+                        invalid_witness.clone().into()
+                    },
+                ];
+                if !claim_first {
+                    branches.reverse();
+                    witnesses.reverse();
+                }
+                // Both orders exercise a true claim as a real or simulated
+                // branch, and a false claim simulated beside a valid witness.
+                assert_proof_acceptance(
+                    &ComposedInstance::and(branches.clone()).unwrap(),
+                    &ComposedWitness::and(witnesses.clone()),
+                    claim_is_true && witness_is_valid,
+                );
+                assert_proof_acceptance(
+                    &ComposedInstance::or(branches.clone()).unwrap(),
+                    &ComposedWitness::or(witnesses.clone()),
+                    claim_is_true || witness_is_valid,
+                );
+                for threshold in 1..=2 {
+                    assert_proof_acceptance(
+                        &ComposedInstance::threshold(
+                            threshold,
+                            [
+                                branches[0].clone(),
+                                branches[1].clone(),
+                                nonempty_claim(false),
+                            ],
+                        )
+                        .unwrap(),
+                        &ComposedWitness::threshold([
+                            witnesses[0].clone(),
+                            witnesses[1].clone(),
+                            ComposedWitness::Claim,
+                        ]),
+                        usize::from(claim_is_true) + usize::from(witness_is_valid) >= threshold,
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn composed_proofs_bind_claim_coefficients_and_elements() {
+    let mut rng = ProverRng::from_seed([19u8; 32]);
+    let (instance, secret) = discrete_logarithm::<G>(&mut rng);
+    let witness = ComposedWitness::or([ComposedWitness::Claim, secret.into()]);
+    let claims = [
+        nonempty_claim(false),
+        nonempty_claim(true),
+        ComposedInstance::claim([
+            (Scalar::from(3u64), G::generator() * Scalar::from(2u64)),
+            (-Scalar::from(1u64), G::generator() * Scalar::from(4u64)),
+        ])
+        .unwrap(),
+    ];
+    let relations =
+        claims.map(|claim| ComposedInstance::or([claim, instance.clone().into()]).unwrap());
+    // All statements are provable through the discrete-log branch, but a
+    // proof must only verify for its original claim's public data.
+    for (i, relation) in relations.iter().enumerate() {
+        let batchable = prove_batchable(BATCH_TAG, relation, &witness).unwrap();
+        let compact = prove_compact(COMPACT_TAG, relation, &witness).unwrap();
+        for (j, other) in relations.iter().enumerate() {
+            assert_eq!(
+                verify_batchable(BATCH_TAG, other, &batchable).is_ok(),
+                i == j
+            );
+            assert_eq!(verify_compact(COMPACT_TAG, other, &compact).is_ok(), i == j);
+        }
+    }
+}
+
 #[test]
 fn thresholds_above_branch_count_are_false_and_simulatable() {
     let mut rng = ProverRng::from_os_entropy();
