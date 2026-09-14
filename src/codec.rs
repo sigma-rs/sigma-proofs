@@ -313,27 +313,7 @@ pub(crate) fn deserialize_scalar_le<F: PrimeField>(
     Option::<F>::from(F::from_repr(repr)).ok_or(VerificationError)
 }
 
-/// Concatenates the encodings of `elements`.
-///
-/// This is the prover's commitment and the batchable NARG's element run, so it
-/// goes through [`GroupCodec::serialize_elements`] and gets
-/// whatever batch form the curve has. Encodability is settled before the
-/// bytes are produced, by
-/// [`NargCodec::is_valid_commitment`][crate::fiat_shamir::NargCodec::is_valid_commitment].
-pub(crate) fn serialize_elements<G: GroupCodec>(elements: &[G]) -> Vec<u8> {
-    let mut out = Vec::new();
-    G::serialize_elements(elements, &mut out);
-    out
-}
-
-/// Concatenates the encodings of `scalars`.
-pub(crate) fn serialize_scalars<F: ScalarCodec>(scalars: &[F]) -> Vec<u8> {
-    let mut out = Vec::new();
-    serialize_scalars_into(scalars, &mut out);
-    out
-}
-
-/// [`serialize_scalars`], appending to an existing buffer.
+/// Appends the concatenated encodings of `scalars` to an existing buffer.
 pub(crate) fn serialize_scalars_into<F: ScalarCodec>(scalars: &[F], out: &mut Vec<u8>) {
     let le = repr_is_le::<F>();
     for scalar in scalars {

@@ -73,8 +73,7 @@
 //! verifies only under the tag it was produced for.
 
 use crate::codec::{
-    deserialize_elements, deserialize_scalars, serialize_elements, serialize_scalars, GroupCodec,
-    ScalarCodec,
+    deserialize_elements, deserialize_scalars, serialize_scalars_into, GroupCodec, ScalarCodec,
 };
 use crate::errors::{InvalidWitness, VerificationError};
 use crate::linear_relation::Instance;
@@ -147,11 +146,31 @@ pub trait NargCodec: SigmaProtocol {
 
     /// Serializes a valid commitment with the injective, prefix-free encoding
     /// described in the [trait's requirements][Self].
-    fn serialize_commitment(&self, commitment: &Self::Commitment) -> Vec<u8>;
+    fn serialize_commitment(&self, commitment: &Self::Commitment) -> Vec<u8> {
+        let mut out = Vec::new();
+        self.serialize_commitment_into(commitment, &mut out);
+        out
+    }
+
+    /// Appends the commitment encoding to `out`, preserving its existing bytes.
+    ///
+    /// The appended bytes must satisfy the [trait's encoding requirements][Self]
+    /// and must not depend on the contents or capacity of `out`.
+    fn serialize_commitment_into(&self, commitment: &Self::Commitment, out: &mut Vec<u8>);
 
     /// Serializes a response with the injective, prefix-free encoding described
     /// in the [trait's requirements][Self].
-    fn serialize_response(&self, response: &Self::Response) -> Vec<u8>;
+    fn serialize_response(&self, response: &Self::Response) -> Vec<u8> {
+        let mut out = Vec::new();
+        self.serialize_response_into(response, &mut out);
+        out
+    }
+
+    /// Appends the response encoding to `out`, preserving its existing bytes.
+    ///
+    /// The appended bytes must satisfy the [trait's encoding requirements][Self]
+    /// and must not depend on the contents or capacity of `out`.
+    fn serialize_response_into(&self, response: &Self::Response, out: &mut Vec<u8>);
 
     /// Deserialization function for the commitment message.
     fn deserialize_commitment(
@@ -197,12 +216,12 @@ where
         true
     }
 
-    fn serialize_commitment(&self, commitment: &Vec<G>) -> Vec<u8> {
-        serialize_elements(commitment)
+    fn serialize_commitment_into(&self, commitment: &Vec<G>, out: &mut Vec<u8>) {
+        G::serialize_elements(commitment, out);
     }
 
-    fn serialize_response(&self, response: &Vec<G::Scalar>) -> Vec<u8> {
-        serialize_scalars(response)
+    fn serialize_response_into(&self, response: &Vec<G::Scalar>, out: &mut Vec<u8>) {
+        serialize_scalars_into(response, out);
     }
 
     fn deserialize_commitment(
@@ -283,10 +302,14 @@ where
     let instance_bytes = instance.encode_instance();
     let mut prover = ProverState::<H>::new(session_id, &PrefixFree(instance_bytes.as_ref()));
     let (commitment, prover_state) = sample_valid_commitment(instance, witness, rng)?;
-    prover.prover_message_as(&commitment, |c| instance.serialize_commitment(c));
+    let mut message_bytes = Vec::new();
+    instance.serialize_commitment_into(&commitment, &mut message_bytes);
+    prover.prover_message_as(&message_bytes, Vec::as_slice);
     let challenge = prover.challenge::<P::Challenge>();
     let response = instance.prover_response(prover_state, &challenge)?;
-    Ok(prover.last_prover_message_as(&response, |r| instance.serialize_response(r)))
+    message_bytes.clear();
+    instance.serialize_response_into(&response, &mut message_bytes);
+    Ok(prover.last_prover_message_as(&message_bytes, Vec::as_slice))
 }
 
 /// `challenge = Squeeze(Absorb(commitment))` for the compact flavor, where
@@ -415,7 +438,7 @@ where
 
     let mut narg_string = Vec::new();
     challenge.serialize_scalar(&mut narg_string);
-    narg_string.extend_from_slice(&instance.serialize_response(&response));
+    instance.serialize_response_into(&response, &mut narg_string);
     Ok(narg_string)
 }
 

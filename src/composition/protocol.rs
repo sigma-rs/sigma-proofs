@@ -173,16 +173,12 @@ where
         true
     }
 
-    fn serialize_commitment(&self, commitment: &ComposedCommitment<G>) -> Vec<u8> {
-        let mut out = Vec::new();
-        Self::serialize_commitment_tree(commitment, &mut out);
-        out
+    fn serialize_commitment_into(&self, commitment: &ComposedCommitment<G>, out: &mut Vec<u8>) {
+        Self::serialize_commitment_tree(commitment, out);
     }
 
-    fn serialize_response(&self, response: &ComposedResponse<G>) -> Vec<u8> {
-        let mut out = Vec::new();
-        Self::serialize_response_tree(response, &mut out);
-        out
+    fn serialize_response_into(&self, response: &ComposedResponse<G>, out: &mut Vec<u8>) {
+        Self::serialize_response_tree(response, out);
     }
 
     fn deserialize_commitment(
