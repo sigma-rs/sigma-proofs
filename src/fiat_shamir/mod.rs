@@ -47,8 +47,7 @@
 //!
 //! - Writing a prover message hands spongefish [`NargCodec`]'s serializer, so
 //!   the bytes are absorbed and appended in the one call that produces them.
-//!   The serializers are total; proving samples until
-//!   [`NargCodec::is_valid_commitment`] accepts before encoding.
+//!   The serializers are total on the protocol's valid messages.
 //! - Reading one is directed by the instance, and
 //!   [`NargDeserialize`][spongefish::NargDeserialize] is a function of the
 //!   type alone. The shape — how many elements, which branches — comes from
@@ -127,8 +126,8 @@ impl Encoding<[u8]> for PrefixFree<'_> {
 /// into the transcript, so the non-interactive layer adds no framing for you.
 ///
 /// Deserialization MUST invert serialization, consume exactly one message,
-/// and reject invalid or non-canonical encodings. In particular, a commitment
-/// accepted by the deserializer must satisfy [`is_valid_commitment`][Self::is_valid_commitment].
+/// and reject invalid or non-canonical encodings. Successful prover and
+/// simulator calls must return messages that these serializers can encode.
 /// Bytes belonging to later messages must remain unread; the caller checks
 /// for trailing bytes after the final message.
 ///
@@ -141,9 +140,6 @@ impl Encoding<[u8]> for PrefixFree<'_> {
 /// [§6.1 (Serialization)]: https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-fiat-shamir-03#section-6.1
 /// [Sigma Protocols §5.3 (Non-interactive argument string serialization)]: https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-sigma-protocols-03#section-5.3
 pub trait NargCodec: SigmaProtocol {
-    /// Whether the commitment has a canonical encoding for this relation.
-    fn is_valid_commitment(&self, commitment: &Self::Commitment) -> bool;
-
     /// Serializes a valid commitment with the injective, prefix-free encoding
     /// described in the [trait's requirements][Self].
     fn serialize_commitment(&self, commitment: &Self::Commitment) -> Vec<u8> {
@@ -212,10 +208,6 @@ where
     G: PrimeGroup + MultiScalarMul + GroupCodec,
     G::Scalar: ScalarCodec,
 {
-    fn is_valid_commitment(&self, _commitment: &Vec<G>) -> bool {
-        true
-    }
-
     fn serialize_commitment_into(&self, commitment: &Vec<G>, out: &mut Vec<u8>) {
         G::serialize_elements(commitment, out);
     }
@@ -236,24 +228,6 @@ where
         reader: &mut NargReader<'_>,
     ) -> Result<Vec<G::Scalar>, VerificationError> {
         deserialize_scalars(reader, self.num_scalars())
-    }
-}
-
-/// Draws a prover commitment until its relation-directed wire encoding is
-/// valid. Every commitment of the built-in prime-order protocols is valid.
-fn sample_valid_commitment<P>(
-    instance: &P,
-    witness: &P::Witness,
-    rng: &mut PrivateRng<impl DuplexSpongeInit<U = u8>>,
-) -> core::result::Result<(P::Commitment, P::ProverState), InvalidWitness>
-where
-    P: NargCodec,
-{
-    loop {
-        let candidate = instance.prover_commit(witness, rng)?;
-        if instance.is_valid_commitment(&candidate.0) {
-            return Ok(candidate);
-        }
     }
 }
 
@@ -301,7 +275,7 @@ where
 {
     let instance_bytes = instance.encode_instance();
     let mut prover = ProverState::<H>::new(session_id, &PrefixFree(instance_bytes.as_ref()));
-    let (commitment, prover_state) = sample_valid_commitment(instance, witness, rng)?;
+    let (commitment, prover_state) = instance.prover_commit(witness, rng)?;
     let mut message_bytes = Vec::new();
     instance.serialize_commitment_into(&commitment, &mut message_bytes);
     prover.prover_message_as(&message_bytes, Vec::as_slice);
@@ -431,7 +405,7 @@ where
     P: NargCodec + SigmaProtocolSimulator,
     P::Challenge: ScalarCodec,
 {
-    let (commitment, prover_state) = sample_valid_commitment(instance, witness, rng)?;
+    let (commitment, prover_state) = instance.prover_commit(witness, rng)?;
     let commitment_bytes = instance.serialize_commitment(&commitment);
     let challenge = compact_challenge::<H, P>(session_id, instance, &commitment_bytes);
     let response = instance.prover_response(prover_state, &challenge)?;
@@ -480,9 +454,6 @@ where
     }
 
     let commitment = instance.simulate_commitment(&challenge, &response)?;
-    if !instance.is_valid_commitment(&commitment) {
-        return Err(VerificationError);
-    }
     let commitment_bytes = instance.serialize_commitment(&commitment);
     let expected_challenge = compact_challenge::<H, P>(session_id, instance, &commitment_bytes);
     // The simulator always outputs accepting transcripts, so running the

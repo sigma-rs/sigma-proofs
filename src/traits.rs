@@ -33,8 +33,9 @@ pub trait SigmaProtocol {
     /// - A public commitment to send to the verifier.
     /// - The internal state to use when computing the response.
     ///
-    /// A non-interactive codec may reject a negligible subset of this
-    /// distribution and ask the prover to sample again.
+    /// On success, the commitment must be a valid protocol message. When
+    /// implementing [`NargCodec`][crate::fiat_shamir::NargCodec], it must also
+    /// be encodable by that codec.
     fn prover_commit(
         &self,
         witness: &Self::Witness,
@@ -113,6 +114,9 @@ pub trait SigmaProtocolSimulator: SigmaProtocol {
     ) -> Self::Response;
 
     /// Simulates a commitment message.
+    ///
+    /// On success, the commitment must be a valid protocol message, encodable
+    /// by [`NargCodec`][crate::fiat_shamir::NargCodec] when implemented.
     fn simulate_commitment(
         &self,
         challenge: &Self::Challenge,

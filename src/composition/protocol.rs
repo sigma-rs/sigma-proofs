@@ -168,11 +168,6 @@ where
     G: PrimeGroup + ConstantTimeEq + ConditionallySelectable + MultiScalarMul + GroupCodec,
     G::Scalar: ScalarCodec + ConditionallySelectable,
 {
-    /// Every canonically encoded group element is a valid commitment.
-    fn is_valid_commitment(&self, _commitment: &ComposedCommitment<G>) -> bool {
-        true
-    }
-
     fn serialize_commitment_into(&self, commitment: &ComposedCommitment<G>, out: &mut Vec<u8>) {
         Self::serialize_commitment_tree(commitment, out);
     }

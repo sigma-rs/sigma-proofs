@@ -508,11 +508,9 @@ mod tests {
 
     /// The batched form is the one the curves override, so its
     /// projective-to-affine conversion is the one that meets identity points:
-    /// on the claim rows of a composed commitment, where the identity is
-    /// legal, and on any slice reaching it before
-    /// [`NargCodec::is_valid_commitment`][crate::fiat_shamir::NargCodec::is_valid_commitment]
-    /// has ruled. A `batch_normalize` that mishandled a zero `z` would encode
-    /// those rows differently from the element-wise form, and silently.
+    /// for example, on the claim rows of a composed commitment. A
+    /// `batch_normalize` that mishandled a zero `z` would silently encode
+    /// those rows differently from the element-wise form.
     fn batched_matches_loop_with_identity<G: GroupCodec>() {
         let point = G::generator() * G::Scalar::from(7u64);
         for slice in [
