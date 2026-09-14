@@ -119,14 +119,38 @@ impl Encoding<[u8]> for PrefixFree<'_> {
 /// Implementing this on top of [`SigmaProtocol`] is all a relation owes the
 /// non-interactive layer: both NARG flavors and batch verification are written
 /// once against this trait.
+///
+/// For each fixed instance and message kind, encodings MUST be deterministic,
+/// injective (distinct valid messages have distinct encodings), and prefix-free
+/// (no valid encoding is a proper prefix of another). A fixed message length
+/// determined by the instance satisfies prefix-freeness; variable-length
+/// messages require unambiguous framing. These bytes are absorbed verbatim
+/// into the transcript, so the non-interactive layer adds no framing for you.
+///
+/// Deserialization MUST invert serialization, consume exactly one message,
+/// and reject invalid or non-canonical encodings. In particular, a commitment
+/// accepted by the deserializer must satisfy [`is_valid_commitment`][Self::is_valid_commitment].
+/// Bytes belonging to later messages must remain unread; the caller checks
+/// for trailing bytes after the final message.
+///
+/// See [Fiat-Shamir §4.1 (Encoding into byte strings)] and [§6.1
+/// (Serialization)] for the encoding and framing rules. [Sigma Protocols
+/// §5.3 (Non-interactive argument string serialization)] specifies how the
+/// commitment and response encodings form batchable and compact NARG strings.
+///
+/// [Fiat-Shamir §4.1 (Encoding into byte strings)]: https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-fiat-shamir-03#section-4.1
+/// [§6.1 (Serialization)]: https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-fiat-shamir-03#section-6.1
+/// [Sigma Protocols §5.3 (Non-interactive argument string serialization)]: https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-sigma-protocols-03#section-5.3
 pub trait NargCodec: SigmaProtocol {
     /// Whether the commitment has a canonical encoding for this relation.
     fn is_valid_commitment(&self, commitment: &Self::Commitment) -> bool;
 
-    /// Serialization function for the commitment message.
+    /// Serializes a valid commitment with the injective, prefix-free encoding
+    /// described in the [trait's requirements][Self].
     fn serialize_commitment(&self, commitment: &Self::Commitment) -> Vec<u8>;
 
-    /// Serialization function for the response message.
+    /// Serializes a response with the injective, prefix-free encoding described
+    /// in the [trait's requirements][Self].
     fn serialize_response(&self, response: &Self::Response) -> Vec<u8>;
 
     /// Deserialization function for the commitment message.
