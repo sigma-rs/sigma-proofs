@@ -1,7 +1,7 @@
 //! # Protocol Composition with AND, OR, and Threshold.
 //!
-//! This module defines [`ComposedInstance`], which generalizes
-//! [`Instance`].
+//! Build AND/OR trees with [`ComposedRelation`], then compile them into
+//! [`ComposedInstance`], which generalizes [`Instance`].
 //!
 //! See `examples/simple_composition.rs` for an end-to-end example.
 
@@ -17,11 +17,22 @@ use crate::traits::SigmaProtocol;
 use crate::MultiScalarMul;
 
 mod ct;
+mod ops;
 mod poly;
 mod protocol;
+mod relation;
+
+pub use relation::ComposedRelation;
 
 /// A protocol proving knowledge of a witness for a composition of linear
 /// relations, generalizing [`Instance`] with AND/OR links.
+///
+/// Combine owned [`Instance`] and `ComposedInstance` values with `&` (AND)
+/// and `|` (OR). Each operator creates a two-branch node in operand order;
+/// nested nodes are preserved. For example, `a & b & c` means `(a & b) & c`,
+/// and `a | b & c` means `a | (b & c)`. The [`ComposedWitness`] must mirror
+/// that tree. Separate branches have independent witness variables; to
+/// share a scalar across equations, put them in one [`LinearRelation`].
 ///
 /// Empty ANDs and empty claims are true, like the empty relation.
 ///
@@ -257,7 +268,11 @@ where
     }
 }
 
-// Structure representing the Witness type of Protocol as SigmaProtocol
+/// Witnesses arranged in the same tree as a [`ComposedInstance`].
+///
+/// Use `&` and `|` on owned `ComposedWitness` values to mirror the statement's
+/// operators and parentheses. Convert a leaf's scalar vector with
+/// [`ComposedWitness::from`]; the right operand may also be a scalar vector.
 #[derive(Clone)]
 pub enum ComposedWitness<G>
 where
