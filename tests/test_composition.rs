@@ -73,6 +73,75 @@ fn either_or_branch_can_be_satisfied() {
     }
 }
 
+// Regression cases from https://github.com/sigma-rs/sigma-proofs/issues/226.
+#[test]
+fn simulated_flat_or_verifies() {
+    let mut rng = ProverRng::from_seed([226u8; 32]);
+    for branch_count in [2, 3] {
+        let branches: Vec<_> = (0..branch_count).map(|_| dleq::<G>(&mut rng).0).collect();
+        let relation = ComposedInstance::or(branches).unwrap();
+        let (commitment, challenge, response) = relation.simulate_transcript(&mut rng).unwrap();
+        relation
+            .verifier(&commitment, &challenge, &response)
+            .unwrap();
+    }
+}
+
+#[test]
+fn nested_or_simulated_inner_branch() {
+    let mut rng = ProverRng::from_seed([227u8; 32]);
+    let (left, left_witness) = dleq::<G>(&mut rng);
+    let (right, right_witness) = dleq::<G>(&mut rng);
+    let (outer, outer_witness) = dleq::<G>(&mut rng);
+    let inner = ComposedInstance::or([left, right]).unwrap();
+    // DLEQ has one scalar; adding one guarantees an invalid witness.
+    let inner_witness = ComposedWitness::or([
+        vec![left_witness[0] + Scalar::from(1u64)],
+        vec![right_witness[0] + Scalar::from(1u64)],
+    ]);
+
+    for inner_first in [true, false] {
+        let mut branches = [inner.clone(), outer.clone().into()];
+        let mut witnesses = [inner_witness.clone(), outer_witness.clone().into()];
+        if !inner_first {
+            branches.reverse();
+            witnesses.reverse();
+        }
+        let relation = ComposedInstance::or(branches).unwrap();
+        let witness = ComposedWitness::or(witnesses);
+        assert_proofs_verify(&relation, &witness);
+    }
+}
+
+#[test]
+fn nested_or_honest_inner_branch() {
+    let mut rng = ProverRng::from_seed([228u8; 32]);
+    let (left, left_witness) = dleq::<G>(&mut rng);
+    let (right, right_witness) = dleq::<G>(&mut rng);
+    let (outer, outer_witness) = dleq::<G>(&mut rng);
+    let inner = ComposedInstance::or([left, right]).unwrap();
+    let wrong_left = vec![left_witness[0] + Scalar::from(1u64)];
+    let wrong_right = vec![right_witness[0] + Scalar::from(1u64)];
+    let wrong_outer = vec![outer_witness[0] + Scalar::from(1u64)];
+
+    for inner_witness in [
+        ComposedWitness::or([left_witness, wrong_right]),
+        ComposedWitness::or([wrong_left, right_witness]),
+    ] {
+        for inner_first in [true, false] {
+            let mut branches = [inner.clone(), outer.clone().into()];
+            let mut witnesses = [inner_witness.clone(), wrong_outer.clone().into()];
+            if !inner_first {
+                branches.reverse();
+                witnesses.reverse();
+            }
+            let relation = ComposedInstance::or(branches).unwrap();
+            let witness = ComposedWitness::or(witnesses);
+            assert_proofs_verify(&relation, &witness);
+        }
+    }
+}
+
 #[test]
 fn threshold_with_exact_quorum_proves_and_verifies() {
     let mut rng = ProverRng::from_os_entropy();
