@@ -90,7 +90,6 @@ hex = "0.4"
 hex-literal = { workspace = true }
 k256 = { workspace = true, features = ["arithmetic"] }
 p256 = { workspace = true, features = ["arithmetic"] }
-proptest = "1.8"
 rand = "0.8.5"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
@@ -102,6 +101,11 @@ sha2 = { workspace = true }
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 # 0.16 requires Rust 1.93.1; retain support for the workspace's Rust 1.88 minimum.
 core_affinity2 = "0.15.4"
+proptest = "1.8"
+
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+# WASI cannot spawn subprocesses; omit proptest's fork and timeout features.
+proptest = { version = "1.8", default-features = false, features = ["std", "bit-set"] }
 
 [lints]
 workspace = true
