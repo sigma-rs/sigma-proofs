@@ -10,7 +10,7 @@ use alloc::vec::Vec;
 use ff::Field;
 use group::prime::PrimeGroup;
 use itertools::Itertools;
-use spongefish::{Encoding, NargDeserialize, NargReader};
+use spongefish::{Encoding, NargReader};
 use subtle::{Choice, ConstantTimeEq};
 
 use crate::codec::{
@@ -628,7 +628,8 @@ where
 }
 
 fn read_u32(reader: &mut NargReader<'_>, field: &str) -> Result<u32, InvalidInstance> {
-    u32::deserialize_from_narg(reader)
+    reader
+        .read::<u32>()
         .map_err(|_| InvalidInstance::new(format!("truncated {field}")))
 }
 
