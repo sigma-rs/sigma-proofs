@@ -18,7 +18,7 @@ whole public API changed. This is a near-total rewrite tracking the current Fiat
   entropy; each has a single `_with` counterpart taking the transcript sponge,
   an already-derived session identifier, and — for the provers — the randomness.
 - Session identifiers are deferred to the application-layer.
-- `LinearRelation::compile()` now returns a validated `Instance`, satisfying the draft's representation, serialization, and validation criterias.
+- `LinearRelation::compile()` now returns a validated `Instance`, satisfying the draft's representation, serialization, and validation criteria.
 - Prover randomness is always `ProverRng` (`spongefish::PrivateRng`); scalars are
   sampled through the decoder rather than from a `CryptoRngCore`.
 - `NargCodec` handles instance and message serialization. `SigmaProtocol`

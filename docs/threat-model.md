@@ -32,7 +32,7 @@ Witnesses that present an invalid shape (e.g. invalid vector length) return `Err
 
 ## Domain separation
 
-The specification requires the tag to contain, verbatim, the flavor marker (`DSFS` for batchable, `CMPT` for compact) and the ciphersuite identifier, alongside application context. **The library cannot enforce proper choice of the sesssion identifier, it is responsibility of the caller to provide one.**
+The specification requires the tag to contain, verbatim, the flavor marker (`DSFS` for batchable, `CMPT` for compact) and the ciphersuite identifier, alongside application context. **The library cannot enforce proper choice of the session identifier, it is responsibility of the caller to provide one.**
 
 ## Side channels
 

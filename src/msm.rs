@@ -33,8 +33,8 @@ pub trait MultiScalarMul: Group + ConditionallySelectable {
     /// signed radix-16 digits and a constant-time table lookup.
     ///
     /// Used wherever a scalar may be secret, such as the prover's commitment.
-    /// Runtime may depends on the number of elemements, and may depends on the
-    /// value of the group elemements.
+    /// Runtime may depend on the number of elements, and may depend on the
+    /// value of the group elements.
     ///
     /// # Safety
     ///
