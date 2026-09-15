@@ -1458,7 +1458,7 @@ dependencies = [
 [[package]]
 name = "spongefish"
 version = "0.7.4"
-source = "git+https://github.com/arkworks-rs/spongefish?branch=mu%2Fdraft-v3#5e9251e3859b621e96d4621c6f935e87b63202c4"
+source = "git+https://github.com/arkworks-rs/spongefish?branch=mu%2Fdraft-v3#8ab96f45544099d53971cc2cf282ba869e8cc548"
 dependencies = [
  "digest 0.11.3",
  "getrandom 0.4.3",
