@@ -319,10 +319,10 @@ dalek_msm!(curve25519_dalek::EdwardsPoint);
 #[cfg(feature = "k256")]
 impl MultiScalarMul for k256::ProjectivePoint {
     fn msm(scalars: &[Self::Scalar], bases: &[Self]) -> Self {
-        use k256::elliptic_curve::ops::LinearCombinationExt;
+        use k256::elliptic_curve::ops::LinearCombination;
 
         assert_eq!(scalars.len(), bases.len());
-        LinearCombinationExt::lincomb_ext(
+        <Self as LinearCombination<[(Self, Self::Scalar)]>>::lincomb(
             core::iter::zip(bases.iter().copied(), scalars.iter().copied())
                 .collect::<Vec<_>>()
                 .as_slice(),
@@ -330,10 +330,24 @@ impl MultiScalarMul for k256::ProjectivePoint {
     }
 }
 
-// NOTE: As of 0.13.2 the p256 crate does not implement LinearCombinationExt on
-// ProjectivePoint, so p256 takes the generic Straus.
 #[cfg(feature = "p256")]
-impl MultiScalarMul for p256::ProjectivePoint {}
+impl MultiScalarMul for p256::ProjectivePoint {
+    fn msm(scalars: &[Self::Scalar], bases: &[Self]) -> Self {
+        use p256::elliptic_curve::ops::LinearCombination;
+
+        assert_eq!(scalars.len(), bases.len());
+        // primeorder 0.14's lincomb rejects an empty slice in debug builds.
+        // Empty MSMs are valid here, including for public-only equations.
+        if scalars.is_empty() {
+            return Self::identity();
+        }
+        <Self as LinearCombination<[(Self, Self::Scalar)]>>::lincomb(
+            core::iter::zip(bases.iter().copied(), scalars.iter().copied())
+                .collect::<Vec<_>>()
+                .as_slice(),
+        )
+    }
+}
 
 #[cfg(feature = "bls12_381")]
 impl MultiScalarMul for bls12_381::G1Projective {}
@@ -378,7 +392,7 @@ mod tests {
         /// coefficient `ONE` that `Instance::validate` passes, the digit
         /// boundaries the radix-16 recoding carries across, and random scalars.
         fn cases<G: Group>() -> Vec<Vec<G::Scalar>> {
-            let mut rng = rand::thread_rng();
+            let mut rng = rand::rng();
             let one = G::Scalar::ONE;
             vec![
                 vec![],
@@ -454,8 +468,14 @@ mod tests {
 
         #[cfg(feature = "bls12_381")]
         #[test]
-        fn agree_bls12_381() {
+        fn agree_bls12_381_g1() {
             agree::<bls12_381::G1Projective>();
+        }
+
+        #[cfg(feature = "bls12_381")]
+        #[test]
+        fn agree_bls12_381_g2() {
+            agree::<bls12_381::G2Projective>();
         }
     }
 }

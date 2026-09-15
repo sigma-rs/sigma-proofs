@@ -4,6 +4,9 @@ A Rust library for building and composing vintage zero-knowledge proofs.
 
 It focuses on Σ-protocols (Sigma protocols) for linear relations over group elements. The Fiat-Shamir transformation turns these interactive protocols into non-interactive proofs suitable for real-world applications.
 
+Supported backends are bls12_381 0.9, curve25519-dalek 5, k256 0.14, and
+p256 0.14, all using ff/group 0.14.
+
 ## Quick Example
 
 Prove knowledge of a discrete logarithm:

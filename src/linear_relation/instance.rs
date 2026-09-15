@@ -653,7 +653,7 @@ mod tests {
     use alloc::vec;
     use curve25519_dalek::scalar::Scalar as S;
     use curve25519_dalek::RistrettoPoint as G;
-    use rand::thread_rng;
+    use rand::rng;
 
     use crate::LinearRelation;
 
@@ -668,10 +668,10 @@ mod tests {
     fn effective_bases_preserve_the_wire_relation() {
         let mut r = LinearRelation::<G>::new();
         let [x, y] = r.allocate_scalars();
-        let h = r.allocate_element_with(G::random(&mut thread_rng()));
-        let k = r.allocate_element_with(G::random(&mut thread_rng()));
+        let h = r.allocate_element_with(G::random(&mut rng()));
+        let k = r.allocate_element_with(G::random(&mut rng()));
         r.allocate_eq(x * h + y * h + x * k);
-        let w = vec![S::random(&mut thread_rng()), S::random(&mut thread_rng())];
+        let w = vec![S::random(&mut rng()), S::random(&mut rng())];
         let instance = r.compile_with_witness(&w).unwrap();
         let equation = &instance.equations()[0];
         assert_eq!(
@@ -704,7 +704,7 @@ mod tests {
         // witness scalars multiplying one shared element stay one MSM entry.
         let mut shared = LinearRelation::<G>::new();
         let [x, y] = shared.allocate_scalars();
-        let h = shared.allocate_element_with(G::random(&mut thread_rng()));
+        let h = shared.allocate_element_with(G::random(&mut rng()));
         shared.allocate_eq(x * h + y * h);
         let witness = [S::from(3u64), S::from(5u64)];
         let shared = shared.compile_with_witness(&witness).unwrap();
