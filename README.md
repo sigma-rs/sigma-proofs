@@ -28,8 +28,7 @@ verify_batchable(TAG, &statement, &proof).unwrap();
 
 ## Compressed proofs
 
-For a relation with `n` witness scalars, `Compressed` produces a proof with
-`1 + 2·⌈log₂(n)⌉` group elements and one scalar:
+For a relation with `n` witness scalars, `Compressed` produces a succinct argument with `1 + 2·⌈log₂(n)⌉` group elements and one scalar:
 
 ```rust
 use curve25519_dalek::{RistrettoPoint as G, Scalar};
@@ -51,8 +50,7 @@ Narg::verify::<Compressed<G>>(TAG, &statement, &proof).unwrap();
 
 ## Composition
 
-Combine relation builders with `&` (AND) and `|` (OR), then compile the
-result. Mirror the same operators and parentheses in the witness:
+Combine relation builders with `&` (AND) and `|` (OR), then compile the result. Mirror the same operators and parentheses in the witness:
 
 ```rust
 use curve25519_dalek::{RistrettoPoint as G, Scalar};
@@ -78,19 +76,9 @@ verify_batchable(TAG, &statement, &proof)?;
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
-Operators consume their operands and create two-branch nodes: `a & b & c`
-is `(a & b) & c`, and `&` binds more tightly than `|`. They return a
-`ComposedRelation`; compilation validates every leaf and preserves the tree.
-The same operators also work on compiled `Instance` and `ComposedInstance`
-values. For a flat node with any number of branches, use
-`ComposedRelation::{and, or}` (or `ComposedInstance::{and, or}` after
-compilation) and `ComposedWitness::{and, or}`. Variables in separate branches
-are independent; use one `LinearRelation` for equations that must share a
-witness scalar.
+A `ComposedRelation` composes pairwise: `a & b & c` is `(a & b) & c`. For composing `n` branches, use `ComposedRelation::{and, or}`. Variables in separate branches are independent; use one `LinearRelation` for equations that must share a witness scalar.
 
-See [`simple_composition.rs`](examples/simple_composition.rs) for a complete OR
-proof. [`schnorr.rs`](examples/schnorr.rs) shows the compact NARG flavor instead
-of repeating the batchable flow above.
+See [`simple_composition.rs`](examples/simple_composition.rs) for a complete OR proof. [`schnorr.rs`](examples/schnorr.rs) shows the compact NARG flavor instead of repeating the batchable flow above.
 
 ## Status
 
