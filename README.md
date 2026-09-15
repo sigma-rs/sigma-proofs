@@ -51,10 +51,42 @@ Narg::verify::<Compressed<G>>(TAG, &statement, &proof).unwrap();
 
 ## Composition
 
-Compile the component statements, combine them with
-`ComposedInstance::{and, or}`, and mirror that shape with
-`ComposedWitness::{and, or}`. Only the real branch of an OR needs a witness;
-the others are simulated.
+Combine relation builders with `&` (AND) and `|` (OR), then compile the
+result. Mirror the same operators and parentheses in the witness:
+
+```rust
+use curve25519_dalek::{RistrettoPoint as G, Scalar};
+use group::Group;
+use sigma_proofs::{composition::ComposedWitness, prove_batchable, verify_batchable, LinearRelation};
+
+fn dlog(public_key: G) -> LinearRelation<G> {
+    let mut relation = LinearRelation::new();
+    let x = relation.allocate_scalar();
+    relation.allocate_eq_with(public_key, x * relation.generator());
+    relation
+}
+
+let x = Scalar::from(42u64);
+let left = dlog(G::generator() * Scalar::from(7u64));
+let right = dlog(G::generator() * x);
+let statement = (left | right).compile()?;
+// Only the right branch needs a valid witness; the left is simulated.
+let witness = ComposedWitness::<G>::from(vec![Scalar::ZERO]) | vec![x];
+const TAG: &[u8] = b"composition-example DSFS";
+let proof = prove_batchable(TAG, &statement, &witness)?;
+verify_batchable(TAG, &statement, &proof)?;
+# Ok::<(), Box<dyn std::error::Error>>(())
+```
+
+Operators consume their operands and create two-branch nodes: `a & b & c`
+is `(a & b) & c`, and `&` binds more tightly than `|`. They return a
+`ComposedRelation`; compilation validates every leaf and preserves the tree.
+The same operators also work on compiled `Instance` and `ComposedInstance`
+values. For a flat node with any number of branches, use
+`ComposedRelation::{and, or}` (or `ComposedInstance::{and, or}` after
+compilation) and `ComposedWitness::{and, or}`. Variables in separate branches
+are independent; use one `LinearRelation` for equations that must share a
+witness scalar.
 
 See [`simple_composition.rs`](examples/simple_composition.rs) for a complete OR
 proof. [`schnorr.rs`](examples/schnorr.rs) shows the compact NARG flavor instead

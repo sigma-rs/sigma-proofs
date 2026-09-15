@@ -400,20 +400,14 @@ impl<G: PrimeGroup> LinearRelation<G> {
         Ok(instance)
     }
 
-    /// Compile this relation into a validated [`Instance`] — the single gate
-    /// through which provers and verifiers accept a statement.
+    /// Compile this relation into a validated [`Instance`].
     ///
-    /// The compiled form is the specification's representation: coefficients
-    /// are kept verbatim (no folding, no synthetic elements), witness-carrying
-    /// terms become right-hand-side terms `(scalar_index, element_index,
-    /// coeff)`, and constant terms cross to the image with their coefficient
-    /// negated. Every group element of the statement is individually indexed
-    /// and bound by the serialization.
+    /// The statement is normalized deterministically before validation, and compiled
+    /// into the specification's representation.
     ///
-    /// Because this is trusted local construction (the relation is built by
-    /// this process, not received from the wire), the statement is normalized
-    /// before validation — deterministically, so a prover and a verifier
-    /// building the same relation serialize the same instance:
+    /// Public equations with no witness terms are preserved, whether true
+    /// or false. Falsity does not make an instance structurally invalid, and
+    /// a false equation must remain simulatable inside OR/threshold proofs.
     ///
     /// Unused group elements are dropped and indices are re-packed in
     /// allocation order (the identity and generator keep indices 0 and 1).

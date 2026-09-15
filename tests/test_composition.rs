@@ -4,7 +4,8 @@ use sigma_proofs::codec::ScalarCodec;
 use sigma_proofs::composition::{ComposedInstance, ComposedWitness};
 use sigma_proofs::traits::{SigmaProtocol, SigmaProtocolSimulator};
 use sigma_proofs::{
-    prove_batchable, prove_compact, verify_batchable, verify_compact, NargCodec, ProverRng,
+    prove_batchable, prove_compact, verify_batchable, verify_compact, ComposedRelation,
+    LinearRelation, NargCodec, ProverRng,
 };
 
 #[allow(dead_code)]
@@ -26,6 +27,137 @@ fn assert_proofs_verify(relation: &ComposedInstance<G>, witness: &ComposedWitnes
 
     let compact = prove_compact(COMPACT_TAG, relation, witness).unwrap();
     verify_compact(COMPACT_TAG, relation, &compact).unwrap();
+}
+
+fn dlog_builder(secret: u64) -> LinearRelation<G> {
+    let mut relation = LinearRelation::new();
+    let x = relation.allocate_scalar();
+    relation.allocate_eq_with(
+        G::generator() * Scalar::from(secret),
+        x * relation.generator(),
+    );
+    relation
+}
+
+#[test]
+fn binary_operators_preserve_branch_order_and_nesting() {
+    // Exercise all four linear/composed operand pairs for both operators,
+    // before and after compilation. The encoding must match constructors.
+    macro_rules! check_operator {
+        ($op:tt, $constructor:ident) => {{
+            let a = dlog_builder(3);
+            let b = dlog_builder(5);
+            let c = dlog_builder(7);
+            let ia = a.compile().unwrap();
+            let ib = b.compile().unwrap();
+            let ic = c.compile().unwrap();
+            let wa = ComposedWitness::<G>::from(vec![Scalar::from(3u64)]);
+            let wb = vec![Scalar::from(5u64)];
+            let wc = ComposedWitness::<G>::from(vec![Scalar::from(7u64)]);
+            let ab = ComposedInstance::$constructor([ia.clone(), ib.clone()]).unwrap();
+            let bc = ComposedInstance::$constructor([ib.clone(), ic.clone()]).unwrap();
+            let cases = [
+                (
+                    a.clone() $op b.clone(),
+                    ia.clone() $op ib.clone(),
+                    ab.clone(),
+                    wa.clone() $op wb.clone(),
+                ),
+                (
+                    a.clone() $op b.clone() $op c.clone(),
+                    ia.clone() $op ib.clone() $op ic.clone(),
+                    ComposedInstance::$constructor([ab.clone(), ic.clone().into()]).unwrap(),
+                    wa.clone() $op wb.clone() $op wc.clone(),
+                ),
+                (
+                    a.clone() $op (b.clone() $op c.clone()),
+                    ia.clone() $op (ib.clone() $op ic.clone()),
+                    ComposedInstance::$constructor([ia.into(), bc.clone()]).unwrap(),
+                    wa.clone() $op (ComposedWitness::<G>::from(wb.clone()) $op wc.clone()),
+                ),
+                (
+                    (a $op b.clone()) $op (b $op c),
+                    ab.clone() $op bc.clone(),
+                    ComposedInstance::$constructor([ab, bc]).unwrap(),
+                    (wa $op wb.clone()) $op (ComposedWitness::<G>::from(wb) $op wc),
+                ),
+            ];
+            for (builder, compiled, expected, witness) in cases {
+                let statement = builder.compile().unwrap();
+                assert_eq!(statement.encode_instance().as_ref(), expected.encode_instance().as_ref());
+                assert_eq!(compiled.encode_instance().as_ref(), expected.encode_instance().as_ref());
+                assert_proofs_verify(&statement, &witness);
+            }
+        }};
+    }
+
+    check_operator!(&, and);
+    check_operator!(|, or);
+}
+
+#[test]
+fn mixed_operators_obey_precedence_and_witness_truth_table() {
+    let a = dlog_builder(3);
+    let b = dlog_builder(5);
+    let c = dlog_builder(7);
+    let unparenthesized = (a.clone() | b.clone() & c.clone()).compile().unwrap();
+    let parenthesized = ((a | b) & c).compile().unwrap();
+
+    for flags in 0..8 {
+        let valid_a = flags & 1 != 0;
+        let valid_b = flags & 2 != 0;
+        let valid_c = flags & 4 != 0;
+        let wa = ComposedWitness::<G>::from(vec![Scalar::from(if valid_a { 3u64 } else { 4 })]);
+        let wb = ComposedWitness::<G>::from(vec![Scalar::from(if valid_b { 5u64 } else { 6 })]);
+        let wc = ComposedWitness::<G>::from(vec![Scalar::from(if valid_c { 7u64 } else { 8 })]);
+        for (statement, witness, satisfied) in [
+            (
+                &unparenthesized,
+                wa.clone() | wb.clone() & wc.clone(),
+                valid_a || valid_b && valid_c,
+            ),
+            (
+                &parenthesized,
+                (wa | wb) & wc,
+                (valid_a || valid_b) && valid_c,
+            ),
+        ] {
+            if satisfied {
+                assert_proofs_verify(statement, &witness);
+            } else {
+                if let Ok(proof) = prove_batchable(BATCH_TAG, statement, &witness) {
+                    assert!(verify_batchable(BATCH_TAG, statement, &proof).is_err());
+                }
+                if let Ok(proof) = prove_compact(COMPACT_TAG, statement, &witness) {
+                    assert!(verify_compact(COMPACT_TAG, statement, &proof).is_err());
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn composed_builders_validate_leaves_and_preserve_empty_nodes() {
+    let valid = dlog_builder(3);
+    let mut invalid = LinearRelation::<G>::new();
+    let x = invalid.allocate_scalar();
+    invalid.allocate_eq(x * invalid.generator()); // Image is unassigned.
+    for builder in [
+        valid.clone() & invalid.clone(),
+        invalid.clone() & valid.clone(),
+        valid.clone() | invalid.clone(),
+        invalid | valid.clone(),
+    ] {
+        assert!(builder.compile().is_err());
+    }
+
+    let empty_and = ComposedRelation::<G>::and([] as [LinearRelation<G>; 0]);
+    let empty_or = ComposedRelation::<G>::or([] as [LinearRelation<G>; 0]);
+    assert_proofs_verify(&empty_and.compile().unwrap(), &ComposedWitness::And(vec![]));
+    let statement = ((empty_and & empty_or) | valid).compile().unwrap();
+    let witness = (ComposedWitness::<G>::And(vec![]) & ComposedWitness::Or(vec![]))
+        | vec![Scalar::from(3u64)];
+    assert_proofs_verify(&statement, &witness);
 }
 
 #[test]
