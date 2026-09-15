@@ -28,13 +28,7 @@ fn test_spec_vectors_p256() {
     );
 }
 
-#[test]
-fn test_spec_vectors_bls12381() {
-    run_suite::<bls12_381::G1Projective>(
-        include_str!("./spec/testdata/sigma-proofs_Shake128_BLS12381.json"),
-        include_str!("./spec/testdata/sigma-proofs-invalid_Shake128_BLS12381.json"),
-    );
-}
+// BLS12-381 fixtures remain vendored for when bls12_381 supports ff/group 0.14.
 
 /// Builds the named relation, drawing the auxiliary-generator and witness
 /// scalars from `rng` in the order pinned by the specification's generator.
