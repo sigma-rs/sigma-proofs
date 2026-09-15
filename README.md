@@ -44,10 +44,9 @@ let h = relation.allocate_element_with(G::generator() * Scalar::from(7u64));
 relation.allocate_eq(x * relation.generator() + y * h);
 let statement = relation.compile_with_witness(&witness).unwrap();
 
-let session = Narg::derive_session_id(b"my-application compressed");
-let (proof, ()) =
-    Narg::prove_with_session_id::<Compressed<G>>(&session, &statement, &witness).unwrap();
-Narg::verify_with_session_id::<Compressed<G>>(&session, &statement, &proof).unwrap();
+const TAG: &[u8] = b"my-application compressed";
+let (proof, ()) = Narg::prove::<Compressed<G>>(TAG, &statement, &witness).unwrap();
+Narg::verify::<Compressed<G>>(TAG, &statement, &proof).unwrap();
 ```
 
 ## Composition
