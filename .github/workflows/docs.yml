@@ -33,7 +33,9 @@ jobs:
       - name: install toolchain
         uses: dtolnay/rust-toolchain@nightly
       - name: cargo doc
-        run: cargo doc --workspace --all-features
+        # `+nightly` is required: the repo's rust-toolchain.toml outranks the
+        # `rustup default` set by the toolchain action.
+        run: cargo +nightly doc --workspace --locked --all-features
       - name: page configuration
         uses: actions/configure-pages@v6
       - name: Upload artifact
