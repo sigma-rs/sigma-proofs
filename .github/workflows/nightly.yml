@@ -71,7 +71,7 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
-      - uses: model-checking/kani-github-action@v1
+      - uses: model-checking/kani-github-action@v1.1
         with:
           # `-j` insists on terse output; it does not change what is checked.
           args: '-j --output-format=terse'
