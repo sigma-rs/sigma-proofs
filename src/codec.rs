@@ -47,8 +47,7 @@ pub trait GroupCodec: PrimeGroup {
     fn deserialize_element(reader: &mut NargReader<'_>) -> Result<Self, VerificationError> {
         let mut repr = <Self as group::GroupEncoding>::Repr::default();
         let len = repr.as_ref().len();
-        repr.as_mut()
-            .copy_from_slice(reader.take(len).ok_or(VerificationError)?);
+        repr.as_mut().copy_from_slice(reader.take(len)?);
         Option::<Self>::from(Self::from_bytes(&repr)).ok_or(VerificationError)
     }
 
@@ -155,7 +154,7 @@ macro_rules! sec1_deserialize {
     () => {
         fn deserialize_element(reader: &mut NargReader<'_>) -> Result<Self, VerificationError> {
             let mut repr = <Self as group::GroupEncoding>::Repr::default();
-            let bytes = reader.take(Self::element_len()).ok_or(VerificationError)?;
+            let bytes = reader.take(Self::element_len())?;
             // `00` is the identity, which the codec admits;
             // `02` and `03` are the compressed-point tags. Everything
             // else, `05` included, is not an encoding this crate emits.
@@ -311,8 +310,7 @@ pub(crate) fn deserialize_scalar_with_endianness<F: PrimeField>(
 ) -> Result<F, VerificationError> {
     let mut repr = F::Repr::default();
     let len = repr.as_ref().len();
-    repr.as_mut()
-        .copy_from_slice(reader.take(len).ok_or(VerificationError)?);
+    repr.as_mut().copy_from_slice(reader.take(len)?);
     if repr_is_le {
         repr.as_mut().reverse();
     }
