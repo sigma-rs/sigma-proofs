@@ -28,8 +28,7 @@ verify_batchable(TAG, &statement, &proof).unwrap();
 
 ## Compressed proofs
 
-For a relation with `n` witness scalars, `Compressed` produces a proof with
-`1 + 2·⌈log₂(n)⌉` group elements and one scalar:
+For a relation with `n` witness scalars, `Compressed` produces a succinct argument with `1 + 2·⌈log₂(n)⌉` group elements and one scalar:
 
 ```rust
 use curve25519_dalek::{RistrettoPoint as G, Scalar};
@@ -51,14 +50,35 @@ Narg::verify::<Compressed<G>>(TAG, &statement, &proof).unwrap();
 
 ## Composition
 
-Compile the component statements, combine them with
-`ComposedInstance::{and, or}`, and mirror that shape with
-`ComposedWitness::{and, or}`. Only the real branch of an OR needs a witness;
-the others are simulated.
+Combine relation builders with `&` (AND) and `|` (OR), then compile the result. Mirror the same operators and parentheses in the witness:
 
-See [`simple_composition.rs`](examples/simple_composition.rs) for a complete OR
-proof. [`schnorr.rs`](examples/schnorr.rs) shows the compact NARG flavor instead
-of repeating the batchable flow above.
+```rust
+use curve25519_dalek::{RistrettoPoint as G, Scalar};
+use group::Group;
+use sigma_proofs::{composition::ComposedWitness, prove_batchable, verify_batchable, LinearRelation};
+
+fn dlog(public_key: G) -> LinearRelation<G> {
+    let mut relation = LinearRelation::new();
+    let x = relation.allocate_scalar();
+    relation.allocate_eq_with(public_key, x * relation.generator());
+    relation
+}
+
+let x = Scalar::from(42u64);
+let left = dlog(G::generator() * Scalar::from(7u64));
+let right = dlog(G::generator() * x);
+let statement = (left | right).compile()?;
+// Only the right branch needs a valid witness; the left is simulated.
+let witness = ComposedWitness::<G>::from(vec![Scalar::ZERO]) | vec![x];
+const TAG: &[u8] = b"composition-example DSFS";
+let proof = prove_batchable(TAG, &statement, &witness)?;
+verify_batchable(TAG, &statement, &proof)?;
+# Ok::<(), Box<dyn std::error::Error>>(())
+```
+
+A `ComposedRelation` composes pairwise: `a & b & c` is `(a & b) & c`. For composing `n` branches, use `ComposedRelation::{and, or}`. Variables in separate branches are independent; use one `LinearRelation` for equations that must share a witness scalar.
+
+See [`simple_composition.rs`](examples/simple_composition.rs) for a complete OR proof. [`schnorr.rs`](examples/schnorr.rs) shows the compact NARG flavor instead of repeating the batchable flow above.
 
 ## Status
 

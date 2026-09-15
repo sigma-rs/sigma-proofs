@@ -32,7 +32,7 @@ fn or_relation(P1: G, P2: G, Q: G, H: G) -> anyhow::Result<ComposedInstance<G>> 
     dleq.allocate_eq_with(P2, x2 * dleq.generator());
     dleq.allocate_eq_with(Q, x2 * H_var);
 
-    Ok(ComposedInstance::or([dlog.compile()?, dleq.compile()?])?)
+    Ok((dlog | dleq).compile()?)
 }
 
 #[allow(non_snake_case)]
@@ -51,7 +51,7 @@ fn main() -> anyhow::Result<()> {
     let statement = or_relation(P1, P2, Q, H)?;
     // Branch 1 is the real one; branch 0 is simulated, so its witness slot is
     // an ignored placeholder.
-    let witness = ComposedWitness::<G>::or([vec![Scalar::ZERO], vec![x2]]);
+    let witness = ComposedWitness::<G>::from(vec![Scalar::ZERO]) | vec![x2];
 
     let proof = prove_batchable(TAG, &statement, &witness)?;
     println!("Proof (hex): {}", hex::encode(&proof));

@@ -8,6 +8,7 @@
 //! - **[`linear_relation::LinearRelation`]**: express relations over groups,
 //!   compiled into a validated [`Instance`]
 //! - **[`composition::ComposedInstance`]**: combine instances with AND/OR
+//! - **[`ComposedRelation`]**: compose relation builders with `&` and `|`
 //! - **[`fiat_shamir`]**: prove and verify, as batchable or compact NARG strings
 //! - **[`traits::SigmaProtocol`]**: the three-move interface both of the above
 //!   implement, and the extension point for new relations
@@ -55,6 +56,7 @@ pub mod linear_relation;
 pub mod msm;
 pub mod traits;
 
+pub use composition::ComposedRelation;
 pub use fiat_shamir::{
     derive_session_id, prove_batchable, prove_batchable_with, prove_compact, prove_compact_with,
     verify_batch, verify_batch_with, verify_batchable, verify_batchable_with, verify_compact,
