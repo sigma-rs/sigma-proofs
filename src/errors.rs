@@ -82,8 +82,6 @@ impl fmt::Display for InvalidWitness {
     }
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for InvalidInstance {}
+impl core::error::Error for InvalidInstance {}
 
-#[cfg(feature = "std")]
-impl std::error::Error for InvalidWitness {}
+impl core::error::Error for InvalidWitness {}
