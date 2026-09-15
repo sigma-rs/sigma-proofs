@@ -7,23 +7,19 @@
 //! ```
 //! use curve25519_dalek::{RistrettoPoint as G, Scalar};
 //! use group::Group;
-//! use sigma_proofs::compressed::Compressed;
-//! use sigma_proofs::{LinearRelation, DefaultHash};
-//! use spongefish::{derive_session_id, Narg};
+//! use sigma_proofs::{compressed::Compressed, LinearRelation};
+//! use spongefish::Narg;
 //!
 //! let witness = vec![Scalar::from(3u64), Scalar::from(5u64)];
 //! let mut relation = LinearRelation::<G>::new();
 //! let [x, y] = relation.allocate_scalars();
 //! let h = relation.allocate_element_with(G::generator() * Scalar::from(7u64));
 //! relation.allocate_eq(x * relation.generator() + y * h);
-//! let instance = relation.compile_with_witness(&witness).unwrap();
+//! let statement = relation.compile_with_witness(&witness).unwrap();
 //!
-//! let session_id = derive_session_id::<DefaultHash>(b"my-application compressed");
-//! let (narg_string, ()) =
-//!     Narg::prove_with_session_id::<Compressed<G>>(&session_id, &instance, &witness)
-//!         .unwrap();
-//! Narg::verify_with_session_id::<Compressed<G>>(&session_id, &instance, &narg_string)
-//!     .unwrap();
+//! const TAG: &[u8] = b"my-application compressed";
+//! let (proof, ()) = Narg::prove::<Compressed<G>>(TAG, &statement, &witness).unwrap();
+//! Narg::verify::<Compressed<G>>(TAG, &statement, &proof).unwrap();
 //! ```
 //!
 //! [`Argument`]: spongefish::Argument
