@@ -3,7 +3,7 @@ use std::hint::black_box;
 use divan::Bencher;
 use ff::Field;
 use group::Group;
-use rand::{thread_rng, Rng};
+use rand::{rng, RngExt};
 use sigma_proofs::msm::straus_vartime;
 use sigma_proofs::MultiScalarMul;
 
@@ -19,9 +19,9 @@ fn main() {
 fn instance<G: Group>(n: usize) -> (Vec<G::Scalar>, Vec<G>) {
     (
         (0..n)
-            .map(|_| <G::Scalar as Field>::random(&mut thread_rng()))
+            .map(|_| <G::Scalar as Field>::random(&mut rng()))
             .collect(),
-        (0..n).map(|_| G::random(&mut thread_rng())).collect(),
+        (0..n).map(|_| G::random(&mut rng())).collect(),
     )
 }
 
@@ -46,7 +46,7 @@ fn bench_msm_vartime<G: Group + MultiScalarMul>(bencher: Bencher, n: usize) {
 /// pays a whole scalar multiplication to compute `base * 1`.
 fn bench_msm_vartime_coefficient_one<G: Group + MultiScalarMul>(bencher: Bencher, n: usize) {
     let scalars = vec![<G::Scalar as Field>::ONE; n];
-    let bases: Vec<G> = (0..n).map(|_| G::random(&mut thread_rng())).collect();
+    let bases: Vec<G> = (0..n).map(|_| G::random(&mut rng())).collect();
     bencher
         .counter(n)
         .bench(|| G::msm_vartime(black_box(&scalars), black_box(&bases)));
@@ -95,8 +95,6 @@ macro_rules! curve_benches {
 curve_benches!(curve25519, ::curve25519_dalek::RistrettoPoint);
 curve_benches!(k256, ::k256::ProjectivePoint);
 curve_benches!(p256, ::p256::ProjectivePoint);
-curve_benches!(bls12_381_g1, ::bls12_381::G1Projective);
-curve_benches!(bls12_381_g2, ::bls12_381::G2Projective);
 
 /// Where the generic variable-time body stops beating a curve's own.
 ///
@@ -127,12 +125,12 @@ mod width {
                 // Dalek's canonical scalar encoding is little-endian, so
                 // zeroing the high bytes is what bounds the value's width.
                 let mut repr = [0u8; 32];
-                thread_rng().fill(&mut repr[..bytes.min(32)]);
+                rng().fill(&mut repr[..bytes.min(32)]);
                 Scalar::from_bytes_mod_order(repr)
             })
             .collect();
         let bases = (0..TERMS)
-            .map(|_| RistrettoPoint::random(&mut thread_rng()))
+            .map(|_| RistrettoPoint::random(&mut rng()))
             .collect();
         (scalars, bases)
     }

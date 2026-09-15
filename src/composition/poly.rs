@@ -112,7 +112,7 @@ pub(super) fn expand_threshold_challenges<F: PrimeField>(
 mod tests {
     use super::{evaluate_polynomial, expand_threshold_challenges, threshold_x};
     use alloc::vec::Vec;
-    use bls12_381::Scalar;
+    use curve25519_dalek::Scalar;
 
     /// The prover may expand the polynomial it already interpolated instead
     /// of re-interpolating the compressed wire representation.  Pin that

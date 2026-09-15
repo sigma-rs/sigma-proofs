@@ -7,7 +7,7 @@ use spongefish::Encoding;
 mod relations;
 use relations::*;
 
-type G = bls12_381::G1Projective;
+type G = curve25519_dalek::RistrettoPoint;
 
 /// Generic helper function to test both relation correctness and NIZK functionality
 #[test]
@@ -56,9 +56,9 @@ fn test_relations() {
 /// SEC1 is where this bites. Beside the `02`/`03` of a compressed point it
 /// defines `05`, the "compact" representation, at the same encoded length;
 /// `sec1` decodes it to the same element and re-encodes it as `02`/`03`, and
-/// about half of all points admit the rewrite. Ristretto and BLS12-381 carry
-/// no tag byte and are canonical already — they are here to pin that nothing
-/// they legitimately produce is rejected.
+/// about half of all points admit the rewrite. Ristretto carries no tag byte
+/// and is canonical already — it is here to pin that nothing it legitimately
+/// produces is rejected.
 #[test]
 fn deserialize_is_canonical() {
     fn canonical<G>()
@@ -109,7 +109,6 @@ fn deserialize_is_canonical() {
     canonical::<p256::ProjectivePoint>();
     canonical::<k256::ProjectivePoint>();
     canonical::<curve25519_dalek::RistrettoPoint>();
-    canonical::<bls12_381::G1Projective>();
 }
 
 /// A randomized fused verification equation must remain as strong as checking

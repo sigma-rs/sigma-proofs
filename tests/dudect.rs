@@ -27,7 +27,7 @@ use std::{
 
 use curve25519_dalek::{RistrettoPoint as G, Scalar};
 
-use rand::Rng;
+use rand::RngExt;
 use serial_test::serial;
 use sigma_proofs::{
     codec::ScalarCodec,
@@ -199,10 +199,10 @@ fn compare<P: NizkProver>(
 ) -> CtSummary {
     // Randomize per-pair sampling order so monotonic drift in the host environment (thermal
     // ramp, neighbor activity, frequency scaling) is not attributed to one class.
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let (left_times, right_times): (Vec<u64>, Vec<u64>) = (0..*SAMPLES)
         .map(|_| {
-            if rng.gen::<bool>() {
+            if rng.random::<bool>() {
                 let l = time_prove(left()).as_nanos() as u64;
                 let r = time_prove(right()).as_nanos() as u64;
                 (l, r)
@@ -285,8 +285,8 @@ fn time_prove<P>((rel, wit): (P, P::OwnedWitness)) -> Duration
 where
     P: NizkProver,
 {
-    // NOTE: Creating a new RNG here was found to be important, compared to using `rand::thread_rng`
-    // directly, when the instance generation uses `rand::thread_rng`. Otherwise caching behavior
+    // NOTE: Creating a new RNG here was found to be important, compared to using `rand::rng`
+    // directly, when the instance generation uses `rand::rng`. Otherwise caching behavior
     // leads to false positive timing variance.
     let mut rng = {
         let mut seed = [0u8; 32];
@@ -317,11 +317,11 @@ fn fixed_rng() -> ProverRng {
 #[cfg(not(target_arch = "wasm32"))]
 fn set_core_affinity() -> anyhow::Result<()> {
     use anyhow::Context;
-    use rand::seq::SliceRandom;
+    use rand::seq::IndexedRandom;
 
     let core_ids = core_affinity2::get_core_ids().context("Failed to get core IDs")?;
 
-    let Some(core_id) = core_ids.choose(&mut rand::thread_rng()) else {
+    let Some(core_id) = core_ids.choose(&mut rand::rng()) else {
         anyhow::bail!("No core IDs available");
     };
     core_id

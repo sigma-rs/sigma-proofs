@@ -1,5 +1,6 @@
-use elliptic_curve::hash2curve::{FromOkm, MapToCurve};
-use k256::{FieldElement, ProjectivePoint};
+use elliptic_curve::{array::Array, ops::Reduce};
+use hash2curve::MapToCurve;
+use k256::{ProjectivePoint, Secp256k1};
 
 use crate::FromUniformBytes;
 
@@ -8,7 +9,8 @@ impl FromUniformBytes for ProjectivePoint {
 
     fn from_uniform_bytes(bytes: &Self::Bytes) -> Self {
         fn to_curve_nonuniform(bytes: &[u8; 48]) -> ProjectivePoint {
-            FieldElement::from_okm(bytes.into()).map_to_curve()
+            let element = <Secp256k1 as MapToCurve>::FieldElement::reduce(&Array::from(*bytes));
+            Secp256k1::map_to_curve(element)
         }
         let [b0, b1] = bytemuck::cast_ref(bytes);
         to_curve_nonuniform(b0) + to_curve_nonuniform(b1)

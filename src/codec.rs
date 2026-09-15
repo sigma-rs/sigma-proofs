@@ -7,10 +7,10 @@
 //!
 //! Internally, codecs rely on [`GroupEncoding`][group::GroupEncoding], including its
 //! fixed-length identity encoding, and scalars are encoded big-endian `I2OSP` regardless
-//! of the field's native representation. The specification's ciphersuites are
-//! `sigma-proofs_Shake128_P256` and `sigma-proofs_Shake128_BLS12381`; other
-//! prime-order groups use the same generic codecs under their own
-//! ciphersuite identifiers.
+//! of the field's native representation. The specification's
+//! `sigma-proofs_Shake128_P256` ciphersuite is supported; other prime-order
+//! groups use these codecs under their own ciphersuite identifiers. BLS12-381
+//! support awaits a `bls12_381` release implementing ff/group 0.14.
 
 // Everything here can run on bytes chosen by an attacker.
 // Indexing and slicing are denied outright so that no out-of-range access can be introduced
@@ -56,10 +56,7 @@ pub trait GroupCodec: PrimeGroup {
     /// Equivalent to [`serialize_element`][GroupCodec::serialize_element] in a
     /// loop, and required to produce identical bytes. Curves whose encoding
     /// is a projective-to-affine conversion override it to amortize the field
-    /// inversion across the whole slice. That is the only reason it exists:
-    /// on BLS12-381 G1 one compression is an inversion (17.1 µs) and the
-    /// batched form costs one inversion for the slice, which is an order of
-    /// magnitude on the instance label. Curves whose encoding is already
+    /// inversion across the whole slice. Curves whose encoding is already
     /// cheap keep the default loop.
     fn serialize_elements(elements: &[Self], out: &mut Vec<u8>) {
         for element in elements {
@@ -82,59 +79,15 @@ mod curve25519 {
     impl GroupCodec for RistrettoPoint {}
 }
 
-#[cfg(feature = "bls12_381")]
-mod bls12_381_impl {
-    use alloc::vec;
-    use alloc::vec::Vec;
-
-    use bls12_381::{G1Affine, G1Projective, G2Affine, G2Projective};
-
-    use super::GroupCodec;
-
-    /// `to_bytes` on a projective point normalizes it first, which is a field
-    /// inversion per point. `batch_normalize` is Montgomery's trick: one
-    /// inversion for the whole slice. The encoding is unchanged — these are
-    /// the same affine points, encoded by the same function.
-    macro_rules! batched {
-        ($proj:ty, $affine:ty) => {
-            impl GroupCodec for $proj {
-                fn serialize_elements(elements: &[Self], out: &mut Vec<u8>) {
-                    let mut affine = vec![<$affine>::identity(); elements.len()];
-                    Self::batch_normalize(elements, &mut affine);
-                    for point in &affine {
-                        out.extend_from_slice(point.to_compressed().as_ref());
-                    }
-                }
-            }
-        };
-    }
-
-    batched!(G1Projective, G1Affine);
-    batched!(G2Projective, G2Affine);
-}
-
 // The SEC1 curves. Two notes, one per overridden method.
 //
-// `serialize_elements` is worth overriding for one of the two, and the two
-// curves differ because their crates do.
-//
-// k256 implements `group::Curve` with a
-// real batched normalization (one inversion for the slice), so it takes the
-// same override BLS12-381 does: 58.3/132.7/211.8 µs one-by-one against
-// 4.7/7.6/9.0 µs batched at 8/32/64 points, i.e. 12x to 23x.
-//
-// P-256 does not. `primeorder` leaves `group::Curve::batch_normalize` at the
-// trait's one-by-one default (its batched form is behind `BatchNormalize`,
-// which P-256's field element cannot satisfy: it implements no `Invert`), so
-// the override would buy nothing there and P-256 keeps the default loop.
-// Measured at 8/32/64 points: 32.8/131.9/256.7 µs against 32.7/127.4/257.8,
-// i.e. noise. Re-measure before assuming this is still true of a later
-// `primeorder`.
+// k256 uses its batched normalization for serialization. P-256 retains
+// the default per-element conversion.
 //
 // Deserialization, though, is not canonical without help. SEC1 defines a
 // third one-byte tag beside the `02`/`03` of a compressed point: `05`, the
 // "compact" representation, whose encoding is the same 33 bytes. `sec1`
-// accepts it and `from_encoded_point` recovers the point through `decompact`,
+// accepts it and `from_sec1_point` recovers the point through `decompact`,
 // so `05 || x` and `03 || x` decode to the *same element* and re-encode to
 // `03 || x`. About half of all points admit such a rewrite. That breaks the
 // invariant this trait's documentation states and the specification requires
@@ -423,12 +376,7 @@ mod repr_tests {
 // Without a curve feature there is no `GroupCodec` implementor to test.
 #[cfg(all(
     test,
-    any(
-        feature = "bls12_381",
-        feature = "curve25519-dalek",
-        feature = "k256",
-        feature = "p256"
-    )
+    any(feature = "curve25519-dalek", feature = "k256", feature = "p256")
 ))]
 mod tests {
     use super::{repr_is_le, GroupCodec};
@@ -454,8 +402,6 @@ mod tests {
     fn supported_scalar_representations() {
         #[cfg(feature = "curve25519-dalek")]
         scalar_integer_encoding::<curve25519_dalek::Scalar>(true);
-        #[cfg(feature = "bls12_381")]
-        scalar_integer_encoding::<bls12_381::Scalar>(true);
         #[cfg(feature = "k256")]
         scalar_integer_encoding::<k256::Scalar>(false);
         #[cfg(feature = "p256")]
@@ -556,8 +502,4 @@ mod tests {
     codec_tests!(k256, ::k256::ProjectivePoint);
     #[cfg(feature = "p256")]
     codec_tests!(p256, ::p256::ProjectivePoint);
-    #[cfg(feature = "bls12_381")]
-    codec_tests!(bls12_381_g1, ::bls12_381::G1Projective);
-    #[cfg(feature = "bls12_381")]
-    codec_tests!(bls12_381_g2, ::bls12_381::G2Projective);
 }

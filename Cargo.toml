@@ -36,14 +36,15 @@ categories = ["cryptography"]
 
 [workspace.dependencies]
 bytemuck = { version = "1.25.0", default-features = false }
-curve25519-dalek = { version = "4.1.3", default-features = false }
+curve25519-dalek = { version = "5", default-features = false }
 digest = { version = "0.11.2", default-features = false }
-elliptic-curve = { version = "0.13.8", default-features = false }
+elliptic-curve = { version = "0.14.1", default-features = false }
+hash2curve = { version = "0.14", default-features = false }
 hex-literal = "1.0"
-k256 = { version = "0.13.4", default-features = false }
-p256 = { version = "0.13", default-features = false }
+k256 = { version = "0.14", default-features = false }
+p256 = { version = "0.14", default-features = false }
 sha2 = { version = "0.11", default-features = false }
-sha3 = { version = "=0.11.0-rc.9", default-features = false }
+shake = { version = "0.1", default-features = false }
 
 [workspace.lints.rust]
 unsafe_code = "deny"
@@ -52,25 +53,24 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)', 'cfg(docsrs)'] }
 [features]
 # Include commonly used curved in default features.
 # Increases the default compile times, but makes the crate just-work for most users.
-default = ["std", "bls12_381", "curve25519-dalek", "k256", "p256"]
+# BLS12-381 support is deferred until bls12_381 supports ff/group 0.14.
+default = ["std", "curve25519-dalek", "k256", "p256"]
 std = []
 # Curve support: each enables `MultiScalarMul` (and so the whole protocol) for
-# that curve's group type. The two that gate their own `Zeroize` behind a
-# feature have it turned on here: wiping witness material is unconditional (see
+# that curve's group type. Enable Dalek's optional `Zeroize` implementation:
+# wiping witness material is unconditional (see
 # `ScalarCodec`), so every supported scalar has to implement it.
-bls12_381 = ["dep:bls12_381", "bls12_381/zeroize"]
 curve25519-dalek = ["dep:curve25519-dalek", "curve25519-dalek/zeroize"]
 k256 = ["dep:k256"]
 p256 = ["dep:p256"]
 
 [dependencies]
-bls12_381 = { version = "0.8.0", default-features = false, features = ["groups"], optional = true }
 curve25519-dalek = { workspace = true, features = ["alloc", "group", "precomputed-tables"], optional = true }
-ff = { version = "0.13", default-features = false, features = ["std"] }
-group = "0.13.0"
+ff = { version = "0.14", default-features = false, features = ["std"] }
+group = "0.14.0"
 itertools = { version = "0.15", default-features = false }
 k256 = { workspace = true, features = ["arithmetic", "alloc"], optional = true }
-p256 = { workspace = true, features = ["arithmetic"], optional = true }
+p256 = { workspace = true, features = ["arithmetic", "alloc"], optional = true }
 spongefish = { version = "0.7", git = "https://github.com/arkworks-rs/spongefish", branch = "mu/draft-v3" }
 subtle = { version = "2.6.1", default-features = false }
 # Not optional: `zeroize` is already an unconditional part of the dependency
@@ -82,7 +82,6 @@ zeroize = { version = "1.8", default-features = false, features = ["alloc", "zer
 
 [dev-dependencies]
 anyhow = "1.0.100"
-bls12_381 = { version = "0.8.0", default-features = false, features = ["groups"] }
 curve25519-dalek = { workspace = true, features = ["rand_core", "alloc", "precomputed-tables", "group"] }
 divan = "0.1.21"
 hash2group = { path = "hash2group", features = ["rfc9380", "curve25519-dalek"] }
@@ -90,7 +89,7 @@ hex = "0.4"
 hex-literal = { workspace = true }
 k256 = { workspace = true, features = ["arithmetic"] }
 p256 = { workspace = true, features = ["arithmetic"] }
-rand = "0.8.5"
+rand = "0.10"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
 serde_with = { version = "3.16.1", features = ["hex"] }
@@ -120,7 +119,7 @@ required-features = ["std", "curve25519-dalek"]
 
 [[test]]
 name = "test_relations"
-required-features = ["std", "bls12_381", "curve25519-dalek", "k256", "p256"]
+required-features = ["std", "curve25519-dalek", "k256", "p256"]
 
 [[test]]
 name = "instance_validation"
@@ -128,7 +127,7 @@ required-features = ["std", "curve25519-dalek"]
 
 [[test]]
 name = "test_batch_verification"
-required-features = ["std", "bls12_381"]
+required-features = ["std", "curve25519-dalek"]
 
 [[test]]
 name = "compressed"
@@ -140,7 +139,7 @@ required-features = ["std", "curve25519-dalek"]
 
 [[test]]
 name = "spec_vectors"
-required-features = ["std", "bls12_381", "p256"]
+required-features = ["std", "p256"]
 
 [[test]]
 name = "error_conversions"

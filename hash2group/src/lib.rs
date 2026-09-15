@@ -81,7 +81,7 @@ pub trait FromUniformBytes: Sized {
 /// ```
 /// # #[cfg(all(feature = "rfc9380", feature = "curve25519-dalek"))] {
 /// use curve25519_dalek::RistrettoPoint;
-/// use sha3::Shake128;
+/// use shake::Shake128;
 /// use hash2group::FromHash;
 ///
 /// let a: RistrettoPoint = FromHash::<Shake128>::from_hash(b"FromHash::docs", b"msg");
@@ -99,7 +99,7 @@ pub trait FromHash<H: ExpandMessage>: FromUniformBytes {
     /// ```
     /// # #[cfg(all(feature = "rfc9380", feature = "p256"))] {
     /// use digest::Update as _;
-    /// use sha3::Shake128;
+    /// use shake::Shake128;
     /// use hash2group::FromHash;
     ///
     /// let mut hasher = Shake128::default();
@@ -132,7 +132,7 @@ pub trait FromHash<H: ExpandMessage>: FromUniformBytes {
     ///
     /// ```
     /// # #[cfg(all(feature = "rfc9380", feature = "p256"))] {
-    /// use sha3::Shake128;
+    /// use shake::Shake128;
     /// use hash2group::FromHash;
     ///
     /// let _: p256::ProjectivePoint =
@@ -152,7 +152,7 @@ pub trait FromHash<H: ExpandMessage>: FromUniformBytes {
 /// ```
 /// # #[cfg(all(feature = "rfc9380", feature = "curve25519-dalek"))] {
 /// use curve25519_dalek::RistrettoPoint;
-/// use sha3::Shake128;
+/// use shake::Shake128;
 /// use hash2group::HashInto;
 ///
 /// let a: RistrettoPoint = Shake128::hash_into(b"HashInto::docs", b"msg");
@@ -172,7 +172,7 @@ where
     /// # #[cfg(all(feature = "rfc9380", feature = "curve25519-dalek"))] {
     /// use curve25519_dalek::RistrettoPoint;
     /// use digest::Update as _;
-    /// use sha3::Shake128;
+    /// use shake::Shake128;
     /// use hash2group::HashInto;
     ///
     /// let a: RistrettoPoint = Shake128::default()
@@ -193,7 +193,7 @@ where
     /// ```
     /// # #[cfg(all(feature = "rfc9380", feature = "curve25519-dalek"))] {
     /// use curve25519_dalek::RistrettoPoint;
-    /// use sha3::Shake128;
+    /// use shake::Shake128;
     /// use hash2group::HashInto;
     ///
     /// let _: RistrettoPoint = Shake128::hash_into(b"HashInto::hash_into::docs", b"msg");

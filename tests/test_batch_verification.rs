@@ -1,7 +1,7 @@
 #[allow(dead_code)]
 mod relations;
 
-use bls12_381::G1Projective as G;
+use curve25519_dalek::RistrettoPoint as G;
 use relations::*;
 use sigma_proofs::linear_relation::Instance;
 use sigma_proofs::{

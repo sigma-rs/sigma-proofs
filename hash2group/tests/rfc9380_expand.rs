@@ -399,7 +399,7 @@ mod expand_message_xmd_sha512 {
 // RFC9380 Appendix K.4 test vectors for expand_message_xof(SHAKE128)
 mod expand_message_xof_shake128 {
     use hex_literal::hex;
-    use sha3::Shake128;
+    use shake::Shake128;
 
     use hash2group::rfc9380::expand_message_xof;
 
@@ -528,7 +528,7 @@ mod expand_message_xof_shake128 {
 // RFC9380 Appendix K.5 test vectors for expand_message_xof(SHAKE128) with long DST
 mod expand_message_xof_shake128_long_dst {
     use hex_literal::hex;
-    use sha3::Shake128;
+    use shake::Shake128;
 
     use hash2group::rfc9380::expand_message_xof;
 
@@ -657,7 +657,7 @@ mod expand_message_xof_shake128_long_dst {
 // RFC9380 Appendix K.6 test vectors for expand_message_xof(SHAKE256)
 mod expand_message_xof_shake256 {
     use hex_literal::hex;
-    use sha3::Shake256;
+    use shake::Shake256;
 
     use hash2group::rfc9380::expand_message_xof;
 
