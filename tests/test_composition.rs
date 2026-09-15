@@ -1,217 +1,542 @@
 use curve25519_dalek::ristretto::RistrettoPoint as G;
 use group::Group;
-
-use sigma_proofs::composition::{
-    ComposedCommitment, ComposedProverState, ComposedRelation, ComposedResponse, ComposedWitness,
-};
-use sigma_proofs::errors::Error;
+use sigma_proofs::codec::ScalarCodec;
+use sigma_proofs::composition::{ComposedInstance, ComposedWitness};
 use sigma_proofs::traits::{SigmaProtocol, SigmaProtocolSimulator};
+use sigma_proofs::{
+    prove_batchable, prove_compact, verify_batchable, verify_compact, NargCodec, ProverRng,
+};
+
+#[allow(dead_code)]
+mod relations;
+use relations::*;
 
 type Scalar = <G as Group>::Scalar;
 
-mod relations;
-pub use relations::*;
+const BATCH_TAG: &[u8] = b"composition tests DSFS";
+const COMPACT_TAG: &[u8] = b"composition tests CMPT";
 
-#[allow(non_snake_case)]
-#[test]
-fn test_composition_example() {
-    // Composition and verification of proof for the following protocol :
-    //
-    // And(
-    //     Or( dleq, pedersen_commitment ),
-    //     Simple( discrete_logarithm ),
-    //     And( pedersen_commitment_dleq, bbs_blind_commitment_computation )
-    // )
-    let domain_sep = b"hello world";
-
-    // definitions of the underlying protocols
-    let mut rng = rand::thread_rng();
-    let (relation1, witness1) = dleq(&mut rng);
-    let (relation2, witness2) = pedersen_commitment(&mut rng);
-    let (relation3, witness3) = discrete_logarithm(&mut rng);
-    let (relation4, witness4) = pedersen_commitment(&mut rng);
-    let (relation5, witness5) = bbs_blind_commitment(&mut rng);
-
-    let wrong_witness2 = (0..witness2.len())
-        .map(|_| <G as Group>::Scalar::random(&mut rng))
-        .collect::<Vec<_>>();
-    // second layer protocol definitions
-    let or_protocol1 = ComposedRelation::<G>::or([relation1, relation2]);
-    let or_witness1 = ComposedWitness::or([witness1, wrong_witness2]);
-
-    let and_protocol1 = ComposedRelation::and([relation4, relation5]);
-    let and_witness1 = ComposedWitness::and([witness4, witness5]);
-
-    // definition of the final protocol
-    let instance = ComposedRelation::and([or_protocol1, relation3.into(), and_protocol1]);
-    let witness = ComposedWitness::and([or_witness1, witness3.into(), and_witness1]);
-
-    let nizk = instance.into_nizk(domain_sep);
-
-    // Batchable and compact proofs
-    let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
-    let proof_compact_bytes = nizk.prove_compact(&witness, &mut rng).unwrap();
-    // Verify proofs
-    assert!(nizk.verify_batchable(&proof_batchable_bytes).is_ok());
-    assert!(nizk.verify_compact(&proof_compact_bytes).is_ok());
+fn wrong_witness(len: usize, rng: &mut ProverRng) -> Vec<Scalar> {
+    (0..len).map(|_| Scalar::sample(rng)).collect()
 }
 
-#[allow(non_snake_case)]
+fn assert_proofs_verify(relation: &ComposedInstance<G>, witness: &ComposedWitness<G>) {
+    let batchable = prove_batchable(BATCH_TAG, relation, witness).unwrap();
+    verify_batchable(BATCH_TAG, relation, &batchable).unwrap();
+
+    let compact = prove_compact(COMPACT_TAG, relation, witness).unwrap();
+    verify_compact(COMPACT_TAG, relation, &compact).unwrap();
+}
+
 #[test]
-fn test_or_one_true() {
-    // Test composition of a basic OR protocol, with one of the two witnesses being valid.
+fn nested_composition_proves_and_verifies() {
+    // And(Or(dleq, pedersen), dlog, And(pedersen, bbs commitment)).
+    let mut rng = ProverRng::from_os_entropy();
+    let (dleq, dleq_witness) = dleq(&mut rng);
+    let (pedersen, pedersen_witness) = pedersen_commitment(&mut rng);
+    let (dlog, dlog_witness) = discrete_logarithm(&mut rng);
+    let (other_pedersen, other_pedersen_witness) = pedersen_commitment(&mut rng);
+    let (bbs, bbs_witness) = bbs_blind_commitment(&mut rng);
 
-    // definitions of the underlying protocols
-    let mut rng = rand::thread_rng();
-    let (relation1, witness1) = dleq::<G>(&mut rng);
-    let (relation2, witness2) = dleq::<G>(&mut rng);
+    let relation = ComposedInstance::and([
+        ComposedInstance::or([dleq, pedersen]).unwrap(),
+        dlog.into(),
+        ComposedInstance::and([other_pedersen, bbs]).unwrap(),
+    ])
+    .unwrap();
+    let witness = ComposedWitness::and([
+        ComposedWitness::or([
+            dleq_witness,
+            wrong_witness(pedersen_witness.len(), &mut rng),
+        ]),
+        dlog_witness.into(),
+        ComposedWitness::and([other_pedersen_witness, bbs_witness]),
+    ]);
 
-    let wrong_witness1 = (0..witness1.len())
-        .map(|_| <G as Group>::Scalar::random(&mut rng))
-        .collect::<Vec<_>>();
-    let wrong_witness2 = (0..witness2.len())
-        .map(|_| <G as Group>::Scalar::random(&mut rng))
-        .collect::<Vec<_>>();
+    assert_proofs_verify(&relation, &witness);
+}
 
-    let or_protocol = ComposedRelation::or([relation1, relation2]);
+#[test]
+fn either_or_branch_can_be_satisfied() {
+    let mut rng = ProverRng::from_os_entropy();
+    let (left, left_witness) = dleq::<G>(&mut rng);
+    let (right, right_witness) = dleq::<G>(&mut rng);
+    let wrong_left = wrong_witness(left_witness.len(), &mut rng);
+    let wrong_right = wrong_witness(right_witness.len(), &mut rng);
+    let relation = ComposedInstance::or([left, right]).unwrap();
 
-    // Construct two witnesses to the protocol, the first and then the second as the true branch.
-    let witness_or_1 = ComposedWitness::or([witness1, wrong_witness2]);
-    let witness_or_2 = ComposedWitness::or([wrong_witness1, witness2]);
-
-    let nizk = or_protocol.into_nizk(b"test_or_one_true");
-
-    for witness in [witness_or_1, witness_or_2] {
-        // Batchable and compact proofs
-        let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
-        let proof_compact_bytes = nizk.prove_compact(&witness, &mut rng).unwrap();
-        // Verify proofs
-        assert!(nizk.verify_batchable(&proof_batchable_bytes).is_ok());
-        assert!(nizk.verify_compact(&proof_compact_bytes).is_ok());
+    for witness in [
+        ComposedWitness::or([left_witness, wrong_right]),
+        ComposedWitness::or([wrong_left, right_witness]),
+    ] {
+        assert_proofs_verify(&relation, &witness);
     }
 }
 
-#[allow(non_snake_case)]
+// Regression cases from https://github.com/sigma-rs/sigma-proofs/issues/226.
 #[test]
-fn test_or_both_true() {
-    // Test composition of a basic OR protocol, with both of the two witnesses being valid.
-
-    // definitions of the underlying protocols
-    let mut rng = rand::thread_rng();
-    let (relation1, witness1) = dleq::<G>(&mut rng);
-    let (relation2, witness2) = dleq::<G>(&mut rng);
-
-    let or_protocol = ComposedRelation::or([relation1, relation2]);
-
-    let witness = ComposedWitness::or([witness1, witness2]);
-    let nizk = or_protocol.into_nizk(b"test_or_both_true");
-
-    // Batchable and compact proofs
-    let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
-    let proof_compact_bytes = nizk.prove_compact(&witness, &mut rng).unwrap();
-    // Verify proofs
-    assert!(nizk.verify_batchable(&proof_batchable_bytes).is_ok());
-    assert!(nizk.verify_compact(&proof_compact_bytes).is_ok());
-}
-
-#[test]
-fn empty_or_verifier_rejects_without_panicking() {
-    let relation: ComposedRelation<G> = ComposedRelation::Or(Vec::new());
-    let commitment = vec![ComposedCommitment::<G>::Or(Vec::new())];
-    let response = vec![ComposedResponse::<G>::Or(Vec::new(), Vec::new())];
-
-    assert!(matches!(
-        relation.verifier(&commitment, &Scalar::from(0u64), &response),
-        Err(Error::InvalidInstanceWitnessPair)
-    ));
-}
-
-#[test]
-fn empty_or_simulate_transcript_rejects_without_panicking() {
-    let relation: ComposedRelation<G> = ComposedRelation::Or(Vec::new());
-
-    assert!(matches!(
-        relation.simulate_transcript(&mut rand::thread_rng()),
-        Err(Error::InvalidInstanceWitnessPair)
-    ));
-}
-
-#[test]
-fn empty_or_simulate_response_cannot_form_commitment() {
-    let relation: ComposedRelation<G> = ComposedRelation::Or(Vec::new());
-    let response = relation.simulate_response(&mut rand::thread_rng());
-
-    assert!(matches!(
-        relation.simulate_commitment(&Scalar::from(0u64), &response),
-        Err(Error::InvalidInstanceWitnessPair)
-    ));
-}
-
-#[test]
-fn empty_or_prover_response_rejects_without_panicking() {
-    let relation: ComposedRelation<G> = ComposedRelation::Or(Vec::new());
-
-    assert!(matches!(
-        relation.prover_response(ComposedProverState::Or(Vec::new()), &Scalar::from(0u64)),
-        Err(Error::InvalidInstanceWitnessPair)
-    ));
-}
-
-#[allow(non_snake_case)]
-#[test]
-fn test_threshold_two_of_three() {
-    // Test composition of a 2-out-of-3 threshold protocol.
-
-    let mut rng = rand::thread_rng();
-    let (relation1, witness1) = dleq::<G>(&mut rng);
-    let (relation2, witness2) = dleq::<G>(&mut rng);
-    let (relation3, witness3) = dleq::<G>(&mut rng);
-
-    let wrong_witness3 = (0..witness3.len())
-        .map(|_| <G as Group>::Scalar::random(&mut rng))
-        .collect::<Vec<_>>();
-
-    let threshold_protocol = ComposedRelation::threshold(2, [relation1, relation2, relation3]);
-    let witness = ComposedWitness::threshold([witness1, witness2, wrong_witness3]);
-    let nizk = threshold_protocol.into_nizk(b"test_threshold_two_of_three");
-
-    let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
-    let proof_compact_bytes = nizk.prove_compact(&witness, &mut rng).unwrap();
-
-    assert!(nizk.verify_batchable(&proof_batchable_bytes).is_ok());
-    assert!(nizk.verify_compact(&proof_compact_bytes).is_ok());
-}
-
-#[allow(non_snake_case)]
-#[test]
-fn test_threshold_two_of_ten_three_valid() {
-    // Test composition of a 2-out-of-10 threshold protocol with three valid witnesses.
-
-    let mut rng = rand::thread_rng();
-
-    let mut relations = Vec::new();
-    let mut witnesses = Vec::new();
-    for _ in 0..10 {
-        let (relation, witness) = dleq::<G>(&mut rng);
-        relations.push(relation);
-        witnesses.push(witness);
+fn simulated_flat_or_verifies() {
+    let mut rng = ProverRng::from_seed([226u8; 32]);
+    for branch_count in [2, 3] {
+        let branches: Vec<_> = (0..branch_count).map(|_| dleq::<G>(&mut rng).0).collect();
+        let relation = ComposedInstance::or(branches).unwrap();
+        let (commitment, challenge, response) = relation.simulate_transcript(&mut rng).unwrap();
+        relation
+            .verifier(&commitment, &challenge, &response)
+            .unwrap();
     }
+}
 
-    // Keep three valid witnesses, corrupt the remaining seven.
-    for witness in witnesses.iter_mut().skip(3) {
-        *witness = (0..witness.len())
-            .map(|_| <G as Group>::Scalar::random(&mut rng))
-            .collect::<Vec<_>>();
+#[test]
+fn nested_or_simulated_inner_branch() {
+    let mut rng = ProverRng::from_seed([227u8; 32]);
+    let (left, left_witness) = dleq::<G>(&mut rng);
+    let (right, right_witness) = dleq::<G>(&mut rng);
+    let (outer, outer_witness) = dleq::<G>(&mut rng);
+    let inner = ComposedInstance::or([left, right]).unwrap();
+    // DLEQ has one scalar; adding one guarantees an invalid witness.
+    let inner_witness = ComposedWitness::or([
+        vec![left_witness[0] + Scalar::from(1u64)],
+        vec![right_witness[0] + Scalar::from(1u64)],
+    ]);
+
+    for inner_first in [true, false] {
+        let mut branches = [inner.clone(), outer.clone().into()];
+        let mut witnesses = [inner_witness.clone(), outer_witness.clone().into()];
+        if !inner_first {
+            branches.reverse();
+            witnesses.reverse();
+        }
+        let relation = ComposedInstance::or(branches).unwrap();
+        let witness = ComposedWitness::or(witnesses);
+        assert_proofs_verify(&relation, &witness);
     }
+}
 
-    let threshold_protocol =
-        ComposedRelation::threshold(2, relations.into_iter().collect::<Vec<_>>());
-    let witness = ComposedWitness::threshold(witnesses.into_iter().collect::<Vec<_>>());
-    let nizk = threshold_protocol.into_nizk(b"test_threshold_two_of_ten_three_valid");
+#[test]
+fn nested_or_honest_inner_branch() {
+    let mut rng = ProverRng::from_seed([228u8; 32]);
+    let (left, left_witness) = dleq::<G>(&mut rng);
+    let (right, right_witness) = dleq::<G>(&mut rng);
+    let (outer, outer_witness) = dleq::<G>(&mut rng);
+    let inner = ComposedInstance::or([left, right]).unwrap();
+    let wrong_left = vec![left_witness[0] + Scalar::from(1u64)];
+    let wrong_right = vec![right_witness[0] + Scalar::from(1u64)];
+    let wrong_outer = vec![outer_witness[0] + Scalar::from(1u64)];
 
-    let proof_batchable_bytes = nizk.prove_batchable(&witness, &mut rng).unwrap();
-    let proof_compact_bytes = nizk.prove_compact(&witness, &mut rng).unwrap();
+    for inner_witness in [
+        ComposedWitness::or([left_witness, wrong_right]),
+        ComposedWitness::or([wrong_left, right_witness]),
+    ] {
+        for inner_first in [true, false] {
+            let mut branches = [inner.clone(), outer.clone().into()];
+            let mut witnesses = [inner_witness.clone(), wrong_outer.clone().into()];
+            if !inner_first {
+                branches.reverse();
+                witnesses.reverse();
+            }
+            let relation = ComposedInstance::or(branches).unwrap();
+            let witness = ComposedWitness::or(witnesses);
+            assert_proofs_verify(&relation, &witness);
+        }
+    }
+}
 
-    assert!(nizk.verify_batchable(&proof_batchable_bytes).is_ok());
-    assert!(nizk.verify_compact(&proof_compact_bytes).is_ok());
+#[test]
+fn threshold_with_exact_quorum_proves_and_verifies() {
+    let mut rng = ProverRng::from_os_entropy();
+    let (a, a_witness) = dleq::<G>(&mut rng);
+    let (b, b_witness) = dleq::<G>(&mut rng);
+    let (c, c_witness) = dleq::<G>(&mut rng);
+    let wrong_c = wrong_witness(c_witness.len(), &mut rng);
+
+    let relation = ComposedInstance::threshold(2, [a, b, c]).unwrap();
+    let witness = ComposedWitness::threshold([a_witness, b_witness, wrong_c]);
+    assert_proofs_verify(&relation, &witness);
+}
+
+/// The empty AND is the trivially true statement: it proves and verifies at
+/// the root with an empty NARG string, and simulates as a branch of an
+/// enclosing composition.
+#[test]
+fn empty_and_is_trivially_true() {
+    let mut rng = ProverRng::from_os_entropy();
+    let (instance, witness) = discrete_logarithm::<G>(&mut rng);
+    let wrong = wrong_witness(witness.len(), &mut rng);
+
+    let empty = ComposedInstance::<G>::and(Vec::<ComposedInstance<G>>::new()).unwrap();
+    let empty_witness = ComposedWitness::<G>::and(Vec::<ComposedWitness<G>>::new());
+    assert!(prove_batchable(BATCH_TAG, &empty, &empty_witness)
+        .unwrap()
+        .is_empty());
+    assert_proofs_verify(&empty, &empty_witness);
+
+    // Provable from either side: through the empty AND with no witness for
+    // the leaf, or through the leaf with the empty AND simulated.
+    let relation = ComposedInstance::or([empty, instance.into()]).unwrap();
+    for witness in [
+        ComposedWitness::or([empty_witness.clone(), wrong.into()]),
+        ComposedWitness::or([empty_witness, witness.into()]),
+    ] {
+        assert_proofs_verify(&relation, &witness);
+    }
+}
+
+/// A threshold of zero is trivially true: it proves with no valid witness,
+/// alone and as a branch, and the 0-of-0 threshold has an empty NARG string.
+#[test]
+fn zero_threshold_is_trivially_true() {
+    let mut rng = ProverRng::from_os_entropy();
+    let (instance, witness) = discrete_logarithm::<G>(&mut rng);
+    let wrong = wrong_witness(witness.len(), &mut rng);
+
+    let empty = ComposedInstance::<G>::threshold(0, Vec::<ComposedInstance<G>>::new()).unwrap();
+    let empty_witness = ComposedWitness::<G>::threshold(Vec::<ComposedWitness<G>>::new());
+    assert!(prove_batchable(BATCH_TAG, &empty, &empty_witness)
+        .unwrap()
+        .is_empty());
+    assert_proofs_verify(&empty, &empty_witness);
+
+    let one_branch = ComposedInstance::threshold(0, [instance.clone()]).unwrap();
+    let one_branch_witness = ComposedWitness::threshold([wrong.clone()]);
+    assert_proofs_verify(&one_branch, &one_branch_witness);
+
+    let relation = ComposedInstance::threshold(0, [instance.clone(), instance.clone()]).unwrap();
+    let relation_witness = ComposedWitness::threshold([wrong.clone(), wrong.clone()]);
+    assert_proofs_verify(&relation, &relation_witness);
+
+    // Provable from either side of an OR: through the zero threshold with
+    // no witness at all, or through the leaf with the threshold simulated.
+    let relation = ComposedInstance::or([relation, instance.into()]).unwrap();
+    for leaf in [wrong, witness] {
+        let relation_witness = ComposedWitness::or([relation_witness.clone(), leaf.into()]);
+        assert_proofs_verify(&relation, &relation_witness);
+    }
+}
+
+#[test]
+fn empty_claim_is_trivially_true() {
+    let mut rng = ProverRng::from_os_entropy();
+    let (instance, witness) = discrete_logarithm::<G>(&mut rng);
+    let empty = ComposedInstance::<G>::claim([]).unwrap();
+    assert_proofs_verify(&empty, &ComposedWitness::Claim);
+
+    // A real empty claim needs no secret; it can also be simulated when a
+    // preceding branch has a valid witness.
+    let relation = ComposedInstance::or([instance.clone().into(), empty.clone()]).unwrap();
+    for secret in [witness.clone(), wrong_witness(witness.len(), &mut rng)] {
+        assert_proofs_verify(
+            &relation,
+            &ComposedWitness::or([secret.into(), ComposedWitness::Claim]),
+        );
+    }
+    let relation = ComposedInstance::and([empty, instance.into()]).unwrap();
+    assert_proofs_verify(
+        &relation,
+        &ComposedWitness::and([ComposedWitness::Claim, witness.into()]),
+    );
+}
+
+fn nonempty_claim(is_true: bool) -> ComposedInstance<G> {
+    // 3 * (2G) - 2 * (3G) = 0; changing the second coefficient makes it false.
+    ComposedInstance::claim([
+        (Scalar::from(3u64), G::generator() * Scalar::from(2u64)),
+        (
+            -Scalar::from(if is_true { 2u64 } else { 1 }),
+            G::generator() * Scalar::from(3u64),
+        ),
+    ])
+    .unwrap()
+}
+
+fn assert_proof_acceptance(
+    relation: &ComposedInstance<G>,
+    witness: &ComposedWitness<G>,
+    expected: bool,
+) {
+    let batchable = prove_batchable(BATCH_TAG, relation, witness).unwrap();
+    assert_eq!(
+        verify_batchable(BATCH_TAG, relation, &batchable).is_ok(),
+        expected
+    );
+    let compact = prove_compact(COMPACT_TAG, relation, witness).unwrap();
+    assert_eq!(
+        verify_compact(COMPACT_TAG, relation, &compact).is_ok(),
+        expected
+    );
+}
+
+#[test]
+fn nonempty_claims_accept_exactly_when_the_public_equation_holds() {
+    for is_true in [false, true] {
+        assert_proof_acceptance(&nonempty_claim(is_true), &ComposedWitness::Claim, is_true);
+    }
+}
+
+#[test]
+fn claim_nodes_obey_and_or_and_threshold_truth_tables() {
+    let mut rng = ProverRng::from_seed([17u8; 32]);
+    let (instance, valid_witness) = discrete_logarithm::<G>(&mut rng);
+    let invalid_witness = vec![valid_witness[0] + Scalar::from(1u64)];
+
+    for claim_is_true in [false, true] {
+        for witness_is_valid in [false, true] {
+            for claim_first in [false, true] {
+                let mut branches = [nonempty_claim(claim_is_true), instance.clone().into()];
+                let mut witnesses = [
+                    ComposedWitness::Claim,
+                    if witness_is_valid {
+                        valid_witness.clone().into()
+                    } else {
+                        invalid_witness.clone().into()
+                    },
+                ];
+                if !claim_first {
+                    branches.reverse();
+                    witnesses.reverse();
+                }
+                // Both orders exercise a true claim as a real or simulated
+                // branch, and a false claim simulated beside a valid witness.
+                assert_proof_acceptance(
+                    &ComposedInstance::and(branches.clone()).unwrap(),
+                    &ComposedWitness::and(witnesses.clone()),
+                    claim_is_true && witness_is_valid,
+                );
+                assert_proof_acceptance(
+                    &ComposedInstance::or(branches.clone()).unwrap(),
+                    &ComposedWitness::or(witnesses.clone()),
+                    claim_is_true || witness_is_valid,
+                );
+                for threshold in 1..=2 {
+                    assert_proof_acceptance(
+                        &ComposedInstance::threshold(
+                            threshold,
+                            [
+                                branches[0].clone(),
+                                branches[1].clone(),
+                                nonempty_claim(false),
+                            ],
+                        )
+                        .unwrap(),
+                        &ComposedWitness::threshold([
+                            witnesses[0].clone(),
+                            witnesses[1].clone(),
+                            ComposedWitness::Claim,
+                        ]),
+                        usize::from(claim_is_true) + usize::from(witness_is_valid) >= threshold,
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn composed_proofs_bind_claim_coefficients_and_elements() {
+    let mut rng = ProverRng::from_seed([19u8; 32]);
+    let (instance, secret) = discrete_logarithm::<G>(&mut rng);
+    let witness = ComposedWitness::or([ComposedWitness::Claim, secret.into()]);
+    let claims = [
+        nonempty_claim(false),
+        nonempty_claim(true),
+        ComposedInstance::claim([
+            (Scalar::from(3u64), G::generator() * Scalar::from(2u64)),
+            (-Scalar::from(1u64), G::generator() * Scalar::from(4u64)),
+        ])
+        .unwrap(),
+    ];
+    let relations =
+        claims.map(|claim| ComposedInstance::or([claim, instance.clone().into()]).unwrap());
+    // All statements are provable through the discrete-log branch, but a
+    // proof must only verify for its original claim's public data.
+    for (i, relation) in relations.iter().enumerate() {
+        let batchable = prove_batchable(BATCH_TAG, relation, &witness).unwrap();
+        let compact = prove_compact(COMPACT_TAG, relation, &witness).unwrap();
+        for (j, other) in relations.iter().enumerate() {
+            assert_eq!(
+                verify_batchable(BATCH_TAG, other, &batchable).is_ok(),
+                i == j
+            );
+            assert_eq!(verify_compact(COMPACT_TAG, other, &compact).is_ok(), i == j);
+        }
+    }
+}
+
+#[test]
+fn thresholds_above_branch_count_are_false_and_simulatable() {
+    let mut rng = ProverRng::from_os_entropy();
+    let (instance, witness) = discrete_logarithm::<G>(&mut rng);
+    for count in [1, 2] {
+        for threshold in [count + 1, u32::MAX as usize] {
+            let impossible =
+                ComposedInstance::threshold(threshold, vec![instance.clone(); count]).unwrap();
+            let impossible_witness = ComposedWitness::threshold(vec![witness.clone(); count]);
+            let batchable = prove_batchable(BATCH_TAG, &impossible, &impossible_witness).unwrap();
+            assert!(verify_batchable(BATCH_TAG, &impossible, &batchable).is_err());
+            let compact = prove_compact(COMPACT_TAG, &impossible, &impossible_witness).unwrap();
+            assert!(verify_compact(COMPACT_TAG, &impossible, &compact).is_err());
+
+            let branches = [impossible, instance.clone().into()];
+            let witnesses = [impossible_witness, witness.clone().into()];
+            for (relation, witness) in [
+                (
+                    ComposedInstance::or(branches.clone()).unwrap(),
+                    ComposedWitness::or(witnesses.clone()),
+                ),
+                (
+                    ComposedInstance::threshold(1, branches).unwrap(),
+                    ComposedWitness::threshold(witnesses),
+                ),
+            ] {
+                assert_proofs_verify(&relation, &witness);
+            }
+        }
+    }
+}
+
+/// A positive threshold over no branches, and therefore an empty OR, is a
+/// false statement. It can still be simulated as a false branch of an OR.
+#[test]
+fn empty_false_compositions_are_supported() {
+    let mut rng = ProverRng::from_os_entropy();
+    let (instance, witness) = discrete_logarithm::<G>(&mut rng);
+
+    let false_threshold =
+        ComposedInstance::<G>::threshold(1, Vec::<ComposedInstance<G>>::new()).unwrap();
+    let false_threshold_witness = ComposedWitness::<G>::threshold(Vec::<ComposedWitness<G>>::new());
+    let batchable = prove_batchable(BATCH_TAG, &false_threshold, &false_threshold_witness).unwrap();
+    assert!(!batchable.is_empty());
+    assert!(verify_batchable(BATCH_TAG, &false_threshold, &batchable).is_err());
+    let compact = prove_compact(COMPACT_TAG, &false_threshold, &false_threshold_witness).unwrap();
+    assert!(!compact.is_empty());
+    assert!(verify_compact(COMPACT_TAG, &false_threshold, &compact).is_err());
+
+    let threshold_encoding = false_threshold.encode_instance().as_ref().to_vec();
+    assert!(threshold_encoding.starts_with(b"sigma-proofs composition THRESHOLD"));
+    let other_false_threshold =
+        ComposedInstance::<G>::threshold(2, Vec::<ComposedInstance<G>>::new()).unwrap();
+    assert_ne!(
+        threshold_encoding,
+        other_false_threshold.encode_instance().as_ref()
+    );
+
+    let relation = ComposedInstance::or([false_threshold, instance.clone().into()]).unwrap();
+    let relation_witness = ComposedWitness::or([false_threshold_witness, witness.clone().into()]);
+    assert_proofs_verify(&relation, &relation_witness);
+
+    let empty_or = ComposedInstance::<G>::or(Vec::<ComposedInstance<G>>::new()).unwrap();
+    let empty_or_encoding = empty_or.encode_instance().as_ref().to_vec();
+    assert!(empty_or_encoding.starts_with(b"sigma-proofs composition OR"));
+    assert_ne!(threshold_encoding, empty_or_encoding);
+    let relation = ComposedInstance::or([empty_or, instance.into()]).unwrap();
+    // The public enum variant and the convenience constructor must agree.
+    for empty_or_witness in [
+        ComposedWitness::<G>::or(Vec::<ComposedWitness<G>>::new()),
+        ComposedWitness::Or(Vec::new()),
+    ] {
+        let relation_witness = ComposedWitness::or([empty_or_witness, witness.clone().into()]);
+        assert_proofs_verify(&relation, &relation_witness);
+    }
+}
+
+#[test]
+fn proofs_bind_trivially_false_statement_structure() {
+    let mut rng = ProverRng::from_os_entropy();
+    let (instance, witness) = discrete_logarithm::<G>(&mut rng);
+    let (other_instance, other_witness) = discrete_logarithm::<G>(&mut rng);
+    let cases = [
+        (
+            ComposedInstance::<G>::or(Vec::<ComposedInstance<G>>::new()).unwrap(),
+            ComposedWitness::Or(Vec::new()),
+        ),
+        (
+            ComposedInstance::<G>::threshold(1, Vec::<ComposedInstance<G>>::new()).unwrap(),
+            ComposedWitness::Threshold(Vec::new()),
+        ),
+        (
+            ComposedInstance::<G>::threshold(2, Vec::<ComposedInstance<G>>::new()).unwrap(),
+            ComposedWitness::Threshold(Vec::new()),
+        ),
+        (
+            ComposedInstance::claim([(Scalar::from(1u64), G::generator())]).unwrap(),
+            ComposedWitness::Claim,
+        ),
+        (
+            ComposedInstance::threshold(2, [instance.clone()]).unwrap(),
+            ComposedWitness::threshold([witness.clone()]),
+        ),
+        (
+            ComposedInstance::threshold(3, [instance.clone()]).unwrap(),
+            ComposedWitness::threshold([witness.clone()]),
+        ),
+        (
+            ComposedInstance::threshold(2, [other_instance]).unwrap(),
+            ComposedWitness::threshold([other_witness]),
+        ),
+    ]
+    .map(|(branch, branch_witness)| {
+        (
+            ComposedInstance::or([branch, instance.clone().into()]).unwrap(),
+            ComposedWitness::or([branch_witness, witness.clone().into()]),
+        )
+    });
+
+    for (i, (relation, witness)) in cases.iter().enumerate() {
+        let batchable = prove_batchable(BATCH_TAG, relation, witness).unwrap();
+        let compact = prove_compact(COMPACT_TAG, relation, witness).unwrap();
+        for (j, (other, _)) in cases.iter().enumerate() {
+            assert_eq!(
+                verify_batchable(BATCH_TAG, other, &batchable).is_ok(),
+                i == j
+            );
+            assert_eq!(verify_compact(COMPACT_TAG, other, &compact).is_ok(), i == j);
+        }
+    }
+}
+
+#[test]
+fn empty_threshold_encoding_bounds() {
+    let boundary =
+        ComposedInstance::<G>::threshold(u32::MAX as usize, Vec::<ComposedInstance<G>>::new())
+            .unwrap();
+    assert!(boundary
+        .encode_instance()
+        .as_ref()
+        .starts_with(b"sigma-proofs composition THRESHOLD"));
+    #[cfg(target_pointer_width = "64")]
+    assert!(ComposedInstance::<G>::threshold(
+        u32::MAX as usize + 1,
+        Vec::<ComposedInstance<G>>::new()
+    )
+    .is_err());
+}
+
+#[test]
+fn simulated_transcripts_verify_for_every_node_shape() {
+    let mut rng = ProverRng::from_os_entropy();
+    let (instance, _) = discrete_logarithm::<G>(&mut rng);
+    let empty_or = ComposedInstance::<G>::or(Vec::<ComposedInstance<G>>::new()).unwrap();
+    let false_threshold =
+        ComposedInstance::<G>::threshold(2, Vec::<ComposedInstance<G>>::new()).unwrap();
+    let nodes = [
+        instance.clone().into(),
+        ComposedInstance::and([instance.clone()]).unwrap(),
+        ComposedInstance::<G>::and(Vec::<ComposedInstance<G>>::new()).unwrap(),
+        ComposedInstance::or([instance.clone()]).unwrap(),
+        empty_or.clone(),
+        ComposedInstance::threshold(0, [instance.clone()]).unwrap(),
+        ComposedInstance::<G>::threshold(0, Vec::<ComposedInstance<G>>::new()).unwrap(),
+        ComposedInstance::threshold(1, [instance.clone(), instance.clone()]).unwrap(),
+        ComposedInstance::threshold(2, [instance.clone()]).unwrap(),
+        ComposedInstance::claim([]).unwrap(),
+        false_threshold.clone(),
+        ComposedInstance::claim([(Scalar::from(0u64), G::generator())]).unwrap(),
+        ComposedInstance::claim([(Scalar::from(1u64), G::generator())]).unwrap(),
+        ComposedInstance::and([empty_or.clone(), false_threshold.clone()]).unwrap(),
+        ComposedInstance::threshold(1, [empty_or, false_threshold, instance.into()]).unwrap(),
+    ];
+    for node in nodes {
+        let (commitment, challenge, response) = node.simulate_transcript(&mut rng).unwrap();
+        node.verifier(&commitment, &challenge, &response).unwrap();
+    }
 }
