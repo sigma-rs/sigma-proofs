@@ -7,9 +7,8 @@ pr_branch_prefix = "release-plz-"
 pr_labels = ["release"]
 release_always = false
 repo_url = "https://github.com/sigma-rs/sigma-proofs"
-semver_check = false
+semver_check = true
 
 [[package]]
 name = "sigma-proofs"
 git_tag_name = "v{{ version }}"
-
