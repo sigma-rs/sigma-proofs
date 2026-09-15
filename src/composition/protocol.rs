@@ -12,7 +12,7 @@ use spongefish::{DuplexSpongeInit, PrivateRng};
 use spongefish::{NargReader, VerificationError};
 use subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
 
-use super::ct::{count_choices, oblivious_compact_points, simulator_flags, Evaluation};
+use super::ct::{count_choices, ct_ge, oblivious_compact_points, simulator_flags, Evaluation};
 use super::poly::{
     evaluate_polynomial, expand_threshold_challenges, interpolate_polynomial, threshold_x,
 };
@@ -388,7 +388,7 @@ where
                     .zip_eq(witnesses)
                     .map(|(instance, witness)| instance.is_witness_valid(witness))
                     .collect::<Vec<Choice>>();
-                Choice::from((count_choices(&valid_witnesses) >= *threshold) as u8)
+                ct_ge(count_choices(&valid_witnesses), *threshold)
             }
             _ => Choice::from(0),
         }

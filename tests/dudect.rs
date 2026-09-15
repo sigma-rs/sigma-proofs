@@ -160,6 +160,38 @@ fn test_ct_or_composition() {
     assert!(stats.max_t.abs() < T_VALUE_THRESHOLD);
 }
 
+/// Keep the public statement fixed while a nested threshold switches from
+/// simulated (one valid witness) to real (nine valid witnesses). Nine branches
+/// exercise recursive compaction, including a non-power-of-two split, and
+/// both the deficit and surplus paths in simulator selection.
+#[test]
+#[serial]
+fn test_ct_threshold_composition() {
+    set_core_affinity().ok();
+    let mut rng = fixed_rng();
+    let (instance, witness) = relations::dleq::<G>(&mut rng);
+    let wrong = vec![witness[0] + Scalar::from(1u64)];
+    let inner = ComposedInstance::threshold(4, vec![instance.clone(); 9]).unwrap();
+    let relation = ComposedInstance::or([inner, instance.into()]).unwrap();
+    let mut partial_witness = vec![wrong; 9];
+    partial_witness[0] = witness.clone();
+    let left = ComposedWitness::or([
+        ComposedWitness::threshold(partial_witness),
+        witness.clone().into(),
+    ]);
+    let right = ComposedWitness::or([
+        ComposedWitness::threshold(vec![witness.clone(); 9]),
+        witness.into(),
+    ]);
+    let stats = compare(
+        "test_ct_threshold_composition",
+        || (relation.clone(), left.clone()),
+        || (relation.clone(), right.clone()),
+    );
+    println!("test_ct_threshold_composition: {stats}");
+    assert!(stats.max_t.abs() < T_VALUE_THRESHOLD);
+}
+
 fn compare<P: NizkProver>(
     name: &str,
     mut left: impl InstanceDist<Protocol = P>,

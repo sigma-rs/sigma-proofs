@@ -2,7 +2,23 @@
 
 use alloc::vec::Vec;
 use itertools::Itertools;
-use subtle::{Choice, ConditionallySelectable};
+use subtle::{Choice, ConditionallySelectable, ConstantTimeEq, ConstantTimeGreater};
+
+/// Constant-time `lhs >= rhs` over the full pointer width.
+///
+/// `subtle` implements ordering for fixed-width unsigned integers, but not
+/// `usize`. Match the target width so counts and offsets are never truncated.
+#[inline]
+pub(super) fn ct_ge(lhs: usize, rhs: usize) -> Choice {
+    #[cfg(target_pointer_width = "16")]
+    let (lhs, rhs) = (lhs as u16, rhs as u16);
+    #[cfg(target_pointer_width = "32")]
+    let (lhs, rhs) = (lhs as u32, rhs as u32);
+    #[cfg(target_pointer_width = "64")]
+    let (lhs, rhs) = (lhs as u64, rhs as u64);
+
+    !rhs.ct_gt(&lhs)
+}
 
 /// Elementwise constant-time selection over two equal-length slices.
 pub(super) fn select_each<T>(
@@ -105,9 +121,9 @@ fn oroffcompact_points<T: ConditionallySelectable>(
     let offset_plus_m_mod = (offset + m) & (half - 1);
     oroffcompact_points(&mut points[half..], &marks[half..], offset_plus_m_mod);
 
-    let s = Choice::from(((offset_mod + m) >= half) as u8) ^ Choice::from((offset >= half) as u8);
+    let s = ct_ge(offset_mod + m, half) ^ ct_ge(offset, half);
     for i in 0..half {
-        let b = s ^ Choice::from((i >= offset_plus_m_mod) as u8);
+        let b = s ^ ct_ge(i, offset_plus_m_mod);
         conditional_swap_point(points, i, i + half, b);
     }
 }
@@ -138,7 +154,7 @@ pub(super) fn oblivious_compact_points<T: ConditionallySelectable>(
     oroffcompact_points(&mut points[n2..], &marks[n2..], (n1 - n2 + m) & (n1 - 1));
 
     for i in 0..n2 {
-        let b = Choice::from((i >= m) as u8);
+        let b = ct_ge(i, m);
         conditional_swap_point(points, i, i + n1, b);
     }
 }
@@ -155,7 +171,7 @@ pub(super) fn oblivious_compact_points<T: ConditionallySelectable>(
 /// that used to be the only check of it is compiled out of release.
 pub(super) fn simulator_flags(valid: &[Choice], threshold: usize) -> Vec<Choice> {
     let valid_count = count_choices(valid);
-    let provable = Choice::from((valid_count >= threshold) as u8);
+    let provable = ct_ge(valid_count, threshold);
     let valid_count = valid_count as u32;
     let threshold = threshold as u32;
 
@@ -169,12 +185,12 @@ pub(super) fn simulator_flags(valid: &[Choice], threshold: usize) -> Vec<Choice>
 
     let mut flags = Vec::with_capacity(valid.len());
     for &valid_witness in valid {
-        let should_seed = valid_witness & Choice::from((remaining_seeds != 0) as u8);
+        let should_seed = valid_witness & !remaining_seeds.ct_eq(&0);
         remaining_seeds = remaining_seeds.wrapping_sub(should_seed.unwrap_u8() as u32);
         flags.push((!valid_witness) | should_seed);
     }
     for (flag, &valid_witness) in flags.iter_mut().zip_eq(valid) {
-        let fill_real = (!valid_witness) & Choice::from((remaining_fills != 0) as u8);
+        let fill_real = (!valid_witness) & !remaining_fills.ct_eq(&0);
         remaining_fills = remaining_fills.wrapping_sub(fill_real.unwrap_u8() as u32);
         *flag &= !fill_real;
     }
@@ -299,8 +315,9 @@ mod verification {
 
     compaction_proof!(compaction_is_correct_1, 1, 4);
     compaction_proof!(compaction_is_correct_2, 2, 4);
-    compaction_proof!(compaction_is_correct_3, 3, 5);
-    compaction_proof!(compaction_is_correct_4, 4, 6);
+    // `ct_ge` also needs room for `subtle`'s fixed-width bit-smearing loops.
+    compaction_proof!(compaction_is_correct_3, 3, 8);
+    compaction_proof!(compaction_is_correct_4, 4, 8);
     compaction_proof!(compaction_is_correct_5, 5, 7);
     compaction_proof!(compaction_is_correct_6, 6, 8);
     compaction_proof!(compaction_is_correct_7, 7, 9);
@@ -407,7 +424,7 @@ mod verification {
         };
     }
 
-    flag_proof!(simulator_flag_count_is_fixed_4, 4, 6);
+    flag_proof!(simulator_flag_count_is_fixed_4, 4, 8);
     flag_proof!(simulator_flag_count_is_fixed_8, 8, 10);
     flag_proof!(simulator_flag_count_is_fixed_16, 16, 18);
 
