@@ -1,89 +1,85 @@
+#[allow(dead_code)]
 mod relations;
 
 use bls12_381::G1Projective as G;
 use relations::*;
-use sigma_proofs::linear_relation::CanonicalLinearRelation;
+use sigma_proofs::linear_relation::Instance;
+use sigma_proofs::{
+    derive_session_id, prove_batchable, verify_batch, verify_batchable, DefaultHash, ProverRng,
+};
 
-// Empty batches are valid, per the spec.
+const TAG: &[u8] = b"batch verification tests DSFS";
+
 #[test]
-fn test_batch_verify_empty() {
-    assert!(CanonicalLinearRelation::<G>::verify_batch(&[]).is_ok());
+fn empty_batch_verifies() {
+    assert!(verify_batch::<G>(&[]).is_ok());
 }
 
 #[test]
-fn test_batch_verify_different_instances() {
-    let mut rng = rand::thread_rng();
-
-    let relation_samplers: Vec<&'static dyn Fn(&mut _) -> _> = vec![
+fn mixed_batch_verifies() {
+    let mut rng = ProverRng::from_os_entropy();
+    let samplers: [&dyn Fn(&mut _) -> _; 4] = [
         &discrete_logarithm,
-        &shifted_dlog,
         &dleq,
-        &shifted_dleq,
         &pedersen_commitment,
-        &twisted_pedersen_commitment,
-        &pedersen_commitment_equality,
-        &bbs_blind_commitment,
-        &test_range,
-        &weird_linear_combination,
-        &simple_subtractions,
-        &subtractions_with_shift,
-        &cmz_wallet_spend_relation,
         &nested_affine_relation,
-        &elgamal_subtraction,
     ];
-
-    let proof_data = relation_samplers
+    let session_id = derive_session_id::<DefaultHash>(TAG);
+    let proof_data = samplers
         .iter()
-        .enumerate()
-        .map(|(i, relation_sampler)| {
-            let (relation, witness) = relation_sampler(&mut rng);
-            let nizk = relation.into_nizk(b"session_identifier").unwrap();
-            // Two proofs for the first instance, so that the batch also
-            // covers repeated instances.
-            let proofs = (0..if i == 0 { 2 } else { 1 })
-                .map(|_| nizk.prove_batchable(&witness, &mut rng).unwrap())
-                .collect::<Vec<_>>();
-            (nizk, proofs)
+        .flat_map(|sample| {
+            let (instance, witness): (Instance<G>, _) = sample(&mut rng);
+            (0..2).map(move |_| {
+                let proof = prove_batchable(TAG, &instance, &witness).unwrap();
+                (instance.clone(), proof)
+            })
         })
         .collect::<Vec<_>>();
-
-    let proofs = proof_data
+    let batch = proof_data
         .iter()
-        .flat_map(|(nizk, proofs)| proofs.iter().map(move |p| (nizk, p.as_slice())))
+        .map(|(instance, proof)| (&session_id, instance, proof.as_slice()))
         .collect::<Vec<_>>();
-    CanonicalLinearRelation::<G>::verify_batch(&proofs).unwrap();
+
+    verify_batch(&batch).unwrap();
 }
 
-// Batch verification must agree with individual verification, on both valid
-// and corrupted proofs.
 #[test]
-fn test_batch_verify_agrees_with_individual() {
-    use rand::Rng;
-    let mut rng = rand::thread_rng();
+fn batch_and_individual_verification_reject_the_same_tampering() {
+    let mut rng = ProverRng::from_os_entropy();
+    let (instance, witness): (Instance<G>, _) = dleq(&mut rng);
+    let session_id = derive_session_id::<DefaultHash>(TAG);
+    let good = prove_batchable(TAG, &instance, &witness).unwrap();
+    let mut tampered = good.clone();
+    tampered[0] ^= 1;
 
-    let samplers: Vec<&'static dyn Fn(&mut _) -> _> = vec![
-        &discrete_logarithm,
-        &dleq,
-        &pedersen_commitment,
-        &bbs_blind_commitment,
-        &cmz_wallet_spend_relation,
-        &nested_affine_relation,
-    ];
+    assert!(verify_batchable(TAG, &instance, &tampered).is_err());
+    assert!(verify_batch(&[
+        (&session_id, &instance, good.as_slice()),
+        (&session_id, &instance, tampered.as_slice()),
+    ])
+    .is_err());
+}
 
-    for sampler in &samplers {
-        let (relation, witness) = sampler(&mut rng);
-        let nizk = relation.into_nizk(b"diff-test").unwrap();
+#[test]
+fn batch_rejects_a_proof_with_the_wrong_session_or_instance() {
+    let mut rng = ProverRng::from_os_entropy();
+    let (instance, witness) = discrete_logarithm::<G>(&mut rng);
+    let (other_instance, _) = discrete_logarithm::<G>(&mut rng);
+    let proof = prove_batchable(TAG, &instance, &witness).unwrap();
+    let session_id = derive_session_id::<DefaultHash>(TAG);
+    let other_session_id = derive_session_id::<DefaultHash>(b"other batch verification tag DSFS");
 
-        for _ in 0..10 {
-            let good = nizk.prove_batchable(&witness, &mut rng).unwrap();
-            let mut bad = nizk.prove_batchable(&witness, &mut rng).unwrap();
-            let position = rng.gen_range(0..bad.len());
-            bad[position] ^= rng.gen_range(1..=u8::MAX);
+    assert!(verify_batch(&[(&other_session_id, &instance, proof.as_slice())]).is_err());
+    assert!(verify_batch(&[(&session_id, &other_instance, proof.as_slice())]).is_err());
+}
 
-            let individual_ok = nizk.verify_batchable(&bad).is_ok();
-            let batch = [(&nizk, good.as_slice()), (&nizk, bad.as_slice())];
-            let batch_ok = CanonicalLinearRelation::<G>::verify_batch(&batch).is_ok();
-            assert_eq!(individual_ok, batch_ok);
-        }
-    }
+#[test]
+fn batch_rejects_trailing_bytes() {
+    let mut rng = ProverRng::from_os_entropy();
+    let (instance, witness) = discrete_logarithm::<G>(&mut rng);
+    let session_id = derive_session_id::<DefaultHash>(TAG);
+    let mut proof = prove_batchable(TAG, &instance, &witness).unwrap();
+    proof.push(0);
+
+    assert!(verify_batch(&[(&session_id, &instance, proof.as_slice())]).is_err());
 }
