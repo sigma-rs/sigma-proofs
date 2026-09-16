@@ -60,9 +60,7 @@ static SAMPLES: LazyLock<usize> = LazyLock::new(|| match std::env::var("DUDECT_S
 /// curve below exercises a different body:
 ///
 /// - **Ristretto** dispatches to curve25519-dalek's `multiscalar_mul`.
-/// - **k256** and **P-256** dispatch to their backends' `lincomb`. These move
-///   the guarantee into dependencies, which is precisely why they are tested
-///   here rather than taken on trust.
+/// - **k256** and **P-256** dispatch to their backends' `lincomb`.
 /// - **BLS12-381 G1** runs the crate's own generic body, shared with G2.
 macro_rules! relation_ct_tests {
     ($mod_name:ident, $group:ty) => {
