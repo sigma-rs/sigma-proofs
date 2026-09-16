@@ -56,10 +56,7 @@ pub trait GroupCodec: PrimeGroup {
     /// Equivalent to [`serialize_element`][GroupCodec::serialize_element] in a
     /// loop, and required to produce identical bytes. Curves whose encoding
     /// is a projective-to-affine conversion override it to amortize the field
-    /// inversion across the whole slice. That is the only reason it exists:
-    /// on BLS12-381 G1 one compression is an inversion (17.1 µs) and the
-    /// batched form costs one inversion for the slice, which is an order of
-    /// magnitude on the instance label. Curves whose encoding is already
+    /// inversion across the whole slice. Curves whose encoding is already
     /// cheap keep the default loop.
     fn serialize_elements(elements: &[Self], out: &mut Vec<u8>) {
         for element in elements {
@@ -115,26 +112,13 @@ mod bls12_381_impl {
 
 // The SEC1 curves. Two notes, one per overridden method.
 //
-// `serialize_elements` is worth overriding for one of the two, and the two
-// curves differ because their crates do.
-//
-// k256 implements `group::Curve` with a
-// real batched normalization (one inversion for the slice), so it takes the
-// same override BLS12-381 does: 58.3/132.7/211.8 µs one-by-one against
-// 4.7/7.6/9.0 µs batched at 8/32/64 points, i.e. 12x to 23x.
-//
-// P-256 does not. `primeorder` leaves `group::Curve::batch_normalize` at the
-// trait's one-by-one default (its batched form is behind `BatchNormalize`,
-// which P-256's field element cannot satisfy: it implements no `Invert`), so
-// the override would buy nothing there and P-256 keeps the default loop.
-// Measured at 8/32/64 points: 32.8/131.9/256.7 µs against 32.7/127.4/257.8,
-// i.e. noise. Re-measure before assuming this is still true of a later
-// `primeorder`.
+// k256 uses its batched normalization for serialization. P-256 retains
+// the default per-element conversion.
 //
 // Deserialization, though, is not canonical without help. SEC1 defines a
 // third one-byte tag beside the `02`/`03` of a compressed point: `05`, the
 // "compact" representation, whose encoding is the same 33 bytes. `sec1`
-// accepts it and `from_encoded_point` recovers the point through `decompact`,
+// accepts it and `from_sec1_point` recovers the point through `decompact`,
 // so `05 || x` and `03 || x` decode to the *same element* and re-encode to
 // `03 || x`. About half of all points admit such a rewrite. That breaks the
 // invariant this trait's documentation states and the specification requires

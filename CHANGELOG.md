@@ -9,6 +9,10 @@ whole public API changed. This is a near-total rewrite tracking the current Fiat
 
 ### Breaking
 
+- Migrated to ff/group 0.14, bls12_381 0.9, curve25519-dalek 5, and
+  k256/p256 0.14, retaining all default curve backends.
+- Migrated hash2group's RFC 9380 maps to RustCrypto `hash2curve` 0.14 and
+  its SHAKE examples and tests to the `shake` crate.
 - The default transcript hash is re-exported as `DefaultHash` from spongefish.
 - Ported to the new `spongefish` API. Group and scalar codecs live in the new `codec` module as extension traits.
 - Dependencies removed: `elliptic-curve`, `rand_core` (and the `rand` feature).

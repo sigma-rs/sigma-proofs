@@ -27,7 +27,7 @@ use std::{
 
 use curve25519_dalek::{RistrettoPoint as G, Scalar};
 
-use rand::Rng;
+use rand::RngExt;
 use serial_test::serial;
 use sigma_proofs::{
     codec::ScalarCodec,
@@ -57,15 +57,11 @@ static SAMPLES: LazyLock<usize> = LazyLock::new(|| match std::env::var("DUDECT_S
 /// The curve matters here, and it did not use to. `MultiScalarMul::msm` --
 /// the constant-time multi-scalar multiplication that `prover_commit` runs
 /// over the witness and the prover's nonces -- is a *per-curve* impl, so each
-/// curve below exercises a different body and all three are needed:
+/// curve below exercises a different body:
 ///
 /// - **Ristretto** dispatches to curve25519-dalek's `multiscalar_mul`.
-/// - **k256** dispatches to `lincomb_ext`. Both of these move the guarantee
-///   into a dependency, which is precisely why they are tested here rather
-///   than taken on trust.
-/// - **P-256** is the curve that runs the crate's own generic body, and it
-///   stands in for every group taking the default: p256 and both BLS12-381
-///   groups, which is what the standards-track consumers use.
+/// - **k256** and **P-256** dispatch to their backends' `lincomb`.
+/// - **BLS12-381 G1** runs the crate's own generic body, shared with G2.
 macro_rules! relation_ct_tests {
     ($mod_name:ident, $group:ty) => {
         mod $mod_name {
@@ -128,6 +124,8 @@ macro_rules! relation_ct_tests {
 relation_ct_tests!(ristretto, curve25519_dalek::RistrettoPoint);
 relation_ct_tests!(p256, ::p256::ProjectivePoint);
 relation_ct_tests!(k256, ::k256::ProjectivePoint);
+#[cfg(feature = "bls12_381")]
+relation_ct_tests!(bls12_381_g1, ::bls12_381::G1Projective);
 
 fn wide_relation<const WIDTH: usize>(
     rng: &mut PrivateRng<impl DuplexSpongeInit<U = u8>>,
@@ -199,10 +197,10 @@ fn compare<P: NizkProver>(
 ) -> CtSummary {
     // Randomize per-pair sampling order so monotonic drift in the host environment (thermal
     // ramp, neighbor activity, frequency scaling) is not attributed to one class.
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let (left_times, right_times): (Vec<u64>, Vec<u64>) = (0..*SAMPLES)
         .map(|_| {
-            if rng.gen::<bool>() {
+            if rng.random::<bool>() {
                 let l = time_prove(left()).as_nanos() as u64;
                 let r = time_prove(right()).as_nanos() as u64;
                 (l, r)
@@ -285,8 +283,8 @@ fn time_prove<P>((rel, wit): (P, P::OwnedWitness)) -> Duration
 where
     P: NizkProver,
 {
-    // NOTE: Creating a new RNG here was found to be important, compared to using `rand::thread_rng`
-    // directly, when the instance generation uses `rand::thread_rng`. Otherwise caching behavior
+    // NOTE: Creating a new RNG here was found to be important, compared to using `rand::rng`
+    // directly, when the instance generation uses `rand::rng`. Otherwise caching behavior
     // leads to false positive timing variance.
     let mut rng = {
         let mut seed = [0u8; 32];
@@ -317,11 +315,11 @@ fn fixed_rng() -> ProverRng {
 #[cfg(not(target_arch = "wasm32"))]
 fn set_core_affinity() -> anyhow::Result<()> {
     use anyhow::Context;
-    use rand::seq::SliceRandom;
+    use rand::seq::IndexedRandom;
 
     let core_ids = core_affinity2::get_core_ids().context("Failed to get core IDs")?;
 
-    let Some(core_id) = core_ids.choose(&mut rand::thread_rng()) else {
+    let Some(core_id) = core_ids.choose(&mut rand::rng()) else {
         anyhow::bail!("No core IDs available");
     };
     core_id
