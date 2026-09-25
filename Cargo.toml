@@ -101,7 +101,7 @@ sha2 = { workspace = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 # 0.16 requires Rust 1.93.1; retain support for the workspace's Rust 1.88 minimum.
-core_affinity2 = "0.15.4"
+core_affinity2 = "0.16.0"
 proptest = "1.8"
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
