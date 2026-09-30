@@ -1424,8 +1424,9 @@ dependencies = [
 
 [[package]]
 name = "spongefish"
-version = "0.7.4"
-source = "git+https://github.com/arkworks-rs/spongefish?branch=mu%2Fdraft-v3#8ab96f45544099d53971cc2cf282ba869e8cc548"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "62560b5029264a655fc461a0ecadc4d24862799190897d3225b3272b7a3f13b7"
 dependencies = [
  "digest",
  "getrandom 0.4.3",

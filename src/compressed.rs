@@ -38,7 +38,7 @@ use core::marker::PhantomData;
 use ff::Field;
 use group::prime::PrimeGroup;
 use spongefish::{
-    Argument, ByteArray, Decoding, Encoding, NargDeserialize, NargReader, Transcript,
+    Argument, ByteArray, Encoding, FromNarg, FromUniform, NargReader, Transcript,
     VerificationError, Witness,
 };
 
@@ -60,17 +60,17 @@ struct Challenge<F>(F);
 #[derive(Clone, Copy, Debug)]
 struct RoundMessage<G, const N: usize>([G; N]);
 
-impl<F: ScalarCodec> Decoding<[u8]> for Challenge<F> {
+impl<F: ScalarCodec> FromUniform<u8> for Challenge<F> {
     type Repr = ByteArray<UNIFORM_BYTES>;
 
-    fn decode(buf: Self::Repr) -> Self {
+    fn from_uniform(buf: Self::Repr) -> Self {
         Self(F::from_uniform_bytes(AsRef::<[u8; UNIFORM_BYTES]>::as_ref(
             &buf,
         )))
     }
 }
 
-impl<G: GroupCodec, const N: usize> Encoding<[u8]> for RoundMessage<G, N> {
+impl<G: GroupCodec, const N: usize> Encoding<u8> for RoundMessage<G, N> {
     fn encode(&self) -> impl AsRef<[u8]> {
         let mut out = Vec::new();
         G::serialize_elements(&self.0, &mut out);
@@ -78,8 +78,8 @@ impl<G: GroupCodec, const N: usize> Encoding<[u8]> for RoundMessage<G, N> {
     }
 }
 
-impl<G: GroupCodec, const N: usize> NargDeserialize for RoundMessage<G, N> {
-    fn deserialize_from_narg(reader: &mut NargReader<'_>) -> Result<Self, VerificationError> {
+impl<G: GroupCodec, const N: usize> FromNarg for RoundMessage<G, N> {
+    fn from_narg(reader: &mut NargReader<'_>) -> Result<Self, VerificationError> {
         let elements = reader.read_with(|reader| deserialize_elements::<G>(reader, N))?;
         match <[G; N]>::try_from(elements) {
             Ok(elements) => Ok(Self(elements)),
@@ -92,7 +92,7 @@ impl<G: GroupCodec, const N: usize> NargDeserialize for RoundMessage<G, N> {
 #[derive(Clone, Copy, Debug)]
 struct Opening<F>(F);
 
-impl<F: ScalarCodec> Encoding<[u8]> for Opening<F> {
+impl<F: ScalarCodec> Encoding<u8> for Opening<F> {
     fn encode(&self) -> impl AsRef<[u8]> {
         let mut out = Vec::new();
         self.0.serialize_scalar(&mut out);
@@ -100,8 +100,8 @@ impl<F: ScalarCodec> Encoding<[u8]> for Opening<F> {
     }
 }
 
-impl<F: ScalarCodec> NargDeserialize for Opening<F> {
-    fn deserialize_from_narg(reader: &mut NargReader<'_>) -> Result<Self, VerificationError> {
+impl<F: ScalarCodec> FromNarg for Opening<F> {
+    fn from_narg(reader: &mut NargReader<'_>) -> Result<Self, VerificationError> {
         reader.read_with(F::deserialize_scalar).map(Self)
     }
 }
