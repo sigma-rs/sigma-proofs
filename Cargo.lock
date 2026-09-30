@@ -595,7 +595,7 @@ dependencies = [
 
 [[package]]
 name = "hash2group"
-version = "0.2.0"
+version = "0.1.2"
 dependencies = [
  "bytemuck",
  "curve25519-dalek",
