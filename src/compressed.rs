@@ -17,7 +17,8 @@
 //! relation.allocate_eq(x * relation.generator() + y * h);
 //! let statement = relation.compile_with_witness(&witness).unwrap();
 //!
-//! const TAG: &[u8] = b"my-application compressed";
+//! // Application, version, epoch, flavor, and an application-defined compressed suite.
+//! const TAG: &[u8] = b"COMPRESSED-EXAMPLE-V01-0001-DSFS-with-sigma-proofs-compressed_TurboShake128_Ristretto255";
 //! let (proof, ()) = Narg::prove::<Compressed<G>>(TAG, &statement, &witness).unwrap();
 //! Narg::verify::<Compressed<G>>(TAG, &statement, &proof).unwrap();
 //! ```

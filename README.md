@@ -21,7 +21,7 @@ let x = relation.allocate_scalar();
 relation.allocate_eq_with(public_key, x * relation.generator());
 
 let statement = relation.compile().unwrap();
-const TAG: &[u8] = b"my-application DSFS";
+const TAG: &[u8] = b"DLOG-EXAMPLE-DSFS-with-sigma-proofs_TurboShake128_Ristretto255";
 let proof = prove_batchable(TAG, &statement, &witness).unwrap();
 verify_batchable(TAG, &statement, &proof).unwrap();
 ```
@@ -43,7 +43,7 @@ let h = relation.allocate_element_with(G::generator() * Scalar::from(7u64));
 relation.allocate_eq(x * relation.generator() + y * h);
 let statement = relation.compile_with_witness(&witness).unwrap();
 
-const TAG: &[u8] = b"my-application compressed";
+const TAG: &[u8] = b"COMPRESSED-EXAMPLE-DSFS-with-sigma-proofs-compressed_TurboShake128_Ristretto255";
 let (proof, ()) = Narg::prove::<Compressed<G>>(TAG, &statement, &witness).unwrap();
 Narg::verify::<Compressed<G>>(TAG, &statement, &proof).unwrap();
 ```
@@ -70,7 +70,7 @@ let right = dlog(G::generator() * x);
 let statement = (left | right).compile()?;
 // Only the right branch needs a valid witness; the left is simulated.
 let witness = ComposedWitness::<G>::from(vec![Scalar::ZERO]) | vec![x];
-const TAG: &[u8] = b"composition-example DSFS";
+const TAG: &[u8] = b"COMPOSITION-EXAMPLE-DSFS-with-sigma-proofs_TurboShake128_Ristretto255";
 let proof = prove_batchable(TAG, &statement, &witness)?;
 verify_batchable(TAG, &statement, &proof)?;
 # Ok::<(), Box<dyn std::error::Error>>(())
@@ -79,6 +79,15 @@ verify_batchable(TAG, &statement, &proof)?;
 A `ComposedRelation` composes pairwise: `a & b & c` is `(a & b) & c`. For composing `n` branches, use `ComposedRelation::{and, or}`. Variables in separate branches are independent; use one `LinearRelation` for equations that must share a witness scalar.
 
 See [`simple_composition.rs`](examples/simple_composition.rs) for a complete OR proof. [`schnorr.rs`](examples/schnorr.rs) shows the compact NARG flavor instead of repeating the batchable flow above.
+
+The example tags follow the [draft's domain-separation guidance](https://www.ietf.org/archive/id/draft-irtf-cfrg-sigma-protocols-03.html#section-5.1):
+application name, flavor (`DSFS` or `CMPT`), and ciphersuite identifier.
+The standalone examples also include version (`V01`) and epoch (`0001`);
+applications should include their own version and epoch as described in the draft.
+The identifiers here are application-defined for
+the default TurboSHAKE128 sponge and Ristretto255 group; they are not suites
+listed in the draft. The compressed protocol uses a separate identifier to
+distinguish its transcript from the uncompressed protocol.
 
 ## Status
 
