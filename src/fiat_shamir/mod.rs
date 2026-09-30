@@ -49,16 +49,16 @@
 //!   the bytes are absorbed and appended in the one call that produces them.
 //!   The serializers are total on the protocol's valid messages.
 //! - Reading one is directed by the instance, and
-//!   [`NargDeserialize`][spongefish::NargDeserialize] is a function of the
+//!   [`FromNarg`][spongefish::FromNarg] is a function of the
 //!   type alone. The shape — how many elements, which branches — comes from
 //!   `self`, never from the bytes being read, which is the property the whole
 //!   parser is built on.
 //! - A challenge is decoded from `Ns + 16` bytes, a width
-//!   [`Decoding::Repr`][spongefish::Decoding] cannot name for a generic
+//!   [`FromUniform::Repr`][spongefish::FromUniform] cannot name for a generic
 //!   field. Both sides squeeze it through `SqueezeChallenge`, so the width
 //!   and the decoding map are written once.
 //!
-//! The orphan rule would bite anyway: `Encoding`/`Decoding` are foreign traits
+//! The orphan rule would bite anyway: `Encoding`/`FromUniform` are foreign traits
 //! and `G`/`G::Scalar` foreign types, so a generic relation cannot implement
 //! them for its own message types without a local newtype.
 //!
@@ -102,7 +102,7 @@ pub use batch::{verify_batch, verify_batch_with};
 /// transcript is parsed, and which are absorbed rather than serialized.
 pub(super) struct PrefixFree<'a>(pub(super) &'a [u8]);
 
-impl Encoding<[u8]> for PrefixFree<'_> {
+impl Encoding<u8> for PrefixFree<'_> {
     fn encode(&self) -> impl AsRef<[u8]> {
         self.0
     }

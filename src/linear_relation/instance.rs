@@ -591,7 +591,7 @@ where
     }
 }
 
-impl<G> Encoding<[u8]> for Instance<G>
+impl<G> Encoding<u8> for Instance<G>
 where
     G: PrimeGroup + MultiScalarMul + GroupCodec,
     G::Scalar: ScalarCodec,
