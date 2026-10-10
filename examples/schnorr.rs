@@ -9,8 +9,9 @@ use sigma_proofs::codec::ScalarCodec;
 use sigma_proofs::{prove_compact, verify_compact};
 use sigma_proofs::{LinearRelation, ProverRng};
 
-/// The `CMPT` marker separates compact proofs from other NARG flavors.
-const TAG: &[u8] = b"sigma-proofs-example CMPT";
+/// Application, version, epoch, and compact flavor, with an application-defined
+/// suite identifying the default TurboSHAKE128 sponge and Ristretto255 group.
+const TAG: &[u8] = b"SCHNORR-EXAMPLE-V01-0001-CMPT-with-sigma-proofs_TurboShake128_Ristretto255";
 
 /// Create the discrete logarithm relation `P = x * G` for the given public key `P`.
 #[allow(non_snake_case)]
