@@ -1,6 +1,9 @@
 //! Errors are separated by operation: [`InvalidInstance`] for statement
 //! construction and decoding, [`InvalidWitness`] for proving, and
 //! [`VerificationError`] for verification.
+//!
+//! A generic [`Error`] type is available for callers that perform more
+//! than one operation.
 
 use alloc::string::String;
 use core::fmt;
@@ -46,6 +49,58 @@ pub struct InvalidWitness;
 
 /// The opaque verification error used by spongefish transcripts.
 pub use spongefish::VerificationError;
+
+/// A generic error during instance generation, proving, or verifying a proof.
+///
+/// Use the operation-specific types when only one operation is involved.
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum Error {
+    /// The statement or its parameters are invalid.
+    InvalidInstance(InvalidInstance),
+    /// The supplied witness cannot prove the relation.
+    InvalidWitness(InvalidWitness),
+    /// Proof verification failed.
+    VerificationFailure(VerificationError),
+}
+
+impl From<InvalidInstance> for Error {
+    fn from(error: InvalidInstance) -> Self {
+        Self::InvalidInstance(error)
+    }
+}
+
+impl From<InvalidWitness> for Error {
+    fn from(error: InvalidWitness) -> Self {
+        Self::InvalidWitness(error)
+    }
+}
+
+impl From<VerificationError> for Error {
+    fn from(error: VerificationError) -> Self {
+        Self::VerificationFailure(error)
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidInstance(error) => error.fmt(f),
+            Self::InvalidWitness(error) => error.fmt(f),
+            Self::VerificationFailure(error) => error.fmt(f),
+        }
+    }
+}
+
+impl core::error::Error for Error {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
+        match self {
+            Self::InvalidInstance(error) => Some(error),
+            Self::InvalidWitness(error) => Some(error),
+            Self::VerificationFailure(error) => Some(error),
+        }
+    }
+}
 
 /// A statement the prover cannot validate is one it cannot prove.
 ///
