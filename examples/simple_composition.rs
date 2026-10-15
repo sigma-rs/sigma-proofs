@@ -13,9 +13,9 @@ use sigma_proofs::{
     prove_batchable, verify_batchable, LinearRelation, ProverRng,
 };
 
-/// The application's tag, carrying the `DSFS` flavor marker required of
-/// batchable NARG strings.
-const TAG: &[u8] = b"or_proof_example DSFS";
+/// Application, version, epoch, and batchable flavor, with an application-defined
+/// suite identifying the default TurboSHAKE128 sponge and Ristretto255 group.
+const TAG: &[u8] = b"OR-PROOF-EXAMPLE-V01-0001-DSFS-with-sigma-proofs_TurboShake128_Ristretto255";
 
 /// The OR of a discrete logarithm `P1 = x1 * G` and a DLEQ `(P2 = x2 * G, Q = x2 * H)`.
 #[allow(non_snake_case)]

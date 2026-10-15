@@ -21,7 +21,7 @@ let x = relation.allocate_scalar();
 relation.allocate_eq_with(public_key, x * relation.generator());
 
 let statement = relation.compile().unwrap();
-const TAG: &[u8] = b"my-application DSFS";
+const TAG: &[u8] = b"DLOG-EXAMPLE-DSFS-with-sigma-proofs_TurboShake128_Ristretto255";
 let proof = prove_batchable(TAG, &statement, &witness).unwrap();
 verify_batchable(TAG, &statement, &proof).unwrap();
 ```
@@ -43,7 +43,7 @@ let h = relation.allocate_element_with(G::generator() * Scalar::from(7u64));
 relation.allocate_eq(x * relation.generator() + y * h);
 let statement = relation.compile_with_witness(&witness).unwrap();
 
-const TAG: &[u8] = b"my-application compressed";
+const TAG: &[u8] = b"COMPRESSED-EXAMPLE-DSFS-with-sigma-proofs-compressed_TurboShake128_Ristretto255";
 let (proof, ()) = Narg::prove::<Compressed<G>>(TAG, &statement, &witness).unwrap();
 Narg::verify::<Compressed<G>>(TAG, &statement, &proof).unwrap();
 ```
@@ -70,7 +70,7 @@ let right = dlog(G::generator() * x);
 let statement = (left | right).compile()?;
 // Only the right branch needs a valid witness; the left is simulated.
 let witness = ComposedWitness::<G>::from(vec![Scalar::ZERO]) | vec![x];
-const TAG: &[u8] = b"composition-example DSFS";
+const TAG: &[u8] = b"COMPOSITION-EXAMPLE-DSFS-with-sigma-proofs_TurboShake128_Ristretto255";
 let proof = prove_batchable(TAG, &statement, &witness)?;
 verify_batchable(TAG, &statement, &proof)?;
 # Ok::<(), Box<dyn std::error::Error>>(())
