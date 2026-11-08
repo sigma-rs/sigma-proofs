@@ -65,7 +65,8 @@ k256 = ["dep:k256"]
 p256 = ["dep:p256"]
 
 [dependencies]
-bls12_381 = { version = "0.9", default-features = false, features = ["groups"], optional = true }
+# bls12_381 0.9.1 group code requires an inversion gated by `pairings`.
+bls12_381 = { version = "0.9", default-features = false, features = ["pairings"], optional = true }
 curve25519-dalek = { workspace = true, features = ["alloc", "group", "precomputed-tables"], optional = true }
 ff = { version = "0.14", default-features = false, features = ["std"] }
 group = "0.14.0"
@@ -83,7 +84,8 @@ zeroize = { version = "1.8", default-features = false, features = ["alloc", "zer
 
 [dev-dependencies]
 anyhow = "1.0.100"
-bls12_381 = { version = "0.9", default-features = false, features = ["groups"] }
+# Keep the workaround enabled when testing without default features.
+bls12_381 = { version = "0.9", default-features = false, features = ["pairings"] }
 curve25519-dalek = { workspace = true, features = ["rand_core", "alloc", "precomputed-tables", "group"] }
 divan = "0.1.21"
 hash2group = { path = "hash2group", features = ["rfc9380", "curve25519-dalek"] }
