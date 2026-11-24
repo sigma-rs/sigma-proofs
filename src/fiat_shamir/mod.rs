@@ -171,13 +171,13 @@ pub trait NargCodec: SigmaProtocol {
     /// Deserialization function for the commitment message.
     fn deserialize_commitment(
         &self,
-        reader: &mut NargReader<'_>,
+        reader: &NargReader<'_>,
     ) -> Result<Self::Commitment, VerificationError>;
 
     /// Deserialization function for the response message.
     fn deserialize_response(
         &self,
-        reader: &mut NargReader<'_>,
+        reader: &NargReader<'_>,
     ) -> Result<Self::Response, VerificationError>;
 }
 
@@ -221,16 +221,13 @@ where
         serialize_scalars_into(response, out);
     }
 
-    fn deserialize_commitment(
-        &self,
-        reader: &mut NargReader<'_>,
-    ) -> Result<Vec<G>, VerificationError> {
+    fn deserialize_commitment(&self, reader: &NargReader<'_>) -> Result<Vec<G>, VerificationError> {
         deserialize_elements(reader, self.num_equations())
     }
 
     fn deserialize_response(
         &self,
-        reader: &mut NargReader<'_>,
+        reader: &NargReader<'_>,
     ) -> Result<Vec<G::Scalar>, VerificationError> {
         deserialize_scalars(reader, self.num_scalars())
     }
@@ -451,9 +448,9 @@ where
     P: NargCodec + SigmaProtocolSimulator,
     P::Challenge: ScalarCodec,
 {
-    let mut reader = NargReader::new(narg_string);
-    let challenge = P::Challenge::deserialize_scalar(&mut reader)?;
-    let response = instance.deserialize_response(&mut reader)?;
+    let reader = NargReader::new(narg_string);
+    let challenge = P::Challenge::deserialize_scalar(&reader)?;
+    let response = instance.deserialize_response(&reader)?;
     if !reader.is_empty() {
         return Err(VerificationError);
     }
