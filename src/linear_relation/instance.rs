@@ -537,27 +537,27 @@ where
     /// same acceptance criteria as construction via
     /// [`LinearRelation::compile`][super::LinearRelation::compile].
     pub fn deserialize(data: &[u8]) -> Result<Self, InvalidInstance> {
-        let mut reader = NargReader::new(data);
+        let reader = NargReader::new(data);
         let le = repr_is_le::<G::Scalar>();
 
-        let num_equations = read_u32(&mut reader, "equation count")?;
+        let num_equations = read_u32(&reader, "equation count")?;
         let mut equations = Vec::new();
         let mut max_element_index = 1u32;
         for _ in 0..num_equations {
-            let num_image_terms = read_u32(&mut reader, "image term count")?;
+            let num_image_terms = read_u32(&reader, "image term count")?;
             let mut image = Vec::new();
             for _ in 0..num_image_terms {
-                let element_index = read_u32(&mut reader, "image element index")?;
-                let coeff = read_scalar::<G>(&mut reader, le)?;
+                let element_index = read_u32(&reader, "image element index")?;
+                let coeff = read_scalar::<G>(&reader, le)?;
                 max_element_index = max_element_index.max(element_index);
                 image.push((element_index, coeff));
             }
-            let num_terms = read_u32(&mut reader, "term count")?;
+            let num_terms = read_u32(&reader, "term count")?;
             let mut terms = Vec::new();
             for _ in 0..num_terms {
-                let scalar_index = read_u32(&mut reader, "scalar index")?;
-                let element_index = read_u32(&mut reader, "term element index")?;
-                let coeff = read_scalar::<G>(&mut reader, le)?;
+                let scalar_index = read_u32(&reader, "scalar index")?;
+                let element_index = read_u32(&reader, "term element index")?;
+                let coeff = read_scalar::<G>(&reader, le)?;
                 max_element_index = max_element_index.max(element_index);
                 terms.push((scalar_index, element_index, coeff));
             }
@@ -573,7 +573,7 @@ where
         // consumes `element_len()` bytes and a read past the end fails.
         let mut elements = Vec::with_capacity(usize::min(num_serialized, 64));
         for i in 2..=max_element_index as usize {
-            let element = G::deserialize_element(&mut reader)
+            let element = G::deserialize_element(&reader)
                 .map_err(|_| InvalidInstance::new(format!("invalid group element at index {i}")))?;
             elements.push(element);
         }
@@ -627,14 +627,14 @@ where
     }
 }
 
-fn read_u32(reader: &mut NargReader<'_>, field: &str) -> Result<u32, InvalidInstance> {
+fn read_u32(reader: &NargReader<'_>, field: &str) -> Result<u32, InvalidInstance> {
     reader
         .read::<u32>()
         .map_err(|_| InvalidInstance::new(format!("truncated {field}")))
 }
 
 fn read_scalar<G: PrimeGroup>(
-    reader: &mut NargReader<'_>,
+    reader: &NargReader<'_>,
     le: bool,
 ) -> Result<G::Scalar, InvalidInstance>
 where

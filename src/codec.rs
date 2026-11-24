@@ -44,7 +44,7 @@ pub trait GroupCodec: PrimeGroup {
     ///
     /// Curves whose crate accepts more than one encoding of an element
     /// override this to reject the extra forms.
-    fn deserialize_element(reader: &mut NargReader<'_>) -> Result<Self, VerificationError> {
+    fn deserialize_element(reader: &NargReader<'_>) -> Result<Self, VerificationError> {
         let mut repr = <Self as group::GroupEncoding>::Repr::default();
         let len = repr.as_ref().len();
         repr.as_mut().copy_from_slice(reader.take(len)?);
@@ -136,7 +136,7 @@ mod bls12_381_impl {
 #[cfg(any(feature = "k256", feature = "p256"))]
 macro_rules! sec1_deserialize {
     () => {
-        fn deserialize_element(reader: &mut NargReader<'_>) -> Result<Self, VerificationError> {
+        fn deserialize_element(reader: &NargReader<'_>) -> Result<Self, VerificationError> {
             let mut repr = <Self as group::GroupEncoding>::Repr::default();
             let bytes = reader.take(Self::element_len())?;
             // `00` is the identity, which the codec admits;
@@ -222,7 +222,7 @@ pub trait ScalarCodec: PrimeField + zeroize::Zeroize {
     fn serialize_scalar(&self, out: &mut Vec<u8>);
 
     /// Reads one canonical scalar from the front of `reader`.
-    fn deserialize_scalar(reader: &mut NargReader<'_>) -> Result<Self, VerificationError>;
+    fn deserialize_scalar(reader: &NargReader<'_>) -> Result<Self, VerificationError>;
 
     /// `DecodeField(buf, p, 1)`: little-endian wide reduction of
     /// [`challenge_len()`][ScalarCodec::challenge_len] uniform bytes.
@@ -261,7 +261,7 @@ impl<F: PrimeField + zeroize::Zeroize> ScalarCodec for F {
         serialize_scalar_with_endianness(self, repr_is_le::<F>(), out);
     }
 
-    fn deserialize_scalar(reader: &mut NargReader<'_>) -> Result<Self, VerificationError> {
+    fn deserialize_scalar(reader: &NargReader<'_>) -> Result<Self, VerificationError> {
         deserialize_scalar_with_endianness(reader, repr_is_le::<F>())
     }
 }
@@ -289,7 +289,7 @@ pub(crate) fn serialize_scalar_with_endianness<F: PrimeField>(
 /// [`ScalarCodec::deserialize_scalar`] with the endianness already probed. See
 /// [`serialize_scalar_with_endianness`].
 pub(crate) fn deserialize_scalar_with_endianness<F: PrimeField>(
-    reader: &mut NargReader<'_>,
+    reader: &NargReader<'_>,
     repr_is_le: bool,
 ) -> Result<F, VerificationError> {
     let mut repr = F::Repr::default();
@@ -313,7 +313,7 @@ pub(crate) fn serialize_scalars_into<F: ScalarCodec>(scalars: &[F], out: &mut Ve
 ///
 /// `n` comes from the instance, never from the byte string being read.
 pub(crate) fn deserialize_elements<G: GroupCodec>(
-    reader: &mut NargReader<'_>,
+    reader: &NargReader<'_>,
     n: usize,
 ) -> Result<Vec<G>, VerificationError> {
     (0..n).map(|_| G::deserialize_element(reader)).collect()
@@ -323,7 +323,7 @@ pub(crate) fn deserialize_elements<G: GroupCodec>(
 ///
 /// `n` comes from the instance, never from the byte string being read.
 pub(crate) fn deserialize_scalars<F: ScalarCodec>(
-    reader: &mut NargReader<'_>,
+    reader: &NargReader<'_>,
     n: usize,
 ) -> Result<Vec<F>, VerificationError> {
     let le = repr_is_le::<F>();
@@ -487,9 +487,9 @@ mod tests {
             let mut encoded = Vec::new();
             G::serialize_elements(&slice, &mut encoded);
 
-            let mut reader = NargReader::new(&encoded);
+            let reader = NargReader::new(&encoded);
             let decoded = (0..slice.len())
-                .map(|_| G::deserialize_element(&mut reader))
+                .map(|_| G::deserialize_element(&reader))
                 .collect::<Result<Vec<_>, _>>();
             assert_eq!(decoded.ok().as_deref(), Some(slice.as_slice()));
             assert!(reader.is_empty());

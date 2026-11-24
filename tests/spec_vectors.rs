@@ -136,10 +136,10 @@ where
 }
 
 fn decode_scalars<F: ScalarCodec>(bytes: &[u8]) -> Vec<F> {
-    let mut reader = NargReader::new(bytes);
+    let reader = NargReader::new(bytes);
     let mut scalars = Vec::new();
     while !reader.is_empty() {
-        scalars.push(F::deserialize_scalar(&mut reader).expect("invalid witness scalar"));
+        scalars.push(F::deserialize_scalar(&reader).expect("invalid witness scalar"));
     }
     scalars
 }

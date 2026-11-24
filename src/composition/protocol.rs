@@ -65,7 +65,7 @@ where
     /// untrusted bytes and recursion is bounded by the relation tree.
     fn deserialize_commitment_tree(
         &self,
-        reader: &mut NargReader<'_>,
+        reader: &NargReader<'_>,
     ) -> Result<ComposedCommitment<G>, VerificationError> {
         if self.is_trivially_false() {
             return Ok(ComposedCommitment::Claim(G::deserialize_element(reader)?));
@@ -119,7 +119,7 @@ where
     /// The inverse of [`ComposedInstance::serialize_response_tree`].
     fn deserialize_response_tree(
         &self,
-        reader: &mut NargReader<'_>,
+        reader: &NargReader<'_>,
     ) -> Result<ComposedResponse<G>, VerificationError> {
         if self.is_trivially_false() {
             return Ok(ComposedResponse::Claim);
@@ -152,7 +152,7 @@ where
     /// One response per branch, in branch order.
     fn deserialize_branch_responses(
         branches: &[Self],
-        reader: &mut NargReader<'_>,
+        reader: &NargReader<'_>,
     ) -> Result<Vec<ComposedResponse<G>>, VerificationError> {
         branches
             .iter()
@@ -244,14 +244,14 @@ where
 
     fn deserialize_commitment(
         &self,
-        reader: &mut NargReader<'_>,
+        reader: &NargReader<'_>,
     ) -> Result<ComposedCommitment<G>, VerificationError> {
         self.deserialize_commitment_tree(reader)
     }
 
     fn deserialize_response(
         &self,
-        reader: &mut NargReader<'_>,
+        reader: &NargReader<'_>,
     ) -> Result<ComposedResponse<G>, VerificationError> {
         self.deserialize_response_tree(reader)
     }

@@ -80,7 +80,7 @@ impl<G: GroupCodec, const N: usize> Encoding<u8> for RoundMessage<G, N> {
 }
 
 impl<G: GroupCodec, const N: usize> FromNarg for RoundMessage<G, N> {
-    fn from_narg(reader: &mut NargReader<'_>) -> Result<Self, VerificationError> {
+    fn from_narg(reader: &NargReader<'_>) -> Result<Self, VerificationError> {
         let elements = reader.read_with(|reader| deserialize_elements::<G>(reader, N))?;
         match <[G; N]>::try_from(elements) {
             Ok(elements) => Ok(Self(elements)),
@@ -102,7 +102,7 @@ impl<F: ScalarCodec> Encoding<u8> for Opening<F> {
 }
 
 impl<F: ScalarCodec> FromNarg for Opening<F> {
-    fn from_narg(reader: &mut NargReader<'_>) -> Result<Self, VerificationError> {
+    fn from_narg(reader: &NargReader<'_>) -> Result<Self, VerificationError> {
         reader.read_with(F::deserialize_scalar).map(Self)
     }
 }

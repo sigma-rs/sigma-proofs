@@ -73,14 +73,14 @@ impl NargCodec for ExternalCodec {
 
     fn deserialize_commitment(
         &self,
-        reader: &mut NargReader<'_>,
+        reader: &NargReader<'_>,
     ) -> Result<Self::Commitment, VerificationError> {
         G::deserialize_element(reader)
     }
 
     fn deserialize_response(
         &self,
-        reader: &mut NargReader<'_>,
+        reader: &NargReader<'_>,
     ) -> Result<Self::Response, VerificationError> {
         Scalar::deserialize_scalar(reader)
     }
@@ -190,9 +190,9 @@ fn identity_commitments_verify_in_both_narg_flavors() {
     assert_eq!(commitment, vec![G::identity()]);
 
     let batchable = prove_batchable(BATCH_TAG, &instance, &witness).unwrap();
-    let mut reader = NargReader::new(&batchable);
+    let reader = NargReader::new(&batchable);
     assert_eq!(
-        instance.deserialize_commitment(&mut reader).unwrap(),
+        instance.deserialize_commitment(&reader).unwrap(),
         commitment
     );
     verify_batchable(BATCH_TAG, &instance, &batchable).unwrap();
@@ -230,9 +230,9 @@ fn assert_serializers_append<P: NargCodec>(
     assert_eq!(out.capacity(), capacity);
 
     // Parse exactly one commitment and one response from a shared buffer.
-    let mut reader = NargReader::new(&out[prefix.len()..]);
-    let decoded_commitment = instance.deserialize_commitment(&mut reader).unwrap();
-    let decoded_response = instance.deserialize_response(&mut reader).unwrap();
+    let reader = NargReader::new(&out[prefix.len()..]);
+    let decoded_commitment = instance.deserialize_commitment(&reader).unwrap();
+    let decoded_response = instance.deserialize_response(&reader).unwrap();
     assert!(reader.is_empty());
     assert_eq!(
         instance.serialize_commitment(&decoded_commitment),
