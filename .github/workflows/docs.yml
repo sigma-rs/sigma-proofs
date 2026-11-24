@@ -21,11 +21,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Single deploy job since we're just deploying
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: git clone
@@ -41,8 +37,19 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v5
         with:
-          # Upload entire repository
+          # Upload the generated documentation.
           path: 'target/doc'
+
+  # Wait for the upload job to finish before looking up its artifact:
+  # https://github.com/actions/deploy-pages/issues/451
+  # Retrying only this job also avoids uploading duplicate github-pages artifacts.
+  deploy:
+    needs: build
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
